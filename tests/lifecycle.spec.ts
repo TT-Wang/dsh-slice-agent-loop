@@ -22,7 +22,7 @@ import SessionPersistence, {
   type SessionLocation,
   type SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
-import { SliceAgentLifecycle, type LifecycleAgent } from '../src/lifecycle.ts'
+import { SliceAgentLifecycle, type LifecycleAgent } from '../src/lifecycle.js'
 
 function deferred<T>(): {
   readonly promise: Promise<T>

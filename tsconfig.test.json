@@ -2,14 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
-<<<<<<< HEAD
     "rootDir": ".",
     "types": ["node"]
   },
   "include": ["src", "tests/**/*.ts"]
-=======
-    "rootDir": "."
-  },
-  "include": ["src", "tests"]
->>>>>>> c4c8481 (feat(phase-2): add exact dsh inbox adapter ledger)
 }
