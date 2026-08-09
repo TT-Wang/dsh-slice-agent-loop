@@ -31,6 +31,8 @@
  */
 
 import type { Context } from 'cordis'
+import { readFileSync } from 'node:fs'
+import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
 import type {
   Agent,
@@ -64,13 +66,14 @@ import {
 import { createScope } from '@deepseek-ai/dsh-scope'
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import type {
+  EpochHeader,
   RequestContext,
   Session,
   SessionId,
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
 import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
-import { renderPrompt, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
+import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
   TOOL_REGISTRY_SCHEDULER,
@@ -80,7 +83,18 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
-import { assembleSlice, normalizeCtx, type AssembledSlice } from './slice/index.js'
+import { RuntimeContextProjection } from './runtime-context.js'
+import { assembleSlice, type AssembledSlice } from './slice/index.js'
+import {
+  createContinuity,
+  recordUser,
+  fillAssistant,
+  sealTurn,
+  toSliceCtx,
+  trackEdit,
+  type Continuity,
+} from './continuity.js'
+import { SYSTEM_PROMPT } from './system-prompt.js'
 
 type Phase =
   | { kind: 'idle'; lastTurn: number }
@@ -126,7 +140,13 @@ export class SliceLoopAgent implements Agent {
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
   private requestHeaderLogged = false
-  private sliceSpec: Record<string, unknown> = { s: { task: {} } }
+  /** 跨轮携带态（continuity.ts：对话环 + SESSION TAPE + 文件锚点）。 */
+  private readonly cont: Continuity = createContinuity()
+  /** 轮内轨迹（sliceagent 轮内原生累积语义）：首轮种子 + 本轮助手/工具消息。 */
+  private turnSeedUser?: Message
+  private turnTrajectory: Message[] = []
+  /** 动态运行时上下文投影（stock agent-loop 同构）：快照变化才落 durable 消息。 */
+  private readonly runtimeContext: RuntimeContextProjection
 
   constructor(
     loopCtx: Context,
@@ -147,6 +167,7 @@ export class SliceLoopAgent implements Agent {
       signal: () => (this.phase.kind === 'idle' ? undefined : this.phase.abort.signal),
       wake: () => this.wakeDriver(),
     })
+    this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
     // Resume: turn numbering continues from the seeded session's last turn.
     let lastTurn = 0
     for (let index = session.events.length - 1; index >= 0; index -= 1) {
@@ -288,10 +309,17 @@ export class SliceLoopAgent implements Agent {
       : this.ledger.claimNextStep(position.turn)
     const assembly = await this.loopCtx.systemPrompt.assemble(assembleContextFor(this, signal))
     signal.throwIfAborted()
+    // 动态运行时上下文投影（stock agent.ts:211 同构）：快照变化时作为
+    // plugin/@deepseek-ai/dsh-system-prompt 的 durable 消息并入批。
+    const sections = renderContextSections(assembly)
+    const context = this.runtimeContext.project(joinContextSections(sections), sections)
     const decision: PreStepDecision = await this.dispatch.waterfall(
       'agent/pre-step',
       { messages: claimed, ...position, signal },
-      async () => ({ kind: 'enter', messages: claimed }) as PreStepDecision,
+      async () => ({
+        kind: 'enter',
+        messages: context === undefined ? claimed : [...claimed, context],
+      }) as PreStepDecision,
     )
     signal.throwIfAborted()
     return decision.kind === 'reject' ? decision : { ...decision, assembly }
@@ -312,6 +340,8 @@ export class SliceLoopAgent implements Agent {
       this.throwError(error)
     }
     phase.turn = turn
+    this.turnSeedUser = undefined
+    this.turnTrajectory = []
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
     try {
@@ -329,6 +359,12 @@ export class SliceLoopAgent implements Agent {
         if (phase.step === 0 && decision.messages.length === 0) {
           turnEnds = { kind: 'completed' }
           return false
+        }
+        // record_user（continuity.ts）：首轮用户请求进对话环 + 话题 goal 落首条。
+        if (phase.step === 0 && target === 'next-turn' && decision.messages.length > 0) {
+          const text = decision.messages.map((m) => blockText(m)).filter(Boolean).join('\n')
+          if (!this.cont.goal) this.cont.goal = text
+          recordUser(this.cont, text)
         }
         signal.throwIfAborted()
         this.session.append('step/start', { turn, step })
@@ -373,6 +409,20 @@ export class SliceLoopAgent implements Agent {
       } catch (error: unknown) {
         this.throwError(error)
       }
+      // 轮末封存（continuity.ts sealTurn）：digest + 文件锚点 + 答复冻结进
+      // SESSION TAPE + GC——下一轮 slice 的近期交换呈现层。
+      try {
+        const last = this.cont.conversation[this.cont.conversation.length - 1]
+        sealTurn(this.cont, {
+          turnId: `slice-turn-${turn}-${Date.now().toString(36)}`,
+          status: turnEnds?.kind ?? 'error',
+          userRequest: last?.user ?? '',
+          assistantReply: last?.assistant ?? '',
+          sessionId: this.session.id,
+        })
+      } catch {
+        // 封存失败不反转已完成的轮（与 sidecar 同级容错）。
+      }
     }
     if (!this.inbox.hasPending) return false
     // A later turn gets a fresh abort scope: a cancel that killed this turn must
@@ -393,25 +443,27 @@ export class SliceLoopAgent implements Agent {
 
     // Assemble the bounded slice for this step. The dsh system prompt is the
     // host-owned byte-stable system prefix; the slice engine owns the volatile
-    // user-side context selection.
+    // user-side context selection. 携带态（this.cont）经 toSliceCtx 每轮重建——
+    // bounded slice ≠ 从零开始（continuity.ts）。
     const requestText = claimed.map((m) => blockText(m)).join('\n')
-    this.sliceSpec = {
-      ...this.sliceSpec,
-      s: { ...(this.sliceSpec.s as Record<string, unknown>),
-           task: { goal: requestText, goal_source: 'conversation' } },
-    }
     const assembled: AssembledSlice = assembleSlice(
-      normalizeCtx(this.sliceSpec, (text) => text),
+      toSliceCtx(this.cont),
       { systemPrefix: renderPrompt(assembly), request: requestText },
     )
     const tools = assembly.tools
 
     while (true) {
-      const seed = {
-        ...(this.options.provider !== undefined ? { provider: this.options.provider } : {}),
-        ...(this.options.model !== undefined ? { model: this.options.model } : {}),
-        ...(this.options.maxTokens !== undefined ? { maxTokens: this.options.maxTokens } : {}),
-      } as LlmCallConfig
+      // 冻结请求提案（stock requestProposal 同构）：首轮 = agent options（冻结）；
+      // 之后 = 持久 epoch header 的 config 派生（去掉 adapterDefaults 标记键，
+      // 冻结）——后续轮次的提案以日志为准，不再回退到启动选项。
+      const baselineHeader = this.session.requestHeader()
+      const seed: LlmCallConfig = baselineHeader !== undefined
+        ? deepFreeze(requestProposal(baselineHeader)) as LlmCallConfig
+        : deepFreeze({
+            ...(this.options.provider !== undefined ? { provider: this.options.provider } : {}),
+            ...(this.options.model !== undefined ? { model: this.options.model } : {}),
+            ...(this.options.maxTokens !== undefined ? { maxTokens: this.options.maxTokens } : {}),
+          }) as LlmCallConfig
       const proposed: LlmCallConfig = await this.dispatch.waterfall(
         'agent/request',
         { turn, step, signal },
@@ -461,14 +513,21 @@ export class SliceLoopAgent implements Agent {
         this.session.append('request/context', requestContext)
       }
 
-      // Tool continuations replay the derived history so the provider sees the
-      // exact tool-call/tool-result pairing; input steps send the bounded slice.
-      const messages: Message[] = claimed.length === 0
-        ? this.session.deriveMessages()
-        : [createUserMessage({
-            content: [{ type: 'text', text: assembled.userString }],
-            source: { kind: 'user' },
-          })]
+      // 轮内轨迹续步（sliceagent 语义：轮内累积本轮原生消息，轮界重建切片）。
+      // 输入步发切片种子；续步发同一种子 + 本轮助手/工具消息——不再是全会话
+      // deriveMessages()（跨轮无界，评审缺口 2 的修复）。
+      let messages: Message[]
+      if (claimed.length > 0) {
+        this.turnSeedUser = createUserMessage({
+          content: [{ type: 'text', text: assembled.userString }],
+          source: { kind: 'user' },
+        })
+        messages = [this.turnSeedUser]
+      } else {
+        messages = this.turnSeedUser !== undefined
+          ? [this.turnSeedUser, ...this.turnTrajectory]
+          : this.session.deriveMessages()
+      }
       const request = markAgentLoopRequest(deepFreeze({
         ...header.config,
         messages,
@@ -516,6 +575,11 @@ export class SliceLoopAgent implements Agent {
         { turn, step, message, ...(assembler.usage === undefined ? {} : { usage: assembler.usage }) },
         { surfaceOp: 'append', sourceEventSeqs: chunkSeqs },
       )
+      // 轮内轨迹 + 对话环助手侧（continuity.ts fillAssistant）。
+      this.turnTrajectory.push(message)
+      fillAssistant(this.cont, message.content
+        .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
+        .map((b) => b.text).join(''))
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
 
       const toolCalls = message.content.filter(
@@ -696,7 +760,19 @@ export class SliceLoopAgent implements Agent {
     const event = this.session.append('tool/call', {
       turn, step, callId: block.id, name: block.name, arguments: block.arguments,
     })
+    // 编辑族工具：记录路径，轮末 seal 锚定文件后态（continuity.ts trackEdit）。
+    if (EDIT_TOOL_NAMES.has(block.name)) {
+      const path = toolPath(block.arguments)
+      if (path !== undefined) {
+        trackEdit(this.cont, path, () => readFileSafe(this.sessionCwd(), path))
+      }
+    }
     return event.seq
+  }
+
+  /** 会话工作目录（session.header.cwd 为权威，同 WP6 教训）。 */
+  private sessionCwd(): string {
+    return (this.session.header?.cwd as string | undefined) ?? process.cwd()
   }
 
   /** Append a model-ordered result linked to its call event. */
@@ -719,6 +795,7 @@ export class SliceLoopAgent implements Agent {
       // The tool's private presentation payload, persisted for replay.
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    this.turnTrajectory.push(message)
   }
 
   /** Append the durable call/result pair for a model call skipped after cancellation. */
@@ -751,4 +828,45 @@ function blockText(message: UserMessage): string {
     .filter((block) => block.type === 'text')
     .map((block) => (block as { text: string }).text)
     .join('\n')
+}
+
+// ------------------------------------------------------------------ seal helpers
+
+/** stock agent-loop 的 requestProposal（agent.ts:55 同构）：从持久 epoch header
+ * 派生下一次请求提案——adapterDefaults 标记为 true 的键是适配器默认值，丢弃后
+ * 让适配器重新解析，显式设置保留。 */
+function requestProposal(header: EpochHeader): LlmCallConfig {
+  if (header.adapterDefaults === undefined) return header.config
+  const proposal = { ...header.config } as Record<string, unknown>
+  for (const key of ['reasoningEffort', 'maxTokens'] as const) {
+    if ((header.adapterDefaults as Record<string, unknown>)[key] === true) delete proposal[key]
+  }
+  return proposal as unknown as LlmCallConfig
+}
+
+/** 编辑族工具（dsh tool-fs 命名 + sliceagent 命名），seal 时锚定文件后态。 */
+const EDIT_TOOL_NAMES = new Set([
+  'edit_file', 'write_file', 'str_replace', 'append_to_file', 'create_file',
+])
+
+/** 从工具参数 JSON 提取文件路径（宽容格式：path/file_path/filePath）。 */
+function toolPath(rawArguments: string): string | undefined {
+  try {
+    const args = JSON.parse(rawArguments || '{}') as Record<string, unknown>
+    const p = args.path ?? args.file_path ?? args.filePath
+    return typeof p === 'string' && p.trim() ? p : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** 读文件后态；缺失/二进制/越界一律 null（该文件本轮不进 tape 锚点）。 */
+function readFileSafe(cwd: string, relOrAbs: string): string | null {
+  try {
+    const abs = isAbsolute(relOrAbs) ? relOrAbs : resolvePath(cwd, relOrAbs)
+    const body = readFileSync(abs, 'utf8')
+    return body.includes('') ? null : body
+  } catch {
+    return null
+  }
 }
