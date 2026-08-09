@@ -1,6 +1,6 @@
 {
   "name": "dsh-slice-agent-loop",
-  "description": "SliceAgent concrete agent loop plugin for the DeepSeek Harness — a drop-in AgentFactory/Agent implementation whose context engine is the bounded slice",
+  "description": "SliceAgent concrete agent loop plugin for the DeepSeek Harness \u2014 a drop-in AgentFactory/Agent implementation whose context engine is the bounded slice",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -18,14 +18,9 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-<<<<<<< HEAD
-    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "goldens": "PYTHONPATH=/Users/tongtao/code/sliceagent/packages/sliceagent-core/src /Users/tongtao/code/sliceagent/.venv/bin/python tests/golden/gen_goldens.py"
-=======
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
-    "test": "vitest run"
->>>>>>> c4c8481 (feat(phase-2): add exact dsh inbox adapter ledger)
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
@@ -40,10 +35,6 @@
   },
   "devDependencies": {
     "typescript": "^5.5.0",
-<<<<<<< HEAD
     "vitest": "^4.1.10"
-=======
-    "vitest": "^4.1.8"
->>>>>>> c4c8481 (feat(phase-2): add exact dsh inbox adapter ledger)
   }
 }
