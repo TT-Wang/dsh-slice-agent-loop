@@ -18,9 +18,14 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+<<<<<<< HEAD
     "typecheck": "tsc -p tsconfig.test.json --noEmit",
     "test": "vitest run",
     "goldens": "PYTHONPATH=/Users/tongtao/code/sliceagent/packages/sliceagent-core/src /Users/tongtao/code/sliceagent/.venv/bin/python tests/golden/gen_goldens.py"
+=======
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "test": "vitest run"
+>>>>>>> c4c8481 (feat(phase-2): add exact dsh inbox adapter ledger)
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
@@ -35,6 +40,10 @@
   },
   "devDependencies": {
     "typescript": "^5.5.0",
+<<<<<<< HEAD
     "vitest": "^4.1.10"
+=======
+    "vitest": "^4.1.8"
+>>>>>>> c4c8481 (feat(phase-2): add exact dsh inbox adapter ledger)
   }
 }
