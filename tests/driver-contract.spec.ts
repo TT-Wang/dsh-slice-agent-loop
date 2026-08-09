@@ -368,6 +368,36 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('projects dynamic system-prompt context into durable model-visible input', async () => {
+    const adapter = new MockAdapter([textResponse('ready')])
+    const ctx = await harness(adapter)
+    ctx.systemPrompt.context({
+      name: 'audit:runtime-context',
+      order: 50,
+      text: 'AUDIT RUNTIME CONTEXT MARKER',
+    })
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('dynamic-prompt-context'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'read the runtime context')
+    await handle.agent.whenIdle()
+
+    const durableContext = handle.agent.session.events.find(event =>
+      event.type === 'user/message'
+      && event.data.source.kind === 'plugin'
+      && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
+    expect({
+      modelSawContext: JSON.stringify(adapter.requests[0]?.messages)
+        .includes('AUDIT RUNTIME CONTEXT MARKER'),
+      durableContext: durableContext?.type === 'user/message'
+        && JSON.stringify(durableContext.data.content).includes('AUDIT RUNTIME CONTEXT MARKER'),
+    }).toEqual({ modelSawContext: true, durableContext: true })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('deduplicates unchanged request epochs and request context across same-turn steps', async () => {
     const adapter = new MockAdapter([textResponse('first'), textResponse('second')])
     const ctx = await harness(adapter)
