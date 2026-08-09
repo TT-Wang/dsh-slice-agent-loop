@@ -42,7 +42,7 @@ import type {
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
 import { InboxLedger, type InboxLedgerActivity } from './inbox-ledger.js'
-import { assembleSlice, type AssembledSlice, type SliceCtx } from './slice/index.js'
+import { assembleSlice, normalizeCtx, type AssembledSlice } from './slice/index.js'
 
 type Phase =
   | { kind: 'idle'; lastTurn: number }
@@ -73,7 +73,7 @@ export class SliceLoopAgent implements Agent {
   private phase: Phase = { kind: 'idle', lastTurn: 0 }
   private activityDone: Promise<void> | undefined
   private requestHeaderLogged: EpochHeader | undefined
-  private sliceState: Record<string, unknown> = {}
+  private sliceSpec: Record<string, unknown> = { s: { task: {} } }
 
   constructor(
     loopCtx: Context,
@@ -252,8 +252,13 @@ export class SliceLoopAgent implements Agent {
 
     // assemble the bounded slice for this step
     const requestText = decision.messages.map((m) => blockText(m)).join('\n')
-    this.sliceState = { ...this.sliceState, task: requestText }
-    const assembled: AssembledSlice = assembleSlice(this.sliceState as unknown as SliceCtx, {
+    this.sliceSpec = {
+      ...this.sliceSpec,
+      s: { ...(this.sliceSpec.s as Record<string, unknown>),
+           task: { goal: requestText, goal_source: 'conversation' } },
+    }
+    const ctx = normalizeCtx(this.sliceSpec, (text) => text)
+    const assembled: AssembledSlice = assembleSlice(ctx, {
       systemPrefix: '',
       request: requestText,
     })
@@ -297,10 +302,11 @@ export class SliceLoopAgent implements Agent {
     config: LlmCallConfig,
   ): Promise<'aborted' | 'max-tokens' | 'continue'> {
     const prepared: PreparedLlmCall = await this.loopCtx.llm.prepareCall(config, running.abort.signal)
+    // dispatch with the RESOLVED config fields so prepared.stream's equality holds
     const options: GenerateOptions = deepFreeze(
       markAgentLoopRequest({
-        provider: config.provider,
-        model: config.model,
+        provider: prepared.config.provider,
+        model: prepared.config.model,
         system: assembled.systemPrefix || undefined,
         messages: [
           createUserMessage({
@@ -308,17 +314,21 @@ export class SliceLoopAgent implements Agent {
             source: { kind: 'user' },
           }),
         ],
-        ...(config.maxTokens !== undefined ? { maxTokens: config.maxTokens } : {}),
-        ...(config.reasoningEffort !== undefined ? { reasoningEffort: config.reasoningEffort } : {}),
+        ...(prepared.config.maxTokens !== undefined ? { maxTokens: prepared.config.maxTokens } : {}),
+        ...(prepared.config.reasoningEffort !== undefined ? { reasoningEffort: prepared.config.reasoningEffort } : {}),
       }) as GenerateOptions,
     )
     const chunkSeqs: number[] = []
-    let text = ''
+    const blocks = new Map<number, { type: string; text: string }>()
     let sawMaxTokens = false
     try {
       for await (const chunk of prepared.stream(options)) {
         chunkSeqs.push(this.session.append('assistant/chunk', { turn, step, chunk }).seq)
-        if (chunk.type === 'text-delta') text += chunk.text
+        // canonical content arrives in block-end blocks; deltas are the streaming view
+        if (chunk.type === 'block-end') blocks.set(chunk.index, chunk.block as { type: string; text: string })
+        if (chunk.type === 'text-delta' && !blocks.has(chunk.index)) {
+          blocks.set(chunk.index, { type: 'text', text: (blocks.get(chunk.index)?.text ?? '') + chunk.text })
+        }
         if (chunk.type === 'finish' && chunk.reason.kind === 'max-tokens') sawMaxTokens = true
       }
     } catch (error) {
@@ -337,8 +347,11 @@ export class SliceLoopAgent implements Agent {
       if (running.abort.signal.aborted) return 'aborted'
       throw error
     }
+    // keep reasoning and text as separate content blocks, in stream order
+    const content = [...blocks.entries()].sort(([a], [b]) => a - b)
+      .map(([, block]) => ({ type: block.type, text: block.text }) as { type: 'text'; text: string })
     const assistant = createAssistantMessage({
-      content: [{ type: 'text', text }],
+      content,
       source: { provider: config.provider, model: config.model },
     })
     this.session.append(

@@ -6,7 +6,7 @@
  * factory fails loudly, never an order-dependent pick — plan v2.1 phase 0).
  */
 
-import { Context } from 'cordis'
+import { Context, Service } from 'cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
@@ -16,15 +16,18 @@ export interface Config {
   maxParallelToolCalls?: number
 }
 
-export const name = 'slice-agent-loop'
+export class SliceLoopPlugin extends Service {
+  static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt']
 
-export function apply(ctx: Context, _config: Config = {} as Config): void {
-  const lifecycle = new SliceAgentLifecycle(
-    ctx,
-    (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-      new SliceLoopAgent(loopCtx, id, options, session),
-  )
-  ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
+  constructor(ctx: Context, _config: Config = {}) {
+    super(ctx, 'sliceAgentLoop')
+    const lifecycle = new SliceAgentLifecycle(
+      ctx,
+      (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
+        new SliceLoopAgent(loopCtx, id, options, session),
+    )
+    ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
+  }
 }
 
-export default apply
+export default SliceLoopPlugin

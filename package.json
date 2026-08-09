@@ -35,7 +35,8 @@
   },
   "devDependencies": {
     "typescript": "^5.5.0",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "tsx": "^4.19.0"
   },
   "dependencies": {
     "@deepseek-ai/dsh-agent": "file:/Users/tongtao/.dsh/source/current/packages/core/agent",
@@ -45,6 +46,7 @@
     "@deepseek-ai/dsh-tools": "file:/Users/tongtao/.dsh/source/current/packages/core/tools",
     "@deepseek-ai/dsh-scope": "file:/Users/tongtao/.dsh/source/current/packages/core/scope",
     "@deepseek-ai/dsh-session-persistence": "file:/Users/tongtao/.dsh/source/current/packages/session-persistence/session-persistence",
-    "cordis": "file:/Users/tongtao/.dsh/source/current/packages/core/agent/node_modules/cordis"
+    "cordis": "file:/Users/tongtao/.dsh/source/current/packages/core/agent/node_modules/cordis",
+    "@deepseek-ai/dsh-llm-deepseek": "file:/Users/tongtao/.dsh/source/current/packages/llm/llm-deepseek"
   }
 }
