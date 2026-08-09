@@ -137,6 +137,63 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('folds a frozen request proposal from the durable epoch across turns', async () => {
+    const adapter = new MockAdapter([textResponse('first'), textResponse('second')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('request-config-fold'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const frozen: boolean[] = []
+    let request = 0
+    handle.agent.ctx.on('agent/request', async (_payload, next) => {
+      const config = await next()
+      frozen.push(Object.isFrozen(config))
+      request += 1
+      return request === 1 ? { ...config, temperature: 0.25 } : config
+    })
+
+    send(handle.agent, 'first')
+    await handle.agent.whenIdle()
+    send(handle.agent, 'second')
+    await handle.agent.whenIdle()
+
+    expect({
+      frozen,
+      requestTemperatures: adapter.requests.map(item => item.temperature),
+      headerTemperatures: handle.agent.session.events.flatMap(event =>
+        event.type === 'request/header' ? [event.data.header.config.temperature] : []),
+    }).toEqual({
+      frozen: [true, true],
+      requestTemperatures: [0.25, 0.25],
+      headerTemperatures: [0.25],
+    })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('makes the prior assistant turn available to the next bounded request', async () => {
+    const adapter = new MockAdapter([
+      textResponse('FIRST ASSISTANT ANSWER MARKER'),
+      textResponse('continued'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('cross-turn-continuity'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'first question')
+    await handle.agent.whenIdle()
+    send(handle.agent, 'what did you just answer?')
+    await handle.agent.whenIdle()
+
+    expect(JSON.stringify(adapter.requests[1]?.messages))
+      .toContain('FIRST ASSISTANT ANSWER MARKER')
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('keeps steering from turn-stopping in the same turn as a later step', async () => {
     const adapter = new MockAdapter([textResponse('first'), textResponse('second')])
     const ctx = await harness(adapter)
