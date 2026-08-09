@@ -27,6 +27,33 @@ export function toolCallResponse(rawCallId: string, name: string, args: object):
   ]
 }
 
+/** Build one assistant response containing several model-ordered tool calls. */
+export function multiToolCallResponse(
+  calls: ReadonlyArray<{ id: string; name: string; args: object }>,
+): StreamChunk[] {
+  const chunks: StreamChunk[] = []
+  calls.forEach((call, index) => {
+    chunks.push(
+      { type: 'block-start', index, blockType: 'tool-call' },
+      {
+        type: 'block-end',
+        index,
+        block: {
+          type: 'tool-call',
+          id: CallId(call.id),
+          name: call.name,
+          arguments: JSON.stringify(call.args),
+        },
+      },
+    )
+  })
+  chunks.push(
+    { type: 'usage', usage: { inputTokens: 10, outputTokens: 5 } },
+    { type: 'finish', reason: { kind: 'tool-calls' } },
+  )
+  return chunks
+}
+
 export class MockAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
 

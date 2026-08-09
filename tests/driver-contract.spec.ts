@@ -5,17 +5,23 @@ import LlmService, { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import apply from '../src/index.js'
-import { errorResponse, MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
+import apply, { type Config } from '../src/index.js'
+import {
+  errorResponse,
+  MockAdapter,
+  multiToolCallResponse,
+  textResponse,
+  toolCallResponse,
+} from './mock-adapter.js'
 
-async function harness(adapter: MockAdapter): Promise<Context> {
+async function harness(adapter: MockAdapter, config: Config = {}): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmService)
   await ctx.plugin(SessionStore)
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRegistry)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(apply)
+  await ctx.plugin(apply, config)
   ctx.llm.registerAdapter(['mock'], adapter)
   return ctx
 }
@@ -323,6 +329,163 @@ describe('SliceLoopAgent contract gates', () => {
     expect(adapter.requests).toHaveLength(2)
     expect(handle.agent.session.events.filter(event => event.type === 'tool/call')).toHaveLength(1)
     expect(handle.agent.session.events.filter(event => event.type === 'tool/result')).toHaveLength(1)
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('assembles scoped system sections and registered tool schemas into the model request', async () => {
+    const adapter = new MockAdapter([textResponse('ready')])
+    const ctx = await harness(adapter)
+    ctx.systemPrompt.section({ name: 'audit:system', order: 50, text: 'AUDIT SYSTEM MARKER' })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'audit_echo',
+      description: 'echo audit text',
+      parameters: { text: { type: 'string', required: true } },
+      execute: async ({ text }) => [{ type: 'text', text }],
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('prompt-and-tools'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'discover the registered tool')
+    await handle.agent.whenIdle()
+
+    const header = handle.agent.session.events.find(event => event.type === 'request/header')
+    const persisted = header?.type === 'request/header' ? header.data.header : undefined
+    expect({
+      requestSystem: adapter.requests[0]?.system?.includes('AUDIT SYSTEM MARKER') ?? false,
+      requestTools: adapter.requests[0]?.tools?.map(tool => tool.name) ?? [],
+      headerSystem: persisted?.system?.includes('AUDIT SYSTEM MARKER') ?? false,
+      headerTools: persisted?.tools?.map(tool => tool.name) ?? [],
+    }).toEqual({
+      requestSystem: true,
+      requestTools: ['audit_echo'],
+      headerSystem: true,
+      headerTools: ['audit_echo'],
+    })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('deduplicates unchanged request epochs and request context across same-turn steps', async () => {
+    const adapter = new MockAdapter([textResponse('first'), textResponse('second')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('stable-request-epoch'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    let steered = false
+    handle.agent.ctx.on('agent/turn-stopping', ({ agent }) => {
+      if (steered) return
+      steered = true
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: 'same request epoch' }],
+        source: { kind: 'plugin', plugin: 'driver-contract' },
+      }))
+    })
+
+    send(handle.agent, 'first step')
+    await handle.agent.whenIdle()
+
+    expect(adapter.requests).toHaveLength(2)
+    expect({
+      headers: handle.agent.session.events.filter(event => event.type === 'request/header').length,
+      contexts: handle.agent.session.events.filter(event => event.type === 'request/context').length,
+    }).toEqual({ headers: 1, contexts: 1 })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('continues turn numbering from a balanced seeded session', async () => {
+    const adapter = new MockAdapter([textResponse('first'), textResponse('resumed')])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('seed-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, 'first turn')
+    await first.agent.whenIdle()
+    const seed = structuredClone(first.agent.session.events)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('seed-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'second turn')
+    await resumed.agent.whenIdle()
+
+    expect(adapter.requests).toHaveLength(2)
+    expect({
+      starts: resumed.agent.session.events.filter(event => event.type === 'turn/start')
+        .map(event => event.data.turn),
+      ends: resumed.agent.session.events.filter(event => event.type === 'turn/end')
+        .map(event => event.data.turn),
+    }).toEqual({ starts: [1, 2], ends: [1, 2] })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps agent quiescence fulfilled when the maintenance caller observes rejection', async () => {
+    const ctx = await harness(new MockAdapter([]))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('maintenance-rejection'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const failure = new Error('maintenance failed')
+
+    await expect(handle.agent.runMaintenance(async () => { throw failure })).rejects.toBe(failure)
+    await expect(handle.agent.whenIdle()).resolves.toBeUndefined()
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('rejects invalid maxParallelToolCalls configuration in direct construction', () => {
+    expect(() => new apply(new Context(), { maxParallelToolCalls: 0 })).toThrow(
+      'maxParallelToolCalls must be a positive integer',
+    )
+    expect(() => new apply(new Context(), { maxParallelToolCalls: 1.5 })).toThrow(
+      'maxParallelToolCalls must be a positive integer',
+    )
+  })
+
+  it('overlaps concurrency-safe tool bodies up to maxParallelToolCalls', async () => {
+    const adapter = new MockAdapter([
+      multiToolCallResponse([
+        { id: 'parallel-1', name: 'parallel_audit', args: { id: 'one' } },
+        { id: 'parallel-2', name: 'parallel_audit', args: { id: 'two' } },
+      ]),
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter, { maxParallelToolCalls: 2 })
+    let active = 0
+    let maxActive = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'parallel_audit',
+      description: 'measure scheduler overlap',
+      parameters: { id: { type: 'string', required: true } },
+      isConcurrencySafe: () => true,
+      execute: async ({ id }) => {
+        active += 1
+        maxActive = Math.max(maxActive, active)
+        await new Promise(resolve => setTimeout(resolve, 20))
+        active -= 1
+        return [{ type: 'text', text: id }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('parallel-tool-calls'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'run both calls')
+    await handle.agent.whenIdle()
+
+    expect(maxActive).toBe(2)
+    expect(handle.agent.session.events.filter(event => event.type === 'tool/result'))
+      .toHaveLength(2)
     await handle.dispose()
     await ctx.fiber.dispose()
   })
