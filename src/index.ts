@@ -37,6 +37,11 @@ export class SliceLoopPlugin extends Service {
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'sliceAgentLoop')
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
+    // 提示词变量所有权（架构文档：the loop supplies provider/model/cwd）——
+    // stock agent-loop/index.ts:312-314 同构；缺了 persona 节的 {{cwd}} 解析不了。
+    ctx.systemPrompt.variable('provider', (context) => context.agent?.options.provider)
+    ctx.systemPrompt.variable('model', (context) => context.agent?.options.model)
+    ctx.systemPrompt.variable('cwd', (context) => context.agent?.session.header.cwd)
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
