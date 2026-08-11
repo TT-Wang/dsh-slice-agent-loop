@@ -185,7 +185,7 @@ export class SliceLoopAgent implements Agent {
     // continuity the moment they commit — live and rebuilt agents agree.
     this.ctx.on('session/event', (subject, event) => {
       if (subject !== session || !isReplacementSurfaceEvent(event)) return
-      this.applySurfaceReplacement(event.sourceEventSeqs ?? [],
+      this.applySurfaceReplacement(event.surfaceOp,
         event.type === 'user/message' ? blockText(event.data) : '')
     })
     // Agent recreation/resume: rebuild the bounded conversation ring from the
@@ -242,7 +242,7 @@ export class SliceLoopAgent implements Agent {
         // Canonical surface replacement: rewrite the shadowed turn(s) to the
         // summary instead of replaying the shadowed originals.
         if (isReplacementSurfaceEvent(event)) {
-          this.applySurfaceReplacement(event.sourceEventSeqs ?? [], blockText(event.data))
+          this.applySurfaceReplacement(event.surfaceOp, blockText(event.data))
           continue
         }
         if (step !== 1 || isRuntimeContextMessage(event.data)) continue
@@ -283,24 +283,30 @@ export class SliceLoopAgent implements Agent {
   }
 
   /** Rewrite the shadowed turns of one canonical surface replacement to its summary. */
-  private applySurfaceReplacement(sourceEventSeqs: readonly number[], summary: string): void {
+  private applySurfaceReplacement(
+    surfaceOp: { op: 'replace'; start: number; end: number },
+    summary: string,
+  ): void {
     if (!summary) return
-    for (const turn of this.shadowedTurns(sourceEventSeqs)) {
+    for (const turn of this.shadowedTurns(surfaceOp)) {
       compactTurn(this.cont, turn, summary, this.session.id)
     }
   }
 
-  /** Map shadowed surface seqs to their enclosing turn numbers. */
-  private shadowedTurns(seqs: readonly number[]): number[] {
-    const targets = new Set(seqs)
+  /**
+   * Map a replacement's surface span to its enclosing turn numbers. The
+   * shadowed set is exactly the surface nodes in `start..end` (inclusive);
+   * `sourceEventSeqs` is provenance and may legally cite unshadowed nodes.
+   */
+  private shadowedTurns(surfaceOp: { op: 'replace'; start: number; end: number }): number[] {
     const turns = new Set<number>()
     let open: number | null = null
     for (const event of this.session.events) {
       if (event.type === 'turn/start') open = event.data.turn
-      if (targets.has(event.seq)) {
+      if (event.seq >= surfaceOp.start && event.seq <= surfaceOp.end) {
         if (event.type === 'assistant/message' || event.type === 'tool/result') {
           turns.add(event.data.turn)
-        } else if (open !== null) {
+        } else if (event.type === 'user/message' && open !== null) {
           turns.add(open)
         }
       }
