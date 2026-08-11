@@ -100,8 +100,8 @@ history is the entire point.
 
 This plugin therefore **refuses to load** beside it, with an error explaining
 the fix, rather than letting every turn die inside `llm/stream`. Watch out for
-this: `dsh scaffold` writes `agent-loop-invariant` as a row *separate* from
-`agent-loop`, so swapping the loop does not remove it.
+this: compositions commonly carry `agent-loop-invariant` as a row *separate*
+from `agent-loop`, so swapping the loop row does not remove the companion.
 
 ```yaml
 # remove this row when switching to the slice loop
@@ -134,6 +134,14 @@ stock companion it is **true** for this loop:
 
 All three are plugin-owned and log-only: they never enter the model surface, so they
 add nothing to the prompt.
+
+They are also registered into the harness's session-event vocabulary at plugin
+load. 20260811 closed that vocabulary: the persistence read path refuses to
+interpret a log containing an unknown type — and since the write path is
+deliberately unguarded, an unregistered plugin event works live and then
+poisons its own resume. Reproduced end to end against a real
+`PersistenceCoordinator`; the registration (and its revert on unload) is gated
+in `tests/driver-contract.spec.ts`.
 
 ## File anchoring
 
@@ -219,9 +227,13 @@ What skews a measurement is the identity stack. That session carried **four**:
 | 3 | `You are interacting with the user through the … Web GUI…` | web bundle | do not benchmark through `dsh web` |
 | 4 | `You are a coding agent powered by the {{model}} model…` | preset `persona` | use the preset below |
 
-`presets/benchmark.agent.cordis.yml` is `standard` minus exactly two rows:
-`persona` and the `compaction` group. Every tool is kept, including plan mode —
-a benchmark that quietly narrows the tool surface measures a different agent.
+`presets/benchmark.agent.cordis.yml` is `standard` minus the `compaction`
+group, with the `persona` row replaced by an **empty** persona. Empty, not
+absent: the deployment persona section is registered unconditionally from host
+config, and a preset persona is only a per-scope shadow — dropping the row
+would leave the deployment default in the prompt. An empty shadow wins the slot
+and render drops empty sections. Every tool is kept, including plan mode — a
+benchmark that quietly narrows the tool surface measures a different agent.
 
 ```sh
 mkdir -p "$DSH_HOME/.agent-presets/slice-benchmark"
@@ -231,6 +243,37 @@ cp presets/benchmark.agent.cordis.yml \
 
 Preset rows are unreachable from a host-plane patch, which is why this ships as
 a preset rather than as more lines in `cordis.patch.yml`.
+
+
+## Memory recall
+
+The tape truncates every sealed reply at 1,200 code points and marks the cut:
+`…[+N chars in sealed turn]`. `recall_turn` is the way back — a real registered
+tool, not a locator into a filesystem that does not exist here:
+
+```
+recall_turn({"turn": "slice-turn-3"})
+```
+
+It serves the **verbatim** full text — the complete user request and every
+assistant step — from the durable session log: the same `user/message` /
+`assistant/message` events the dsh contract already obliges the loop to append,
+and the same source agent recreation rebuilds from. Zero new persistence, zero
+added log bytes, recreation-safe by construction.
+
+The tape advertises it only where something was actually cut — a digest whose
+ask exceeded 600 chars or whose reply exceeded 1,200 gets one line:
+
+```
+recall: recall_turn({"turn": "slice-turn-3"}) for the verbatim record
+```
+
+An uncut turn advertises nothing; the tool's catalog description covers
+discovery. This replaces the ported Python locator
+(`read_file("@sliceagent/history/...")`) that pointed into the engine's virtual
+context filesystem — a route nothing in DSH can serve, whose one observed
+effect was a 20-step, 35-search hunt for a file that never existed.
+
 
 ## Limitations
 
@@ -246,19 +289,13 @@ a preset rather than as more lines in `cordis.patch.yml`.
   back to the unbounded projection and warns, so an unfittable slice never kills
   a turn; the bound is still enforced by the tape budget, not by per-region
   degradation.
-- **Retrieval affordances are deliberately absent, not broken.** The ported
-  Python renderers emit paging pointers written as `read_file(...)` into
-  `@sliceagent/...` — a virtual context filesystem served by the durability
-  layer this port did not take. DSH cannot serve it either: there is no path
-  interception, no read middleware, and no resolver hook. The driver-side
-  pointers were removed rather than faked, so the tape states that a reply was
-  cut without naming a call that cannot succeed. Full untruncated text stays
-  durable in the session log; to let the model reach it, mount
-  `@deepseek-ai/dsh-tool-session-query` (`session_search`, `session_event_read`,
-  and three more — all real registered tools). The engine-side renderers under
-  `src/slice/` still carry the Python spelling because they are pinned
-  byte-for-byte by the golden suite; they render only in regions this port
-  leaves empty.
+- **Engine-side renderers still speak the Python dialect.** A few golden-pinned
+  strings under `src/slice/` (the OPEN FILES region header, the tape GC marker)
+  mention `read_file` / `@sliceagent` — spellings from the Python engine that
+  nothing in DSH serves. They render only in regions this port leaves empty or
+  under context pressure, and the live retrieval path is `recall_turn` (see
+  [Memory recall](#memory-recall)); changing the pinned strings means
+  regenerating the golden suite against the Python reference.
 - **The stock invariant is incompatible** (see above).
 - **`dsh-token-meter` and the compaction stack price the surface**, not the
   slice actually dispatched, so their pressure numbers do not describe this

@@ -102,7 +102,6 @@ import {
   compactTurnSpan,
   type Continuity,
 } from './continuity.js'
-import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
 
 /**
  * The slice driver's plugin-owned durable events.
@@ -817,10 +816,14 @@ export class SliceLoopAgent implements Agent {
     const contextText = claimed
       .filter((m) => isRuntimeContextMessage(m))
       .map((m) => blockText(m)).filter(Boolean).join('\n\n')
-    const scopedSystem = renderPrompt(assembly)
-    const systemPrefix = scopedSystem
-      ? `${RESOLVED_SYSTEM_PROMPT}\n\n${scopedSystem}`
-      : RESOLVED_SYSTEM_PROMPT
+    // The sliceagent kernel is a registered section ('slice:kernel', order
+    // -1000, src/index.ts), so the registry's own render IS the full prefix —
+    // byte-identical to the old manual `RESOLVED + '\n\n' + scoped` prepend in
+    // the ordinary case (renderPrompt joins with '\n\n'), and correctly ABSENT
+    // when a host section declares `complete: true` (new in 20260811) and
+    // assembly restores it as the sole prompt. A driver-side prepend silently
+    // voided that host guarantee.
+    const systemPrefix = renderPrompt(assembly)
     // OPEN FILES hash index（seed.py build_open_files_index 同构）：每个驻留文件
     // 一行 locator——path · 行数 · 当前盘态 sha256(12) · 精确 read 调用——模型据此
     // 做 tape-hash 信任检查（hash 匹配才从 tape 组装，否则重读）。

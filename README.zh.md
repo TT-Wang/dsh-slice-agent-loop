@@ -69,7 +69,7 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 
 那个配套插件断言 `model-visible ⟺ logged`:发出去的 messages 必须和 `session.deriveMessages()` 逐字节相等。**有界切片 loop 在构造上就满足不了它** —— 发一份重建出来的切片而不是派生历史,正是这个 loop 的全部意义。
 
-所以这个插件在它旁边会**拒绝加载**,并给出一条讲清怎么修的报错,而不是让每一轮都死在 `llm/stream` 里。这里有个坑要留神:`dsh scaffold` 把 `agent-loop-invariant` 写成**独立于** `agent-loop` 的一行,所以换掉 loop 并不会把它一起带走。
+所以这个插件在它旁边会**拒绝加载**,并给出一条讲清怎么修的报错,而不是让每一轮都死在 `llm/stream` 里。这里有个坑要留神:组合里常把 `agent-loop-invariant` 写成**独立于** `agent-loop` 的一行,所以换掉 loop 那一行并不会把这个配套件一起带走。
 
 ```yaml
 # 切到 slice loop 时把这行删掉
@@ -97,6 +97,8 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 | `slice/step-budget` | `{ turn, step, budget }` | 该轮撞到 `maxStepsPerTurn` 被终止。`turn/end` 的 `reason.kind` 为 `'step-budget'`。 |
 
 三者都归插件所有,且只进日志:它们从不进入模型面,所以对 prompt 零开销。
+
+它们还会在插件装载时注册进 harness 的会话事件词汇表。20260811 把词汇表关闭了:持久化**读**路径拒绝解释含未知类型的日志 —— 而写路径故意不拦,所以未注册的插件事件会"活着的时候正常,下一次 resume 中毒"。已在真实 `PersistenceCoordinator` 上端到端复现;注册(以及卸载时的回退)由 `tests/driver-contract.spec.ts` 把门。
 
 ## 文件锚定
 
@@ -147,7 +149,7 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 | 3 | `You are interacting with the user through the … Web GUI…` | web bundle | 不要用 `dsh web` 跑 benchmark |
 | 4 | `You are a coding agent powered by the {{model}} model…` | preset 的 `persona` | 用下面这个 preset |
 
-`presets/benchmark.agent.cordis.yml` 就是 `standard` **减去恰好两行**:`persona` 和 `compaction` 组。所有工具都保留,包括 plan mode —— 一个悄悄缩小工具面的 benchmark 测的是另一个 agent。
+`presets/benchmark.agent.cordis.yml` 是 `standard` 减去 `compaction` 组,再把 `persona` 行换成一个**空** persona。是空,不是没有:deployment 的 persona 段是从宿主配置**无条件**注册的,preset 的 persona 只是同名 shadow —— 删掉这一行会把 deployment 默认身份留在提示里,恰好是这个 preset 要去掉的东西。空 shadow 赢下这个槽位,渲染时空段被丢弃。所有工具都保留,包括 plan mode —— 一个悄悄缩小工具面的 benchmark 测的是另一个 agent。
 
 ```sh
 mkdir -p "$DSH_HOME/.agent-presets/slice-benchmark"
@@ -157,10 +159,30 @@ cp presets/benchmark.agent.cordis.yml \
 
 preset 平面的行从 host 平面 patch 够不着,所以这是一个 preset 文件而不是 `cordis.patch.yml` 里的几行。
 
+
+## 记忆取回
+
+tape 把每条封存回复截断在 1,200 码点并标记切口:`…[+N chars in sealed turn]`。`recall_turn` 是回去的路 —— 一个真实注册的工具,不是指向一套这里不存在的文件系统的定位器:
+
+```
+recall_turn({"turn": "slice-turn-3"})
+```
+
+它从持久会话日志里服务**逐字**全文 —— 完整的用户请求和每一个助手步骤。数据源就是 dsh 契约本来就要求这个 loop 追加的 `user/message` / `assistant/message` 事件,也就是 agent 重建所用的同一来源。零新增持久化、零新增日志字节,按构造就是重建安全的。
+
+tape 只在真的截了东西的地方做广告 —— ask 超 600 字符或回复超 1,200 的摘要会带一行:
+
+```
+recall: recall_turn({"turn": "slice-turn-3"}) for the verbatim record
+```
+
+没截的轮什么都不广告;发现能力靠工具目录里的描述。它替代的是移植过来的 Python 定位器(`read_file("@sliceagent/history/...")`)—— 那条路指向引擎的虚拟上下文文件系统,DSH 里没有任何东西能服务它,唯一被观测到的效果是一场 20 步、35 次搜索的寻找一个从不存在的文件。
+
+
 ## 已知局限
 
 - **弹性只降得动一个分区。** driver 会从模型上下文窗口算出一个字符预算,再把切片按这个预算重投影一次;移植过来的 `ElasticityController` 确实会跑降级循环 —— 但在有内容的三个分区里,只有 `open_files` 有东西可降。`task_objective` 是强制的,不会产出定位符替代;而 `session_tape`(体积最大的那块)在 `locatorRegion()` 里**根本没有分支**。所以小幅超限会被"把 OPEN FILES 索引降成定位符形态"吸收掉(几百字符);再往下控制器就没有候选了,抛 `ContextUnfitError`。driver 接住它,退回不设限的投影并告警,所以装不下的切片不会弄死一轮;上界仍然是由 tape 预算兜着的,不是由分区降级兜着的。
-- **取回类入口是被刻意拿掉的,不是坏的。** 移植过来的 Python 渲染器会发出写成 `read_file(...)`、指向 `@sliceagent/...` 的回读指针 —— 那是一套由**本移植版没有拿过来的持久层**服务的虚拟上下文文件系统。DSH 也服务不了它:没有路径拦截、没有 read 中间件、没有 resolver hook。driver 侧那些指针**已删除而不是伪装**,所以 tape 只陈述"这条回复被截了",不再给出一个不可能成功的调用。全文仍然完整留在会话日志里;想让模型够得着,挂 `@deepseek-ai/dsh-tool-session-query`(`session_search`、`session_event_read` 等五个,都是真实注册的工具)。`src/slice/` 下引擎侧的渲染器还留着 Python 的写法,因为它们被黄金套件逐字节钉死,而且只在本移植版渲染为空的分区里出现。
+- **引擎侧渲染器仍说 Python 方言。** `src/slice/` 下几处被黄金钉死的字符串(OPEN FILES 区表头、tape GC 标记)提到 `read_file` / `@sliceagent` —— 来自 Python 引擎的拼写,DSH 里没有东西服务它们。它们只在本移植版渲染为空的分区或上下文压力下出现;活的取回路径是 `recall_turn`(见[记忆取回](#记忆取回))。要改这些被钉死的串,得对着 Python 参考实现重生成黄金套件。
 - **和 stock invariant 不兼容**(见上)。
 - **`dsh-token-meter` 和压缩栈计价的是 surface**,不是真正分发出去的切片,所以它们报的压力数字描述的不是这个 loop 的真实请求。这个偏差随轮数增长且不收敛;已上报为 `dsh-external/issues#564`。
 - **只有三个上下文分区有内容** —— `session_tape`、`task_objective`、`open_files`。移植过来的引擎还有别的(intent、findings、progress signals、world),它们渲染为空。

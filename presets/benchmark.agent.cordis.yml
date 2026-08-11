@@ -63,8 +63,18 @@
 # that quietly narrows the tool surface measures a different agent.
 
 # ── identity ────────────────────────────────────────────────────────────────
-# No `persona` row. The loop's own prefix already opens with "You are
-# sliceagent"; a second identity line contradicts it and skews the prefix.
+# An EMPTY persona, not an absent row. `dsh-system-prompt` registers the
+# `deployment:persona` section unconditionally from its own host config, and
+# `dsh-persona` is only a per-scope shadow — omitting the row would leave the
+# deployment default ("You are a coding agent powered by ...") in the prompt,
+# which is exactly the identity this preset exists to remove. An empty shadow
+# wins the slot, and render drops empty sections, so the loop's own
+# "You are sliceagent" kernel stands alone.
+
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: ''
 
 # The `standard` agent preset: the full coding agent, mounted once per process.
 #
@@ -85,8 +95,6 @@
 # pool instances — `provide()` throws on the second registration under the
 # same realm symbol; labels join REALMS, and are not what this file needs.)
 
-# The preset's own persona, shadowing the deployment default for this agent.
-# `{{model}}` and `{{cwd}}` resolve from the agent's own route and workspace.
 - id: workspace-context
   name: '@deepseek-ai/dsh-workspace-context'
   config:

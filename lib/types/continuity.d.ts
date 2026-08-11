@@ -47,6 +47,8 @@ export declare function renderTurnDigest(opts: {
     userRequest: string;
     sessionId: string;
     files?: readonly string[];
+    /** The sealed reply exceeded REPLY_CAP_CHARS — sealTurn computes it with the tape's own predicate. */
+    replyTruncated?: boolean;
 }): string;
 /**
  * tape_seal_update 的 MVP 子集（tape.py:426 起）：digest + 文件锚定（patch/base

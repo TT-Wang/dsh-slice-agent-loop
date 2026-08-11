@@ -22,7 +22,9 @@ import {
   digestEntry,
   compactTape,
   tapeChars,
+  REPLY_CAP_CHARS,
 } from './slice/tape.js'
+import { pyStrip } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import type { SliceCtx, SliceState } from './slice/state.js'
 
@@ -120,6 +122,8 @@ export function renderTurnDigest(opts: {
   userRequest: string
   sessionId: string
   files?: readonly string[]
+  /** The sealed reply exceeded REPLY_CAP_CHARS — sealTurn computes it with the tape's own predicate. */
+  replyTruncated?: boolean
 }): string {
   const aid = opts.artifactId || 'unknown'
   const head = `[turn ${aid} · task ${opts.taskId || 'unknown'} · ${opts.status || 'unknown'}]`
@@ -133,26 +137,23 @@ export function renderTurnDigest(opts: {
     const shown = fs.slice(0, 8).join(', ')
     lines.push(`files: ${shown}${fs.length > 8 ? ` (+${fs.length - 8} more)` : ''}`)
   }
-  // NO recall locator. The Python engine renders one here, pointing into its
-  // virtual context filesystem (@sliceagent/history/...). That filesystem is
-  // served by the durability layer PORT-REPORT §4 deliberately did not port,
-  // and DSH has no way to serve it either: there is no path interception, no
-  // read middleware, and no resolver hook — ctx.fs.resolve is an abstract
-  // service method, not a seam a plugin can claim a prefix in.
+  // The recall line renders ONLY when something was actually cut — the ask at
+  // ASK_CAP_CHARS or the reply at REPLY_CAP_CHARS. An uncut turn advertises
+  // nothing: the tool's own catalog description covers discovery, and a
+  // per-digest line on every turn was measured at ~106 chars x 35 sealed turns
+  // of pure waste in one session.
   //
-  // Rendering it anyway cost ~106 chars per sealed turn for a call that cannot
-  // succeed, and it was not inert: the system prefix instructs the model to
-  // "open the sealed response artifact and quote exact bytes" whenever a
-  // locator IS provided, so a truncated reply plus a fake locator reads as an
-  // order to go find the file. One observed session spent a 20-step turn and
-  // 35 distinct searches doing exactly that. Emitting nothing leaves those
-  // instructions correctly inert — they are all conditioned on a locator.
-  //
-  // The `…[+N chars in sealed turn]` marker on the reply entry stays: the cut
-  // is a fact worth stating. Full untruncated text remains durable in the
-  // session log (assistant/message); a deployment that wants the model to
-  // reach it should mount @deepseek-ai/dsh-tool-session-query, whose
-  // session_event_read / session_search are real registered tools.
+  // Unlike the locator this replaces (@sliceagent/history/..., a route into
+  // the Python engine's virtual filesystem that nothing in DSH can serve —
+  // docs/modification-spec.md records the 20-step search spiral it caused),
+  // recall_turn is a REAL registered tool: src/recall.ts serves the verbatim
+  // text from the durable session log, the same source agent recreation
+  // rebuilds from. The rendered shape names the tool and its exact argument,
+  // and the call-name gate in driver-contract.spec.ts holds the pair honest.
+  const askTruncated = raw.length > ASK_CAP_CHARS
+  if (askTruncated || opts.replyTruncated === true) {
+    lines.push(`recall: recall_turn({"turn": "${aid}"}) for the verbatim record`)
+  }
   return lines.join('\n') + '\n'
 }
 
@@ -187,6 +188,12 @@ export function sealTurn(
     userRequest: opts.userRequest,
     sessionId: opts.sessionId,
     files: opts.status === 'completed' ? c.pendingEdits.map((e) => e.path) : [],
+    // The tape's own cut predicate (renderTapeReply: pyStrip, then code
+    // points), so the line and the marker can never disagree about whether a
+    // cut happened. Computed here because both the live seal and the
+    // restoreContinuity replay route through sealTurn with the ring's full
+    // reply — the rebuilt digest is byte-identical by construction.
+    replyTruncated: Array.from(pyStrip(opts.assistantReply)).length > REPLY_CAP_CHARS,
   }), opts.turnId))
   c.sealMeta[opts.turnId] = {
     status: opts.status,

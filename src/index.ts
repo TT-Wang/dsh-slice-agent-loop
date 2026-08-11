@@ -13,8 +13,11 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
+import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'
+import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
+import { recallToolDefinition } from './recall.js'
 
 export interface Config {
   maxParallelToolCalls?: number
@@ -60,6 +63,45 @@ function resolveMaxStepsPerTurn(value: number | undefined): number {
   return resolved
 }
 
+/**
+ * The plugin's durable event types. 20260811 closed the session event
+ * vocabulary: the persistence read path REFUSES to interpret a log containing
+ * a type outside `KNOWN_SESSION_EVENT_TYPES` (SessionFormatUnsupportedError at
+ * prepare/load/inspect/readFrom — reproduced end to end against a real
+ * PersistenceCoordinator on the jsonl backend). Writes are deliberately
+ * unguarded, so without this registration every session this loop writes
+ * poisons its own resume: it works live, then refuses to load.
+ *
+ * The vocabulary file's own doc defers "a registration surface for downstream
+ * plugin events ... until such a consumer exists". This plugin is that
+ * consumer; until the surface exists, the exported set is a live (unfrozen)
+ * Set and adding our three types at load is the honest interim: while this
+ * plugin is mounted, the harness DOES understand them — restoreContinuity
+ * replays slice/file-anchor to rebuild the tape. The effect reverts on
+ * unload, restoring the stock refusal for a harness that genuinely cannot
+ * interpret these logs.
+ */
+const SLICE_EVENT_TYPES = ['slice/file-anchor', 'slice/request-slice', 'slice/step-budget'] as const
+
+function registerSliceEventTypes(ctx: Context): void {
+  const vocabulary = KNOWN_SESSION_EVENT_TYPES as Set<string>
+  if (typeof vocabulary.add !== 'function' || typeof vocabulary.delete !== 'function') {
+    // A future harness freezing the set must fail HERE, loudly, at load —
+    // not at the next resume with a poisoned log.
+    throw new Error(
+      'dsh-slice-agent-loop cannot register its slice/* session event types: '
+      + 'KNOWN_SESSION_EVENT_TYPES is no longer a mutable Set. Without registration, sessions '
+      + 'written by this loop fail to resume (SessionFormatUnsupportedError). '
+      + 'Update the plugin to the harness\'s event-type registration surface.',
+    )
+  }
+  ctx.effect(() => {
+    const added = SLICE_EVENT_TYPES.filter((type) => !vocabulary.has(type))
+    for (const type of added) vocabulary.add(type)
+    return () => { for (const type of added) vocabulary.delete(type) }
+  }, 'sliceLoop.knownEventTypes()')
+}
+
 /** The invariant-registry name the stock loop's companion check reserves. */
 const STOCK_LOOP_INVARIANT = '@deepseek-ai/dsh-agent-loop'
 
@@ -72,9 +114,9 @@ const INCOMPATIBLE_INVARIANT_MESSAGE = [
   'companion mounted makes every model request fail inside llm/stream, and the error is attributed',
   'to a package you have already replaced.',
   '',
-  'Fix: remove the `agent-loop-invariant` row from your cordis configuration.',
-  'Note that `dsh scaffold` writes it as a row SEPARATE from `agent-loop`, so swapping the loop',
-  'does not remove it (packages/scaffold/helper/src/features/builtin/spine.ts).',
+  'Fix: remove (or disable) the `agent-loop-invariant` row in your cordis configuration.',
+  'Compositions commonly carry it as a row SEPARATE from `agent-loop`, so swapping the loop',
+  'row does not remove the companion with it.',
 ].join('\n')
 
 /**
@@ -115,6 +157,25 @@ export class SliceLoopPlugin extends Service {
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
     guardStockLoopInvariant(ctx)
+    registerSliceEventTypes(ctx)
+    // The byte-stable sliceagent kernel rides the prompt REGISTRY as an
+    // ordinary section (order -1000: first), not a driver-side prepend. Same
+    // bytes in the ordinary case — renderPrompt joins sections with '\n\n',
+    // exactly what the old `RESOLVED + '\n\n' + scoped` produced — but now a
+    // host section declaring `complete: true` (new in 20260811) genuinely
+    // becomes the SOLE prompt: assembly restores it alone, and this kernel
+    // correctly disappears with every other contribution. A driver-side
+    // prepend silently voided that host guarantee.
+    ctx.effect(
+      () => ctx.systemPrompt.section({ name: 'slice:kernel', order: -1000, text: RESOLVED_SYSTEM_PROMPT }),
+      'sliceLoop.kernelSection()',
+    )
+    // Memory recall (src/recall.ts): the tape truncates sealed replies, and
+    // this is the way back. Registered once — the scheduler stamps exec.agent
+    // on every call, so the handler reads the CALLING agent's session log and
+    // cannot cross sessions. ctx.effect makes the registration revertible with
+    // the plugin, per cordis discipline.
+    ctx.effect(() => ctx.tools.register(recallToolDefinition()), 'sliceLoop.recallTurn()')
     // 提示词变量所有权（架构文档：the loop supplies provider/model/cwd）——
     // stock agent-loop/index.ts:312-314 同构；缺了 persona 节的 {{cwd}} 解析不了。
     ctx.systemPrompt.variable('provider', (context) => context.agent?.options.provider)

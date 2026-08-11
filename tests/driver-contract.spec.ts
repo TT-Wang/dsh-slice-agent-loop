@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService, { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
+import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import apply, { type Config } from '../src/index.js'
@@ -1574,6 +1574,184 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+
+
+
+  // ── 0811 会话事件词汇表 ─────────────────────────────────────────────────
+  // 20260811 关闭了事件词汇:持久化读路径拒绝解释含未知类型的日志(写路径故意
+  // 不拦,所以毒发在【下一次 resume】)。已在真实 PersistenceCoordinator + jsonl
+  // 后端上端到端复现:不注册 → SessionFormatUnsupportedError。本插件在装载时把
+  // 自己的三个 slice/* 类型注册进 KNOWN_SESSION_EVENT_TYPES(词汇文件自己说
+  // "registration surface 推迟到有消费者为止" —— 我们就是那个消费者),卸载时
+  // 只删自己加的。这条门锁的是注册接线;冻结集合的未来版本会让插件在装载时
+  // 响亮失败,而不是在 resume 时拿一条中毒日志。
+  it('registers its slice/* event types into the known vocabulary, and reverts on unload', async () => {
+    const adapter = new MockAdapter([])
+    const ctx = await harness(adapter)
+    const during = ['slice/file-anchor', 'slice/request-slice', 'slice/step-budget']
+      .map(type => KNOWN_SESSION_EVENT_TYPES.has(type))
+    await ctx.fiber.dispose()
+    const after = ['slice/file-anchor', 'slice/request-slice', 'slice/step-budget']
+      .map(type => KNOWN_SESSION_EVENT_TYPES.has(type))
+    expect({ during, after }).toEqual({ during: [true, true, true], after: [false, false, false] })
+  })
+
+  // ── complete 提示节(0811 新增)─────────────────────────────────────────
+  // 宿主声明 complete: true 的 section 时,assemble 把它恢复为【唯一】提示节。
+  // kernel 走注册表(slice:kernel, order -1000)而不是 driver 手工前置,正是为了
+  // 让这个宿主保证真的成立 —— 手工前置会静默作废它。
+  it('honors a host complete section as the sole system prompt', async () => {
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(adapter)
+    ctx.systemPrompt.section({ name: 'host:sole', order: 0, text: 'COMPLETE-ONLY-PROMPT', complete: true })
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('complete-prompt'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'hello')
+      await handle.agent.whenIdle()
+      const system = String(adapter.requests[0]?.system ?? '')
+      expect({
+        sole: system.includes('COMPLETE-ONLY-PROMPT'),
+        kernelSuppressed: !system.includes('You are sliceagent'),
+      }).toEqual({ sole: true, kernelSuppressed: true })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('renders the sliceagent kernel first in the ordinary prompt', async () => {
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('kernel-first'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'hello')
+      await handle.agent.whenIdle()
+      const system = String(adapter.requests[0]?.system ?? '')
+      expect(system.startsWith('You are sliceagent')).toBe(true)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  // ── memory recall(src/recall.ts)────────────────────────────────────────
+  // tape 在 1,200 码点截断封存回复;recall_turn 是回去的路。它从持久会话日志
+  // 服务逐字文本——重建 agent 用的同一来源,所以按构造就是重建安全的。
+  // 这三条门锁的分别是:全文回得来、模型真的看得见、以及不截断就不广告。
+
+  it('recall_turn serves the verbatim full text of a truncated sealed turn', async () => {
+    const LONG = `HEAD-${'x'.repeat(1400)}-TAIL-MARKER-9137`
+    const adapter = new MockAdapter([
+      textResponse(LONG),                                          // turn 1:超长回复,tape 必截
+      toolCallResponse('r1', 'recall_turn', { turn: 'slice-turn-1' }), // turn 2 step 1
+      textResponse('recalled'),                                    // turn 2 step 2
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('recall-verbatim'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'produce the long answer')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'now recall turn 1 in full')
+      await handle.agent.whenIdle()
+
+      // turn 2 的种子:tape 里截断标记 + 只在截断时渲染的 recall 行,指向真工具。
+      const seed = JSON.stringify(adapter.requests[1]?.messages)
+      // turn 2 step 2 的轨迹:工具结果必须把被截掉的尾部带回模型面。
+      const trajectory = JSON.stringify(adapter.requests[2]?.messages)
+      const result = handle.agent.session.events.find(
+        event => event.type === 'tool/result'
+          && !JSON.stringify(event.data).includes('"isError":true'),
+      )
+      const resultText = JSON.stringify(result?.data ?? {})
+
+      expect({
+        tapeMarksCut: seed.includes('chars in sealed turn]'),
+        tapeAdvertises: seed.includes('recall: recall_turn({\\"turn\\": \\"slice-turn-1\\"})'),
+        seedWithheldTail: !seed.includes('TAIL-MARKER-9137'),
+        resultVerbatim: resultText.includes('TAIL-MARKER-9137'),
+        modelSawIt: trajectory.includes('TAIL-MARKER-9137'),
+      }).toEqual({
+        tapeMarksCut: true,
+        tapeAdvertises: true,
+        seedWithheldTail: true,
+        resultVerbatim: true,
+        modelSawIt: true,
+      })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('renders no recall line when nothing was cut', async () => {
+    const adapter = new MockAdapter([
+      textResponse('short reply, well under every cap'),
+      textResponse('second turn'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('recall-quiet'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'short')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'again')
+      await handle.agent.whenIdle()
+      const seed = JSON.stringify(adapter.requests[1]?.messages)
+      expect({
+        sealed: seed.includes('[turn slice-turn-1'),
+        advertised: seed.includes('recall:'),
+      }).toEqual({ sealed: true, advertised: false })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('recall_turn explains itself on an unknown turn instead of failing opaquely', async () => {
+    const adapter = new MockAdapter([
+      textResponse('first'),
+      toolCallResponse('r1', 'recall_turn', { turn: 'slice-turn-99' }),
+      textResponse('handled the miss'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('recall-miss'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'one')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'recall something absent')
+      await handle.agent.whenIdle()
+      // isError 位于 tool-result 内容块上,不在 message 顶层。
+      const errorResult = handle.agent.session.events.find(
+        event => event.type === 'tool/result'
+          && JSON.stringify(event.data).includes('"isError":true'),
+      )
+      const text = JSON.stringify(errorResult?.data ?? {})
+      expect({
+        errored: errorResult !== undefined,
+        namesTurn: text.includes('no recorded turn 99'),
+        listsSealed: text.includes('sealed turns: 1'),
+      }).toEqual({ errored: true, namesTurn: true, listsSealed: true })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
   // 轨迹界：单轮 step 硬顶。刻意不做「停滞检测」——把那个提案的判据
   //（continuation + 无可见文本 + 无新锚点，warn=4/terminate=8）在真实 19 轮会话上
   // 重放，会砍掉 143 步里的 45 步，其中 24 步来自一个做了 74 次不同工具调用的
@@ -2276,10 +2454,11 @@ describe('SliceLoopAgent contract gates', () => {
       headerSystem: persisted?.system?.includes('AUDIT SYSTEM MARKER') ?? false,
       headerTools: persisted?.tools?.map(tool => tool.name) ?? [],
     }).toEqual({
+      // recall_turn is plugin-owned and rides every catalog (src/recall.ts).
       requestSystem: true,
-      requestTools: ['audit_echo'],
+      requestTools: ['audit_echo', 'recall_turn'],
       headerSystem: true,
-      headerTools: ['audit_echo'],
+      headerTools: ['audit_echo', 'recall_turn'],
     })
     await handle.dispose()
     await ctx.fiber.dispose()
