@@ -297,7 +297,14 @@ export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, 
       }), turnId)
     } else if (entry.kind === 'reply' && patch.assistant !== undefined) {
       const rep = replyEntry(turnId, patch.assistant)
-      if (rep !== null) c.sessionTape[index] = rep
+      if (rep !== null) {
+        c.sessionTape[index] = rep
+      } else {
+        // An explicitly empty assistant patch is a canonical removal: the
+        // turn's reply entry leaves the tape (undefined would mean preserve).
+        c.sessionTape.splice(index, 1)
+        index -= 1
+      }
     }
   }
 }
