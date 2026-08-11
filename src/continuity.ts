@@ -53,6 +53,8 @@ function ringKeep(rows: readonly unknown[]): number {
 export interface ConversationRow {
   user: string
   assistant: string
+  /** Owning turn number (surface-replacement retargeting); absent for legacy rows. */
+  turn?: number
 }
 
 export interface TapeFileState {
@@ -68,6 +70,8 @@ export interface Continuity {
   tapeFiles: Record<string, TapeFileState>
   /** 本轮编辑过的文件（成功 tool/result 边界快照后态，seal 时锚定后清空）。 */
   pendingEdits: Array<{ path: string; body: string }>
+  /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
+  sealMeta: Record<string, { status: string; files: string[] }>
   turns: number
 }
 
@@ -78,6 +82,7 @@ export function createContinuity(): Continuity {
     sessionTape: [],
     tapeFiles: {},
     pendingEdits: [],
+    sealMeta: {},
     turns: 0,
   }
 }
@@ -85,9 +90,9 @@ export function createContinuity(): Continuity {
 // ---------------------------------------------------------------- ring write
 
 /** record_user：用户请求进环 + 计轮 + 环修剪（pfc.py:398-442 语义）。 */
-export function recordUser(c: Continuity, text: string): void {
+export function recordUser(c: Continuity, text: string, turn?: number): void {
   c.turns += 1
-  c.conversation.push({ user: text, assistant: '' })
+  c.conversation.push(turn === undefined ? { user: text, assistant: '' } : { user: text, assistant: '', turn })
   c.conversation = c.conversation.slice(-ringKeep(c.conversation))
 }
 
@@ -158,6 +163,10 @@ export function sealTurn(
     sessionId: opts.sessionId,
     files: opts.status === 'completed' ? c.pendingEdits.map((e) => e.path) : [],
   }), opts.turnId))
+  c.sealMeta[opts.turnId] = {
+    status: opts.status,
+    files: opts.status === 'completed' ? c.pendingEdits.map((e) => e.path) : [],
+  }
 
   // 文件锚定：编辑后态 → base/patch 取渲染更短者（tape.py:_anchor 语义）。
   // 后态在成功 tool/result 边界即已快照 + 脱敏（redactText codeFile 模式）——
@@ -249,4 +258,37 @@ export function toSliceCtx(c: Continuity): SliceCtx {
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */
 export function continuityStats(c: Continuity): { tapeChars: number; ringRows: number; files: number } {
   return { tapeChars: tapeChars(c.sessionTape), ringRows: c.conversation.length, files: Object.keys(c.tapeFiles).length }
+}
+
+/**
+ * 表面替换（canonical surface compaction）落实到携带态：被遮蔽轮的话题
+ * goal（若出自该轮）、对话环行、以及 tape 中该轮的 digest/reply 条目都
+ * 重写为摘要文本——文件锚点（base/patch）不受影响。摘要停留在
+ * HISTORICAL/CLAIM 权级的 tape 呈现层，绝不进入 CURRENT REQUEST 槽。
+ */
+export function compactTurn(c: Continuity, turn: number, summary: string, sessionId: string): void {
+  const turnId = `slice-turn-${turn}`
+  const row = c.conversation.find((r) => r.turn === turn)
+  if (row !== undefined) {
+    if (c.goal === row.user) c.goal = summary
+    row.user = summary
+    row.assistant = ''
+  }
+  const meta = c.sealMeta[turnId]
+  for (let index = 0; index < c.sessionTape.length; index += 1) {
+    const entry = c.sessionTape[index]!
+    if (entry.ref !== turnId) continue
+    if (entry.kind === 'digest') {
+      c.sessionTape[index] = digestEntry(renderTurnDigest({
+        artifactId: turnId,
+        status: meta?.status ?? 'completed',
+        userRequest: summary,
+        sessionId,
+        files: meta?.files ?? [],
+      }), turnId)
+    } else if (entry.kind === 'reply') {
+      const rep = replyEntry(turnId, summary)
+      if (rep !== null) c.sessionTape[index] = rep
+    }
+  }
 }

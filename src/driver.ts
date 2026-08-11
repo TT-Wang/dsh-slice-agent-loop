@@ -72,7 +72,7 @@ import type {
   SessionId,
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
@@ -95,6 +95,7 @@ import {
   sealTurn,
   toSliceCtx,
   trackEdit,
+  compactTurn,
   type Continuity,
 } from './continuity.js'
 import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
@@ -180,6 +181,13 @@ export class SliceLoopAgent implements Agent {
       wake: () => this.wakeDriver(),
     })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
+    // Canonical surface replacements (compaction) rewrite the carried
+    // continuity the moment they commit — live and rebuilt agents agree.
+    this.ctx.on('session/event', (subject, event) => {
+      if (subject !== session || !isReplacementSurfaceEvent(event)) return
+      this.applySurfaceReplacement(event.sourceEventSeqs ?? [],
+        event.type === 'user/message' ? blockText(event.data) : '')
+    })
     // Agent recreation/resume: rebuild the bounded conversation ring from the
     // seeded log so the prior exchanges reach the next slice (the tape itself
     // is not yet durable — documented parity gap).
@@ -221,7 +229,7 @@ export class SliceLoopAgent implements Agent {
       pendingFirstStep = []
       if (!text) return
       if (!this.cont.goal) this.cont.goal = text
-      recordUser(this.cont, text)
+      recordUser(this.cont, text, openTurn ?? undefined)
       recordedThisTurn = true
     }
     for (const event of session.events) {
@@ -231,6 +239,12 @@ export class SliceLoopAgent implements Agent {
         flushFirstStep()
         step = event.data.step
       } else if (event.type === 'user/message') {
+        // Canonical surface replacement: rewrite the shadowed turn(s) to the
+        // summary instead of replaying the shadowed originals.
+        if (isReplacementSurfaceEvent(event)) {
+          this.applySurfaceReplacement(event.sourceEventSeqs ?? [], blockText(event.data))
+          continue
+        }
         if (step !== 1 || isRuntimeContextMessage(event.data)) continue
         const text = blockText(event.data)
         if (text) pendingFirstStep.push(text)
@@ -266,6 +280,33 @@ export class SliceLoopAgent implements Agent {
       }
     }
     flushFirstStep()
+  }
+
+  /** Rewrite the shadowed turns of one canonical surface replacement to its summary. */
+  private applySurfaceReplacement(sourceEventSeqs: readonly number[], summary: string): void {
+    if (!summary) return
+    for (const turn of this.shadowedTurns(sourceEventSeqs)) {
+      compactTurn(this.cont, turn, summary, this.session.id)
+    }
+  }
+
+  /** Map shadowed surface seqs to their enclosing turn numbers. */
+  private shadowedTurns(seqs: readonly number[]): number[] {
+    const targets = new Set(seqs)
+    const turns = new Set<number>()
+    let open: number | null = null
+    for (const event of this.session.events) {
+      if (event.type === 'turn/start') open = event.data.turn
+      if (targets.has(event.seq)) {
+        if (event.type === 'assistant/message' || event.type === 'tool/result') {
+          turns.add(event.data.turn)
+        } else if (open !== null) {
+          turns.add(open)
+        }
+      }
+      if (event.type === 'turn/end') open = null
+    }
+    return [...turns]
   }
 
   get status(): AgentStatus {
@@ -457,7 +498,7 @@ export class SliceLoopAgent implements Agent {
             .map((m) => blockText(m)).filter(Boolean).join('\n')
           if (text) {
             if (!this.cont.goal) this.cont.goal = text
-            recordUser(this.cont, text)
+            recordUser(this.cont, text, turn)
             recordedThisTurn = true
           }
         }

@@ -45,7 +45,7 @@
     "@deepseek-ai/dsh-system-prompt": "file:/Users/tongtao/.dsh/source/current/packages/core/system-prompt",
     "@deepseek-ai/dsh-tools": "file:/Users/tongtao/.dsh/source/current/packages/core/tools",
     "@deepseek-ai/dsh-scope": "file:/Users/tongtao/.dsh/source/current/packages/core/scope",
-    "@deepseek-ai/dsh-session-persistence": "file:/Users/tongtao/.dsh/source/current/packages/session-persistence/session-persistence",
+    "@deepseek-ai/dsh-session-persistence": "file:/Users/tongtao/.dsh/source/current/packages/session/session-persistence",
     "cordis": "file:/Users/tongtao/.dsh/source/current/packages/core/agent/node_modules/cordis",
     "@deepseek-ai/dsh-llm-deepseek": "file:/Users/tongtao/.dsh/source/current/packages/llm/llm-deepseek"
   }
