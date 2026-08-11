@@ -57,12 +57,27 @@ export function multiToolCallResponse(
 export class MockAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
 
-  constructor(private readonly responses: Array<StreamChunk[] | 'hang' | Error>) {
+  /**
+   * `contextWindow` drives the slice capacity budget (elasticity / locator
+   * downgrade). Left undefined the driver applies no bound — which is exactly
+   * how that whole path stayed dead code and untested (评审 E/#32).
+   */
+  constructor(
+    private readonly responses: Array<StreamChunk[] | 'hang' | Error>,
+    private readonly contextWindow?: number,
+  ) {
     super()
   }
 
   override resolveModel(provider: string, model: string): Promise<LlmResolvedModelInfo> {
-    return Promise.resolve({ provider, id: model, name: model })
+    return Promise.resolve({
+      provider,
+      id: model,
+      name: model,
+      // DSH 读的是嵌套的 `context.contextWindow`（llm/src/index.ts:658），
+      // 不是顶层字段——写错了 preparedCall.context 就恒为 undefined。
+      ...(this.contextWindow === undefined ? {} : { context: { contextWindow: this.contextWindow } }),
+    })
   }
 
   async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {

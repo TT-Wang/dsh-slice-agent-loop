@@ -14,8 +14,17 @@ import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
 export interface InboxLedgerActivity {
   /** Active activity signal, or undefined while the driver is truly idle. */
   signal(): AbortSignal | undefined
-  /** Reserve or wake the driver after a durable insertion commits. */
-  wake(): void
+  /**
+   * Reserve or wake the driver after a durable insertion commits.
+   *
+   * `wakeAfterAbort` reports that this waking message arrived while the active
+   * signal was ALREADY aborted — i.e. during a cancel's convergence window. The
+   * classification is computed before the durable insert (a re-entrant cancel
+   * inside a splice observer must not reclassify it) and passed through so the
+   * driver can latch the wake and replay it at the idle edge instead of
+   * stranding the message in the inbox (DSH 0810 cancel-convergence latch).
+   */
+  wake(wakeAfterAbort: boolean): void
 }
 
 /**
@@ -54,9 +63,12 @@ export class InboxLedger {
    */
   send(message: UserMessage, target: InboxTarget, wakeup: boolean): void {
     const signal = wakeup ? this.activity.signal() : undefined
-    const resolvedTarget = signal?.aborted === true ? 'next-turn' : target
+    // Classify BEFORE the durable insert: a splice observer may re-enter cancel
+    // and abort the signal, which would otherwise reclassify this message.
+    const wakeAfterAbort = signal?.aborted === true
+    const resolvedTarget = wakeAfterAbort ? 'next-turn' : target
     this.inbox.append(resolvedTarget, message)
-    if (wakeup) this.activity.wake()
+    if (wakeup) this.activity.wake(wakeAfterAbort)
   }
 
   /** Queue one ordinary prompt as its own turn and wake the driver. */

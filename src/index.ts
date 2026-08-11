@@ -31,12 +31,60 @@ function resolveMaxParallelToolCalls(value: number | undefined): number {
   return resolved
 }
 
+/** The invariant-registry name the stock loop's companion check reserves. */
+const STOCK_LOOP_INVARIANT = '@deepseek-ai/dsh-agent-loop'
+
+const INCOMPATIBLE_INVARIANT_MESSAGE = [
+  'dsh-slice-agent-loop is incompatible with the @deepseek-ai/dsh-agent-loop/invariant companion.',
+  '',
+  'That invariant asserts the model request equals session.deriveMessages() byte for byte.',
+  'This loop deliberately sends a REBUILT bounded slice instead of the full derived history —',
+  'that is what "bounded context per turn" means, so the assertion can never hold. Leaving the',
+  'companion mounted makes every model request fail inside llm/stream, and the error is attributed',
+  'to a package you have already replaced.',
+  '',
+  'Fix: remove the `agent-loop-invariant` row from your cordis configuration.',
+  'Note that `dsh scaffold` writes it as a row SEPARATE from `agent-loop`, so swapping the loop',
+  'does not remove it (packages/scaffold/helper/src/features/builtin/spine.ts).',
+].join('\n')
+
+/**
+ * Fail at load time when the stock loop's reconstructability invariant is
+ * mounted, instead of letting every turn die inside `llm/stream`.
+ *
+ * The registry rejects a duplicate package name synchronously, so registering a
+ * no-op under the stock name does double duty: it detects a companion that
+ * loaded first (we catch and explain), and it reserves the slot so a companion
+ * loading later fails at boot too. Either order surfaces as one startup error
+ * rather than a per-request one.
+ *
+ * `invariants` is intentionally NOT in `static inject` — a deployment without
+ * the service is perfectly valid, and injecting it would suspend this fiber
+ * forever instead.
+ */
+function guardStockLoopInvariant(ctx: Context): void {
+  const invariants = ctx.get('invariants')
+  if (invariants === undefined) return
+  try {
+    ctx.effect(
+      () => invariants.register(STOCK_LOOP_INVARIANT, () => { /* this loop asserts no such property */ }),
+      'sliceLoop.reserveStockLoopInvariant()',
+    )
+  } catch (error: unknown) {
+    if (error instanceof Error && error.message.includes('already registered')) {
+      throw new Error(INCOMPATIBLE_INVARIANT_MESSAGE, { cause: error })
+    }
+    throw error
+  }
+}
+
 export class SliceLoopPlugin extends Service {
   static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt']
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx, 'sliceAgentLoop')
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
+    guardStockLoopInvariant(ctx)
     // 提示词变量所有权（架构文档：the loop supplies provider/model/cwd）——
     // stock agent-loop/index.ts:312-314 同构；缺了 persona 节的 {{cwd}} 解析不了。
     ctx.systemPrompt.variable('provider', (context) => context.agent?.options.provider)

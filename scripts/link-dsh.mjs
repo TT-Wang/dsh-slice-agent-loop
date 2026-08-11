@@ -1,0 +1,90 @@
+#!/usr/bin/env node
+/**
+ * Link the DeepSeek Harness peer packages into node_modules for local development.
+ *
+ * The peers are provided by the HOST at runtime, so they are declared only as
+ * `peerDependencies` — never as `dependencies`. Publishing a manifest whose
+ * `dependencies` point at `file:/Users/<someone>/...` makes the package
+ * uninstallable for everyone else, which is exactly what this script replaces.
+ *
+ * Resolution order for the harness checkout:
+ *   1. $DSH_SOURCE          — explicit override
+ *   2. $DSH_HOME/source/current
+ *   3. ~/.dsh/source/current — the default `dsh` install layout
+ *
+ * Usage: npm run link:dsh
+ */
+import { existsSync, mkdirSync, rmSync, symlinkSync, lstatSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { dirname, join, relative, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+
+/** Peer package name → its path inside the harness checkout. */
+const PEERS = {
+  '@deepseek-ai/dsh-agent': 'packages/core/agent',
+  '@deepseek-ai/dsh-session': 'packages/core/session',
+  '@deepseek-ai/dsh-llm': 'packages/llm/llm',
+  '@deepseek-ai/dsh-system-prompt': 'packages/core/system-prompt',
+  '@deepseek-ai/dsh-tools': 'packages/core/tools',
+  '@deepseek-ai/dsh-scope': 'packages/core/scope',
+  // Moved from packages/session-persistence/* in the 20260810 snapshot.
+  '@deepseek-ai/dsh-session-persistence': 'packages/session/session-persistence',
+  cordis: 'packages/core/agent/node_modules/cordis',
+  // Test-only: the incompatibility gate mounts the stock loop's invariant
+  // companion to prove this plugin refuses it at load time (评审 D).
+  '@deepseek-ai/dsh-invariants': 'packages/support/invariants',
+  '@deepseek-ai/dsh-agent-loop': 'packages/core/agent-loop',
+  // Test-only: the Code Mode anchoring gate needs a CodeRuntime to mount run_code.
+  '@deepseek-ai/dsh-code-runtime': 'packages/code-runtime/code-runtime',
+  '@deepseek-ai/dsh-token-meter': 'packages/llm/token-meter',
+}
+
+/** Older harness snapshots that moved a package keep a fallback path here. */
+const FALLBACKS = {
+  '@deepseek-ai/dsh-session-persistence': ['packages/session-persistence/session-persistence'],
+}
+
+function resolveHarness() {
+  const candidates = [
+    process.env.DSH_SOURCE,
+    process.env.DSH_HOME ? join(process.env.DSH_HOME, 'source', 'current') : undefined,
+    join(homedir(), '.dsh', 'source', 'current'),
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    if (existsSync(join(candidate, 'packages', 'core', 'agent', 'package.json'))) return candidate
+  }
+  console.error(
+    'Could not find a DeepSeek Harness checkout.\n'
+    + 'Set DSH_SOURCE to the harness repo root, or install dsh so that\n'
+    + `${join(homedir(), '.dsh', 'source', 'current')} exists.\n`
+    + `Tried:\n${candidates.map(c => `  ${c}`).join('\n')}`,
+  )
+  process.exit(1)
+}
+
+const harness = resolveHarness()
+const modules = join(REPO, 'node_modules')
+let linked = 0
+
+for (const [name, subpath] of Object.entries(PEERS)) {
+  const options = [subpath, ...(FALLBACKS[name] ?? [])]
+  const target = options.map(p => join(harness, p)).find(p => existsSync(join(p, 'package.json')))
+  if (target === undefined) {
+    console.error(`✗ ${name}: not found under ${harness} (tried ${options.join(', ')})`)
+    process.exitCode = 1
+    continue
+  }
+  const link = join(modules, name)
+  mkdirSync(dirname(link), { recursive: true })
+  try {
+    if (lstatSync(link, { throwIfNoEntry: false }) !== undefined) rmSync(link, { recursive: true, force: true })
+  } catch { /* nothing to remove */ }
+  // Relative links keep the tree portable if the repo itself moves.
+  symlinkSync(relative(dirname(link), target), link, 'dir')
+  linked += 1
+  console.log(`✓ ${name} -> ${relative(REPO, target)}`)
+}
+
+console.log(`\nlinked ${linked}/${Object.keys(PEERS).length} harness peers from ${harness}`)

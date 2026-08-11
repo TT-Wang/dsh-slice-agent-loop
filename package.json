@@ -1,8 +1,7 @@
 {
   "name": "dsh-slice-agent-loop",
-  "description": "SliceAgent concrete agent loop plugin for the DeepSeek Harness \u2014 a drop-in AgentFactory/Agent implementation whose context engine is the bounded slice",
+  "description": "SliceAgent concrete agent loop plugin for the DeepSeek Harness — a drop-in AgentFactory/Agent implementation whose context engine is the bounded slice",
   "version": "0.0.1",
-  "private": true,
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
@@ -11,20 +10,31 @@
       "types": "./lib/types/index.d.ts",
       "default": "./lib/index.js"
     },
+    "./invariant": {
+      "types": "./lib/types/invariant.d.ts",
+      "default": "./lib/invariant.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
     "lib/**/*"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dsh-external/dsh-slice-agent-loop.git"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "goldens": "PYTHONPATH=/Users/tongtao/code/sliceagent/packages/sliceagent-core/src /Users/tongtao/code/sliceagent/.venv/bin/python tests/golden/gen_goldens.py"
+    "link:dsh": "node scripts/link-dsh.mjs",
+    "goldens": "node scripts/gen-goldens.mjs"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
     "@deepseek-ai/dsh-agent": "^0.0.1",
+    "@deepseek-ai/dsh-invariants": "^0.0.1",
     "@deepseek-ai/dsh-llm": "^0.0.1",
     "@deepseek-ai/dsh-scope": "^0.0.1",
     "@deepseek-ai/dsh-session": "^0.0.1",
@@ -38,15 +48,9 @@
     "vitest": "^4.1.10",
     "tsx": "^4.19.0"
   },
-  "dependencies": {
-    "@deepseek-ai/dsh-agent": "file:/Users/tongtao/.dsh/source/current/packages/core/agent",
-    "@deepseek-ai/dsh-session": "file:/Users/tongtao/.dsh/source/current/packages/core/session",
-    "@deepseek-ai/dsh-llm": "file:/Users/tongtao/.dsh/source/current/packages/llm/llm",
-    "@deepseek-ai/dsh-system-prompt": "file:/Users/tongtao/.dsh/source/current/packages/core/system-prompt",
-    "@deepseek-ai/dsh-tools": "file:/Users/tongtao/.dsh/source/current/packages/core/tools",
-    "@deepseek-ai/dsh-scope": "file:/Users/tongtao/.dsh/source/current/packages/core/scope",
-    "@deepseek-ai/dsh-session-persistence": "file:/Users/tongtao/.dsh/source/current/packages/session/session-persistence",
-    "cordis": "file:/Users/tongtao/.dsh/source/current/packages/core/agent/node_modules/cordis",
-    "@deepseek-ai/dsh-llm-deepseek": "file:/Users/tongtao/.dsh/source/current/packages/llm/llm-deepseek"
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-invariants": {
+      "optional": true
+    }
   }
 }

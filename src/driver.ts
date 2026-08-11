@@ -31,6 +31,7 @@
  */
 
 import type { Context } from 'cordis'
+import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
 import { agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
@@ -56,6 +57,7 @@ import type {
 import {
   BlockAssembler,
   LlmError,
+  assertNever,
   createAssistantMessage,
   createToolResultMessage,
   createUserMessage,
@@ -85,7 +87,7 @@ import {
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
-import { assembleSlice, type AssembledSlice } from './slice/index.js'
+import { assembleSlice, ContextUnfitError, type AssembledSlice } from './slice/index.js'
 import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
@@ -97,23 +99,54 @@ import {
   toSliceCtx,
   trackEdit,
   compactTurn,
+  compactTurnSpan,
   type Continuity,
 } from './continuity.js'
 import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
 
-/** The slice driver's plugin-owned durable event: one successful edit's redacted
- * post-state, appended by the turn-end seal so agent recreation can rebuild the
- * tape's file anchors from the log alone (never an inferred disk re-anchor). */
+/**
+ * The slice driver's plugin-owned durable events.
+ *
+ * `slice/file-anchor` — one successful edit's redacted post-state, appended by
+ * the turn-end seal so agent recreation can rebuild the tape's file anchors from
+ * the log alone (never an inferred disk re-anchor).
+ *
+ * `slice/request-slice` — the audit record for one model request: the digest of
+ * the bounded slice actually sent, plus how many messages rode with it. This
+ * loop cannot satisfy DSH's `model-visible ⟺ logged` invariant by construction
+ * (it sends a REBUILT slice, not `deriveMessages()`), so it logs what it did
+ * send instead. `dsh-slice-agent-loop/invariant` checks the weaker property that
+ * IS true: every request's seed matches the digest recorded for it (评审 D).
+ */
 declare module '@deepseek-ai/dsh-session' {
   interface SessionEventMap {
     'slice/file-anchor': { turn: number; path: string; body: string }
+    'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number }
   }
+}
+
+/** Full-width digest for the request audit trail (`_h` truncates to 12 for tape locators). */
+export function sliceDigest(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex')
+}
+
+/** The text a request's slice seed carries, or '' when the request has no seed. */
+export function seedTextOf(messages: readonly Message[]): string {
+  const seed = messages[0]
+  if (seed === undefined || seed.role !== 'user') return ''
+  return seed.content
+    .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+    .map((block) => block.text)
+    .join('\n')
 }
 
 type Phase =
   | { kind: 'idle'; lastTurn: number }
   | { kind: 'maintenance'; abort: AbortController; lastTurn: number; wakeRequested: boolean }
-  | { kind: 'running'; abort: AbortController; turn: number; step: number }
+  // `wakeRequested` is the cancel-convergence latch (DSH 0810): a waking message
+  // that arrived after this turn's signal aborted replays once the driver
+  // converges to idle, instead of being stranded in the inbox.
+  | { kind: 'running'; abort: AbortController; turn: number; step: number; wakeRequested: boolean }
 
 type StepEndReason = Extract<TurnEndReason, { kind: 'completed' | 'max-tokens' }>
 
@@ -179,9 +212,31 @@ export class SliceLoopAgent implements Agent {
     this.dispatch = agentEvents(this.ctx, this)
     this.ledger = new InboxLedger(session, this.dispatch, {
       signal: () => (this.phase.kind === 'idle' ? undefined : this.phase.abort.signal),
-      wake: () => this.wakeDriver(),
+      // 必须透传 wakeAfterAbort：丢掉它 latch 永不武装（取消收敛期的消息被吞）。
+      wake: (wakeAfterAbort: boolean) => this.wakeDriver(wakeAfterAbort),
     })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
+    // 文件锚定挂在 EXECUTION 平面，不是呈现平面。
+    //
+    // `tools/result` 在 scheduler 的 finish 阶段发出，而顶层调度
+    // (agent-loop tool-calls.ts) 与 Code Mode 的 run_code 桥
+    // (tools/src/code-mode.ts) 调用的是**同一个** scheduler.finish——所以这一个
+    // seam 同时覆盖两个平面，`exec.name` 永远是真实执行的工具名。
+    //
+    // 之前锚定挂在顶层 tool/result 的 `block.name` 上，那是模型看见的名字：
+    // Code Mode 下 `wireSchemas` 把工具面收敛成 `[run_code]`，真实的 write/edit
+    // 变成 run_code 程序里的子调用，顶层永远看不到 ⇒ tape 恒空、OPEN FILES 恒空、
+    // 护城河静默失效。用执行平面的事实就不需要任何 Code Mode 感知。
+    //
+    // 事件是 emit 语义（观察者抛错只 warn，不会打死 turn），且按 exec.agent 做
+    // scope 过滤，别的 agent 的执行不会串到这里。
+    this.ctx.on('tools/result', (exec, result) => {
+      if (result.isError) return
+      const path = editedPath(exec.name, exec.arguments)
+      if (path === undefined) return
+      const disk = readDiskStatus(this.sessionCwd(), path)
+      if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
+    })
     // The driver keeps its own incremental ordered surface fold: canonical
     // replacements compact their positional span the moment they commit —
     // live and rebuilt agents agree, and surface order (not seq order) rules.
@@ -229,7 +284,10 @@ export class SliceLoopAgent implements Agent {
       const text = pendingFirstStep.filter(Boolean).join('\n')
       pendingFirstStep = []
       if (!text) return
-      if (!this.cont.goal) this.cont.goal = text
+      if (!this.cont.goal) {
+        this.cont.goal = text
+        if (openTurn !== null) this.cont.goalTurn = openTurn
+      }
       recordUser(this.cont, text, openTurn ?? undefined)
       recordedThisTurn = true
     }
@@ -361,11 +419,18 @@ export class SliceLoopAgent implements Agent {
           }
         }
         this.surfaceFold.splice(lo, hi - lo + 1, event.seq)
-        for (const o of owners.values()) {
-          const recomputed = this.componentText(o.turn, o.component)
-          compactTurn(this.cont, o.turn,
-            o.component === 'user' ? { user: recomputed } : { assistant: recomputed },
-            this.session.id)
+        // 一次替换遮蔽多轮时整体塌缩成一条区间条目：逐轮重渲会把同一段摘要
+        // 复制 2N 份，把本该缩小上下文的 compaction 变成放大器（评审 #17）。
+        const shadowedTurns = [...new Set([...owners.values()].map((o) => o.turn))]
+        if (shadowedTurns.length > 1) {
+          compactTurnSpan(this.cont, shadowedTurns, text, this.session.id)
+        } else {
+          for (const o of owners.values()) {
+            const recomputed = this.componentText(o.turn, o.component)
+            compactTurn(this.cont, o.turn,
+              o.component === 'user' ? { user: recomputed } : { assistant: recomputed },
+              this.session.id)
+          }
         }
         return
       }
@@ -424,21 +489,31 @@ export class SliceLoopAgent implements Agent {
     this.ledger.inject(message)
   }
 
-  /** Start one driver, or remember its wake behind maintenance. */
-  wakeDriver(): void {
+  /**
+   * Start one driver, or latch the wake behind active work.
+   *
+   * Non-idle phases latch instead of dropping (stock semantics): maintenance
+   * always latches, and a running turn latches a wake that arrived during its
+   * cancel-convergence window. A `disposed` cancel never latches — teardown
+   * must not wait on a model turn.
+   */
+  wakeDriver(wakeAfterAbort = false): void {
     const phase = this.phase
-    if (phase.kind === 'maintenance') {
-      if (!phase.abort.signal.aborted) phase.wakeRequested = true
+    if (phase.kind !== 'idle') {
+      const reason = phase.abort.signal.reason as AgentCancelCause | undefined
+      const disposing = phase.abort.signal.aborted && reason?.kind === 'disposed'
+      if (!disposing && (phase.kind === 'maintenance' || wakeAfterAbort)) {
+        phase.wakeRequested = true
+      }
       return
     }
-    if (phase.kind !== 'idle') return
     let resolveDriver!: () => void
     let rejectDriver!: (error: unknown) => void
     this.activityDone = new Promise<void>((resolve, reject) => {
       resolveDriver = resolve
       rejectDriver = reject
     })
-    this.setPhase({ kind: 'running', abort: new AbortController(), turn: phase.lastTurn, step: 0 })
+    this.setPhase({ kind: 'running', abort: new AbortController(), turn: phase.lastTurn, step: 0, wakeRequested: false })
     // The complete request lifetime runs inside this agent's initiator scope.
     void this.loopCtx.agents.withInitiator(this, () => this.kick())
       .then(resolveDriver, rejectDriver)
@@ -449,7 +524,8 @@ export class SliceLoopAgent implements Agent {
   cancel(cause: AgentCancelCause, options: CancelOptions = {}): void {
     if (!options.keepInbox) {
       this.ledger.clear()
-      if (this.phase.kind === 'maintenance') this.phase.wakeRequested = false
+      // Clearing the queue also clears any latch it armed — in BOTH phases.
+      if (this.phase.kind !== 'idle') this.phase.wakeRequested = false
     }
     if (this.phase.kind !== 'idle') this.phase.abort.abort(cause)
   }
@@ -485,7 +561,9 @@ export class SliceLoopAgent implements Agent {
         return await task(maintenance.abort.signal)
       } finally {
         this.setPhase({ kind: 'idle', lastTurn: maintenance.lastTurn })
-        if (maintenance.wakeRequested) this.wakeDriver()
+        // `hasPending` mirrors stock: a latch whose message was removed
+        // meanwhile must not open an empty durable turn (评审 #13/#15/#24).
+        if (maintenance.wakeRequested && this.ledger.hasPending) this.wakeDriver()
         resolveDone()
       }
     })()
@@ -510,15 +588,22 @@ export class SliceLoopAgent implements Agent {
   }
 
   private async kick(): Promise<void> {
+    let latched = false
     try {
       while (await this.turn()) { /* queued followups close as distinct balanced turns */ }
     } catch {
       // Reported failures and cancellation are contained at the driver boundary.
     } finally {
       if (this.phase.kind === 'running') {
+        latched = this.phase.wakeRequested
         this.setPhase({ kind: 'idle', lastTurn: this.phase.turn })
       }
     }
+    // Cancel-convergence replay (DSH 0810): a wake latched while this turn was
+    // unwinding starts the next driver now. `hasPending` suppresses the replay
+    // when the latched message was removed meanwhile — a latch must never open
+    // an empty durable turn.
+    if (latched && this.ledger.hasPending) this.wakeDriver()
   }
 
   /** Claim the boundary's batch, assemble the scoped prompt, then run pre-step before any durable step opens. */
@@ -589,7 +674,10 @@ export class SliceLoopAgent implements Agent {
             .filter((m) => !isRuntimeContextMessage(m))
             .map((m) => blockText(m)).filter(Boolean).join('\n')
           if (text) {
-            if (!this.cont.goal) this.cont.goal = text
+            if (!this.cont.goal) {
+              this.cont.goal = text
+              this.cont.goalTurn = turn
+            }
             recordUser(this.cont, text, turn)
             recordedThisTurn = true
           }
@@ -675,8 +763,11 @@ export class SliceLoopAgent implements Agent {
     if (!this.inbox.hasPending) return false
     // A later turn gets a fresh abort scope: a cancel that killed this turn must
     // not poison queued work, and an idle-edge wake must see an unaborted signal.
+    // The stale convergence latch clears with it — this live driver claims the
+    // queued work itself, so replaying at the idle edge would double-run it.
     phase.abort = new AbortController()
     phase.step = 0
+    phase.wakeRequested = false
     return true
   }
 
@@ -778,11 +869,39 @@ export class SliceLoopAgent implements Agent {
         this.session.append('request/context', requestContext)
       }
 
-      // 轮内轨迹续步（sliceagent 语义：轮内累积本轮原生消息，轮界重建切片）。
-      // 输入步发切片种子；续步发同一种子 + 本轮助手/工具消息——不再是全会话
-      // deriveMessages()（跨轮无界，评审缺口 2 的修复）。
+      // 弹性容量（评审 E）：contextWindow 只有在 prepareCall 之后才知道，所以
+      // 切片先无约束组装，拿到窗口后按剩余预算重投影一次——这条通道打通前，
+      // ElasticityController 恒取 Fidelity.FULL，locator 降级与 ContextUnfitError
+      // 全是死代码，超窗只能靠 provider 报错兜底。
+      // 装不下时**不抛**：mandatory 区块（task_objective / CURRENT REQUEST）无法
+      // 降级，抛错会把"静默超窗、由 provider 报错"换成"会话中途硬崩"，那是更
+      // 糟的失败模式。这里能降就降，实在装不下退回无约束投影并告警——修好死
+      // 代码，但绝不新增致命路径。
+      const budget = sliceCapacityChars(preparedCall?.context?.contextWindow, assembled.systemPrefix, tools)
+      if (budget !== null) {
+        const unbounded = assembled.userString
+        try {
+          assembled.userString = assembled.plan.project(budget)[1].content
+        } catch (error: unknown) {
+          if (!(error instanceof ContextUnfitError)) throw error
+          assembled.userString = unbounded
+          this.ctx.logger?.warn?.(
+            'slice does not fit the model context window (%d chars budget); sending the unbounded slice',
+            budget,
+          )
+        }
+      }
+
+      // 轮界重建切片、轮内只累积（sliceagent 不变式）。种子只在本轮首次组装时
+      // 构造一次；之后每一步都发 [种子, ...本轮轨迹, ...本步新输入]。
+      //
+      // 评审 B：旧实现用 `claimed.length > 0` 决定是否重建种子，于是轮内任何
+      // 被 claim 的输入（steer / inject / 工具 additionalContexts / 运行时上下文
+      // 快照变化）都会重建种子并整条丢弃 turnTrajectory——模型看不到自己刚发起的
+      // tool-call，也看不到工具结果，只能重复调用或凭空作答。"是否有新输入"与
+      // "是否是轮界"是两件事，这里彻底解耦。
       let messages: Message[]
-      if (claimed.length > 0) {
+      if (this.turnSeedUser === undefined) {
         this.turnSeedUser = createUserMessage({
           content: [
             ...(contextText
@@ -797,10 +916,20 @@ export class SliceLoopAgent implements Agent {
         })
         messages = [this.turnSeedUser]
       } else {
-        messages = this.turnSeedUser !== undefined
-          ? [this.turnSeedUser, ...this.turnTrajectory]
-          : this.session.deriveMessages()
+        // 轮内到达的输入作为独立 user 消息接在轨迹末尾（时序与日志一致），
+        // 并留在轨迹里供后续步复用——绝不篡夺种子的 CURRENT REQUEST 槽。
+        if (claimed.length > 0) this.turnTrajectory.push(...claimed)
+        messages = [this.turnSeedUser, ...this.turnTrajectory]
       }
+      // 审计记录（评审 D）：这个 loop 发的是重建切片而不是 deriveMessages()，
+      // 所以 DSH 的 model-visible ⟺ logged 断言对它不成立。落一条摘要事件把
+      // 「本轮这一步到底发了什么」变成可事后验证的日志事实——代价是几十字节，
+      // 而不是把整份切片再写一遍。dsh-slice-agent-loop/invariant 据此校验。
+      this.session.append('slice/request-slice', {
+        turn, step,
+        seedDigest: sliceDigest(seedTextOf(messages)),
+        messageCount: messages.length,
+      })
       const request = markAgentLoopRequest(deepFreeze({
         ...header.config,
         messages,
@@ -981,6 +1110,11 @@ export class SliceLoopAgent implements Agent {
         case 'final-result':
           slots[index] = { exec: prepared.exec, result: prepared.result, needsPost: false }
           break
+        /* v8 ignore next -- closed-union exhaustiveness guard (stock tool-calls.ts:192 同构) */
+        default:
+          // 没有这一支时，DSH 将来给 ScheduledToolPreparation 加一个 kind 会让这里
+          // 静默不填 slot，最终以 "uncommitted settled calls" 这种无信息量的错冒出来。
+          assertNever(prepared, 'tool-call scheduler prepare result')
       }
     }
 
@@ -1084,16 +1218,9 @@ export class SliceLoopAgent implements Agent {
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     this.turnTrajectory.push(message)
-    // 编辑族工具：仅在成功结果后快照盘态（trackEdit 内做 codeFile 脱敏），
-    // 轮末 seal 锚定该后态——失败/中止的调用绝不锚定未触动的盘态，一轮内
-    // 多次成功编辑各自保留自己的后态（continuity.ts trackEdit）。
-    if (!result.isError && EDIT_TOOL_NAMES.has(block.name)) {
-      const path = toolPath(block.arguments)
-      if (path !== undefined) {
-        const disk = readDiskStatus(this.sessionCwd(), path)
-        if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
-      }
-    }
+    // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的
+    // `block.name` 是模型看见的名字（呈现平面）；code 模式下它恒为 `run_code`，
+    // 真实的 write/edit 是 run_code 程序里的子调用，顶层永远看不到。
   }
 
   /** Append the durable call/result pair for a model call skipped after cancellation. */
@@ -1142,20 +1269,70 @@ function requestProposal(header: EpochHeader): LlmCallConfig {
   return proposal as unknown as LlmCallConfig
 }
 
-/** 编辑族工具（dsh tool-fs 命名 + sliceagent 命名），seal 时锚定文件后态。 */
-const EDIT_TOOL_NAMES = new Set([
+/** 粗估 token→chars（与 continuity.ts 的环预算同口径）。 */
+const CHARS_PER_TOKEN = 4
+/** 给轮内轨迹增长、工具结果与模型输出留的安全余量（占窗口比例）。 */
+const CAPACITY_SAFETY = 0.6
+/** 预算下限：固定开销吃满窗口时仍给切片正预算，逼出最低保真度而不是不设限。 */
+const MIN_SLICE_CAPACITY_CHARS = 512
+
+/**
+ * 本步切片可用的字符预算，或 null（窗口未知时不施加约束，行为同修复前）。
+ *
+ * 从模型窗口出发，扣掉 system prefix 与工具 schema 的实际字符，再乘安全系数
+ * 给轮内轨迹和模型输出留位置。粗估即可——它的作用是给 ElasticityController
+ * 一个上界去做 locator 降级，而不是精确配额（评审 E）。
+ */
+export function sliceCapacityChars(
+  contextWindow: number | undefined,
+  systemPrefix: string,
+  tools: readonly unknown[],
+): number | null {
+  if (contextWindow === undefined || !Number.isFinite(contextWindow) || contextWindow <= 0) return null
+  const fixed = systemPrefix.length + (tools.length > 0 ? JSON.stringify(tools).length : 0)
+  const budget = Math.floor(contextWindow * CHARS_PER_TOKEN * CAPACITY_SAFETY) - fixed
+  // 固定开销吃满窗口时**不能**回退成"无约束"——那会让窗口越小越不设限，正好
+  // 是错误的失败方向。夹到最小预算，让控制器降到最低保真度（locator-only），
+  // 装不下由 ContextUnfitError 显式报出。
+  return Math.max(budget, MIN_SLICE_CAPACITY_CHARS)
+}
+
+/**
+ * 编辑族工具，seal 时锚定文件后态。**必须匹配宿主真实注册的工具名**：DSH 0810
+ * 的 tool-fs 注册 `write`/`edit`（参数键 file_path），str_replace_editor 注册
+ * `str_replace_editor`（参数键 path，且仅 create/str_replace/insert 才写盘——view
+ * 是只读，绝不锚定）。sliceagent 原生命名一并保留，供 golden/Python parity 与测试
+ * fixture 使用。tests/driver-contract.spec.ts 的接线门断言本集合与 dsh-tool-fs
+ * 真实注册名有交集——名字漂移会大声失败，不再静默地让 tape 恒空（评审 A）。
+ */
+export const EDIT_TOOL_NAMES = new Set([
+  // DSH 0810 真实工具名
+  'write', 'edit', 'str_replace_editor',
+  // sliceagent 原生命名（fixture + Python parity）
   'edit_file', 'write_file', 'str_replace', 'append_to_file', 'create_file',
 ])
 
-/** 从工具参数 JSON 提取文件路径（宽容格式：path/file_path/filePath）。 */
-function toolPath(rawArguments: string): string | undefined {
-  try {
-    const args = JSON.parse(rawArguments || '{}') as Record<string, unknown>
-    const p = args.path ?? args.file_path ?? args.filePath
-    return typeof p === 'string' && p.trim() ? p : undefined
-  } catch {
-    return undefined
+/** str_replace_editor 仅这些 command 会写盘；view 是只读，不锚定（只读文件不进 tape）。 */
+const STR_REPLACE_MUTATIONS = new Set(['create', 'str_replace', 'insert'])
+
+/**
+ * 一次成功工具执行写入的文件路径，若该工具不是编辑族或本次未写盘则返回 undefined。
+ * str_replace_editor 额外按 command 门控，避免把 view（只读）也锚进 tape。
+ *
+ * 参数来自 `ToolExecution.arguments`——registry 已解析好的值，不是 JSON 串。
+ * 宽容处理 unknown：模型可以发任何东西，非对象一律当作"没有路径"。
+ */
+export function editedPath(name: string, args: unknown): string | undefined {
+  if (!EDIT_TOOL_NAMES.has(name)) return undefined
+  if (typeof args !== 'object' || args === null) return undefined
+  const bag = args as Record<string, unknown>
+  if (name === 'str_replace_editor') {
+    const command = bag.command
+    if (typeof command !== 'string' || !STR_REPLACE_MUTATIONS.has(command)) return undefined
   }
+  // 覆盖 tool-fs（file_path）与 str_replace_editor（path）两套键名。
+  const p = bag.file_path ?? bag.path ?? bag.filePath
+  return typeof p === 'string' && p.trim() ? p : undefined
 }
 
 /** 盘态读取：区分缺失/不可读/正常——索引只对正常文件发布受信 hash。 */

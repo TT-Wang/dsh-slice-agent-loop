@@ -65,6 +65,12 @@ export interface TapeFileState {
 export interface Continuity {
   /** 首条 prompt 即话题 goal（system 侧渲染，跨轮不变直到换题）。 */
   goal: string
+  /**
+   * 写入 goal 的那一轮轮号。表面替换（compaction）据此定位要改写的 goal——
+   * 绝不靠对话环反查：环有 12 行硬顶，老轮滑出后就再也找不到，被声明已遮蔽的
+   * 原始用户文本会永久留在 task_objective（USER 权级、mandatory）里逐轮发出。
+   */
+  goalTurn?: number
   conversation: ConversationRow[]
   sessionTape: TapeEntry[]
   tapeFiles: Record<string, TapeFileState>
@@ -273,14 +279,74 @@ export interface TurnCompaction {
   assistant?: string
 }
 
+/**
+ * 一次表面替换遮蔽多轮时的塌缩（评审 #17）。
+ *
+ * 逐轮重渲会把同一段摘要复制 N 份 digest + N 份 reply——压缩本该缩小上下文，
+ * 实测反而把 tape 撑大 9 倍（20 轮 × 800 字符摘要：3.4k → 31.7k）。这里把被
+ * 遮蔽那批 digest/reply 整体移除，替换为一条 epoch 区间条目（复用 compactTape
+ * 的 ref..refEnd 形状），摘要只出现一次。文件锚点（base/patch）不受影响——
+ * 它们承载的是盘态而不是对话历史。
+ *
+ * 单轮遮蔽仍走 {@link compactTurn} 的逐条重渲：那时没有放大，且逐条重渲能保留
+ * 该轮的 digest 元数据（status/files）。
+ */
+export function compactTurnSpan(
+  c: Continuity,
+  turns: readonly number[],
+  summary: string,
+  sessionId: string,
+): void {
+  const unique = [...new Set(turns)].sort((a, b) => a - b)
+  if (unique.length < 2) {
+    const only = unique[0]
+    if (only !== undefined) compactTurn(c, only, { user: summary, assistant: summary }, sessionId)
+    return
+  }
+  // goal 若出自被遮蔽的任一轮，一并改写（按轮号，与对话环无关）。
+  if (c.goalTurn !== undefined && unique.includes(c.goalTurn)) c.goal = summary
+  for (const turn of unique) {
+    const row = c.conversation.find((r) => r.turn === turn)
+    if (row !== undefined) {
+      row.user = summary
+      row.assistant = summary
+    }
+  }
+  const shadowed = new Set(unique.map((turn) => `slice-turn-${turn}`))
+  const first = `slice-turn-${unique[0]}`
+  const last = `slice-turn-${unique[unique.length - 1]}`
+  let insertAt = -1
+  const kept: TapeEntry[] = []
+  for (const entry of c.sessionTape) {
+    // 只塌缩对话历史条目；文件锚点原样保留。
+    if ((entry.kind === 'digest' || entry.kind === 'reply') && shadowed.has(entry.ref)) {
+      if (insertAt === -1) insertAt = kept.length
+      continue
+    }
+    kept.push(entry)
+  }
+  if (insertAt === -1) return
+  const marker = new TapeEntry({
+    kind: 'epoch',
+    ref: first,
+    refEnd: last,
+    rendered:
+      `[turns compacted: ${first}..${last} — ${unique.length} turns replaced by one summary; `
+      + `the full sealed record remains readable via `
+      + `read_file("@sliceagent/history/sessions/${sessionId}/index.md")]\n${summary}\n`,
+  })
+  kept.splice(insertAt, 0, marker)
+  c.sessionTape.length = 0
+  c.sessionTape.push(...kept)
+}
+
 export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, sessionId: string): void {
   const turnId = `slice-turn-${turn}`
+  // goal 按轮号定位，与对话环无关——环裁掉老轮不影响遮蔽（评审 #18）。
+  if (patch.user !== undefined && c.goalTurn === turn) c.goal = patch.user
   const row = c.conversation.find((r) => r.turn === turn)
   if (row !== undefined) {
-    if (patch.user !== undefined) {
-      if (c.goal === row.user) c.goal = patch.user
-      row.user = patch.user
-    }
+    if (patch.user !== undefined) row.user = patch.user
     if (patch.assistant !== undefined) row.assistant = patch.assistant
   }
   const meta = c.sealMeta[turnId]

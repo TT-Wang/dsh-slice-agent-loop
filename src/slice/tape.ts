@@ -160,7 +160,16 @@ export function applyUnified(before: string, diffText: string): string {
       } catch (exc) {
         throw new ValueError(`bad hunk header: ${pyRepr(ln)}`);
       }
-      let hunkPos = oldStart - 1;
+      // `-0,0` means "insert before line 1" (difflib emits it when the source
+      // side of the hunk is empty). Naively subtracting 1 yields -1, and a
+      // NEGATIVE index silently corrupts instead of failing: `slice(pos, -1)`
+      // drops the last line and the insertion lands mid-file. Clamp to 0.
+      //
+      // Reachable: this repo's own `unifiedPatch` emits `@@ -0,0 +1 @@` for the
+      // empty-source case (harmless there, since `slice(0, -1)` of "" is ""),
+      // so the header shape is in-band — only the empty-header/non-empty-source
+      // COMBINATION needs an external patch. Clamping makes both correct.
+      const hunkPos = Math.max(0, oldStart - 1);
       out.push(...src.slice(pos, hunkPos));
       pos = hunkPos;
       i += 1;

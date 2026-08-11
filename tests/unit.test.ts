@@ -7,8 +7,10 @@ import {
   ContextBlock, ContextUnfitError, ElasticityController, Fidelity, FreshnessClass,
   InstructionClass, PyTypeError, REGIONS, REGION_META, REGION_ORDER, REGION_ROLES,
   RepresentationLoss, TAPE_ZONE, TapeEntry, ValueError, assertPlacementLaw, composeAfter, contextBlock,
-  baseEntry, patchEntry, regionZone, renderProgressSignals, _h,
+  baseEntry, patchEntry, regionZone, renderProgressSignals, tapeChars, applyUnified, unifiedPatch, _h,
 } from "../src/slice/index.js";
+import { sliceCapacityChars } from "../src/driver.js";
+import { createContinuity, recordUser, fillAssistant, sealTurn, compactTurn, compactTurnSpan } from "../src/continuity.js";
 
 const kw = {
   alternativeGroup: "g",
@@ -175,5 +177,186 @@ describe("tape entry semantics (test_session_tape.py)", () => {
     expect(composeAfter(e1, "")).toBe("x = 1");
     expect(composeAfter(e2, "x = 1")).toBe("x = 2");
     expect(_h(composeAfter(e2, "x = 1"))).toBe(e2.postHash);
+  });
+});
+
+describe("goal compaction survives ring eviction (评审 #18)", () => {
+  it("rewrites the goal by turn number after its ring row is evicted", () => {
+    const c = createContinuity();
+    const secret = "ORIGINAL SENSITIVE OBJECTIVE TEXT";
+    recordUser(c, secret, 1);
+    fillAssistant(c, "ok");
+    sealTurn(c, { turnId: "slice-turn-1", status: "completed", userRequest: secret, assistantReply: "ok", sessionId: "s" });
+    c.goal = secret;
+    c.goalTurn = 1;
+
+    // 推够轮数，把第 1 轮挤出对话环（硬顶 12 行）。
+    for (let turn = 2; turn <= 30; turn += 1) {
+      recordUser(c, `later ${turn}`, turn);
+      fillAssistant(c, `reply ${turn}`);
+      sealTurn(c, { turnId: `slice-turn-${turn}`, status: "completed", userRequest: `later ${turn}`, assistantReply: `reply ${turn}`, sessionId: "s" });
+    }
+    expect(c.conversation.some((row) => row.turn === 1)).toBe(false);
+
+    // 宿主遮蔽第 1 轮：goal 必须被改写，原文不得残留在最高权级区块里。
+    compactTurn(c, 1, { user: "[redacted by compaction]" }, "s");
+    expect(c.goal).toBe("[redacted by compaction]");
+    expect(c.goal).not.toContain(secret);
+  });
+});
+
+describe("multi-turn compaction shrinks the tape (评审 #17)", () => {
+  const build = (turns: number) => {
+    const c = createContinuity();
+    for (let turn = 1; turn <= turns; turn += 1) {
+      recordUser(c, `ask ${turn}`, turn);
+      fillAssistant(c, `reply ${turn}`);
+      sealTurn(c, {
+        turnId: `slice-turn-${turn}`, status: "completed",
+        userRequest: `ask ${turn}`, assistantReply: `reply ${turn}`, sessionId: "s",
+      });
+    }
+    return c;
+  };
+
+  it("replaces a shadowed span with ONE entry instead of copying the summary per turn", () => {
+    const c = build(20);
+    const before = tapeChars(c.sessionTape);
+    const summary = "S".repeat(800);
+
+    compactTurnSpan(c, Array.from({ length: 20 }, (_unused, i) => i + 1), summary, "s");
+
+    // 压缩必须缩小上下文——逐轮重渲会把 3.4k 撑到 31.7k（20 份同一摘要）。
+    expect(tapeChars(c.sessionTape)).toBeLessThan(before);
+    const copies = c.sessionTape.filter((entry) => entry.rendered.includes(summary)).length;
+    expect(copies).toBe(1);
+    // 被遮蔽的那批对话条目整体消失，换成一条区间标记。
+    expect(c.sessionTape.filter((entry) => entry.kind === "digest")).toHaveLength(0);
+    expect(c.sessionTape.filter((entry) => entry.kind === "reply")).toHaveLength(0);
+    const marker = c.sessionTape.find((entry) => entry.kind === "epoch");
+    expect(marker?.ref).toBe("slice-turn-1");
+    expect(marker?.refEnd).toBe("slice-turn-20");
+  });
+
+  it("keeps single-turn compaction on the per-entry rewrite path", () => {
+    const c = build(3);
+    compactTurnSpan(c, [2], "just this one", "s");
+    // 单轮无放大：保留逐条重渲（digest 元数据不丢）。
+    expect(c.sessionTape.filter((entry) => entry.kind === "epoch")).toHaveLength(0);
+    expect(c.sessionTape.filter((entry) => entry.kind === "digest")).toHaveLength(3);
+  });
+
+  it("never collapses file anchors — they carry disk state, not conversation", () => {
+    const c = build(4);
+    c.pendingEdits = [{ path: "a.py", body: "x = 1\n" }];
+    sealTurn(c, {
+      turnId: "slice-turn-5", status: "completed",
+      userRequest: "edit", assistantReply: "done", sessionId: "s",
+    });
+    const basesBefore = c.sessionTape.filter((entry) => entry.kind === "base").length;
+    expect(basesBefore).toBeGreaterThan(0);
+
+    compactTurnSpan(c, [1, 2, 3, 4, 5], "summary", "s");
+    expect(c.sessionTape.filter((entry) => entry.kind === "base")).toHaveLength(basesBefore);
+  });
+});
+
+describe("tape stays bounded over a long session (评审 #16 / G)", () => {
+  /**
+   * 本项目的唯一卖点是"峰值随任务规模而非会话长度增长"。之前没有任何测试
+   * 断言过体积上界——删掉 sealTurn 里的 compactTape GC、或调大预算，CI 照样全绿。
+   * 这条门把论点变成可回归的事实。
+   */
+  const longSession = (turns: number, withFiles: boolean) => {
+    const c = createContinuity();
+    let folds = 0;
+    const sizes: number[] = [];
+    for (let turn = 1; turn <= turns; turn += 1) {
+      const reply = `${"R".repeat(600)}${turn}`;
+      recordUser(c, `ask ${turn}`, turn);
+      fillAssistant(c, reply);
+      if (withFiles) {
+        c.pendingEdits = Array.from({ length: 6 }, (_unused, f) => ({
+          path: `f${f}.py`, body: `${"L".repeat(3000)}\n// turn ${turn}\n`,
+        }));
+      }
+      const info = sealTurn(c, {
+        turnId: `slice-turn-${turn}`, status: "completed",
+        // 封存进 tape 的是这里的 reply——必须与环里的同尺寸，否则测不到稳态。
+        userRequest: `ask ${turn}`, assistantReply: reply, sessionId: "s",
+      });
+      folds += info.epochFolds;
+      sizes.push(tapeChars(c.sessionTape));
+    }
+    return { c, folds, sizes };
+  };
+
+  it("plateaus instead of growing linearly with turn count", () => {
+    const { sizes } = longSession(600, false);
+    // 硬上界：GC + fold 必须把 tape 压在预算量级内（实测峰值 ~119.7k / 预算 120k）。
+    expect(Math.max(...sizes)).toBeLessThan(200_000);
+    // 触顶而非线性：稳态区间（300→600 轮）实测只涨 1.11×。线性增长会 ~2×。
+    expect(sizes[599]!).toBeLessThan(sizes[299]! * 1.5);
+  });
+
+  it("keeps the tape bounded when every turn edits files", () => {
+    const { sizes, folds } = longSession(300, true);
+    expect(Math.max(...sizes)).toBeLessThan(200_000);
+    // 折叠是罕见事件（实测 300 轮 0–2 次）。频繁重折会打光前缀缓存，
+    // 这里钉住它不退化成抖动。
+    expect(folds).toBeLessThan(20);
+  });
+});
+
+describe("slice capacity budget (评审 E)", () => {
+  it("returns null only when the model context window is unknown", () => {
+    expect(sliceCapacityChars(undefined, "sys", [])).toBeNull();
+    expect(sliceCapacityChars(0, "sys", [])).toBeNull();
+    expect(sliceCapacityChars(Number.NaN, "sys", [])).toBeNull();
+    expect(sliceCapacityChars(100_000, "sys", [])).toBeGreaterThan(0);
+  });
+
+  it("subtracts the fixed system prefix and tool schemas from the window", () => {
+    const wide = sliceCapacityChars(100_000, "", []);
+    const withPrefix = sliceCapacityChars(100_000, "P".repeat(10_000), []);
+    const withTools = sliceCapacityChars(100_000, "", [{ name: "t".repeat(5_000) }]);
+    expect(withPrefix!).toBeLessThan(wide!);
+    expect(withTools!).toBeLessThan(wide!);
+  });
+
+  it("clamps to a positive floor instead of falling back to unbounded", () => {
+    // 固定开销吃满窗口时回退成 null（=不设限）会让窗口越小越不设限——
+    // 正好是错误的失败方向。必须仍给一个正预算。
+    const tiny = sliceCapacityChars(100, "P".repeat(50_000), []);
+    expect(tiny).not.toBeNull();
+    expect(tiny!).toBeGreaterThan(0);
+  });
+});
+
+describe("applyUnified boundary: -0,0 hunk against a non-empty source", () => {
+  it("prepends instead of corrupting the file mid-way", () => {
+    // hunkPos = oldStart - 1 用到 -0,0 上会得到 -1；负索引不是报错而是【静默损坏】：
+    // slice(pos, -1) 丢掉最后一行，插入点还落到文件中间。
+    const src = "line1\nline2\nline3\n";
+    expect(applyUnified(src, "@@ -0,0 +1,1 @@\n+NEW\n")).toBe("NEW\nline1\nline2\nline3\n");
+  });
+
+  it("keeps the in-repo empty-source case correct (this shape IS emitted here)", () => {
+    // 本仓库的 unifiedPatch 对空源就会产出 `@@ -0,0 +1 @@`——这个形状是在带内的。
+    const patch = unifiedPatch("f.txt", "", "NEW\n");
+    expect(patch).toContain("@@ -0,0");
+    expect(applyUnified("", patch)).toBe("NEW\n");
+  });
+
+  it("round-trips every difflib-produced patch it can emit", () => {
+    for (const [before, after] of [
+      ["line1\nline2\nline3\n", "NEW\nline1\nline2\nline3\n"],
+      ["", "NEW\n"],
+      ["a\nb\n", "X\nY\na\nb\n"],
+      ["a\nb\n", "c\nd\n"],
+      ["a\nb\nc\n", "a\nc\n"],
+    ] as const) {
+      expect(applyUnified(before, unifiedPatch("f.txt", before, after))).toBe(after);
+    }
   });
 });

@@ -7,8 +7,14 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService, { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
+import ToolRegistry, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
 import apply, { type Config } from '../src/index.js'
+import InvariantService from '@deepseek-ai/dsh-invariants'
+import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
+import * as sliceInvariant from '../src/invariant.js'
+import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
+import { sliceDigest, seedTextOf } from '../src/driver.js'
 import {
   errorResponse,
   MockAdapter,
@@ -1386,6 +1392,115 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  // 评审 C：DSH 0810 的 cancel 收敛期 latch。用户按 ESC 后立刻再问一句是最常见的
+  // 交互序列；旧实现在 running 相位直接丢弃这次 wake，消息永久躺在 inbox 里，
+  // agent 显示 idle 却对新 prompt 装死。
+  it('replays a wake that arrived during cancel convergence', async () => {
+    const adapter = new MockAdapter([textResponse('cancelled'), textResponse('answered')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('cancel-convergence'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    let first = true
+    handle.agent.ctx.on('agent/pre-step', async (_payload, next) => {
+      if (!first) return next()
+      first = false
+      entered.resolve(undefined)
+      await release.promise
+      return next()
+    })
+
+    try {
+      send(handle.agent, 'first')
+      await entered.promise
+      // 取消后（signal 已 abort）才到达——这正是 latch 要救的那条消息。
+      handle.agent.cancel({ kind: 'user' }, { keepInbox: true })
+      send(handle.agent, 'arrived during convergence')
+      release.resolve(undefined)
+      await handle.agent.whenIdle()
+
+      // 收敛后必须自己跑起来：消息被消费、模型真的被调用。
+      expect(handle.agent.inbox.nextTurn).toHaveLength(0)
+      expect(adapter.requests).toHaveLength(1)
+      expect(JSON.stringify(adapter.requests[0]?.messages)).toContain('arrived during convergence')
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('does not replay a cancel-convergence latch whose message was withdrawn', async () => {
+    const adapter = new MockAdapter([textResponse('cancelled')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('cancel-convergence-withdrawn'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    const entered = deferred<void>()
+    const release = deferred<void>()
+    let first = true
+    handle.agent.ctx.on('agent/pre-step', async (_payload, next) => {
+      if (!first) return next()
+      first = false
+      entered.resolve(undefined)
+      await release.promise
+      return next()
+    })
+
+    try {
+      send(handle.agent, 'first')
+      await entered.promise
+      handle.agent.cancel({ kind: 'user' }, { keepInbox: true })
+      send(handle.agent, 'withdrawn')
+      handle.agent.inbox.clear()
+      release.resolve(undefined)
+      await handle.agent.whenIdle()
+
+      // latch 已武装但队列被撤空：绝不能凭空开一个空的 durable turn。
+      const turnStarts = handle.agent.session.events.filter(e => e.type === 'turn/start')
+      expect(turnStarts).toHaveLength(1)
+      expect(adapter.requests).toHaveLength(0)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  // 评审 E：capacityChars 从不传入 assembleSlice 时，ElasticityController 恒取
+  // Fidelity.FULL——locator 降级、ContextUnfitError、nextTighterCapacity 全是死
+  // 代码，超窗只能靠 provider 报错兜底。这条门钉住"窗口小 ⇒ 切片更小"。
+  it('never kills a turn because the slice does not fit the window', async () => {
+    // mandatory 区块（task_objective / CURRENT REQUEST）无法降级，装不下是常态。
+    // 那时必须退回无约束投影继续跑，绝不能把会话打成 error——"静默超窗由
+    // provider 报错"仍然远好于"中途硬崩"。
+    const adapter = new MockAdapter(
+      Array.from({ length: 4 }, (_unused, index) => textResponse(`reply-${index}`)),
+      500,
+    )
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('capacity-unfit'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      for (let index = 0; index < 4; index += 1) {
+        send(handle.agent, `${'X'.repeat(3000)}-${index}`)
+        await handle.agent.whenIdle()
+      }
+      expect(adapter.requests).toHaveLength(4)
+      expect(handle.agent.session.events
+        .filter(event => event.type === 'turn/end')
+        .map(event => event.data.reason.kind))
+        .toEqual(['completed', 'completed', 'completed', 'completed'])
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
   it('executes tool calls through dsh-tools and continues in a later step', async () => {
     const adapter = new MockAdapter([
       toolCallResponse('call-1', 'echo', { text: 'hello' }),
@@ -1452,6 +1567,157 @@ describe('SliceLoopAgent contract gates', () => {
       await handle.agent.whenIdle()
 
       expect(JSON.stringify(adapter.requests[2]?.messages)).toContain(marker)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  // 接线门（评审 A）：锚定必须挂在宿主真实注册的工具名上，而不是 fixture 名。
+  // DSH 0810 的 tool-fs 注册 `write`/`edit`（参数键 file_path），
+  // tool-str-replace-editor 注册 `str_replace_editor`（参数键 path + command）。
+  // 之前的集合一个都不匹配，真实部署下 tape 恒空而测试全绿——测了两端没测接线。
+  async function expectRealDshToolAnchors(
+    tool: string,
+    pathKey: 'file_path' | 'path',
+    contentKey: 'content' | 'file_text',
+    extraArgs: Record<string, string>,
+  ): Promise<void> {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-dsh-tool-'))
+    const path = join(root, 'edited.txt')
+    const marker = `DSH TOOL ${tool.toUpperCase()} ANCHOR MARKER`
+    const adapter = new MockAdapter([
+      toolCallResponse('edit-1', tool, { ...extraArgs, [pathKey]: path, [contentKey]: marker }),
+      textResponse('edit complete'),
+      textResponse('recalled'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: tool,
+      description: `${tool} (real DSH tool name)`,
+      parameters: {
+        [pathKey]: { type: 'string', required: true },
+        [contentKey]: { type: 'string', required: true },
+        ...Object.fromEntries(Object.keys(extraArgs).map(k => [k, { type: 'string', required: true } as const])),
+      },
+      execute: async (raw) => {
+        const args = raw as Record<string, string>
+        await writeFile(args[pathKey]!, args[contentKey]!, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId(`dsh-tool-${tool}`),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'edit the file')
+      await handle.agent.whenIdle()
+      // 锚点必须落成 durable 事件（重建的唯一依据），且内容进入下一轮切片。
+      expect(handle.agent.session.events.filter(e => e.type === 'slice/file-anchor')).toHaveLength(1)
+      send(handle.agent, 'recall the edited file')
+      await handle.agent.whenIdle()
+      expect(JSON.stringify(adapter.requests[2]?.messages)).toContain(marker)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  }
+
+  it('anchors edits made by the real DSH tool write into the next bounded slice', async () => {
+    await expectRealDshToolAnchors('write', 'file_path', 'content', {})
+  })
+
+  it('anchors edits made by the real DSH tool edit into the next bounded slice', async () => {
+    await expectRealDshToolAnchors('edit', 'file_path', 'content', {})
+  })
+
+  it('anchors edits made by the real DSH tool str_replace_editor into the next bounded slice', async () => {
+    await expectRealDshToolAnchors('str_replace_editor', 'path', 'file_text', { command: 'create' })
+  })
+
+  // 评审 B：轮内到达的输入曾会重建种子并整条丢弃 turnTrajectory，模型因此看不到
+  // 自己刚发起的 tool-call 与工具结果。轮界重建、轮内累积是本 loop 的不变式。
+  it('keeps the in-turn trajectory visible when steering arrives mid-turn', async () => {
+    const adapter = new MockAdapter([
+      toolCallResponse('probe-1', 'probe', { text: 'probe-value' }),
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter)
+    let steered = false
+    let steerNow: (() => void) | undefined
+    ctx.tools.register(defineContentToolFixture({
+      name: 'probe',
+      description: 'probe',
+      parameters: { text: { type: 'string', required: true } },
+      // 工具体内 steer：真实路径（工具/宿主在轮内插话），且不在 session/event
+      // 监听器里——那里调 append 会撞 DSH 的重入保护。
+      execute: async ({ text }) => {
+        steerNow?.()
+        return [{ type: 'text', text: `TOOL-RESULT-${text}` }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('mid-turn-steer'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    steerNow = () => {
+      steered = true
+      handle.agent.steer(createUserMessage({
+        content: [{ type: 'text', text: 'MID-TURN-STEER' }],
+        source: { kind: 'user' },
+      }))
+    }
+
+    try {
+      send(handle.agent, 'use probe')
+      await handle.agent.whenIdle()
+
+      expect(steered).toBe(true)
+      const second = JSON.stringify(adapter.requests[1]?.messages)
+      // 模型必须仍看到自己发起的调用、它的结果，以及新到的 steering。
+      expect(second).toContain('probe-1')
+      expect(second).toContain('TOOL-RESULT-probe-value')
+      expect(second).toContain('MID-TURN-STEER')
+      // 种子（含 CURRENT REQUEST 槽）不被篡夺。
+      expect(second).toContain('use probe')
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('never anchors a read-only str_replace_editor view command', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-view-'))
+    const path = join(root, 'viewed.txt')
+    await writeFile(path, 'PRE-EXISTING CONTENT', 'utf8')
+    const adapter = new MockAdapter([
+      toolCallResponse('view-1', 'str_replace_editor', { command: 'view', path }),
+      textResponse('viewed'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'str_replace_editor',
+      description: 'str_replace_editor',
+      parameters: {
+        command: { type: 'string', required: true },
+        path: { type: 'string', required: true },
+      },
+      execute: async () => [{ type: 'text', text: 'viewed' }],
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('view-no-anchor'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'view the file')
+      await handle.agent.whenIdle()
+      // view 是只读：绝不进 tape（否则只读文件也会被当成本轮编辑锚定）。
+      expect(handle.agent.session.events.filter(e => e.type === 'slice/file-anchor')).toHaveLength(0)
     } finally {
       await handle.dispose()
       await ctx.fiber.dispose()
@@ -2115,5 +2381,303 @@ describe('SliceLoopAgent contract gates', () => {
       .toHaveLength(2)
     await handle.dispose()
     await ctx.fiber.dispose()
+  })
+
+  // 评审 G：上面那条用「2 个调用 + 上限 2」，调用数等于上限时断言只能证明
+  // "发生了重叠"，证不了"上限起作用"——把上限改成 1024 或 1 它都察觉不到。
+  // 这两条用 6 个调用把 cap 和实际峰值分开。
+  async function measureOverlap(cap: number, calls: number): Promise<{ maxActive: number; results: number }> {
+    const adapter = new MockAdapter([
+      multiToolCallResponse(Array.from({ length: calls }, (_unused, index) => ({
+        id: `parallel-${index}`, name: 'parallel_audit', args: { id: `call-${index}` },
+      }))),
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter, { maxParallelToolCalls: cap })
+    let active = 0
+    let maxActive = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'parallel_audit',
+      description: 'measure scheduler overlap',
+      parameters: { id: { type: 'string', required: true } },
+      isConcurrencySafe: () => true,
+      execute: async ({ id }) => {
+        active += 1
+        maxActive = Math.max(maxActive, active)
+        await new Promise(resolve => setTimeout(resolve, 20))
+        active -= 1
+        return [{ type: 'text', text: id }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId(`cap-${cap}-of-${calls}`),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'run every call')
+      await handle.agent.whenIdle()
+      return {
+        maxActive,
+        results: handle.agent.session.events.filter(event => event.type === 'tool/result').length,
+      }
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  }
+
+  it('never exceeds maxParallelToolCalls when more calls are ready than the cap', async () => {
+    const { maxActive, results } = await measureOverlap(2, 6)
+    expect(maxActive).toBe(2)   // 上限生效：不是 6
+    expect(results).toBe(6)     // 但每个调用都跑完了
+  })
+
+  it('serializes tool bodies at maxParallelToolCalls = 1', async () => {
+    const { maxActive, results } = await measureOverlap(1, 6)
+    expect(maxActive).toBe(1)
+    expect(results).toBe(6)
+  })
+
+  // 评审 G：取消发生在多个工具调用中间时，未派发的调用必须补一条配对的
+  // tool/result——否则日志里出现无结果的 tool/call，重建出的消息序列对真实
+  // provider 是非法的（tool_call 没有配对 tool_result 会 400）。这条保证之前
+  // 只存在于注释里：在 appendSkippedToolCall 里塞无条件 throw，全套依然全绿。
+  it('pairs every tool call with a result when cancelled mid-flight', async () => {
+    const adapter = new MockAdapter([
+      multiToolCallResponse([
+        { id: 'cancel-1', name: 'slow_tool', args: { id: 'one' } },
+        { id: 'cancel-2', name: 'slow_tool', args: { id: 'two' } },
+        { id: 'cancel-3', name: 'slow_tool', args: { id: 'three' } },
+      ]),
+      textResponse('never reached'),
+    ])
+    // 上限 1：第一个工具体在跑时，后两个还没派发。
+    const ctx = await harness(adapter, { maxParallelToolCalls: 1 })
+    const entered = deferred<void>()
+    let started = 0
+    ctx.tools.register(defineContentToolFixture({
+      name: 'slow_tool',
+      description: 'blocks until cancelled',
+      parameters: { id: { type: 'string', required: true } },
+      isConcurrencySafe: () => true,
+      execute: async ({ id }, exec) => {
+        started += 1
+        if (started === 1) entered.resolve(undefined)
+        await new Promise<void>((resolve) => {
+          if (exec.signal?.aborted) { resolve(); return }
+          exec.signal?.addEventListener('abort', () => { resolve() }, { once: true })
+        })
+        return [{ type: 'text', text: id }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('cancel-mid-tools'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'run three tools')
+      await entered.promise
+      handle.agent.cancel({ kind: 'user' })
+      await handle.agent.whenIdle()
+
+      const calls = handle.agent.session.events.filter(event => event.type === 'tool/call')
+      const results = handle.agent.session.events.filter(event => event.type === 'tool/result')
+      // 模型发起了 3 个调用 ⇒ 日志里必须有 3 个调用和 3 个配对结果。
+      expect(calls).toHaveLength(3)
+      expect(results).toHaveLength(3)
+      // 每个结果都指向它自己的调用（provenance 不断链）。
+      expect(results.map(event => event.sourceEventSeqs)).toEqual(calls.map(event => [event.seq]))
+      // 未派发的那些带明确的 aborted-before-dispatch 归因。
+      expect(results.filter(event => event.data.error?.code === TOOL_ABORTED_BEFORE_DISPATCH).length)
+        .toBeGreaterThan(0)
+      // deriveMessages 里每个 tool-call 都有配对 result——重放对真实 provider 合法。
+      // 工具结果是带 tool-result 块的 user 消息（DSH 没有 tool 角色）。
+      const derived = handle.agent.session.deriveMessages()
+      const blocks = derived.flatMap(message => message.content as Array<{ type: string; id?: string; toolCallId?: string }>)
+      const callIds = blocks.filter(block => block.type === 'tool-call').map(block => block.id!)
+      const resultIds = blocks.filter(block => block.type === 'tool-result').map(block => block.toolCallId!)
+      expect(callIds).toHaveLength(3)
+      expect(new Set(resultIds)).toEqual(new Set(callIds))
+      expect([...handle.agent.session.events].reverse()
+        .find(event => event.type === 'turn/end')?.data.reason.kind).toBe('aborted')
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('stock-loop invariant incompatibility (评审 D)', () => {
+  it('refuses to load beside @deepseek-ai/dsh-agent-loop/invariant', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmService)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRegistry)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(InvariantService)
+    // 宿主先装了 stock 的伴生 invariant（scaffold 默认就是这样）。
+    await ctx.plugin(agentLoopInvariant)
+
+    await expect(ctx.plugin(apply, {})).rejects.toThrow(/incompatible with the @deepseek-ai\/dsh-agent-loop\/invariant/)
+    await ctx.fiber.dispose()
+  })
+
+  it('loads cleanly when the companion is absent', async () => {
+    const ctx = new Context()
+    await ctx.plugin(LlmService)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRegistry)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(InvariantService)
+    await ctx.plugin(apply, {})
+    expect(ctx.get('sliceAgentLoop')).toBeDefined()
+    await ctx.fiber.dispose()
+  })
+})
+
+describe('slice-loop own invariant (评审 D · C)', () => {
+  async function harnessWithInvariants(adapter: MockAdapter): Promise<Context> {
+    const ctx = new Context()
+    await ctx.plugin(LlmService)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRegistry)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(InvariantService)
+    await ctx.plugin(apply, {})
+    await ctx.plugin(sliceInvariant)
+    ctx.llm.registerAdapter(['mock'], adapter)
+    return ctx
+  }
+
+  it('passes on real turns — the asserted property is actually true', async () => {
+    const adapter = new MockAdapter([textResponse('one'), textResponse('two')])
+    const ctx = await harnessWithInvariants(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('own-invariant-ok'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'first')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'second')
+      await handle.agent.whenIdle()
+
+      expect(adapter.requests).toHaveLength(2)
+      expect(handle.agent.session.events
+        .filter(event => event.type === 'turn/end')
+        .map(event => event.data.reason.kind)).toEqual(['completed', 'completed'])
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('records one audit digest per dispatched request', async () => {
+    const adapter = new MockAdapter([textResponse('done')])
+    const ctx = await harnessWithInvariants(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('own-invariant-audit'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'audit me')
+      await handle.agent.whenIdle()
+
+      const audits = handle.agent.session.events.filter(event => event.type === 'slice/request-slice')
+      expect(audits).toHaveLength(1)
+      // 摘要必须真的对应发出去的种子——这条链断了审计就是空的。
+      const dispatched = sliceDigest(seedTextOf(adapter.requests[0]!.messages))
+      expect(audits[0]!.data.seedDigest).toBe(dispatched)
+      expect(audits[0]!.data.messageCount).toBe(adapter.requests[0]!.messages.length)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+})
+
+describe('Code Mode file anchoring (评审 · 执行平面)', () => {
+  /** A scriptable CodeRuntime: `behavior` drives the sub-calls a run_code program makes. */
+  class FakeRuntime extends CodeRuntime {
+    readonly language = 'typescript'
+    readonly isolation = 'fake'
+    behavior: (request: CodeRunRequest) => Promise<CodeRunResult> = () => Promise.resolve({ logs: [] })
+    run(request: CodeRunRequest): Promise<CodeRunResult> {
+      return this.behavior(request)
+    }
+  }
+
+  it('anchors a file written by a run_code SUB-CALL, not just a top-level tool call', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-codemode-'))
+    const path = join(root, 'written-by-code.txt')
+    const marker = 'CODE MODE SUB-CALL ANCHOR MARKER'
+    const adapter = new MockAdapter([
+      toolCallResponse('code-1', 'run_code', { code: 'await tools.write(...)', description: 'write the file' }),
+      textResponse('code complete'),
+      textResponse('recalled'),
+    ])
+    const ctx = new Context()
+    await ctx.plugin(LlmService)
+    await ctx.plugin(SessionStore)
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRegistry)
+    await ctx.plugin(AgentRegistry)
+    await ctx.plugin(FakeRuntime)
+    await ctx.plugin(apply, {})
+    ctx.llm.registerAdapter(['mock'], adapter)
+    // 真实的 write 工具（DSH tool-fs 的名字与参数键）。
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write',
+      description: 'write a UTF-8 file',
+      parameters: {
+        file_path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ file_path, content }) => {
+        await writeFile(file_path as string, content as string, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('code-mode-anchor'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+      // preset 平面声明 code 模式：模型只看得到 run_code。
+      setup: (agentCtx: Context) => { agentCtx.tools.presentAs('code') },
+    })
+    // run_code 程序体：调一次真实的 write 子工具。
+    ;(ctx.codeRuntime as FakeRuntime).behavior = async (request: CodeRunRequest) => {
+      // bindings 是 { global, functions: Record<name, fn> } 的列表。
+      const write = request.bindings
+        .map(namespace => namespace.functions.write)
+        .find(fn => fn !== undefined)
+      expect(write).toBeDefined()
+      await write!({ file_path: path, content: marker })
+      return { logs: [] }
+    }
+
+    try {
+      send(handle.agent, 'write the file through code mode')
+      await handle.agent.whenIdle()
+
+      // 模型只发了一个 run_code —— 顶层看不到 write。
+      const calls = handle.agent.session.events.filter(event => event.type === 'tool/call')
+      expect(calls.map(event => event.data.name)).toEqual(['run_code'])
+      // 但锚定挂在执行平面，所以子调用写的文件仍然进 tape。
+      expect(handle.agent.session.events.filter(event => event.type === 'slice/file-anchor'))
+        .toHaveLength(1)
+
+      send(handle.agent, 'recall the edited file')
+      await handle.agent.whenIdle()
+      expect(JSON.stringify(adapter.requests[2]?.messages)).toContain(marker)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
   })
 })

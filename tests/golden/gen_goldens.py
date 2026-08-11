@@ -5,8 +5,12 @@ EXACTLY as the TS side will, runs the real Python engine, and writes expected.js
 mapping case name -> expected output string. Dev artifact; do not hand-edit outputs.
 
 Run:
-  PYTHONPATH=/Users/tongtao/code/sliceagent/packages/sliceagent-core/src \
-    /Users/tongtao/code/sliceagent/.venv/bin/python tests/golden/gen_goldens.py
+  npm run goldens
+
+scripts/gen-goldens.mjs locates the sliceagent checkout ($SLICEAGENT_REPO, else
+~/code/sliceagent) and its interpreter ($SLICEAGENT_PYTHON, else the repo venv,
+else python3), then invokes this script with PYTHONPATH already set. Only the
+maintainer needs it — `npm test` asserts against the checked-in expectations.
 """
 from __future__ import annotations
 
