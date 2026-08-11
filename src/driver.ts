@@ -70,9 +70,10 @@ import type {
   RequestContext,
   Session,
   SessionId,
+  SurfaceEvent,
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
@@ -181,12 +182,12 @@ export class SliceLoopAgent implements Agent {
       wake: () => this.wakeDriver(),
     })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
-    // Canonical surface replacements (compaction) rewrite the carried
-    // continuity the moment they commit — live and rebuilt agents agree.
+    // The driver keeps its own incremental ordered surface fold: canonical
+    // replacements compact their positional span the moment they commit —
+    // live and rebuilt agents agree, and surface order (not seq order) rules.
     this.ctx.on('session/event', (subject, event) => {
-      if (subject !== session || !isReplacementSurfaceEvent(event)) return
-      this.applySurfaceReplacement(event.surfaceOp,
-        event.type === 'user/message' ? blockText(event.data) : '', event.seq)
+      if (subject !== session || !isSurfaceEvent(event)) return
+      this.foldSurfaceEvent(event)
     })
     // Agent recreation/resume: rebuild the bounded conversation ring from the
     // seeded log so the prior exchanges reach the next slice (the tape itself
@@ -242,17 +243,21 @@ export class SliceLoopAgent implements Agent {
         // Canonical surface replacement: rewrite the shadowed turn(s) to the
         // summary instead of replaying the shadowed originals.
         if (isReplacementSurfaceEvent(event)) {
-          this.applySurfaceReplacement(event.surfaceOp, blockText(event.data), event.seq)
+          this.foldSurfaceEvent(event)
           continue
         }
+        if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
         if (step !== 1 || isRuntimeContextMessage(event.data)) continue
         const text = blockText(event.data)
         if (text) pendingFirstStep.push(text)
       } else if (event.type === 'assistant/message') {
+        if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
         flushFirstStep()
         fillAssistant(this.cont, event.data.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join(''))
+      } else if (event.type === 'tool/result') {
+        if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
       } else if (event.type === 'slice/file-anchor') {
         // 插件拥有的轮界完整性（核心 invariant 把插件事件关系委托给所属插件）：
         // 锚点只在它声明的轮仍处于开轮状态时被接受——轮外孤儿或轮号不符的
@@ -282,35 +287,61 @@ export class SliceLoopAgent implements Agent {
     flushFirstStep()
   }
 
-  /** Rewrite the shadowed turns of one canonical surface replacement to its summary. */
-  private applySurfaceReplacement(
-    surfaceOp: { op: 'replace'; start: number; end: number },
-    summary: string,
-    replacementSeq: number,
-  ): void {
-    if (!summary) return
-    const turns = this.shadowedTurns(surfaceOp)
-    for (const turn of turns) {
-      compactTurn(this.cont, turn, summary, this.session.id)
+  /**
+   * The driver's incremental ordered surface fold: seqs of the live surface
+   * nodes in surface order. Replacement spans are POSITIONAL — a compacted
+   * summary can sit before nodes with larger seqs — so shadow membership is
+   * resolved against this fold, never by numeric seq comparison.
+   */
+  private readonly surfaceFold: number[] = []
+
+  /** Replacement-node seq → turns that node was compacted into (transitive lineage). */
+  private readonly replacementLineage = new Map<number, Set<number>>()
+
+  /**
+   * Fold one surface event. A replacement first compacts its positional span
+   * (rewriting the shadowed turns to the summary), then the fold swaps the
+   * span for the new node.
+   */
+  private foldSurfaceEvent(event: SurfaceEvent): void {
+    if (isReplacementSurfaceEvent(event)) {
+      const summary = event.type === 'user/message' ? blockText(event.data) : ''
+      if (summary) {
+        const turns = this.shadowedTurns(event.surfaceOp)
+        for (const turn of turns) {
+          compactTurn(this.cont, turn, summary, this.session.id)
+        }
+        this.replacementLineage.set(event.seq, new Set(turns))
+      }
+      const startIndex = this.surfaceFold.indexOf(event.surfaceOp.start)
+      const endIndex = this.surfaceFold.indexOf(event.surfaceOp.end)
+      if (startIndex !== -1 && endIndex !== -1) {
+        const lo = Math.min(startIndex, endIndex)
+        const hi = Math.max(startIndex, endIndex)
+        this.surfaceFold.splice(lo, hi - lo + 1, event.seq)
+      }
+      return
     }
-    this.replacementLineage.set(replacementSeq, new Set(turns))
+    this.surfaceFold.push(event.seq)
   }
 
   /**
-   * Map a replacement's surface span to its turn numbers. The shadowed set is
-   * exactly the surface nodes in `start..end` (inclusive); `sourceEventSeqs`
-   * is provenance and may legally cite unshadowed nodes. A node that is itself
-   * an earlier replacement contributes the turns it was compacted into
-   * (transitive lineage), so nested compactions follow the final summary.
+   * Map a replacement's positional span to its turn numbers. `sourceEventSeqs`
+   * is provenance and may legally cite unshadowed nodes; a node that is itself
+   * an earlier replacement contributes the turns it was compacted into.
    */
-  private readonly replacementLineage = new Map<number, Set<number>>()
-
   private shadowedTurns(surfaceOp: { op: 'replace'; start: number; end: number }): number[] {
+    const startIndex = this.surfaceFold.indexOf(surfaceOp.start)
+    const endIndex = this.surfaceFold.indexOf(surfaceOp.end)
+    if (startIndex === -1 || endIndex === -1) return []
+    const lo = Math.min(startIndex, endIndex)
+    const hi = Math.max(startIndex, endIndex)
+    const span = new Set(this.surfaceFold.slice(lo, hi + 1))
     const turns = new Set<number>()
     let open: number | null = null
     for (const event of this.session.events) {
       if (event.type === 'turn/start') open = event.data.turn
-      if (event.seq >= surfaceOp.start && event.seq <= surfaceOp.end) {
+      if (span.has(event.seq)) {
         const inherited = this.replacementLineage.get(event.seq)
         if (inherited !== undefined) {
           for (const turn of inherited) turns.add(turn)
