@@ -85,6 +85,8 @@ import {
 import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/index.js'
+import { pySplitlines } from './slice/internal/pytext.js'
+import { _h } from './slice/tape.js'
 import {
   createContinuity,
   recordUser,
@@ -94,7 +96,7 @@ import {
   trackEdit,
   type Continuity,
 } from './continuity.js'
-import { SYSTEM_PROMPT } from './system-prompt.js'
+import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
 
 type Phase =
   | { kind: 'idle'; lastTurn: number }
@@ -185,36 +187,58 @@ export class SliceLoopAgent implements Agent {
   }
 
   /**
-   * Replay the durable log into the carried continuity state: user/assistant
-   * surface events rebuild the conversation ring, and each turn/end re-seals
-   * the turn (digest + reply entries) so the resumed agent's SESSION TAPE
-   * carries the prior exchanges — mirroring the live turn-end seal. File
-   * anchors cannot be recovered from the log (post-state lives on disk, not
-   * in events); runtime-context snapshots are re-projected live, never replayed.
+   * Replay the durable log into the carried continuity state with the SAME
+   * grouping as live execution: only each turn's first-step (next-turn
+   * boundary) input batch joins the conversation ring, merged into one row;
+   * same-turn steering (later steps) never becomes a new row. Each turn that
+   * recorded input is re-sealed at its turn/end (digest + reply entries) so
+   * the resumed agent's SESSION TAPE carries the prior exchanges; turns with
+   * no recorded input (rejected/empty) seal nothing. File anchors cannot be
+   * recovered from the log (post-state lives on disk, not in events);
+   * runtime-context snapshots are re-projected live, never replayed.
    */
   private restoreContinuity(session: Session): void {
+    let step = 0
+    let pendingFirstStep: string[] = []
+    let recordedThisTurn = false
+    const flushFirstStep = (): void => {
+      const text = pendingFirstStep.filter(Boolean).join('\n')
+      pendingFirstStep = []
+      if (!text) return
+      if (!this.cont.goal) this.cont.goal = text
+      recordUser(this.cont, text)
+      recordedThisTurn = true
+    }
     for (const event of session.events) {
-      if (event.type === 'user/message') {
-        if (isRuntimeContextMessage(event.data)) continue
+      if (event.type === 'step/start') {
+        flushFirstStep()
+        step = event.data.step
+      } else if (event.type === 'user/message') {
+        if (step !== 1 || isRuntimeContextMessage(event.data)) continue
         const text = blockText(event.data)
-        if (!text) continue
-        if (!this.cont.goal) this.cont.goal = text
-        recordUser(this.cont, text)
+        if (text) pendingFirstStep.push(text)
       } else if (event.type === 'assistant/message') {
+        flushFirstStep()
         fillAssistant(this.cont, event.data.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join(''))
       } else if (event.type === 'turn/end') {
-        const last = this.cont.conversation[this.cont.conversation.length - 1]
-        sealTurn(this.cont, {
-          turnId: `slice-turn-${event.data.turn}-resumed`,
-          status: event.data.reason.kind,
-          userRequest: last?.user ?? '',
-          assistantReply: last?.assistant ?? '',
-          sessionId: this.session.id,
-        })
+        flushFirstStep()
+        if (recordedThisTurn) {
+          const last = this.cont.conversation[this.cont.conversation.length - 1]
+          sealTurn(this.cont, {
+            turnId: `slice-turn-${event.data.turn}-resumed`,
+            status: event.data.reason.kind,
+            userRequest: last?.user ?? '',
+            assistantReply: last?.assistant ?? '',
+            sessionId: this.session.id,
+          })
+        }
+        recordedThisTurn = false
+        step = 0
       }
     }
+    flushFirstStep()
   }
 
   get status(): AgentStatus {
@@ -379,6 +403,7 @@ export class SliceLoopAgent implements Agent {
     phase.turn = turn
     this.turnSeedUser = undefined
     this.turnTrajectory = []
+    let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
     try {
@@ -406,6 +431,7 @@ export class SliceLoopAgent implements Agent {
           if (text) {
             if (!this.cont.goal) this.cont.goal = text
             recordUser(this.cont, text)
+            recordedThisTurn = true
           }
         }
         signal.throwIfAborted()
@@ -452,18 +478,21 @@ export class SliceLoopAgent implements Agent {
         this.throwError(error)
       }
       // 轮末封存（continuity.ts sealTurn）：digest + 文件锚点 + 答复冻结进
-      // SESSION TAPE + GC——下一轮 slice 的近期交换呈现层。
-      try {
-        const last = this.cont.conversation[this.cont.conversation.length - 1]
-        sealTurn(this.cont, {
-          turnId: `slice-turn-${turn}-${Date.now().toString(36)}`,
-          status: turnEnds?.kind ?? 'error',
-          userRequest: last?.user ?? '',
-          assistantReply: last?.assistant ?? '',
-          sessionId: this.session.id,
-        })
-      } catch {
-        // 封存失败不反转已完成的轮（与 sidecar 同级容错）。
+      // SESSION TAPE + GC——下一轮 slice 的近期交换呈现层。只封存本轮真正记录
+      // 了输入的轮：无 step 的被拒/空轮不把上一轮的陈旧答复再次冻结。
+      if (recordedThisTurn) {
+        try {
+          const last = this.cont.conversation[this.cont.conversation.length - 1]
+          sealTurn(this.cont, {
+            turnId: `slice-turn-${turn}-${Date.now().toString(36)}`,
+            status: turnEnds?.kind ?? 'error',
+            userRequest: last?.user ?? '',
+            assistantReply: last?.assistant ?? '',
+            sessionId: this.session.id,
+          })
+        } catch {
+          // 封存失败不反转已完成的轮（与 sidecar 同级容错）。
+        }
       }
     }
     if (!this.inbox.hasPending) return false
@@ -497,12 +526,17 @@ export class SliceLoopAgent implements Agent {
       .filter((m) => isRuntimeContextMessage(m))
       .map((m) => blockText(m)).filter(Boolean).join('\n\n')
     const scopedSystem = renderPrompt(assembly)
+    const systemPrefix = scopedSystem
+      ? `${RESOLVED_SYSTEM_PROMPT}\n\n${scopedSystem}`
+      : RESOLVED_SYSTEM_PROMPT
+    // OPEN FILES hash index（seed.py build_open_files_index 同构）：每个驻留文件
+    // 一行 locator——path · 行数 · 当前盘态 sha256(12) · 精确 read 调用——模型据此
+    // 做 tape-hash 信任检查（hash 匹配才从 tape 组装，否则重读）。
+    const sliceCtx = toSliceCtx(this.cont)
+    sliceCtx.artifacts = this.openFilesIndex()
     const assembled: AssembledSlice = assembleSlice(
-      toSliceCtx(this.cont),
-      {
-        systemPrefix: scopedSystem ? `${SYSTEM_PROMPT}\n\n${scopedSystem}` : SYSTEM_PROMPT,
-        request: requestText,
-      },
+      sliceCtx,
+      { systemPrefix, request: requestText },
     )
     const tools = assembly.tools
 
@@ -822,19 +856,27 @@ export class SliceLoopAgent implements Agent {
     const event = this.session.append('tool/call', {
       turn, step, callId: block.id, name: block.name, arguments: block.arguments,
     })
-    // 编辑族工具：记录路径，轮末 seal 锚定文件后态（continuity.ts trackEdit）。
-    if (EDIT_TOOL_NAMES.has(block.name)) {
-      const path = toolPath(block.arguments)
-      if (path !== undefined) {
-        trackEdit(this.cont, path, () => readFileSafe(this.sessionCwd(), path))
-      }
-    }
     return event.seq
   }
 
   /** 会话工作目录（session.header.cwd 为权威，同 WP6 教训）。 */
   private sessionCwd(): string {
     return (this.session.header?.cwd as string | undefined) ?? process.cwd()
+  }
+
+  /**
+   * OPEN FILES locator index（seed.py:190-233 的 MVP 移植）：每个驻留文件一行
+   * path · 行数 · 当前盘态 sha256(12) · 精确 read 调用。盘读失败回退 seal 时
+   * 锚定的后态；所有驻留文件都是本轮会话编辑过的。
+   */
+  private openFilesIndex(): string {
+    const paths = Object.keys(this.cont.tapeFiles).sort()
+    if (paths.length === 0) return ''
+    const cwd = this.sessionCwd()
+    return paths.map((p) => {
+      const body = readFileSafe(cwd, p) ?? this.cont.tapeFiles[p]!.content
+      return `### ${p} — ${pySplitlines(body).length} lines · sha256:${_h(body)} · read_file("${p}") to view · (edited this session)`
+    }).join('\n')
   }
 
   /** Append a model-ordered result linked to its call event. */
@@ -858,6 +900,14 @@ export class SliceLoopAgent implements Agent {
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     this.turnTrajectory.push(message)
+    // 编辑族工具：仅在成功结果后记录路径，轮末 seal 锚定文件后态——失败或
+    // 中止的调用绝不把未触动的盘态冒充为已应用编辑（continuity.ts trackEdit）。
+    if (!result.isError && EDIT_TOOL_NAMES.has(block.name)) {
+      const path = toolPath(block.arguments)
+      if (path !== undefined) {
+        trackEdit(this.cont, path, () => readFileSafe(this.sessionCwd(), path))
+      }
+    }
   }
 
   /** Append the durable call/result pair for a model call skipped after cancellation. */
