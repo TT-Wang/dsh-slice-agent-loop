@@ -66,8 +66,11 @@ host plane only. Under `standard`, `code` or `cordis` the stack still runs, and
 (`dsh-external/issues#564`). To run without it, author your own preset under
 `$DSH_HOME/.agent-presets/` — copy `standard/agent.cordis.yml` and drop the
 `compaction` group, or start from `presets/benchmark.agent.cordis.yml`, which
-already has. `minimal` also mounts no compaction, but 20260811 narrowed it to a
-shell and `str_replace_editor`, so it is no longer a drop-in escape hatch.
+already has. `minimal` also mounts no compaction, but do **not** run this loop under it:
+20260811 gave its persona `complete: true`, which suppresses every other
+prompt section — including this loop's own `slice:kernel`. Under `minimal` the
+model would get "You are a helpful software engineer assistant" and nothing
+else: no sliceagent kernel, no tool guidance.
 
 ## Configuration
 
@@ -224,6 +227,7 @@ What skews a measurement is the identity stack. That session carried **four**:
 |--:|---|---|---|
 | 1 | `You are sliceagent, an interactive engineering agent…` | this loop | — |
 | 2 | `You are an AI agent powered by the DeepSeek Harness SDK.` | prompt registry | `includeHarnessIdentity: false` on the host `system-prompt` row |
+| — | *#2 and #4 in one stroke:* | host plane | `- id: system-prompt` + `config: { includeHarnessIdentity: false, persona: '' }`. Both keys — an id-targeted patch replaces the row's **whole** config, so writing one key alone silently drops the other. |
 | 3 | `You are interacting with the user through the … Web GUI…` | web bundle | do not benchmark through `dsh web` |
 | 4 | `You are a coding agent powered by the {{model}} model…` | preset `persona` | use the preset below |
 
@@ -324,8 +328,9 @@ npm install --legacy-peer-deps && npm run link:dsh
 ```
 
 Clone over https unless you have an ssh key on the org. `--legacy-peer-deps` is
-the one non-standard step: the nine `@deepseek-ai/*` peers are private, so a
-plain `npm install` stops at `E404 ... is not in this registry` — which reads
+the one non-standard step: the nine `@deepseek-ai/*` peers are unpublished
+(`publishConfig.access: restricted` since 20260811), so an unauthenticated
+`npm install` stops at `E404 ... is not in this registry` — which reads
 like this package is broken when it only means npm cannot fetch what the
 harness supplies. `link:dsh` then symlinks them from your dsh checkout.
 

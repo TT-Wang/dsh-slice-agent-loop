@@ -46,7 +46,7 @@ dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main"
 
 DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compaction` isolate 组里,host 平面的 patch 伸不进去 —— 上面那几行只管得到 host 平面。在 `standard`、`code` 或 `cordis` 下压缩栈照旧运行,而 `dsh-token-meter` 计价的是 *surface* 而不是真正发出去的那份切片(`dsh-external/issues#564`),所以它报的压力数字描述的不是这个 loop 的真实请求。
 
-要在没有压缩的情况下跑,自己写一个 preset 放进 `$DSH_HOME/.agent-presets/` —— 复制 `standard/agent.cordis.yml` 把 `compaction` 组删掉,或者直接用 `presets/benchmark.agent.cordis.yml`(已经删好了)。`minimal` 同样不挂压缩,但 20260811 把它收窄成一个 shell 加 `str_replace_editor`,不再是一个能直接换上的逃生门。
+要在没有压缩的情况下跑,自己写一个 preset 放进 `$DSH_HOME/.agent-presets/` —— 复制 `standard/agent.cordis.yml` 把 `compaction` 组删掉,或者直接用 `presets/benchmark.agent.cordis.yml`(已经删好了)。`minimal` 同样不挂压缩,但**不要**在它下面跑这个 loop:20260811 给它的 persona 加了 `complete: true`,会压掉其他所有提示节 —— 包括本 loop 自己的 `slice:kernel`。在 `minimal` 下模型只会收到一句 "You are a helpful software engineer assistant",没有 sliceagent kernel,也没有工具说明。
 
 ## 配置
 
@@ -146,6 +146,7 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 |--:|---|---|---|
 | 1 | `You are sliceagent, an interactive engineering agent…` | 本 loop | — |
 | 2 | `You are an AI agent powered by the DeepSeek Harness SDK.` | 提示注册表 | host 平面 `system-prompt` 行设 `includeHarnessIdentity: false` |
+| — | *#2 和 #4 一并去掉:* | host 平面 | `- id: system-prompt` + `config: { includeHarnessIdentity: false, persona: '' }`。**两个键都要写** —— 按 id 定位的 patch 替换的是整个 config,只写一个键会把另一个静默丢掉。 |
 | 3 | `You are interacting with the user through the … Web GUI…` | web bundle | 不要用 `dsh web` 跑 benchmark |
 | 4 | `You are a coding agent powered by the {{model}} model…` | preset 的 `persona` | 用下面这个 preset |
 
@@ -197,7 +198,7 @@ cd dsh-slice-agent-loop
 npm install --legacy-peer-deps && npm run link:dsh
 ```
 
-没在 org 上配 ssh key 就走 https。`--legacy-peer-deps` 是唯一一个非标准动作:那 9 个 `@deepseek-ai/*` peer 是私有的,裸跑 `npm install` 会停在 `E404 ... is not in this registry` —— 那个报错读起来像这个包坏了,实际只是 npm 拉不到宿主自己会提供的东西。`link:dsh` 随后把它们从你的 dsh 检出软链过来。
+没在 org 上配 ssh key 就走 https。`--legacy-peer-deps` 是唯一一个非标准动作:那 9 个 `@deepseek-ai/*` peer 未发布(20260811 起 `publishConfig.access: restricted`),未认证的 `npm install` 会停在 `E404 ... is not in this registry` —— 那个报错读起来像这个包坏了,实际只是 npm 拉不到宿主自己会提供的东西。`link:dsh` 随后把它们从你的 dsh 检出软链过来。
 
 ## 开发
 

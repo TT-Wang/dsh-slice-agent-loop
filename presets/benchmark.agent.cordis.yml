@@ -39,6 +39,21 @@
 # Preset rows are unreachable from a host-plane patch, which is why this has to
 # be a preset rather than something cordis.patch.yml could do.
 #
+# REJECTED ALTERNATIVE: 20260811 lets a persona declare `complete: true`,
+# which would kill identities #2/#3/#4 in one stroke — by suppressing EVERY
+# other section, including the ~4,621 chars of tool instruction this preset
+# deliberately keeps AND the slice loop's own kernel section. `minimal` does
+# exactly that, which is why it is not a usable base here (see README).
+#
+# SIMPLER HOST-PLANE OPTION when you only need identities #2 and #4 gone and
+# can accept the deployment persona slot: one row in your profile's own
+# cordis.patch.yml —
+#     - id: system-prompt
+#       config: { includeHarnessIdentity: false, persona: '' }
+# BOTH keys are required: an id-targeted patch REPLACES the row's whole
+# config, so writing only includeHarnessIdentity would silently drop the
+# base persona key with it.
+#
 # INSTALL
 #
 #     mkdir -p "$DSH_HOME/.agent-presets"

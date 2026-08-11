@@ -7,10 +7,12 @@
 # and `dsh-command-compact` injects `compact` — leaving the consumer mounted
 # after its service is gone suspends that fiber forever.
 #
-# NOTE: on the 0810+ preset plane the live compaction stack lives in each
-# preset's own `compaction` isolate group, which a host-plane patch cannot
-# reach. These two rows cover the host plane; to run without compaction under
-# `standard` / `code` / `cordis`, author a preset without that group (see README).
+# NOTE: the live compaction stack lives in each preset's own `compaction`
+# isolate group, which a host-plane patch cannot reach. These two rows cover
+# the host plane; to run without compaction under `standard` / `code` /
+# `cordis`, author a preset without that group (see README). Since 20260811
+# `token-meter` sits on the HOST plane, no longer inside that group — dropping
+# the group no longer silently deletes ctx.tokenMeter with it.
 
 - id: agent-loop
   disabled: true

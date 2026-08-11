@@ -225,3 +225,20 @@ B2/B3 落地后这条门恒绿;任何人再写回一个假调用名,它立刻红
 - **A 的 50 步默认只在一条轨迹上标定过**(19 轮 / 143 步)。多跑几条会话再定,或先发 50 观察。
 - **停滞检测不是永远不能做** —— 但需要一个真信号(如"连续 N 步没有新观测"),而不是"没有可见文本"。目前没有这个信号的实现,不要为了填空硬上。
 - 外部 spec §E2(宿主 UI 对 `turn/end` reason 穷举 switch)仍未验证,值得在宿主侧确认一次。
+
+---
+
+## 7. 0811 机会清单分拣(2026-08-12)
+
+delta 审计的 13 条 opportunity,分拣如下。已落地的不再列。
+
+**已随本批落地**:peer range → `^0.0.1-rc.1`;patch/preset 注释更新(token-meter 回 host 平面、complete 方案否决理由、一行两杀配方);README minimal 警告。
+
+**backlog(建 task 跟踪)**:
+
+1. **live settings 面板对齐** — stock loop 把 `maxParallelToolCalls` 改成了 settings section(`agent-loop` 命名空间),Web 设置页有对应卡片;stock 被禁用后那张卡渲染为空。本插件可注册自己的 `slice-agent-loop` 命名空间,把 `maxParallelToolCalls` / `maxStepsPerTurn` 变成活配置(validate-refuses-keeps-last-good 形状照抄 stock)。
+2. **`foldConsumedWork` 替换手写反向扫描** — driver.ts 恢复轮号的 backward scan 可换成 0811 的现成折叠;顺带获得 subagent 语义(pre-step 拒绝 → refusal 等)。我们的 `step-budget` 变体按其扩展契约已被正确覆盖(审计确认)。
+3. **`readRaw` 评估(低优先)** — recall_turn 已建在 session.events 上(更简单、活/重建两态同源)。readRaw 的独特价值只在跨会话读取;当前不需要。
+
+**明确不做**:kernel 用 `complete: true`(会压掉 scoped sections,与"宿主段跟在 kernel 后"的设计冲突);benchmark preset 用 complete persona(压掉工具说明)。
+
