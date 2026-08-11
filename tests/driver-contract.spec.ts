@@ -557,6 +557,142 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+  it('marks a deleted anchored file as missing instead of publishing a stale trusted hash', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-deleted-index-'))
+    const path = join(root, 'deleted.txt')
+    const adapter = new MockAdapter([
+      toolCallResponse('write-deleted', 'write_file', { path, content: 'will be deleted' }),
+      textResponse('write complete'),
+      textResponse('index checked'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('deleted-file-index'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'write the file')
+      await handle.agent.whenIdle()
+      await rm(path)
+      send(handle.agent, 'inspect the current file index')
+      await handle.agent.whenIdle()
+
+      const text = JSON.stringify(adapter.requests[2]?.messages)
+      const openFiles = text.split('# OPEN FILES')[1]?.split('</context>')[0] ?? ''
+      expect({
+        missing: openFiles.includes(`${path} (not created yet)`),
+        staleHash: openFiles.includes('sha256:'),
+      }).toEqual({ missing: true, staleHash: false })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('redacts secret-shaped edited content before it enters the model-visible tape', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-redacted-anchor-'))
+    const path = join(root, 'secret.env')
+    const secret = 'sk-abcdefghijklmnopqrstuvwxyz'
+    const adapter = new MockAdapter([
+      toolCallResponse('write-secret', 'write_file', { path, content: secret }),
+      textResponse('write complete'),
+      textResponse('tape checked'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('redacted-file-anchor'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'write the secret-bearing file')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'inspect the safe tape')
+      await handle.agent.whenIdle()
+
+      expect(JSON.stringify(adapter.requests[2]?.messages)).not.toContain(secret)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('captures each successful edit post-state instead of collapsing the turn to its final bytes', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-edit-snapshots-'))
+    const path = join(root, 'twice.txt')
+    const firstMarker = 'FIRST SUCCESSFUL EDIT POST-STATE MARKER'
+    const secondMarker = 'SECOND SUCCESSFUL EDIT POST-STATE MARKER'
+    const adapter = new MockAdapter([
+      multiToolCallResponse([
+        { id: 'write-first', name: 'write_file', args: { path, content: firstMarker } },
+        { id: 'write-second', name: 'write_file', args: { path, content: secondMarker } },
+      ]),
+      textResponse('both writes complete'),
+      textResponse('snapshots checked'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('edit-post-state-snapshots'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'apply both edits')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'inspect both successful snapshots')
+      await handle.agent.whenIdle()
+
+      const text = JSON.stringify(adapter.requests[2]?.messages)
+      expect({
+        first: text.includes(firstMarker),
+        second: text.includes(secondMarker),
+      }).toEqual({ first: true, second: true })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('does not anchor a failed edit call as a successful tape mutation', async () => {
     const root = await mkdtemp(join(tmpdir(), 'slice-loop-failed-anchor-'))
     const path = join(root, 'untouched.txt')
