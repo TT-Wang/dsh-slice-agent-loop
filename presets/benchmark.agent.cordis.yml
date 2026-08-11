@@ -1,0 +1,192 @@
+# benchmark.agent.cordis.yml — an agent preset for measuring THIS loop.
+#
+# WHY THIS EXISTS
+#
+# The slice loop does not replace the system prompt; it PREPENDS to it.
+# driver.ts renders `${RESOLVED_SYSTEM_PROMPT}\n\n${renderPrompt(assembly)}`,
+# so the ported sliceagent prefix arrives first and every section DSH's own
+# registry contributes follows it. Measured on a real session:
+#
+#     total system prompt        17,292 chars
+#       ported sliceagent prefix 12,671   (this loop)
+#       appended by DSH           4,621   (registry sections)
+#
+# Most of that 4,621 is tool instruction — "Use the read tool, not shell
+# commands like cat", "Use the glob tool, not shell find" — and it MUST stay.
+# It teaches the host's real tool names and schemas, which is exactly what the
+# slice deliberately no longer hardcodes into its locators.
+#
+# What does not belong in a measurement is the identity stack. That same
+# session carried FOUR of them:
+#
+#   1. "You are sliceagent, an interactive engineering agent…"      (this loop)
+#   2. "You are an AI agent powered by the DeepSeek Harness SDK."   (registry)
+#   3. "You are interacting with the user through the … Web GUI…"   (web bundle)
+#   4. "You are a coding agent powered by the {{model}} model…"     (preset)
+#
+# Three of the four are removable, and each has a different switch:
+#
+#   #2  host plane — set `includeHarnessIdentity: false` on the `system-prompt`
+#       row. It is a first-class config key (core/system-prompt Config), and
+#       `core-web.cordis.yml` already sets it; a composition that does not gets
+#       the `true` default.
+#   #3  do not run the benchmark through `dsh web`. That 964-char section comes
+#       from the web bundle and describes HMR, Vite, and this GUI's URL — pure
+#       noise for a headless run.
+#   #4  this file: the `persona` row is simply absent.
+#
+# Preset rows are unreachable from a host-plane patch, which is why this has to
+# be a preset rather than something cordis.patch.yml could do.
+#
+# INSTALL
+#
+#     mkdir -p "$DSH_HOME/.agent-presets"
+#     cp presets/benchmark.agent.cordis.yml \
+#        "$DSH_HOME/.agent-presets/slice-benchmark/agent.cordis.yml"
+#
+# then select the `slice-benchmark` preset for the session.
+#
+# WHAT ELSE IS MISSING FROM `standard`
+#
+# The `compaction` group. This loop's bounded rebuild replaces compaction, and
+# `command-compact` injects `compact` — leaving the consumer mounted after its
+# service is gone suspends that fiber forever. The host-plane patch in
+# cordis.patch.yml disables the host-plane copies; the preset-plane group is
+# only reachable from here.
+#
+# Everything else is `standard` verbatim, including every tool. A benchmark
+# that quietly narrows the tool surface measures a different agent.
+
+# ── identity ────────────────────────────────────────────────────────────────
+# No `persona` row. The loop's own prefix already opens with "You are
+# sliceagent"; a second identity line contradicts it and skews the prefix.
+
+- id: workspace-context
+  name: '@deepseek-ai/dsh-workspace-context'
+  config:
+    maxBytes: 65536
+
+# ── shell ───────────────────────────────────────────────────────────────────
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+
+# ── filesystem ──────────────────────────────────────────────────────────────
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+- id: tool-str-replace-editor
+  name: '@deepseek-ai/dsh-tool-str-replace-editor'
+  config:
+    maxOutputChars: 16000
+
+# ── background tasks ────────────────────────────────────────────────────────
+
+- id: tool-tasks
+  name: '@deepseek-ai/dsh-tool-tasks'
+
+# ── skills ──────────────────────────────────────────────────────────────────
+
+- id: skill-local
+  name: '@deepseek-ai/dsh-skill-local'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+# ── goals ───────────────────────────────────────────────────────────────────
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+# ── plan mode ───────────────────────────────────────────────────────────────
+# Kept. It contributes `exit_plan_mode` to the tool surface, and its prompt
+# section only renders while the session is actually in plan mode — so a
+# benchmark that drops it measures a smaller tool catalog than `standard`.
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Prefer existing functions and patterns over new machinery.
+
+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+# ── delegation and workflows ────────────────────────────────────────────────
+# `workflows` needs an entry-local realm; a consumer left outside it would
+# resolve a host registry this preset does not populate.
+
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflows: true
+  config:
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+
+    - id: tool-subagent-list-agents
+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+    - id: tool-subagent
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: subagent
+        backgroundMode: continuable
+
+    - id: tool-subagent-fork
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: fork
+        toolName: subagent_fork
+        backgroundMode: continuable
+
+    - id: workflow-workerthread
+      name: '@deepseek-ai/dsh-workflow-workerthread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+    - id: tool-ralph
+      name: '@deepseek-ai/dsh-tool-ralph'
+      config:
+        subagentProvider: spawn
+        maxRounds: 64
+
+# ── remaining model-facing rows ─────────────────────────────────────────────
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000

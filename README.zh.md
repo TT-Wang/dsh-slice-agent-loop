@@ -125,6 +125,38 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 
 撞顶时追加 `slice/step-budget`,并以 `reason.kind: 'step-budget'` 结束该轮。它**不会**走 `agent/turn-stopping` seam —— 那个 seam 的契约是"用 steering 表示反对,并在同一轮里继续",和硬停止正相反。撞顶时到达的 steering 留在 inbox 里由下一轮 claim,与 error 路径同款处置。
 
+## 测量这个 loop
+
+这个 loop 对系统提示是**前置**不是替换:`driver.ts` 渲染的是
+`${RESOLVED_SYSTEM_PROMPT}\n\n${renderPrompt(assembly)}`,移植过来的 sliceagent 前缀在前,DSH 自己注册表贡献的各段在后。真实会话实测:
+
+```
+系统提示总长              17,292 字符
+  移植的 sliceagent 前缀  12,671   (本 loop)
+  DSH 追加                 4,621   (注册表各段)
+```
+
+那 4,621 里大部分是**工具说明** ——「Use the read tool, not shell commands like cat」—— 它们**必须留**:教的是宿主真实的工具名,而这正是切片刻意不再硬编码进定位器的那个东西。
+
+真正会污染测量的是**身份栈**。那次会话里有**四条**:
+
+| # | 内容 | 来源 | 开关 |
+|--:|---|---|---|
+| 1 | `You are sliceagent, an interactive engineering agent…` | 本 loop | — |
+| 2 | `You are an AI agent powered by the DeepSeek Harness SDK.` | 提示注册表 | host 平面 `system-prompt` 行设 `includeHarnessIdentity: false` |
+| 3 | `You are interacting with the user through the … Web GUI…` | web bundle | 不要用 `dsh web` 跑 benchmark |
+| 4 | `You are a coding agent powered by the {{model}} model…` | preset 的 `persona` | 用下面这个 preset |
+
+`presets/benchmark.agent.cordis.yml` 就是 `standard` **减去恰好两行**:`persona` 和 `compaction` 组。所有工具都保留,包括 plan mode —— 一个悄悄缩小工具面的 benchmark 测的是另一个 agent。
+
+```sh
+mkdir -p "$DSH_HOME/.agent-presets/slice-benchmark"
+cp presets/benchmark.agent.cordis.yml \
+   "$DSH_HOME/.agent-presets/slice-benchmark/agent.cordis.yml"
+```
+
+preset 平面的行从 host 平面 patch 够不着,所以这是一个 preset 文件而不是 `cordis.patch.yml` 里的几行。
+
 ## 已知局限
 
 - **弹性只降得动一个分区。** driver 会从模型上下文窗口算出一个字符预算,再把切片按这个预算重投影一次;移植过来的 `ElasticityController` 确实会跑降级循环 —— 但在有内容的三个分区里,只有 `open_files` 有东西可降。`task_objective` 是强制的,不会产出定位符替代;而 `session_tape`(体积最大的那块)在 `locatorRegion()` 里**根本没有分支**。所以小幅超限会被"把 OPEN FILES 索引降成定位符形态"吸收掉(几百字符);再往下控制器就没有候选了,抛 `ContextUnfitError`。driver 接住它,退回不设限的投影并告警,所以装不下的切片不会弄死一轮;上界仍然是由 tape 预算兜着的,不是由分区降级兜着的。

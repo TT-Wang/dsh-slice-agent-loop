@@ -35,7 +35,7 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 |---|---|---|
 | turn 16 = 20 步 / 35 次调用 | ✅ **精确** | 会话日志逐轮统计 |
 | `recall:` 行不在黄金夹具里 | ✅ | `expected.json` 命中 0 |
-| epoch 标记被黄金钉死 | ✅ | `expected.json` 命中 2 |
+| epoch 标记被黄金钉死 | ⚠️ **半对** | 命中 2 的是 `tape.ts:410`;`continuity.ts:336` 是 **0/44**,实测可改(已改) |
 | `TurnEndReasonMap` 是官方扩展点 | ✅ | dsh-session 类型声明 |
 | 「150 既有门禁」 | ❌ 154 | `npx vitest run` |
 | **turn 16 是死循环** | ❌ **零重复,不是循环** | 35 次调用去重后仍 35 |
@@ -131,7 +131,9 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 
 ### B3 — PROSE 类
 
-[regions.ts:396/430/482](../src/slice/regions.ts:396) 三处散文常量同步:说动词不说调用(`re-read the file` 而非 `read_file(...)`)。**必须和 B2 同批改** —— 定位器和散文不一致比两者都错更糟。
+[regions.ts:396/430/482](../src/slice/regions.ts:396) 三处散文常量:说动词不说调用(`re-read the file` 而非 `read_file(...)`)。
+
+**但它们被黄金钉死(2/2/15 个输出),不能和 B2 同批走** —— 见下方「黄金约束」。留后,与 `tape.ts:410` 一起走重生成路线。定位器已经删了,所以这三处散文暂时的不一致是"散文提到一个没人给出定位器的动作",比反过来(给出假定位器)安全得多。
 
 ### B4 — 死区,不动
 
@@ -139,9 +141,14 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 
 ### B5 — 范围更正:是 54 处,不是 13 处
 
-穷尽清单查出 **54 个**取回类站点。`grep read_file` 只命中 13 个,漏掉的最大一块是 **[src/system-prompt.ts:19-68](../src/system-prompt.ts) 的 13 处散文指令 —— 它们每轮都进系统前缀,且一条测试都没有**。
+穷尽清单查出 **54 个**取回类站点;`grep read_file` 只命中 13 个(regions.ts 9 + continuity.ts 2 + driver.ts 1 + tape.ts 1)。
 
-字节代价(实测):**10 轮切片 2,850 字符 / 100 轮 10,771 字符**。
+**归属更正(本 spec 初版写错了)**:初版说漏掉的最大一块是「`src/system-prompt.ts:19-68` 的 13 处」。`system-prompt.ts` 全文 **0 处 `read_file`** —— 它那些是**条件散文**(「**如果**提供了定位器,就读它」),不是调用点。因此:
+
+- 它们**不需要改**:定位器删掉之后,这些条件句自动变成正确的空转。
+- 「权威度最高的站点」这个论据也要转移 —— 真正高权威的是 `regions.ts` 的区体渲染和 per-turn digest,不是系统前缀。
+
+字节代价(实测):**10 轮切片 2,850 字符 / 100 轮 10,771 字符**。注意这是**亚线性**(每轮 285 → 108 字符),因为 tape 有 GC + epoch 折叠上界;两个数字不矛盾。
 
 分类小结:
 
@@ -149,16 +156,26 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 |---|--:|---|
 | REAL-PATH(路径真、调用名假) | 4 | B2:去调用名 |
 | VIRTUAL(`@sliceagent/`,永不可服务) | 9 | B1:删;其中 5 处在死区 |
-| PROSE(散文教模型怎么取) | 41 | B3:说动词不说调用;其中约 15 处在死区 |
+| PROSE(散文提到取回) | 41 | 多数是条件句,定位器删掉即空转 |
 
-**系统前缀那 13 处必须和 B2/B3 同批改** —— 它们是"权威度最高"的位置,和定位器不一致的代价最大,而且零测试覆盖意味着改动无门可依(见 §4)。
+死区站点约 15 处(`docs` 与本文早先写「约 20」不一致,以 15 为准)。
 
-### 黄金约束
+### 黄金约束(本 spec 初版在这里错了)
 
-- `recall:` 行**不在**黄金里 → B1 的第一处改动**不破 parity**,不需重生成
-- epoch 标记(`history/index.md`)**在**黄金里(2 处)→ 改它必须同步 `gen_goldens.py` 并 `npm run goldens`(需 sliceagent checkout,maintainer-only)。**拿不到就降级**:只改 `recall:` 与 OPEN FILES,epoch 留到能重生成时再动。这条降级路径是外部 spec 提的,正确,保留。
+初版说「B2+B3 不碰黄金」。**B3 碰。** 逐条 grep `expected.json`(44 个输出):
 
----
+| 站点 | 字符串 | 钉在几个 golden 输出 |
+|---|---|--:|
+| `regions.ts:396` NOW_FOOTER | `a fresh read_file` | **2/44** |
+| `regions.ts:430` SESSION TAPE header | `must be read_file'd` | **2/44** |
+| `regions.ts:482` OPEN FILES header | `read_file when they don't` | **15/44** |
+| `tape.ts:410` GC 标记 | `@sliceagent/history/index.md` | **2/44** |
+| `continuity.ts:136` `recall:` | — | **0/44** ✅ |
+| `continuity.ts:336` epoch 标记 | — | **0/44** ✅(实测改写后 44 全绿) |
+
+所以能安全改的只有 **driver 侧**:`continuity.ts` 两处 + `driver.ts` 的 OPEN FILES 索引。`regions.ts` / `tape.ts` 全部要走「同步 Python + `npm run goldens`」路线,而那需要 sliceagent checkout 且会改动 Python 侧。
+
+**初版把 `continuity.ts:336` 也算作被钉死的,同样是错的** —— 那是把它和 `tape.ts:410` 混了。前者在 driver 侧,已实测可改。
 
 ## 4. 防复发门(外部 spec 没有,必须加)
 
@@ -184,18 +201,24 @@ B2/B3 落地后这条门恒绿;任何人再写回一个假调用名,它立刻红
 
 **先 B,再 A。** B 移除这次跑飞的成因;A 是与之独立的界。
 
-```bash
-# 1. B2+B3(OPEN FILES + 散文)+ §4 防复发门 —— 不碰黄金
-# 2. B1 recall 行 —— 不碰黄金
-# 3. A maxStepsPerTurn(默认 50)+ step-budget 事件 + invariant 增强
-# 4. epoch 标记 —— 仅在能跑 npm run goldens 时
-npm run typecheck && npm test && npm run build
-git add lib/   # lib/ 是提交物
+已落地(commit `ab1a883`):
+
+```
+1. §4 防复发门                                    —— 不碰黄金 ✅
+2. B1 continuity.ts 的 recall 行 + epoch 标记      —— 实测 0/44 命中 ✅
+3. B2 driver.ts 的 OPEN FILES 索引                —— driver 侧,无黄金 ✅
+4. A  maxStepsPerTurn(默认 50)+ step-budget 事件  ✅
 ```
 
-README 两版同步:配置表加 `maxStepsPerTurn`;事件表加 `slice/step-budget`;「已知局限」的 retrieval 条目改写(默认不再广告任何假调用),并加一句"要真取回请挂 `dsh-tool-session-query`"。
+未落地,**因为要动黄金**:
 
----
+```
+5. regions.ts:396/430/482 三处散文  ← 钉在 2/2/15 个 golden 输出
+6. tape.ts:410 的 GC 标记          ← 钉在 2 个
+   两者都需要:同步 gen_goldens.py(Python 侧)→ npm run goldens(需 SLICEAGENT_REPO)
+```
+
+第 5、6 项要么和 Python 侧一起做,要么留后。**不能按初版那样排进第 1 步。**
 
 ## 6. 未决
 

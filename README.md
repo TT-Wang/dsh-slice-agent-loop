@@ -192,6 +192,45 @@ seam, whose contract is "object by steering, and continue in the same turn" —
 the opposite of a hard stop. Steering that arrives at the ceiling stays in the
 inbox for the next turn, the same disposition as the error path.
 
+## Measuring this loop
+
+This loop **prepends** to the system prompt rather than replacing it:
+`driver.ts` renders `${RESOLVED_SYSTEM_PROMPT}\n\n${renderPrompt(assembly)}`,
+so the ported sliceagent prefix arrives first and DSH's own registry sections
+follow. Measured on a real session:
+
+```
+total system prompt        17,292 chars
+  ported sliceagent prefix 12,671   (this loop)
+  appended by DSH           4,621   (registry sections)
+```
+
+Most of that 4,621 is tool instruction — "Use the read tool, not shell commands
+like cat" — and it **must stay**: it teaches the host's real tool names, which
+is exactly what the slice deliberately stopped hardcoding into its locators.
+
+What skews a measurement is the identity stack. That session carried **four**:
+
+| # | text | source | switch |
+|--:|---|---|---|
+| 1 | `You are sliceagent, an interactive engineering agent…` | this loop | — |
+| 2 | `You are an AI agent powered by the DeepSeek Harness SDK.` | prompt registry | `includeHarnessIdentity: false` on the host `system-prompt` row |
+| 3 | `You are interacting with the user through the … Web GUI…` | web bundle | do not benchmark through `dsh web` |
+| 4 | `You are a coding agent powered by the {{model}} model…` | preset `persona` | use the preset below |
+
+`presets/benchmark.agent.cordis.yml` is `standard` minus exactly two rows:
+`persona` and the `compaction` group. Every tool is kept, including plan mode —
+a benchmark that quietly narrows the tool surface measures a different agent.
+
+```sh
+mkdir -p "$DSH_HOME/.agent-presets/slice-benchmark"
+cp presets/benchmark.agent.cordis.yml \
+   "$DSH_HOME/.agent-presets/slice-benchmark/agent.cordis.yml"
+```
+
+Preset rows are unreachable from a host-plane patch, which is why this ships as
+a preset rather than as more lines in `cordis.patch.yml`.
+
 ## Limitations
 
 - **Elasticity degrades exactly one region.** The driver computes a character

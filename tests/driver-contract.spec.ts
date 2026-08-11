@@ -1710,14 +1710,18 @@ describe('SliceLoopAgent contract gates', () => {
       expect(text).toContain('anchored.txt')
 
       const registered = new Set(ctx.tools.schemas().map((schema) => schema.name))
-      // `name("` / `name('` = 一个可以照抄的调用形状。散文里的动词不匹配这个形状，
-      // 所以只有真的在教模型敲某个调用时才会被抓到。
+      // `name("…")` — a snake_case identifier applied to a quoted string is a
+      // call shape the model can copy verbatim. Prose verbs ("re-read the
+      // file") do not match it, so this only fires on text that genuinely
+      // teaches a call.
+      //
+      // No suffix allowlist. An earlier version only checked names ending in
+      // `_file`/`_history` plus `read`, which would have waved through a
+      // future `fetch("…")` or `search("…")` — the same bug wearing a
+      // different name is exactly what this gate exists to stop.
       const offenders = [...new Set(
-        [...text.matchAll(/([a-z_][a-z0-9_]{2,})\\?["'(]\\?["']/gi)]
-          .map((m) => m[1])
-          .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name)),
-      )].filter((name) => name.endsWith('_file') || name.endsWith('_history') || name === 'read')
-        .filter((name) => !registered.has(name))
+        [...text.matchAll(/\b([a-z][a-z0-9_]{2,})\(\\?["']/g)].map((m) => m[1]),
+      )].filter((name) => !registered.has(name))
 
       expect(offenders).toEqual([])
     } finally {
