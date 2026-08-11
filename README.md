@@ -189,6 +189,10 @@ npm test
 `link:dsh` finds the harness via `$DSH_SOURCE`, then `$DSH_HOME/source/current`,
 then `~/.dsh/source/current`.
 
+**Re-run `link:dsh` after any `npm install`** — npm rewrites `node_modules` and
+removes the peer symlinks, and the failure looks like the whole harness went
+missing (`Cannot find module '@deepseek-ai/dsh-agent'`).
+
 Regenerating the Python-parity goldens additionally needs a
 [sliceagent](https://github.com/TT-Wang) checkout — set `$SLICEAGENT_REPO` and
 run `npm run goldens`. Running the tests does not: the expectations are checked
