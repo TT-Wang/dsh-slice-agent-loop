@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import LlmService, { createUserMessage } from '@deepseek-ai/dsh-llm'
+import LlmService, { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -567,6 +567,147 @@ describe('SliceLoopAgent contract gates', () => {
       firstAssistant: false,
       secondUser: false,
       secondAssistant: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('preserves the assistant when only a turn user node is replaced', async () => {
+    const originalUser = 'PARTIAL USER ORIGINAL MUST DISAPPEAR'
+    const replacementUser = 'PARTIAL USER REPLACEMENT MUST APPEAR'
+    const originalAssistant = 'PARTIAL USER ASSISTANT MUST REMAIN'
+    const adapter = new MockAdapter([
+      textResponse(originalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('partial-user-surface-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const originalUserEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(originalUser))
+    if (originalUserEvent?.type !== 'user/message') {
+      throw new Error('missing partial-user fixture event')
+    }
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: replacementUser }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: {
+        op: 'replace',
+        start: originalUserEvent.seq,
+        end: originalUserEvent.seq,
+      },
+      sourceEventSeqs: [originalUserEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(replacementUser)
+    expect(canonicalSurface).toContain(originalAssistant)
+    expect(canonicalSurface).not.toContain(originalUser)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live partial-user replacement')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('partial-user-surface-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt partial-user replacement')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      replacementUser: text.includes(replacementUser),
+      originalUser: text.includes(originalUser),
+      originalAssistant: text.includes(originalAssistant),
+    })
+    const expected = {
+      replacementUser: true,
+      originalUser: false,
+      originalAssistant: true,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('preserves the user and rewrites continuity when only an assistant node is replaced', async () => {
+    const originalUser = 'PARTIAL ASSISTANT USER MUST REMAIN'
+    const originalAssistant = 'PARTIAL ASSISTANT ORIGINAL MUST DISAPPEAR'
+    const replacementAssistant = 'PARTIAL ASSISTANT REPLACEMENT MUST APPEAR'
+    const adapter = new MockAdapter([
+      textResponse(originalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('partial-assistant-surface-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const originalAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 1)
+    if (originalAssistantEvent?.type !== 'assistant/message') {
+      throw new Error('missing partial-assistant fixture event')
+    }
+    first.agent.session.append('assistant/message', {
+      ...originalAssistantEvent.data,
+      message: createAssistantMessage({
+        content: [{ type: 'text', text: replacementAssistant }],
+        source: { provider: 'mock', model: 'mock' },
+      }),
+    }, {
+      surfaceOp: {
+        op: 'replace',
+        start: originalAssistantEvent.seq,
+        end: originalAssistantEvent.seq,
+      },
+      sourceEventSeqs: [originalAssistantEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(originalUser)
+    expect(canonicalSurface).toContain(replacementAssistant)
+    expect(canonicalSurface).not.toContain(originalAssistant)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live partial-assistant replacement')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('partial-assistant-surface-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt partial-assistant replacement')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      originalUser: text.includes(originalUser),
+      replacementAssistant: text.includes(replacementAssistant),
+      originalAssistant: text.includes(originalAssistant),
+    })
+    const expected = {
+      originalUser: true,
+      replacementAssistant: true,
+      originalAssistant: false,
     }
     expect({ live: projection(live), rebuilt: projection(rebuilt) })
       .toEqual({ live: expected, rebuilt: expected })
