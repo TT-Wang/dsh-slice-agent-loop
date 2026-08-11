@@ -211,11 +211,23 @@ modes — wrong names, and top-level-only observation — are gated in
   and the slice's "carry file state across turns" are complementary or at odds
   has not been measured.
 
+## Quick start
+
+```bash
+git clone https://github.com/dsh-external/dsh-slice-agent-loop.git
+cd dsh-slice-agent-loop
+npm install --legacy-peer-deps && npm run link:dsh
+```
+
+Clone over https unless you have an ssh key on the org. `--legacy-peer-deps` is
+the one non-standard step: the nine `@deepseek-ai/*` peers are private, so a
+plain `npm install` stops at `E404 ... is not in this registry` — which reads
+like this package is broken when it only means npm cannot fetch what the
+harness supplies. `link:dsh` then symlinks them from your dsh checkout.
+
 ## Development
 
 ```bash
-npm install
-npm run link:dsh    # symlink the private harness peers from your dsh checkout
 npm run typecheck && npm test
 ```
 

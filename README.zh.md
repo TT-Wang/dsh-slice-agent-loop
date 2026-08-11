@@ -125,11 +125,19 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 - **任务目标钉死在会话的第一条消息上。** 话题切换没有移植,所以一个中途换任务的长会话,会一直把最初那个目标放在权级最高的区块里。
 - **Code mode 锚定写,不锚定读。** 锚定在子调用的写上触发,所以跨轮文件连续性是成立的。但 `run_code` 程序内部执行的读是另一回事:loop 只知道它看见被写过的文件,所以一个读五个文件、只改一个的程序,只会把改过的那个带到下一轮。Code mode 的"把多步折进一个程序"和切片的"把文件状态带过轮次"到底是互补还是相冲,没有测过。
 
+## 快速开始
+
+```bash
+git clone https://github.com/dsh-external/dsh-slice-agent-loop.git
+cd dsh-slice-agent-loop
+npm install --legacy-peer-deps && npm run link:dsh
+```
+
+没在 org 上配 ssh key 就走 https。`--legacy-peer-deps` 是唯一一个非标准动作:那 9 个 `@deepseek-ai/*` peer 是私有的,裸跑 `npm install` 会停在 `E404 ... is not in this registry` —— 那个报错读起来像这个包坏了,实际只是 npm 拉不到宿主自己会提供的东西。`link:dsh` 随后把它们从你的 dsh 检出软链过来。
+
 ## 开发
 
 ```bash
-npm install
-npm run link:dsh    # 从你的 dsh 检出里软链私有 harness peer
 npm run typecheck && npm test
 ```
 
