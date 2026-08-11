@@ -923,6 +923,75 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('adds a sealed reply when an empty assistant node is canonically replaced with text', async () => {
+    const originalUser = 'EMPTY ASSISTANT INSERTION USER MUST REMAIN'
+    const replacementAssistant = 'EMPTY ASSISTANT INSERTION REPLACEMENT MUST APPEAR'
+    const adapter = new MockAdapter([
+      [
+        { type: 'usage', usage: { inputTokens: 10, outputTokens: 0 } },
+        { type: 'finish', reason: { kind: 'stop' } },
+      ],
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('empty-assistant-insertion-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const emptyAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 1)
+    if (emptyAssistantEvent?.type !== 'assistant/message'
+      || emptyAssistantEvent.data.message.content.length !== 0) {
+      throw new Error('missing empty-assistant insertion fixture event')
+    }
+    first.agent.session.append('assistant/message', {
+      ...emptyAssistantEvent.data,
+      message: createAssistantMessage({
+        content: [{ type: 'text', text: replacementAssistant }],
+        source: { provider: 'mock', model: 'mock' },
+      }),
+    }, {
+      surfaceOp: {
+        op: 'replace',
+        start: emptyAssistantEvent.seq,
+        end: emptyAssistantEvent.seq,
+      },
+      sourceEventSeqs: [emptyAssistantEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(originalUser)
+    expect(canonicalSurface).toContain(replacementAssistant)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live empty-assistant insertion')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('empty-assistant-insertion-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt empty-assistant insertion')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      originalUser: text.includes(originalUser),
+      replacementAssistant: text.includes(replacementAssistant),
+    })
+    const expected = { originalUser: true, replacementAssistant: true }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
