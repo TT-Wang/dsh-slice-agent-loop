@@ -261,33 +261,42 @@ export function continuityStats(c: Continuity): { tapeChars: number; ringRows: n
 }
 
 /**
- * 表面替换（canonical surface compaction）落实到携带态：被遮蔽轮的话题
- * goal（若出自该轮）、对话环行、以及 tape 中该轮的 digest/reply 条目都
- * 重写为摘要文本——文件锚点（base/patch）不受影响。摘要停留在
- * HISTORICAL/CLAIM 权级的 tape 呈现层，绝不进入 CURRENT REQUEST 槽。
+ * 表面替换（canonical surface compaction）落实到携带态——按组件粒度：
+ * patch.user 重写该轮的话题 goal（若出自该轮）、环行用户侧、以及 tape
+ * digest 的 ask（按 sealMeta 原样再渲染）；patch.assistant 重写环行助手侧
+ * 与 tape reply。未遮蔽的组件原样保留（用户侧替换不丢助手答复，反之亦然）；
+ * 文件锚点（base/patch）不受影响。摘要停留在 HISTORICAL/CLAIM 权级的
+ * tape 呈现层，绝不进入 CURRENT REQUEST 槽。
  */
-export function compactTurn(c: Continuity, turn: number, summary: string, sessionId: string): void {
+export interface TurnCompaction {
+  user?: string
+  assistant?: string
+}
+
+export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, sessionId: string): void {
   const turnId = `slice-turn-${turn}`
   const row = c.conversation.find((r) => r.turn === turn)
   if (row !== undefined) {
-    if (c.goal === row.user) c.goal = summary
-    row.user = summary
-    row.assistant = ''
+    if (patch.user !== undefined) {
+      if (c.goal === row.user) c.goal = patch.user
+      row.user = patch.user
+    }
+    if (patch.assistant !== undefined) row.assistant = patch.assistant
   }
   const meta = c.sealMeta[turnId]
   for (let index = 0; index < c.sessionTape.length; index += 1) {
     const entry = c.sessionTape[index]!
     if (entry.ref !== turnId) continue
-    if (entry.kind === 'digest') {
+    if (entry.kind === 'digest' && patch.user !== undefined) {
       c.sessionTape[index] = digestEntry(renderTurnDigest({
         artifactId: turnId,
         status: meta?.status ?? 'completed',
-        userRequest: summary,
+        userRequest: patch.user,
         sessionId,
         files: meta?.files ?? [],
       }), turnId)
-    } else if (entry.kind === 'reply') {
-      const rep = replyEntry(turnId, summary)
+    } else if (entry.kind === 'reply' && patch.assistant !== undefined) {
+      const rep = replyEntry(turnId, patch.assistant)
       if (rep !== null) c.sessionTape[index] = rep
     }
   }

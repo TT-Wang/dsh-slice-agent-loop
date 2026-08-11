@@ -295,23 +295,34 @@ export class SliceLoopAgent implements Agent {
    */
   private readonly surfaceFold: number[] = []
 
-  /** Replacement-node seq → turns that node was compacted into (transitive lineage). */
-  private readonly replacementLineage = new Map<number, Set<number>>()
+  /** Replacement-node seq → per-turn components that node was compacted into (transitive lineage). */
+  private readonly replacementLineage = new Map<number, Map<number, { user: boolean; assistant: boolean }>>()
 
   /**
    * Fold one surface event. A replacement first compacts its positional span
-   * (rewriting the shadowed turns to the summary), then the fold swaps the
-   * span for the new node.
+   * (rewriting only the shadowed per-turn components to the replacement text),
+   * then the fold swaps the span for the new node.
    */
   private foldSurfaceEvent(event: SurfaceEvent): void {
     if (isReplacementSurfaceEvent(event)) {
-      const summary = event.type === 'user/message' ? blockText(event.data) : ''
-      if (summary) {
-        const turns = this.shadowedTurns(event.surfaceOp)
-        for (const turn of turns) {
-          compactTurn(this.cont, turn, summary, this.session.id)
+      const text = event.type === 'user/message'
+        ? blockText(event.data)
+        : event.type === 'assistant/message'
+          ? event.data.message.content
+            .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+            .map((block) => block.text).join('')
+          : ''
+      if (text) {
+        const components = this.shadowedComponents(event.surfaceOp)
+        const lineage = new Map<number, { user: boolean; assistant: boolean }>()
+        for (const [turn, comps] of components) {
+          compactTurn(this.cont, turn, {
+            ...(comps.user ? { user: text } : {}),
+            ...(comps.assistant ? { assistant: text } : {}),
+          }, this.session.id)
+          lineage.set(turn, comps)
         }
-        this.replacementLineage.set(event.seq, new Set(turns))
+        this.replacementLineage.set(event.seq, lineage)
       }
       const startIndex = this.surfaceFold.indexOf(event.surfaceOp.start)
       const endIndex = this.surfaceFold.indexOf(event.surfaceOp.end)
@@ -326,34 +337,46 @@ export class SliceLoopAgent implements Agent {
   }
 
   /**
-   * Map a replacement's positional span to its turn numbers. `sourceEventSeqs`
-   * is provenance and may legally cite unshadowed nodes; a node that is itself
-   * an earlier replacement contributes the turns it was compacted into.
+   * Map a replacement's positional span to per-turn shadowed components.
+   * `sourceEventSeqs` is provenance and may legally cite unshadowed nodes; a
+   * node that is itself an earlier replacement contributes the components it
+   * was compacted into. tool/result nodes own no continuity component — a
+   * tool-only replacement never erases the turn row.
    */
-  private shadowedTurns(surfaceOp: { op: 'replace'; start: number; end: number }): number[] {
+  private shadowedComponents(
+    surfaceOp: { op: 'replace'; start: number; end: number },
+  ): Map<number, { user: boolean; assistant: boolean }> {
     const startIndex = this.surfaceFold.indexOf(surfaceOp.start)
     const endIndex = this.surfaceFold.indexOf(surfaceOp.end)
-    if (startIndex === -1 || endIndex === -1) return []
+    const out = new Map<number, { user: boolean; assistant: boolean }>()
+    if (startIndex === -1 || endIndex === -1) return out
     const lo = Math.min(startIndex, endIndex)
     const hi = Math.max(startIndex, endIndex)
     const span = new Set(this.surfaceFold.slice(lo, hi + 1))
-    const turns = new Set<number>()
+    const mark = (turn: number, key: 'user' | 'assistant'): void => {
+      const rec = out.get(turn) ?? { user: false, assistant: false }
+      rec[key] = true
+      out.set(turn, rec)
+    }
     let open: number | null = null
     for (const event of this.session.events) {
       if (event.type === 'turn/start') open = event.data.turn
       if (span.has(event.seq)) {
         const inherited = this.replacementLineage.get(event.seq)
         if (inherited !== undefined) {
-          for (const turn of inherited) turns.add(turn)
-        } else if (event.type === 'assistant/message' || event.type === 'tool/result') {
-          turns.add(event.data.turn)
+          for (const [turn, comps] of inherited) {
+            if (comps.user) mark(turn, 'user')
+            if (comps.assistant) mark(turn, 'assistant')
+          }
+        } else if (event.type === 'assistant/message') {
+          mark(event.data.turn, 'assistant')
         } else if (event.type === 'user/message' && open !== null) {
-          turns.add(open)
+          mark(open, 'user')
         }
       }
       if (event.type === 'turn/end') open = null
     }
-    return [...turns]
+    return out
   }
 
   get status(): AgentStatus {
