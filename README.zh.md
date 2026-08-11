@@ -204,6 +204,7 @@ npm install --legacy-peer-deps && npm run link:dsh
 
 ```bash
 npm run typecheck && npm test
+npm run e2e:recall   # 真模型 recall_turn 往返(需要 env 里有 DEEPSEEK_API_KEY)
 ```
 
 有两件事脚本自己说不出来:

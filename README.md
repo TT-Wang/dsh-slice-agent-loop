@@ -338,6 +338,7 @@ harness supplies. `link:dsh` then symlinks them from your dsh checkout.
 
 ```bash
 npm run typecheck && npm test
+npm run e2e:recall   # real-model recall_turn round-trip (needs DEEPSEEK_API_KEY in env)
 ```
 
 Two things the scripts cannot tell you themselves:
