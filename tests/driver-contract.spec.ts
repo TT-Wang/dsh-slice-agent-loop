@@ -1095,6 +1095,84 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('recomputes a merged first-step ask when only one owned contribution is replaced', async () => {
+    const firstContribution = 'MERGED FIRST-STEP ORIGINAL CONTRIBUTION MUST DISAPPEAR'
+    const secondContribution = 'MERGED FIRST-STEP RETAINED CONTRIBUTION MUST REMAIN'
+    const replacementContribution = 'MERGED FIRST-STEP REPLACEMENT CONTRIBUTION'
+    const assistant = 'MERGED FIRST-STEP ASSISTANT MUST REMAIN'
+    const adapter = new MockAdapter([
+      textResponse(assistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('merged-first-step-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    first.agent.inject(createUserMessage({
+      content: [{ type: 'text', text: firstContribution }],
+      source: { kind: 'plugin', plugin: 'driver-contract' },
+    }))
+    send(first.agent, secondContribution)
+    await first.agent.whenIdle()
+
+    const firstContributionEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message'
+      && JSON.stringify(event.data.content).includes(firstContribution))
+    if (firstContributionEvent?.type !== 'user/message') {
+      throw new Error('missing merged first-step fixture event')
+    }
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: replacementContribution }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: {
+        op: 'replace',
+        start: firstContributionEvent.seq,
+        end: firstContributionEvent.seq,
+      },
+      sourceEventSeqs: [firstContributionEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(replacementContribution)
+    expect(canonicalSurface).toContain(secondContribution)
+    expect(canonicalSurface).toContain(assistant)
+    expect(canonicalSurface).not.toContain(firstContribution)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live merged first-step replacement')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('merged-first-step-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt merged first-step replacement')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      replacementContribution: text.includes(replacementContribution),
+      retainedContribution: text.includes(secondContribution),
+      originalContribution: text.includes(firstContribution),
+      assistant: text.includes(assistant),
+    })
+    const expected = {
+      replacementContribution: true,
+      retainedContribution: true,
+      originalContribution: false,
+      assistant: true,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
