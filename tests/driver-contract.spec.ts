@@ -512,6 +512,59 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+  it('rebuilds durable file anchors from a seeded session after agent recreation', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-anchor-resume-'))
+    const path = join(root, 'durable.txt')
+    const marker = 'DURABLE FILE ANCHOR MUST SURVIVE AGENT RECREATION'
+    const adapter = new MockAdapter([
+      toolCallResponse('write-durable', 'write_file', { path, content: marker }),
+      textResponse('write complete'),
+      textResponse('resumed recall complete'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const first = await ctx.agents.create({
+      sessionId: SessionId('durable-file-anchor-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(first.agent, 'write the durable file')
+      await first.agent.whenIdle()
+      const seed = structuredClone(first.agent.session.events)
+      await first.dispose()
+
+      const resumed = await ctx.agents.create({
+        sessionId: SessionId('durable-file-anchor-target'),
+        seed,
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      send(resumed.agent, 'recall the durable file without rediscovering it')
+      await resumed.agent.whenIdle()
+
+      const text = JSON.stringify(adapter.requests[2]?.messages)
+      expect({
+        tape: text.includes(marker),
+        indexed: text.includes(`read_file(\\"${path}\\") to view`),
+      }).toEqual({ tape: true, indexed: true })
+      await resumed.dispose()
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('publishes an anchored file in the current OPEN FILES hash index', async () => {
     const root = await mkdtemp(join(tmpdir(), 'slice-loop-open-files-'))
     const path = join(root, 'indexed.txt')
