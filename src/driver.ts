@@ -225,6 +225,7 @@ export class SliceLoopAgent implements Agent {
     let pendingFirstStep: string[] = []
     let pendingAnchors: Array<{ path: string; body: string }> = []
     let recordedThisTurn = false
+    const assistantOwnerByTurn = new Map<number, number>()
     const flushFirstStep = (): void => {
       const text = pendingFirstStep.filter(Boolean).join('\n')
       pendingFirstStep = []
@@ -240,8 +241,8 @@ export class SliceLoopAgent implements Agent {
         flushFirstStep()
         step = event.data.step
       } else if (event.type === 'user/message') {
-        // Canonical surface replacement: rewrite the shadowed turn(s) to the
-        // summary instead of replaying the shadowed originals.
+        // Canonical surface replacement: rewrite the shadowed component(s) to
+        // the replacement text instead of replaying the shadowed originals.
         if (isReplacementSurfaceEvent(event)) {
           this.foldSurfaceEvent(event)
           continue
@@ -249,13 +250,21 @@ export class SliceLoopAgent implements Agent {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
         if (step !== 1 || isRuntimeContextMessage(event.data)) continue
         const text = blockText(event.data)
-        if (text) pendingFirstStep.push(text)
+        if (text && openTurn !== null) {
+          pendingFirstStep.push(text)
+          // Ownership mirrors the ring rule: only step-1 non-runtime input.
+          this.nodeText.set(event.seq, text)
+          this.nodeOwner.set(event.seq, [{ turn: openTurn, component: 'user' }])
+        }
       } else if (event.type === 'assistant/message') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
         flushFirstStep()
-        fillAssistant(this.cont, event.data.message.content
+        const text = event.data.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
-          .map((block) => block.text).join(''))
+          .map((block) => block.text).join('')
+        fillAssistant(this.cont, text)
+        assistantOwnerByTurn.set(event.data.turn,
+          this.ownAssistant(event.data.turn, event.seq, text, assistantOwnerByTurn.get(event.data.turn)))
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
       } else if (event.type === 'slice/file-anchor') {
@@ -295,13 +304,20 @@ export class SliceLoopAgent implements Agent {
    */
   private readonly surfaceFold: number[] = []
 
-  /** Replacement-node seq → per-turn components that node was compacted into (transitive lineage). */
-  private readonly replacementLineage = new Map<number, Map<number, { user: boolean; assistant: boolean }>>()
+  /** Replacement-node/current text per owned fold node. */
+  private readonly nodeText = new Map<number, string>()
+  /** Fold node → the continuity components (turn + user/assistant side) it currently owns. */
+  private readonly nodeOwner = new Map<number, Array<{ turn: number; component: 'user' | 'assistant' }>>()
+  /** Live per-turn assistant-owner seq (fillAssistant semantics: latest assistant message wins). */
+  private turnAssistantOwner: number | undefined
 
   /**
-   * Fold one surface event. A replacement first compacts its positional span
-   * (rewriting only the shadowed per-turn components to the replacement text),
-   * then the fold swaps the span for the new node.
+   * Fold one surface event. A replacement transfers component ownership from
+   * the shadowed nodes to itself, swaps the positional span in the fold, and
+   * recomputes each affected component from fold-ordered owners — so partial,
+   * nested, and role-changing spans all rewrite exactly what they shadow, and
+   * nodes that never fed the continuity row (runtime-context snapshots,
+   * same-turn steering, tool results) own nothing and rewrite nothing.
    */
   private foldSurfaceEvent(event: SurfaceEvent): void {
     if (isReplacementSurfaceEvent(event)) {
@@ -312,71 +328,62 @@ export class SliceLoopAgent implements Agent {
             .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
             .map((block) => block.text).join('')
           : ''
-      if (text) {
-        const components = this.shadowedComponents(event.surfaceOp)
-        const lineage = new Map<number, { user: boolean; assistant: boolean }>()
-        for (const [turn, comps] of components) {
-          compactTurn(this.cont, turn, {
-            ...(comps.user ? { user: text } : {}),
-            ...(comps.assistant ? { assistant: text } : {}),
-          }, this.session.id)
-          lineage.set(turn, comps)
-        }
-        this.replacementLineage.set(event.seq, lineage)
-      }
       const startIndex = this.surfaceFold.indexOf(event.surfaceOp.start)
       const endIndex = this.surfaceFold.indexOf(event.surfaceOp.end)
       if (startIndex !== -1 && endIndex !== -1) {
         const lo = Math.min(startIndex, endIndex)
         const hi = Math.max(startIndex, endIndex)
+        const owners = new Map<string, { turn: number; component: 'user' | 'assistant' }>()
+        for (const seq of this.surfaceFold.slice(lo, hi + 1)) {
+          const owned = this.nodeOwner.get(seq)
+          if (owned !== undefined) {
+            for (const o of owned) owners.set(`${o.turn}:${o.component}`, o)
+          }
+          this.nodeOwner.delete(seq)
+          this.nodeText.delete(seq)
+        }
+        if (owners.size > 0) {
+          this.nodeOwner.set(event.seq, [...owners.values()])
+          this.nodeText.set(event.seq, text)
+        }
         this.surfaceFold.splice(lo, hi - lo + 1, event.seq)
+        for (const o of owners.values()) {
+          const recomputed = this.componentText(o.turn, o.component)
+          compactTurn(this.cont, o.turn,
+            o.component === 'user' ? { user: recomputed } : { assistant: recomputed },
+            this.session.id)
+        }
+        return
       }
+      // Endpoints not on the fold: nothing shadowed; treat as an append.
+      this.surfaceFold.push(event.seq)
       return
     }
     this.surfaceFold.push(event.seq)
   }
 
-  /**
-   * Map a replacement's positional span to per-turn shadowed components.
-   * `sourceEventSeqs` is provenance and may legally cite unshadowed nodes; a
-   * node that is itself an earlier replacement contributes the components it
-   * was compacted into. tool/result nodes own no continuity component — a
-   * tool-only replacement never erases the turn row.
-   */
-  private shadowedComponents(
-    surfaceOp: { op: 'replace'; start: number; end: number },
-  ): Map<number, { user: boolean; assistant: boolean }> {
-    const startIndex = this.surfaceFold.indexOf(surfaceOp.start)
-    const endIndex = this.surfaceFold.indexOf(surfaceOp.end)
-    const out = new Map<number, { user: boolean; assistant: boolean }>()
-    if (startIndex === -1 || endIndex === -1) return out
-    const lo = Math.min(startIndex, endIndex)
-    const hi = Math.max(startIndex, endIndex)
-    const span = new Set(this.surfaceFold.slice(lo, hi + 1))
-    const mark = (turn: number, key: 'user' | 'assistant'): void => {
-      const rec = out.get(turn) ?? { user: false, assistant: false }
-      rec[key] = true
-      out.set(turn, rec)
-    }
-    let open: number | null = null
-    for (const event of this.session.events) {
-      if (event.type === 'turn/start') open = event.data.turn
-      if (span.has(event.seq)) {
-        const inherited = this.replacementLineage.get(event.seq)
-        if (inherited !== undefined) {
-          for (const [turn, comps] of inherited) {
-            if (comps.user) mark(turn, 'user')
-            if (comps.assistant) mark(turn, 'assistant')
-          }
-        } else if (event.type === 'assistant/message') {
-          mark(event.data.turn, 'assistant')
-        } else if (event.type === 'user/message' && open !== null) {
-          mark(open, 'user')
-        }
+  /** The current text of one continuity component: fold-ordered join over its owner nodes. */
+  private componentText(turn: number, component: 'user' | 'assistant'): string {
+    const parts: string[] = []
+    for (const seq of this.surfaceFold) {
+      const owned = this.nodeOwner.get(seq)
+      if (owned?.some((o) => o.turn === turn && o.component === component)) {
+        const text = this.nodeText.get(seq)
+        if (text) parts.push(text)
       }
-      if (event.type === 'turn/end') open = null
     }
-    return out
+    return parts.join('\n')
+  }
+
+  /** Transfer a turn's assistant-component ownership to its latest assistant message. */
+  private ownAssistant(turn: number, seq: number, text: string, previous: number | undefined): number {
+    if (previous !== undefined) {
+      this.nodeOwner.delete(previous)
+      this.nodeText.delete(previous)
+    }
+    this.nodeOwner.set(seq, [{ turn, component: 'assistant' }])
+    this.nodeText.set(seq, text)
+    return seq
   }
 
   get status(): AgentStatus {
@@ -541,6 +548,7 @@ export class SliceLoopAgent implements Agent {
     phase.turn = turn
     this.turnSeedUser = undefined
     this.turnTrajectory = []
+    this.turnAssistantOwner = undefined
     let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
@@ -576,8 +584,19 @@ export class SliceLoopAgent implements Agent {
         this.session.append('step/start', { turn, step })
         phase.step = step
         try {
+          // Component ownership mirrors the ring rule exactly: only the
+          // first-step (next-turn boundary) non-runtime batch owns the turn's
+          // user component; steering and runtime snapshots own nothing.
+          const ownsUserComponent = step === 1 && target === 'next-turn'
           for (const message of decision.messages) {
-            this.session.append('user/message', message, { surfaceOp: 'append' })
+            const appended = this.session.append('user/message', message, { surfaceOp: 'append' })
+            if (ownsUserComponent && !isRuntimeContextMessage(message)) {
+              const text = blockText(message)
+              if (text) {
+                this.nodeText.set(appended.seq, text)
+                this.nodeOwner.set(appended.seq, [{ turn, component: 'user' }])
+              }
+            }
           }
           const stepEnd = await this.step(decision.messages, decision.assembly)
           // max-tokens is sticky: a later completed step must not downgrade it.
@@ -810,16 +829,19 @@ export class SliceLoopAgent implements Agent {
           ...(assembler.replayState !== undefined ? { replayState: assembler.replayState } : {}),
         },
       })
-      this.session.append(
+      const assistantEvent = this.session.append(
         'assistant/message',
         { turn, step, message, ...(assembler.usage === undefined ? {} : { usage: assembler.usage }) },
         { surfaceOp: 'append', sourceEventSeqs: chunkSeqs },
       )
       // 轮内轨迹 + 对话环助手侧（continuity.ts fillAssistant）。
       this.turnTrajectory.push(message)
-      fillAssistant(this.cont, message.content
+      const assistantText = message.content
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
-        .map((b) => b.text).join(''))
+        .map((b) => b.text).join('')
+      fillAssistant(this.cont, assistantText)
+      // 助手组件所有权 = 本轮最新一条 assistant/message（与 fillAssistant 同义）。
+      this.turnAssistantOwner = this.ownAssistant(turn, assistantEvent.seq, assistantText, this.turnAssistantOwner)
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
 
       const toolCalls = message.content.filter(
