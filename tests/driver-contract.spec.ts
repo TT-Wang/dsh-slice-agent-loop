@@ -226,6 +226,55 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
+    const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
+    const adapter = new MockAdapter([
+      textResponse('first step answer'),
+      textResponse('second step answer'),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('steering-continuity-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    let steered = false
+    first.agent.ctx.on('agent/turn-stopping', ({ agent }) => {
+      if (steered) return
+      steered = true
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: marker }],
+        source: { kind: 'plugin', plugin: 'driver-contract' },
+      }))
+    })
+
+    send(first.agent, 'one logical turn')
+    await first.agent.whenIdle()
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'continuity probe')
+    await first.agent.whenIdle()
+    const liveRequest = JSON.stringify(adapter.requests[2]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('steering-continuity-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'continuity probe')
+    await resumed.agent.whenIdle()
+    const resumedRequest = JSON.stringify(adapter.requests[3]?.messages)
+
+    expect({
+      live: liveRequest.includes(marker),
+      resumed: resumedRequest.includes(marker),
+    }).toEqual({ live: false, resumed: false })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('keeps steering from turn-stopping in the same turn as a later step', async () => {
     const adapter = new MockAdapter([textResponse('first'), textResponse('second')])
     const ctx = await harness(adapter)
@@ -463,6 +512,90 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+  it('publishes an anchored file in the current OPEN FILES hash index', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-open-files-'))
+    const path = join(root, 'indexed.txt')
+    const adapter = new MockAdapter([
+      toolCallResponse('write-indexed', 'write_file', { path, content: 'indexed content' }),
+      textResponse('write complete'),
+      textResponse('index checked'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('file-anchor-index'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'write the indexed file')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'inspect the current file index')
+      await handle.agent.whenIdle()
+
+      const text = JSON.stringify(adapter.requests[2]?.messages)
+      const openFiles = text.split('# OPEN FILES')[1]?.split('</context>')[0] ?? ''
+      expect({
+        path: openFiles.includes(path),
+        hash: openFiles.includes('sha256:'),
+      }).toEqual({ path: true, hash: true })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('does not anchor a failed edit call as a successful tape mutation', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-failed-anchor-'))
+    const path = join(root, 'untouched.txt')
+    const marker = 'PREEXISTING CONTENT MUST NOT BE CLAIMED AS AN APPLIED EDIT'
+    await writeFile(path, marker, 'utf8')
+    const adapter = new MockAdapter([
+      toolCallResponse('write-failed', 'write_file', { path, content: 'replacement' }),
+      textResponse('the write failed'),
+      textResponse('recalled'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'a deliberately failing write fixture',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async () => { throw new Error('deliberate write failure') },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('failed-file-anchor'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'attempt the failing write')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'recall only successful edits')
+      await handle.agent.whenIdle()
+
+      expect(JSON.stringify(adapter.requests[2]?.messages)).not.toContain(marker)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('assembles scoped system sections and registered tool schemas into the model request', async () => {
     const adapter = new MockAdapter([textResponse('ready')])
     const ctx = await harness(adapter)
@@ -515,6 +648,55 @@ describe('SliceLoopAgent contract gates', () => {
       request: adapter.requests[0]?.system?.startsWith('You are sliceagent') ?? false,
       header: persisted?.startsWith('You are sliceagent') ?? false,
     }).toEqual({ request: true, header: true })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('resolves the production memory-model splice before sending the system prompt', async () => {
+    const adapter = new MockAdapter([textResponse('ready')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('slice-memory-contract'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'inspect the production memory contract')
+    await handle.agent.whenIdle()
+
+    expect({
+      unresolvedMarker: adapter.requests[0]?.system?.includes('{{MEMORY_MODEL}}') ?? false,
+      contract: adapter.requests[0]?.system?.includes('# BRAIN AND SOURCE-LINKED ACTIVE WORK CONTRACT') ?? false,
+    }).toEqual({ unresolvedMarker: false, contract: true })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('does not re-seal the prior reply for a rejected no-step turn', async () => {
+    const adapter = new MockAdapter([
+      textResponse('PRIOR REPLY MARKER'),
+      textResponse('after rejection'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('reject-no-stale-seal'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    let boundary = 0
+    handle.agent.ctx.on('agent/pre-step', async (_payload, next) => {
+      boundary += 1
+      if (boundary === 2) return { kind: 'reject' as const }
+      return next()
+    })
+
+    send(handle.agent, 'first accepted turn')
+    await handle.agent.whenIdle()
+    send(handle.agent, 'rejected turn')
+    await handle.agent.whenIdle()
+    send(handle.agent, 'inspect the sealed tape')
+    await handle.agent.whenIdle()
+
+    const text = JSON.stringify(adapter.requests[1]?.messages)
+    expect(text.match(/\[reply /g) ?? []).toHaveLength(1)
     await handle.dispose()
     await ctx.fiber.dispose()
   })
