@@ -11,7 +11,7 @@ Vitest tail:
    Duration  305ms (transform 243ms, setup 300ms, import 312ms, tests 30ms)
 ```
 
-Source: `/Users/tongtao/code/sliceagent` @ tape-graduation-w1 (read-only, untouched).
+Source: the `sliceagent` Python engine @ `tape-graduation-w1` (read-only, untouched).
 No commits made in this repo; everything is uncommitted on `port/slice-engine` for the owner to integrate.
 
 ## 1. File map
