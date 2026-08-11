@@ -470,6 +470,110 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('uses surface order when a replacement span has descending event sequences', async () => {
+    const firstUser = 'DESCENDING SPAN FIRST ORIGINAL USER MUST DISAPPEAR'
+    const firstAssistant = 'DESCENDING SPAN FIRST ORIGINAL ASSISTANT MUST DISAPPEAR'
+    const secondUser = 'DESCENDING SPAN SECOND ORIGINAL USER MUST DISAPPEAR'
+    const secondAssistant = 'DESCENDING SPAN SECOND ORIGINAL ASSISTANT MUST DISAPPEAR'
+    const firstSummary = 'DESCENDING SPAN INTERMEDIATE SUMMARY MUST DISAPPEAR'
+    const finalSummary = 'DESCENDING SPAN FINAL SUMMARY'
+    const adapter = new MockAdapter([
+      textResponse(firstAssistant),
+      textResponse(secondAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('descending-surface-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, firstUser)
+    await first.agent.whenIdle()
+    send(first.agent, secondUser)
+    await first.agent.whenIdle()
+
+    const firstUserEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(firstUser))
+    const firstAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 1)
+    const secondUserEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(secondUser))
+    const secondAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 2)
+    if (firstUserEvent?.type !== 'user/message'
+      || firstAssistantEvent?.type !== 'assistant/message'
+      || secondUserEvent?.type !== 'user/message'
+      || secondAssistantEvent?.type !== 'assistant/message') {
+      throw new Error('missing descending-surface fixture events')
+    }
+    const intermediate = first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: firstSummary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: {
+        op: 'replace',
+        start: firstUserEvent.seq,
+        end: firstAssistantEvent.seq,
+      },
+      sourceEventSeqs: [firstUserEvent.seq, firstAssistantEvent.seq],
+    })
+    expect(intermediate.seq).toBeGreaterThan(secondAssistantEvent.seq)
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: finalSummary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      // Surface order is [intermediate, second user, second assistant], even
+      // though the replacement node was appended after both later-turn nodes.
+      surfaceOp: {
+        op: 'replace',
+        start: intermediate.seq,
+        end: secondAssistantEvent.seq,
+      },
+      sourceEventSeqs: [intermediate.seq, secondUserEvent.seq, secondAssistantEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(finalSummary)
+    expect(canonicalSurface).not.toContain(firstSummary)
+    expect(canonicalSurface).not.toContain(secondUser)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live descending-sequence replacement span')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[2]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('descending-surface-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt descending-sequence replacement span')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[3]?.messages)
+
+    const projection = (text: string) => ({
+      finalSummary: text.includes(finalSummary),
+      firstSummary: text.includes(firstSummary),
+      firstUser: text.includes(firstUser),
+      firstAssistant: text.includes(firstAssistant),
+      secondUser: text.includes(secondUser),
+      secondAssistant: text.includes(secondAssistant),
+    })
+    const expected = {
+      finalSummary: true,
+      firstSummary: false,
+      firstUser: false,
+      firstAssistant: false,
+      secondUser: false,
+      secondAssistant: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
