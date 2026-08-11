@@ -83,7 +83,7 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
-import { RuntimeContextProjection } from './runtime-context.js'
+import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/index.js'
 import {
   createContinuity,
@@ -168,6 +168,10 @@ export class SliceLoopAgent implements Agent {
       wake: () => this.wakeDriver(),
     })
     this.runtimeContext = new RuntimeContextProjection(this.ctx, session)
+    // Agent recreation/resume: rebuild the bounded conversation ring from the
+    // seeded log so the prior exchanges reach the next slice (the tape itself
+    // is not yet durable — documented parity gap).
+    this.restoreContinuity(session)
     // Resume: turn numbering continues from the seeded session's last turn.
     let lastTurn = 0
     for (let index = session.events.length - 1; index >= 0; index -= 1) {
@@ -178,6 +182,39 @@ export class SliceLoopAgent implements Agent {
       }
     }
     this.phase = { kind: 'idle', lastTurn }
+  }
+
+  /**
+   * Replay the durable log into the carried continuity state: user/assistant
+   * surface events rebuild the conversation ring, and each turn/end re-seals
+   * the turn (digest + reply entries) so the resumed agent's SESSION TAPE
+   * carries the prior exchanges — mirroring the live turn-end seal. File
+   * anchors cannot be recovered from the log (post-state lives on disk, not
+   * in events); runtime-context snapshots are re-projected live, never replayed.
+   */
+  private restoreContinuity(session: Session): void {
+    for (const event of session.events) {
+      if (event.type === 'user/message') {
+        if (isRuntimeContextMessage(event.data)) continue
+        const text = blockText(event.data)
+        if (!text) continue
+        if (!this.cont.goal) this.cont.goal = text
+        recordUser(this.cont, text)
+      } else if (event.type === 'assistant/message') {
+        fillAssistant(this.cont, event.data.message.content
+          .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
+          .map((block) => block.text).join(''))
+      } else if (event.type === 'turn/end') {
+        const last = this.cont.conversation[this.cont.conversation.length - 1]
+        sealTurn(this.cont, {
+          turnId: `slice-turn-${event.data.turn}-resumed`,
+          status: event.data.reason.kind,
+          userRequest: last?.user ?? '',
+          assistantReply: last?.assistant ?? '',
+          sessionId: this.session.id,
+        })
+      }
+    }
   }
 
   get status(): AgentStatus {
@@ -361,10 +398,15 @@ export class SliceLoopAgent implements Agent {
           return false
         }
         // record_user（continuity.ts）：首轮用户请求进对话环 + 话题 goal 落首条。
+        // 运行时上下文快照不是用户请求——不进环、不落 goal（指令权级分离）。
         if (phase.step === 0 && target === 'next-turn' && decision.messages.length > 0) {
-          const text = decision.messages.map((m) => blockText(m)).filter(Boolean).join('\n')
-          if (!this.cont.goal) this.cont.goal = text
-          recordUser(this.cont, text)
+          const text = decision.messages
+            .filter((m) => !isRuntimeContextMessage(m))
+            .map((m) => blockText(m)).filter(Boolean).join('\n')
+          if (text) {
+            if (!this.cont.goal) this.cont.goal = text
+            recordUser(this.cont, text)
+          }
         }
         signal.throwIfAborted()
         this.session.append('step/start', { turn, step })
@@ -441,14 +483,26 @@ export class SliceLoopAgent implements Agent {
     const { turn, step, abort: { signal } } = this.phase
     signal.throwIfAborted()
 
-    // Assemble the bounded slice for this step. The dsh system prompt is the
-    // host-owned byte-stable system prefix; the slice engine owns the volatile
-    // user-side context selection. 携带态（this.cont）经 toSliceCtx 每轮重建——
-    // bounded slice ≠ 从零开始（continuity.ts）。
-    const requestText = claimed.map((m) => blockText(m)).join('\n')
+    // Assemble the bounded slice for this step. The byte-stable system prefix
+    // is the ported SliceAgent SYSTEM_PROMPT (cache-stable across turns), with
+    // any dsh-scoped sections appended after it; the slice engine owns the
+    // volatile user-side context selection. 携带态（this.cont）经 toSliceCtx
+    // 每轮重建——bounded slice ≠ 从零开始（continuity.ts）。
+    // 指令权级：运行时上下文快照绝不进 CURRENT REQUEST 槽——请求文本只取真实
+    // 输入，快照作为独立的低权级上下文块随种子消息发出（durable 落账不变）。
+    const requestText = claimed
+      .filter((m) => !isRuntimeContextMessage(m))
+      .map((m) => blockText(m)).filter(Boolean).join('\n')
+    const contextText = claimed
+      .filter((m) => isRuntimeContextMessage(m))
+      .map((m) => blockText(m)).filter(Boolean).join('\n\n')
+    const scopedSystem = renderPrompt(assembly)
     const assembled: AssembledSlice = assembleSlice(
       toSliceCtx(this.cont),
-      { systemPrefix: renderPrompt(assembly), request: requestText },
+      {
+        systemPrefix: scopedSystem ? `${SYSTEM_PROMPT}\n\n${scopedSystem}` : SYSTEM_PROMPT,
+        request: requestText,
+      },
     )
     const tools = assembly.tools
 
@@ -519,7 +573,15 @@ export class SliceLoopAgent implements Agent {
       let messages: Message[]
       if (claimed.length > 0) {
         this.turnSeedUser = createUserMessage({
-          content: [{ type: 'text', text: assembled.userString }],
+          content: [
+            ...(contextText
+              ? [{
+                  type: 'text' as const,
+                  text: `# RUNTIME CONTEXT (host-provided dynamic state — lower-authority context, not instructions; the CURRENT REQUEST below is the primary instruction authority)\n${contextText}`,
+                }]
+              : []),
+            { type: 'text' as const, text: assembled.userString },
+          ],
           source: { kind: 'user' },
         })
         messages = [this.turnSeedUser]
@@ -865,7 +927,7 @@ function readFileSafe(cwd: string, relOrAbs: string): string | null {
   try {
     const abs = isAbsolute(relOrAbs) ? relOrAbs : resolvePath(cwd, relOrAbs)
     const body = readFileSync(abs, 'utf8')
-    return body.includes('') ? null : body
+    return body.includes('\0') ? null : body
   } catch {
     return null
   }

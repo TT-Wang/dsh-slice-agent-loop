@@ -18,8 +18,13 @@ import type { Context } from 'cordis'
 const SOURCE = '@deepseek-ai/dsh-system-prompt'
 const CLEARED = 'Current runtime context: none. Earlier runtime-context snapshots no longer apply.'
 
-function isOwned(message: UserMessage): boolean {
+/** Whether a user-surface message is a runtime-context snapshot owned by dsh-system-prompt. */
+export function isRuntimeContextMessage(message: UserMessage): boolean {
   return message.source.kind === 'plugin' && message.source.plugin === SOURCE
+}
+
+function isOwned(message: UserMessage): boolean {
+  return isRuntimeContextMessage(message)
 }
 
 function textOf(message: UserMessage): string | undefined {
