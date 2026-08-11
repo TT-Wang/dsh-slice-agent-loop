@@ -1,0 +1,26 @@
+# dsh-slice-agent-loop bundle patch.
+#
+# Unlike an additive plugin, this one REPLACES the agent loop: `ctx.agents` holds
+# exactly one factory, so the stock loop must be disabled or both fail loudly.
+#
+# Compaction is disabled with it. This loop's bounded rebuild does the same job,
+# and `dsh-command-compact` injects `compact` — leaving the consumer mounted
+# after its service is gone suspends that fiber forever.
+#
+# NOTE: on the 0810+ preset plane the live compaction stack lives in each
+# preset's own `compaction` isolate group, which a host-plane patch cannot
+# reach. These two rows cover the host plane; to run without compaction under
+# `standard` / `code` / `cordis`, author a preset without that group (see README).
+
+- id: agent-loop
+  disabled: true
+
+- id: compact-basic
+  disabled: true
+
+- id: command-compact
+  disabled: true
+
+- insert:
+    - id: slice-agent-loop
+      name: '@dsh-external/dsh-slice-agent-loop'

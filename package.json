@@ -1,5 +1,5 @@
 {
-  "name": "dsh-slice-agent-loop",
+  "name": "@dsh-external/dsh-slice-agent-loop",
   "description": "SliceAgent concrete agent loop plugin for the DeepSeek Harness — a drop-in AgentFactory/Agent implementation whose context engine is the bounded slice",
   "version": "0.0.1",
   "type": "module",
@@ -14,10 +14,12 @@
       "types": "./lib/types/invariant.d.ts",
       "default": "./lib/invariant.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "files": [
-    "lib/**/*"
+    "lib/**/*",
+    "cordis.patch.yml"
   ],
   "repository": {
     "type": "git",
@@ -25,7 +27,6 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "prepublishOnly": "npm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "link:dsh": "node scripts/link-dsh.mjs",
@@ -52,6 +53,12 @@
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-invariants": {
       "optional": true
+    }
+  },
+  "private": true,
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
     }
   }
 }

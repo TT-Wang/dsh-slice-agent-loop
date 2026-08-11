@@ -27,44 +27,44 @@ depending on it. Version `0.0.1` tracks DSH snapshot `20260810T155924Z`.
 
 ## Install
 
-The harness packages are **peer dependencies**: the host provides them, this
-plugin never bundles its own copies.
+Official bundle plugin — installed from the git source, not from npm. The build
+output is committed, so a git-source install needs no build step:
 
-```bash
-npm install dsh-slice-agent-loop
+```sh
+dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main"
 ```
 
-Then swap it for the stock loop in your profile's `cordis.patch.yml`. Disabling
-a row and inserting your own is the supported replacement shape — a patch's
-`name` field is an assertion, not an override, so it cannot rename a row:
+From a local checkout instead: `dsh plugin --profile <name> add .`
+
+The package ships its own `cordis.patch.yml`, so installing it into a profile is
+all the wiring there is. That patch does three things, and the first two are not
+optional:
 
 ```yaml
-- id: agent-loop
+- id: agent-loop        # ctx.agents holds exactly ONE factory
   disabled: true
-
+- id: compact-basic     # this loop's bounded rebuild replaces compaction
+  disabled: true
+- id: command-compact   # injects `compact`; suspends forever without it
+  disabled: true
 - insert:
-    - id: slice-loop
-      name: 'dsh-slice-agent-loop'
+    - id: slice-agent-loop
+      name: '@dsh-external/dsh-slice-agent-loop'
 ```
 
-`ctx.agents` holds exactly one agent factory, so the stock loop **must** be
-disabled — loading both fails loudly rather than picking one by load order.
+Loading beside the stock loop fails loudly rather than picking one by load
+order, so the `agent-loop` row must stay disabled.
 
-### Compaction
+### Compaction on the preset plane
 
-This loop's bounded rebuild replaces conversation compaction. If you keep the
-compaction stack mounted you get both mechanisms fighting for the same job, and
-`dsh-token-meter` prices the *surface* (the full log) rather than the slice
-actually sent, so pressure readings will not match reality. To disable it,
-remember to disable the consumer too — `dsh-command-compact` injects `compact`
-and would otherwise hang forever waiting for a service that never arrives:
-
-```yaml
-- id: compact-basic
-  disabled: true
-- id: command-compact
-  disabled: true
-```
+On DSH 0810+ the live compaction stack sits inside each preset's `compaction`
+isolate group, which a host-plane patch cannot reach — the rows above cover the
+host plane only. Under `standard`, `code` or `cordis` the stack still runs, and
+`dsh-token-meter` prices the *surface* rather than the slice actually sent
+(`dsh-external/issues#564`). To run without it, either pick `minimal` (the one
+preset that mounts no compaction) or author your own preset under
+`$DSH_HOME/.agent-presets/` — copy `standard/agent.cordis.yml` and drop the
+`compaction` group.
 
 ## Configuration
 
