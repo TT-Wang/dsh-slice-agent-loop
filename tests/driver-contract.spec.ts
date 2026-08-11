@@ -226,6 +226,42 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('preserves sealed turn identity across recreation instead of minting resume aliases', async () => {
+    const adapter = new MockAdapter([
+      textResponse('SEALED ASSISTANT REPLY'),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('sealed-identity-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, 'seal one turn')
+    await first.agent.whenIdle()
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live sealed identity')
+    await first.agent.whenIdle()
+    const liveText = JSON.stringify(adapter.requests[1]?.messages)
+    const liveId = liveText.match(/\[reply ([^\]]+)\]/)?.[1]
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('sealed-identity-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the live sealed identity')
+    await resumed.agent.whenIdle()
+    const resumedText = JSON.stringify(adapter.requests[2]?.messages)
+    const resumedId = resumedText.match(/\[reply ([^\]]+)\]/)?.[1]
+
+    expect({ liveId, resumedId }).toEqual({ liveId, resumedId: liveId })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
