@@ -273,7 +273,26 @@ recall: recall_turn({"turn": "slice-turn-3"}) for the verbatim record
 ```
 
 An uncut turn advertises nothing; the tool's catalog description covers
-discovery. This replaces the ported Python locator
+discovery.
+
+When the model does not know *which* turn, `recall_search` is tier 1: scored
+search over the same durable log, hits naming `recall_turn` follow-ups.
+Ordinary tool output is **excluded from the corpus by default** — it is the
+session's highest-volume, lowest-signal text, and it buries the sentence the
+model actually said; pass `kinds: ["tool_output"]` to search it deliberately.
+Ranking is coverage-dominant with a capped term-frequency term, so a short
+document containing every query term outranks a flood repeating one. Every
+recalled page opens with an epistemic frame — *historical record: establishes
+what was said, not current world state* — matching the kernel's evidence tiers.
+
+Two gates guard the cache side of this design: the call-name gate (every
+rendered call shape must name a registered tool), and a prefix-stability gate
+asserting the system prompt and tool catalog are **byte-identical across
+turns** — the structural precondition for provider prefix caching. Two items
+from the same review were rejected as not-applicable by construction: isolated
+"bounded LLM" side-calls (this loop's only model call *is* the turn request),
+and cache-TTL-aware resume pruning (the slice rebuilds a bounded context every
+turn; a cold resume has nothing to prune). This replaces the ported Python locator
 (`read_file("@sliceagent/history/...")`) that pointed into the engine's virtual
 context filesystem — a route nothing in DSH can serve, whose one observed
 effect was a 20-step, 35-search hunt for a file that never existed.

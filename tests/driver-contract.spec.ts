@@ -1640,6 +1640,73 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+
+  // ── 两级取回:recall_search → recall_turn ────────────────────────────────
+  it('recall_search finds a fact by content and hands back a recall_turn locator', async () => {
+    const FACT = 'the rollout gate threshold is ZX-4471'
+    const adapter = new MockAdapter([
+      textResponse(`noted: ${FACT}, plus ${'pad '.repeat(400)}`),   // turn 1:事实 + 超长(必截)
+      textResponse('second turn'),                                   // turn 2:封存 turn 1
+      toolCallResponse('rs1', 'recall_search', { query: 'rollout gate threshold' }), // turn 3 step 1
+      toolCallResponse('rt1', 'recall_turn', { turn: 'slice-turn-1' }),              // turn 3 step 2
+      textResponse('found it'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('recall-two-tier'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'state the fact at length'); await handle.agent.whenIdle()
+      send(handle.agent, 'ok'); await handle.agent.whenIdle()
+      send(handle.agent, 'what was that threshold again?'); await handle.agent.whenIdle()
+
+      const results = handle.agent.session.events
+        .filter(e => e.type === 'tool/result').map(e => JSON.stringify(e.data))
+      expect({
+        searchNamedTheTurn: results.some(r => r.includes('slice-turn-1') && r.includes('recall_search')),
+        // 逐字页必须同时带完整回应节 + sealed 页自己的认知诚实头(搜索页的
+        // 同名短语不算数 —— 变异验证曾因此漏网)。
+        verbatimCameBack: results.some(r => r.includes('ZX-4471')
+          && r.includes('## Assistant response (verbatim)')
+          && r.includes('[sealed turn slice-turn-1')
+          && r.includes('historical record')),
+      }).toEqual({ searchNamedTheTurn: true, verbatimCameBack: true })
+    } finally {
+      await handle.dispose(); await ctx.fiber.dispose()
+    }
+  })
+
+  // ── #5 前缀跨轮字节不变门(缓存命中的结构性前提)─────────────────────────
+  // system + tools 目录是 provider 前缀缓存的公共前缀。任何一轮悄悄变一个字节,
+  // 整个会话的缓存前缀作废。这条门断言:同一会话第 N 轮与第 N+1 轮的 system
+  // 逐字节相等、工具 schema JSON 逐字节相等。
+  it('keeps the system prefix and tool catalog byte-stable across turns', async () => {
+    const adapter = new MockAdapter([
+      textResponse('one'), textResponse('two'), textResponse('three'),
+    ])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('prefix-stability'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'a'); await handle.agent.whenIdle()
+      send(handle.agent, 'b'); await handle.agent.whenIdle()
+      send(handle.agent, 'c'); await handle.agent.whenIdle()
+      const systems = adapter.requests.map(r => String(r.system ?? ''))
+      const tools = adapter.requests.map(r => JSON.stringify(r.tools ?? []))
+      expect({
+        turns: adapter.requests.length,
+        systemStable: systems.every(x => x === systems[0]),
+        toolsStable: tools.every(x => x === tools[0]),
+        systemNonEmpty: systems[0].length > 1000,
+      }).toEqual({ turns: 3, systemStable: true, toolsStable: true, systemNonEmpty: true })
+    } finally {
+      await handle.dispose(); await ctx.fiber.dispose()
+    }
+  })
+
   // ── memory recall(src/recall.ts)────────────────────────────────────────
   // tape 在 1,200 码点截断封存回复;recall_turn 是回去的路。它从持久会话日志
   // 服务逐字文本——重建 agent 用的同一来源,所以按构造就是重建安全的。
@@ -2456,9 +2523,9 @@ describe('SliceLoopAgent contract gates', () => {
     }).toEqual({
       // recall_turn is plugin-owned and rides every catalog (src/recall.ts).
       requestSystem: true,
-      requestTools: ['audit_echo', 'recall_turn'],
+      requestTools: ['audit_echo', 'recall_search', 'recall_turn'],
       headerSystem: true,
-      headerTools: ['audit_echo', 'recall_turn'],
+      headerTools: ['audit_echo', 'recall_search', 'recall_turn'],
     })
     await handle.dispose()
     await ctx.fiber.dispose()

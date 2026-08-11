@@ -360,3 +360,48 @@ describe("applyUnified boundary: -0,0 hunk against a non-empty source", () => {
     }
   });
 });
+
+describe("recall_search corpus and flood guard (Reasonix 借鉴)", () => {
+  const { searchSessionEvents, renderSearchHits } = require("../src/recall.ts") as typeof import("../src/recall.js");
+  const ev = (type: string, data: unknown) => ({ type, data });
+  const events = [
+    ev("turn/start", { turn: 1 }),
+    ev("user/message", { content: [{ type: "text", text: "deploy with token QQ-91" }] }),
+    ev("assistant/message", { turn: 1, step: 1, message: { content: [
+      { type: "text", text: "using token QQ-91 as instructed" },
+      { type: "tool-call", name: "write", arguments: '{"file_path":"cfg.toml"}' },
+    ] } }),
+    ev("tool/result", { turn: 1, step: 1, message: { content: [{ type: "tool-result", isError: false,
+      content: [{ type: "text", text: ("flood ".repeat(500)) + " token QQ-91 buried here" }] }] } }),
+    ev("turn/end", { turn: 1, reason: { kind: "completed" } }),
+  ];
+
+  it("默认 kind 集不搜普通 tool 输出(防洪),但搜 user/assistant/tool_input", () => {
+    const hits = searchSessionEvents(events as never, "token QQ-91");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every(h => h.kind !== "tool_output")).toBe(true);
+  });
+
+  it("显式 kinds:['tool_output'] 才进洪水区", () => {
+    const hits = searchSessionEvents(events as never, "buried", { kinds: ["tool_output"] });
+    expect(hits.length).toBe(1);
+    expect(hits[0].kind).toBe("tool_output");
+  });
+
+  it("命中页给出可照抄的 recall_turn 定位符;零命中页给出 tool_output 换挡提示", () => {
+    const hits = searchSessionEvents(events as never, "token");
+    expect(renderSearchHits("token", hits)).toContain('recall_turn({"turn": "slice-turn-N"})');
+    expect(renderSearchHits("nothing", [])).toContain('kinds: ["tool_output"]');
+  });
+
+  it("覆盖率优先:含全部查询词的短文档排在词频高的长文档前", () => {
+    const long = ev("assistant/message", { turn: 2, step: 1, message: { content: [
+      { type: "text", text: "token ".repeat(300) } ] } });
+    const short = ev("assistant/message", { turn: 3, step: 1, message: { content: [
+      { type: "text", text: "the deploy token is QQ-91" } ] } });
+    const es = [ev("turn/start",{turn:2}), long, ev("turn/start",{turn:3}), short];
+    const hits = searchSessionEvents(es as never, "deploy token");
+    expect(hits[0].turn).toBe(3);
+  });
+});
+
