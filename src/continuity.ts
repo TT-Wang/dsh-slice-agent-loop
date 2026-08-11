@@ -284,6 +284,7 @@ export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, 
     if (patch.assistant !== undefined) row.assistant = patch.assistant
   }
   const meta = c.sealMeta[turnId]
+  let replySeen = false
   for (let index = 0; index < c.sessionTape.length; index += 1) {
     const entry = c.sessionTape[index]!
     if (entry.ref !== turnId) continue
@@ -296,6 +297,7 @@ export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, 
         files: meta?.files ?? [],
       }), turnId)
     } else if (entry.kind === 'reply' && patch.assistant !== undefined) {
+      replySeen = true
       const rep = replyEntry(turnId, patch.assistant)
       if (rep !== null) {
         c.sessionTape[index] = rep
@@ -305,6 +307,25 @@ export function compactTurn(c: Continuity, turn: number, patch: TurnCompaction, 
         c.sessionTape.splice(index, 1)
         index -= 1
       }
+    }
+  }
+  // Upsert: a non-empty assistant patch for a turn whose original reply was
+  // empty (no entry sealed) inserts one — after that turn's digest/file
+  // segment, before the next turn's digest, never blindly at the tail.
+  if (patch.assistant !== undefined && patch.assistant !== '' && !replySeen) {
+    const rep = replyEntry(turnId, patch.assistant)
+    if (rep !== null) {
+      let insertAt = -1
+      for (let index = 0; index < c.sessionTape.length; index += 1) {
+        const entry = c.sessionTape[index]!
+        if (entry.kind === 'digest' && entry.ref === turnId) {
+          insertAt = index + 1
+          while (insertAt < c.sessionTape.length && c.sessionTape[insertAt]!.ref === '') insertAt += 1
+          break
+        }
+      }
+      if (insertAt === -1) c.sessionTape.push(rep)
+      else c.sessionTape.splice(insertAt, 0, rep)
     }
   }
 }
