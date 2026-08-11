@@ -186,7 +186,7 @@ export class SliceLoopAgent implements Agent {
     this.ctx.on('session/event', (subject, event) => {
       if (subject !== session || !isReplacementSurfaceEvent(event)) return
       this.applySurfaceReplacement(event.surfaceOp,
-        event.type === 'user/message' ? blockText(event.data) : '')
+        event.type === 'user/message' ? blockText(event.data) : '', event.seq)
     })
     // Agent recreation/resume: rebuild the bounded conversation ring from the
     // seeded log so the prior exchanges reach the next slice (the tape itself
@@ -242,7 +242,7 @@ export class SliceLoopAgent implements Agent {
         // Canonical surface replacement: rewrite the shadowed turn(s) to the
         // summary instead of replaying the shadowed originals.
         if (isReplacementSurfaceEvent(event)) {
-          this.applySurfaceReplacement(event.surfaceOp, blockText(event.data))
+          this.applySurfaceReplacement(event.surfaceOp, blockText(event.data), event.seq)
           continue
         }
         if (step !== 1 || isRuntimeContextMessage(event.data)) continue
@@ -286,25 +286,35 @@ export class SliceLoopAgent implements Agent {
   private applySurfaceReplacement(
     surfaceOp: { op: 'replace'; start: number; end: number },
     summary: string,
+    replacementSeq: number,
   ): void {
     if (!summary) return
-    for (const turn of this.shadowedTurns(surfaceOp)) {
+    const turns = this.shadowedTurns(surfaceOp)
+    for (const turn of turns) {
       compactTurn(this.cont, turn, summary, this.session.id)
     }
+    this.replacementLineage.set(replacementSeq, new Set(turns))
   }
 
   /**
-   * Map a replacement's surface span to its enclosing turn numbers. The
-   * shadowed set is exactly the surface nodes in `start..end` (inclusive);
-   * `sourceEventSeqs` is provenance and may legally cite unshadowed nodes.
+   * Map a replacement's surface span to its turn numbers. The shadowed set is
+   * exactly the surface nodes in `start..end` (inclusive); `sourceEventSeqs`
+   * is provenance and may legally cite unshadowed nodes. A node that is itself
+   * an earlier replacement contributes the turns it was compacted into
+   * (transitive lineage), so nested compactions follow the final summary.
    */
+  private readonly replacementLineage = new Map<number, Set<number>>()
+
   private shadowedTurns(surfaceOp: { op: 'replace'; start: number; end: number }): number[] {
     const turns = new Set<number>()
     let open: number | null = null
     for (const event of this.session.events) {
       if (event.type === 'turn/start') open = event.data.turn
       if (event.seq >= surfaceOp.start && event.seq <= surfaceOp.end) {
-        if (event.type === 'assistant/message' || event.type === 'tool/result') {
+        const inherited = this.replacementLineage.get(event.seq)
+        if (inherited !== undefined) {
+          for (const turn of inherited) turns.add(turn)
+        } else if (event.type === 'assistant/message' || event.type === 'tool/result') {
           turns.add(event.data.turn)
         } else if (event.type === 'user/message' && open !== null) {
           turns.add(open)
