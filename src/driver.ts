@@ -212,6 +212,7 @@ export class SliceLoopAgent implements Agent {
    */
   private restoreContinuity(session: Session): void {
     let step = 0
+    let openTurn: number | null = null
     let pendingFirstStep: string[] = []
     let pendingAnchors: Array<{ path: string; body: string }> = []
     let recordedThisTurn = false
@@ -224,7 +225,9 @@ export class SliceLoopAgent implements Agent {
       recordedThisTurn = true
     }
     for (const event of session.events) {
-      if (event.type === 'step/start') {
+      if (event.type === 'turn/start') {
+        openTurn = event.data.turn
+      } else if (event.type === 'step/start') {
         flushFirstStep()
         step = event.data.step
       } else if (event.type === 'user/message') {
@@ -237,8 +240,12 @@ export class SliceLoopAgent implements Agent {
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join(''))
       } else if (event.type === 'slice/file-anchor') {
-        // 耐久的脱敏后态锚点：在该轮 turn/end 的重封存里恢复 base/patch 锚定。
-        pendingAnchors.push({ path: event.data.path, body: event.data.body })
+        // 插件拥有的轮界完整性（核心 invariant 把插件事件关系委托给所属插件）：
+        // 锚点只在它声明的轮仍处于开轮状态时被接受——轮外孤儿或轮号不符的
+        // 事件绝不并入后续封存。
+        if (openTurn !== null && event.data.turn === openTurn) {
+          pendingAnchors.push({ path: event.data.path, body: event.data.body })
+        }
       } else if (event.type === 'turn/end') {
         flushFirstStep()
         if (recordedThisTurn) {
@@ -254,6 +261,7 @@ export class SliceLoopAgent implements Agent {
         }
         pendingAnchors = []
         recordedThisTurn = false
+        openTurn = null
         step = 0
       }
     }
