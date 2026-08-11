@@ -225,7 +225,6 @@ export class SliceLoopAgent implements Agent {
     let pendingFirstStep: string[] = []
     let pendingAnchors: Array<{ path: string; body: string }> = []
     let recordedThisTurn = false
-    const assistantOwnerByTurn = new Map<number, number>()
     const flushFirstStep = (): void => {
       const text = pendingFirstStep.filter(Boolean).join('\n')
       pendingFirstStep = []
@@ -257,14 +256,19 @@ export class SliceLoopAgent implements Agent {
           this.nodeOwner.set(event.seq, [{ turn: openTurn, component: 'user' }])
         }
       } else if (event.type === 'assistant/message') {
+        // Assistant replacements, like user replacements, are handled once by
+        // the surface fold — never promoted through the ordinary reducer.
+        if (isReplacementSurfaceEvent(event)) {
+          this.foldSurfaceEvent(event)
+          continue
+        }
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
         flushFirstStep()
         const text = event.data.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join('')
         fillAssistant(this.cont, text)
-        assistantOwnerByTurn.set(event.data.turn,
-          this.ownAssistant(event.data.turn, event.seq, text, assistantOwnerByTurn.get(event.data.turn)))
+        this.ownAssistant(event.data.turn, event.seq, text)
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
       } else if (event.type === 'slice/file-anchor') {
@@ -308,8 +312,8 @@ export class SliceLoopAgent implements Agent {
   private readonly nodeText = new Map<number, string>()
   /** Fold node → the continuity components (turn + user/assistant side) it currently owns. */
   private readonly nodeOwner = new Map<number, Array<{ turn: number; component: 'user' | 'assistant' }>>()
-  /** Live per-turn assistant-owner seq (fillAssistant semantics: latest assistant message wins). */
-  private turnAssistantOwner: number | undefined
+  /** Per-turn latest assistant-owner seq (fillAssistant semantics: latest assistant message wins). */
+  private readonly assistantOwnerByTurn = new Map<number, number>()
 
   /**
    * Fold one surface event. A replacement transfers component ownership from
@@ -334,7 +338,8 @@ export class SliceLoopAgent implements Agent {
         const lo = Math.min(startIndex, endIndex)
         const hi = Math.max(startIndex, endIndex)
         const owners = new Map<string, { turn: number; component: 'user' | 'assistant' }>()
-        for (const seq of this.surfaceFold.slice(lo, hi + 1)) {
+        const spanSeqs = this.surfaceFold.slice(lo, hi + 1)
+        for (const seq of spanSeqs) {
           const owned = this.nodeOwner.get(seq)
           if (owned !== undefined) {
             for (const o of owned) owners.set(`${o.turn}:${o.component}`, o)
@@ -345,6 +350,15 @@ export class SliceLoopAgent implements Agent {
         if (owners.size > 0) {
           this.nodeOwner.set(event.seq, [...owners.values()])
           this.nodeText.set(event.seq, text)
+          // Keep each turn's latest-assistant cursor on the live owner: when a
+          // replacement inherits the current owner, the cursor moves to the
+          // replacement; a replacement that inherited nothing moves nothing.
+          for (const o of owners.values()) {
+            if (o.component === 'assistant'
+              && spanSeqs.includes(this.assistantOwnerByTurn.get(o.turn) ?? -1)) {
+              this.assistantOwnerByTurn.set(o.turn, event.seq)
+            }
+          }
         }
         this.surfaceFold.splice(lo, hi - lo + 1, event.seq)
         for (const o of owners.values()) {
@@ -376,14 +390,15 @@ export class SliceLoopAgent implements Agent {
   }
 
   /** Transfer a turn's assistant-component ownership to its latest assistant message. */
-  private ownAssistant(turn: number, seq: number, text: string, previous: number | undefined): number {
+  private ownAssistant(turn: number, seq: number, text: string): void {
+    const previous = this.assistantOwnerByTurn.get(turn)
     if (previous !== undefined) {
       this.nodeOwner.delete(previous)
       this.nodeText.delete(previous)
     }
     this.nodeOwner.set(seq, [{ turn, component: 'assistant' }])
     this.nodeText.set(seq, text)
-    return seq
+    this.assistantOwnerByTurn.set(turn, seq)
   }
 
   get status(): AgentStatus {
@@ -548,7 +563,6 @@ export class SliceLoopAgent implements Agent {
     phase.turn = turn
     this.turnSeedUser = undefined
     this.turnTrajectory = []
-    this.turnAssistantOwner = undefined
     let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
@@ -841,7 +855,7 @@ export class SliceLoopAgent implements Agent {
         .map((b) => b.text).join('')
       fillAssistant(this.cont, assistantText)
       // 助手组件所有权 = 本轮最新一条 assistant/message（与 fillAssistant 同义）。
-      this.turnAssistantOwner = this.ownAssistant(turn, assistantEvent.seq, assistantText, this.turnAssistantOwner)
+      this.ownAssistant(turn, assistantEvent.seq, assistantText)
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
 
       const toolCalls = message.content.filter(
