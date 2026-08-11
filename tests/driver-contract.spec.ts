@@ -601,6 +601,101 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+  it('does not replay a durable file anchor whose declared turn mismatches its enclosing turn', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-anchor-turn-integrity-'))
+    const path = join(root, 'mismatched.txt')
+    const marker = 'MISMATCHED TURN ANCHOR MUST NOT ENTER THE REBUILT TAPE'
+    const adapter = new MockAdapter([
+      toolCallResponse('write-mismatched', 'write_file', { path, content: marker }),
+      textResponse('write complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const first = await ctx.agents.create({
+      sessionId: SessionId('file-anchor-turn-integrity-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(first.agent, 'write the file whose anchor turn will be corrupted')
+      await first.agent.whenIdle()
+      const seed = structuredClone(first.agent.session.events)
+      const anchor = seed.find(event => event.type === 'slice/file-anchor')
+      if (anchor?.type !== 'slice/file-anchor') throw new Error('missing file-anchor fixture event')
+      anchor.data.turn += 1
+      await first.dispose()
+
+      const resumed = await ctx.agents.create({
+        sessionId: SessionId('file-anchor-turn-integrity-target'),
+        seed,
+        agentOptions: { provider: 'mock', model: 'mock' },
+      })
+      send(resumed.agent, 'inspect only structurally valid durable anchors')
+      await resumed.agent.whenIdle()
+
+      const text = JSON.stringify(adapter.requests[2]?.messages)
+      expect({
+        tape: text.includes(marker),
+        indexed: text.includes(`read_file(\\"${path}\\") to view`),
+      }).toEqual({ tape: false, indexed: false })
+      await resumed.dispose()
+    } finally {
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('does not attach a durable file anchor emitted outside any turn to the next turn', async () => {
+    const path = join(tmpdir(), 'slice-loop-orphan-anchor.txt')
+    const marker = 'ORPHAN ANCHOR MUST NOT ENTER A LATER TURN TAPE'
+    const adapter = new MockAdapter([
+      textResponse('first turn complete'),
+      textResponse('second turn complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('orphan-file-anchor-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(first.agent, 'complete the first turn')
+    await first.agent.whenIdle()
+    first.agent.session.append('slice/file-anchor', { turn: 2, path, body: marker })
+    send(first.agent, 'complete the second turn')
+    await first.agent.whenIdle()
+    const seed = structuredClone(first.agent.session.events)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('orphan-file-anchor-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect only turn-enclosed durable anchors')
+    await resumed.agent.whenIdle()
+
+    const text = JSON.stringify(adapter.requests[2]?.messages)
+    expect({
+      tape: text.includes(marker),
+      indexed: text.includes(path),
+    }).toEqual({ tape: false, indexed: false })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('publishes an anchored file in the current OPEN FILES hash index', async () => {
     const root = await mkdtemp(join(tmpdir(), 'slice-loop-open-files-'))
     const path = join(root, 'indexed.txt')
