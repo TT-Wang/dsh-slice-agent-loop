@@ -398,6 +398,78 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('follows nested surface replacements in both live and rebuilt bounded continuity', async () => {
+    const originalUser = 'NESTED SHADOWED ORIGINAL USER MUST DISAPPEAR'
+    const originalAssistant = 'NESTED SHADOWED ORIGINAL ASSISTANT MUST DISAPPEAR'
+    const firstSummary = 'INTERMEDIATE COMPACTION SUMMARY MUST DISAPPEAR'
+    const finalSummary = 'FINAL NESTED COMPACTION SUMMARY'
+    const adapter = new MockAdapter([
+      textResponse(originalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('nested-surface-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const originalNodes = first.agent.session.surface.nodes
+    const intermediate = first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: firstSummary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: { op: 'replace', start: originalNodes[0]!, end: originalNodes[1]! },
+      sourceEventSeqs: [originalNodes[0]!, originalNodes[1]!],
+    })
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: finalSummary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      // Replacing the currently active summary must transitively rewrite the
+      // original turn carried by continuity, not leave the intermediate text.
+      surfaceOp: { op: 'replace', start: intermediate.seq, end: intermediate.seq },
+      sourceEventSeqs: [intermediate.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(finalSummary)
+    expect(canonicalSurface).not.toContain(firstSummary)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live nested replacement')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('nested-surface-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt nested replacement')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      finalSummary: text.includes(finalSummary),
+      firstSummary: text.includes(firstSummary),
+      originalUser: text.includes(originalUser),
+      originalAssistant: text.includes(originalAssistant),
+    })
+    const expected = {
+      finalSummary: true,
+      firstSummary: false,
+      originalUser: false,
+      originalAssistant: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
