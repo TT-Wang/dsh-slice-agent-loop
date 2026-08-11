@@ -316,6 +316,88 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('limits continuity compaction to the replaced surface span, not extra provenance sources', async () => {
+    const retainedUser = 'UNSHADOWED EARLIER USER TURN MUST REMAIN'
+    const retainedAssistant = 'UNSHADOWED EARLIER ASSISTANT TURN MUST REMAIN'
+    const shadowedUser = 'SHADOWED LATER USER TURN MUST DISAPPEAR'
+    const shadowedAssistant = 'SHADOWED LATER ASSISTANT TURN MUST DISAPPEAR'
+    const summary = 'SUMMARY OF ONLY THE LATER TURN'
+    const adapter = new MockAdapter([
+      textResponse(retainedAssistant),
+      textResponse(shadowedAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('surface-span-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, retainedUser)
+    await first.agent.whenIdle()
+    send(first.agent, shadowedUser)
+    await first.agent.whenIdle()
+
+    const retainedUserEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(retainedUser))
+    const shadowedUserEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(shadowedUser))
+    const shadowedAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 2)
+    if (retainedUserEvent?.type !== 'user/message'
+      || shadowedUserEvent?.type !== 'user/message'
+      || shadowedAssistantEvent?.type !== 'assistant/message') {
+      throw new Error('missing surface-span fixture events')
+    }
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: summary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: {
+        op: 'replace',
+        start: shadowedUserEvent.seq,
+        end: shadowedAssistantEvent.seq,
+      },
+      // Legal extra derivation provenance from turn 1 must not expand the
+      // surface span that the replacement actually shadows.
+      sourceEventSeqs: [retainedUserEvent.seq, shadowedUserEvent.seq, shadowedAssistantEvent.seq],
+    })
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live replacement span')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[2]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('surface-span-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt replacement span')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[3]?.messages)
+
+    const projection = (text: string) => ({
+      summary: text.includes(summary),
+      retainedUser: text.includes(retainedUser),
+      retainedAssistant: text.includes(retainedAssistant),
+      shadowedUser: text.includes(shadowedUser),
+      shadowedAssistant: text.includes(shadowedAssistant),
+    })
+    const expected = {
+      summary: true,
+      retainedUser: true,
+      retainedAssistant: true,
+      shadowedUser: false,
+      shadowedAssistant: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
