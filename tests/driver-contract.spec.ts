@@ -262,6 +262,60 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('honors a canonical surface replacement in both live and rebuilt bounded continuity', async () => {
+    const originalUser = 'SHADOWED ORIGINAL USER TURN MUST DISAPPEAR'
+    const originalAssistant = 'SHADOWED ORIGINAL ASSISTANT TURN MUST DISAPPEAR'
+    const summary = 'CANONICAL COMPACTED TURN SUMMARY'
+    const adapter = new MockAdapter([
+      textResponse(originalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('surface-replacement-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const nodes = first.agent.session.surface.nodes
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: summary }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: { op: 'replace', start: nodes[0]!, end: nodes[1]! },
+      sourceEventSeqs: [nodes[0]!, nodes[1]!],
+    })
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live compacted continuity')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('surface-replacement-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt compacted continuity')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      summary: text.includes(summary),
+      originalUser: text.includes(originalUser),
+      originalAssistant: text.includes(originalAssistant),
+    })
+    expect({ live: projection(live), rebuilt: projection(rebuilt) }).toEqual({
+      live: { summary: true, originalUser: false, originalAssistant: false },
+      rebuilt: { summary: true, originalUser: false, originalAssistant: false },
+    })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
