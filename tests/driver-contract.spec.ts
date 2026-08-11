@@ -992,6 +992,109 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('does not promote a stale assistant replacement over the latest assistant during replay', async () => {
+    const originalUser = 'STALE ASSISTANT OWNER USER'
+    const firstAssistant = 'STALE ASSISTANT ORIGINAL FIRST STEP'
+    const latestAssistant = 'LATEST ASSISTANT ORIGINAL SECOND STEP MUST DISAPPEAR'
+    const staleReplacement = 'STALE ASSISTANT REPLACEMENT MUST NOT OWN THE REPLY'
+    const latestReplacement = 'LATEST ASSISTANT REPLACEMENT MUST OWN THE REPLY'
+    const adapter = new MockAdapter([
+      textResponse(firstAssistant),
+      textResponse(latestAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('stale-assistant-owner-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    let steered = false
+    first.agent.ctx.on('agent/turn-stopping', ({ agent }) => {
+      if (steered) return
+      steered = true
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: 'continue the same turn' }],
+        source: { kind: 'plugin', plugin: 'driver-contract' },
+      }))
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const firstAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 1 && event.data.step === 1)
+    const latestAssistantEvent = first.agent.session.events.find(event =>
+      event.type === 'assistant/message' && event.data.turn === 1 && event.data.step === 2)
+    if (firstAssistantEvent?.type !== 'assistant/message'
+      || latestAssistantEvent?.type !== 'assistant/message') {
+      throw new Error('missing stale-assistant ownership fixture events')
+    }
+    const stale = first.agent.session.append('assistant/message', {
+      ...firstAssistantEvent.data,
+      message: createAssistantMessage({
+        content: [{ type: 'text', text: staleReplacement }],
+        source: { provider: 'mock', model: 'mock' },
+      }),
+    }, {
+      surfaceOp: {
+        op: 'replace',
+        start: firstAssistantEvent.seq,
+        end: firstAssistantEvent.seq,
+      },
+      sourceEventSeqs: [firstAssistantEvent.seq],
+    })
+    first.agent.session.append('assistant/message', {
+      ...latestAssistantEvent.data,
+      message: createAssistantMessage({
+        content: [{ type: 'text', text: latestReplacement }],
+        source: { provider: 'mock', model: 'mock' },
+      }),
+    }, {
+      surfaceOp: {
+        op: 'replace',
+        start: latestAssistantEvent.seq,
+        end: latestAssistantEvent.seq,
+      },
+      sourceEventSeqs: [latestAssistantEvent.seq],
+    })
+    const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
+    expect(canonicalSurface).toContain(staleReplacement)
+    expect(canonicalSurface).toContain(latestReplacement)
+    expect(canonicalSurface).not.toContain(firstAssistant)
+    expect(canonicalSurface).not.toContain(latestAssistant)
+    expect(first.agent.session.surface.nodes).toContain(stale.seq)
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live latest-assistant owner')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[2]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('stale-assistant-owner-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt latest-assistant owner')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[3]?.messages)
+
+    const projection = (text: string) => ({
+      latestReplacement: text.includes(latestReplacement),
+      latestAssistant: text.includes(latestAssistant),
+      staleReplacement: text.includes(staleReplacement),
+    })
+    const expected = {
+      latestReplacement: true,
+      latestAssistant: false,
+      staleReplacement: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
