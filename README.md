@@ -1,5 +1,7 @@
 # dsh-slice-agent-loop
 
+English | [中文](README.zh.md)
+
 A drop-in agent loop for the [DeepSeek Harness](https://github.com/dsh2026) whose
 context engine is a **bounded slice** instead of a growing transcript.
 
@@ -72,13 +74,20 @@ preset that mounts no compaction) or author your own preset under
 |---|--:|---|
 | `maxParallelToolCalls` | `10` | Maximum in-flight parallel-safe tool bodies per step. Concurrency-unsafe tools still form barriers. |
 
+Set it from your profile's own `cordis.patch.yml`, which applies after the
+bundle layer above. The row already exists — target it **by id**:
+
 ```yaml
-- insert:
-    - id: slice-loop
-      name: 'dsh-slice-agent-loop'
-      config:
-        maxParallelToolCalls: 4
+- id: slice-agent-loop
+  config:
+    maxParallelToolCalls: 4
 ```
+
+Do not wrap this in `- insert:`. An insert appends a *new* entry instead of
+configuring the existing one, and two loop factories is the loud failure
+described above. And do not add a `name:` key unless it is exactly
+`@dsh-external/dsh-slice-agent-loop` — a mismatched name is an assertion
+failure that makes the loader skip the whole row silently.
 
 ## Incompatible with `@deepseek-ai/dsh-agent-loop/invariant`
 
@@ -105,12 +114,12 @@ Requests are still auditable. Before every dispatch the driver appends a durable
 send, so you can prove after the fact what turn N step M actually contained —
 without duplicating the whole slice into the log.
 
-`dsh-slice-agent-loop/invariant` checks that weaker property, and unlike the
+`@dsh-external/dsh-slice-agent-loop/invariant` checks that weaker property, and unlike the
 stock companion it is **true** for this loop:
 
 ```yaml
 - id: slice-loop-invariant
-  name: 'dsh-slice-agent-loop/invariant'
+  name: '@dsh-external/dsh-slice-agent-loop/invariant'
 ```
 
 ## Durable events
@@ -127,8 +136,14 @@ add nothing to the prompt.
 
 Cross-turn file continuity is what makes the slice cheaper than a transcript:
 edited files ride as `base`/`patch` tape entries plus an OPEN FILES locator
-index (path · line count · sha256 · the exact `read` call), instead of being
-re-pasted in full.
+index (path · line count · sha256 · a `read_file("<path>")` re-read pointer),
+instead of being re-pasted in full.
+
+That pointer still carries the sliceagent-native name from the Python port —
+DSH registers its reader as `read` — so read the last field as *which file to
+re-read*, not as a call to paste verbatim. Same for the `recall:` line on each
+sealed turn digest, whose `@sliceagent/...` path names a virtual filesystem
+that has no counterpart here; see [Limitations](#limitations).
 
 Anchoring observes the **execution plane**, not what the model sees. It listens
 on `tools/result` and keys off `exec.name` — the tool that actually ran.
@@ -154,12 +169,29 @@ modes — wrong names, and top-level-only observation — are gated in
 
 ## Limitations
 
-- **Elasticity does not degrade.** The driver computes a character budget from
-  the model context window and re-projects the slice against it, but the ported
-  `ElasticityController` throws `ContextUnfitError` rather than dropping to
-  locator fidelity — even when the overflow is small. The driver falls back to
-  the unbounded projection and warns, so an unfittable slice never kills a turn;
-  the bound is enforced by the tape budget, not by per-region degradation.
+- **Elasticity degrades exactly one region.** The driver computes a character
+  budget from the model context window and re-projects the slice against it, and
+  the ported `ElasticityController` does run its degradation loop — but of the
+  three populated regions only `open_files` has anything to degrade *to*.
+  `task_objective` is mandatory, so no locator alternative is emitted for it, and
+  `session_tape` — by far the largest block — has no branch in `locatorRegion()`
+  at all. A small overflow is absorbed by paging the OPEN FILES index down to its
+  locator form (a few hundred characters); past that the controller has no
+  candidate left and raises `ContextUnfitError`. The driver catches it, falls
+  back to the unbounded projection and warns, so an unfittable slice never kills
+  a turn; the bound is still enforced by the tape budget, not by per-region
+  degradation.
+- **The retrieval affordances name a tool this harness does not have.** Every
+  paging pointer the slice renders — the OPEN FILES index, the per-turn
+  `recall:` locator, the memory and history index lines — is written as
+  `read_file(...)`, which `dsh-tool-fs` does not register (its reader is
+  `read`). Worse, the `@sliceagent/...` paths those pointers use are routes into
+  the Python engine's virtual context filesystem, and the durability layer that
+  serves them was deliberately not ported. Real-file pointers are recoverable —
+  the path is correct, only the call name is wrong — but nothing can serve an
+  `@sliceagent/` path here. Measured on a 104-turn session: 13 distinct
+  `@sliceagent` paths advertised, and 0 of 135 tool calls ever reached for one.
+  The channel being unused has been hiding the fact that it is unusable.
 - **The stock invariant is incompatible** (see above).
 - **`dsh-token-meter` and the compaction stack price the surface**, not the
   slice actually dispatched, so their pressure numbers do not describe this
