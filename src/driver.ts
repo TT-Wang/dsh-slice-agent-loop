@@ -30,7 +30,7 @@
  * future work when idle; agent/request-error fires BEFORE any retry.
  */
 
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve as resolvePath } from 'node:path'

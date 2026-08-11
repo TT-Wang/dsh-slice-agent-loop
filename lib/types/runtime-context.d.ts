@@ -10,7 +10,7 @@
  */
 import type { ContextSnapshotSection } from '@deepseek-ai/dsh-llm';
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session';
-import type { Context } from 'cordis';
+import type { Context } from '@deepseek-ai/cordis';
 /** Whether a user-surface message is a runtime-context snapshot owned by dsh-system-prompt. */
 export declare function isRuntimeContextMessage(message: UserMessage): boolean;
 /** Tracks the last retained runtime-context snapshot without owning its commit. */

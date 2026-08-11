@@ -6,7 +6,7 @@
  *
  * Plan v2.1: Phase 1 — transaction and teardown.
  */
-import { Context } from 'cordis';
+import { Context } from '@deepseek-ai/cordis';
 import type { Agent, AgentFactory, AgentHandle, AgentOptions, CreateAgentOptions, ResumeAgentOptions } from '@deepseek-ai/dsh-agent';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { Session } from '@deepseek-ai/dsh-session';

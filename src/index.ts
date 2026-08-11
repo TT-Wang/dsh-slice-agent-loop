@@ -10,7 +10,7 @@
  * the stock loop's `ctx.agentLoop.config` lookup.
  */
 
-import { Context, Service } from 'cordis'
+import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'

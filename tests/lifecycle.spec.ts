@@ -1,4 +1,4 @@
-import { Context, type Fiber } from 'cordis'
+import { Context, type Fiber } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, {
   Inbox,
@@ -108,6 +108,11 @@ async function harness(idleGate?: Promise<void>): Promise<Harness> {
 class PreparedPersistence extends SessionPersistence {
   static inject = ['sessions']
   prepared = 0
+
+  // Added to the SessionPersistence contract in the 20260811 snapshot. `false`
+  // is the honest answer for a stub with no backing store — a backend that
+  // declares `true` must also override readRaw().
+  override readonly supportsRawArtifacts = false
 
   override locate(_meta: SessionHeader): SessionLocation | undefined { return undefined }
   override create(_meta: SessionHeader): Promise<void> { return Promise.resolve() }

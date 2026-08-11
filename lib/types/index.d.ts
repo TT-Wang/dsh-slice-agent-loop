@@ -9,7 +9,7 @@
  * validated at construction and handed to every driver instance, replacing
  * the stock loop's `ctx.agentLoop.config` lookup.
  */
-import { Context, Service } from 'cordis';
+import { Context, Service } from '@deepseek-ai/cordis';
 export interface Config {
     maxParallelToolCalls?: number;
     maxStepsPerTurn?: number;

@@ -31,7 +31,9 @@ const PEERS = {
   '@deepseek-ai/dsh-scope': 'packages/core/scope',
   // Moved from packages/session-persistence/* in the 20260810 snapshot.
   '@deepseek-ai/dsh-session-persistence': 'packages/session/session-persistence',
-  cordis: 'packages/core/agent/node_modules/cordis',
+  // Rescoped in the 20260811 snapshot (scripts/rescope-vendor.ts); the tree
+  // ships it under vendor/ and every package reaches it by that symlink.
+  '@deepseek-ai/cordis': 'vendor/cordis',
   // Test-only: the incompatibility gate mounts the stock loop's invariant
   // companion to prove this plugin refuses it at load time (评审 D).
   '@deepseek-ai/dsh-invariants': 'packages/support/invariants',

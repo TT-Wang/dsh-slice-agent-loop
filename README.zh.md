@@ -14,7 +14,7 @@ stock loop 每次请求都把 `session.deriveMessages()`(整段派生历史)发�
 
 ## 状态
 
-早期。这个 loop 实现了 dsh `Agent` 的完整契约,门套件经过反转验证(每个修复都退回去跑一遍,确认对应的门真的会红),但它是个年轻的移植版,有已知缺口 —— 依赖它之前先读[已知局限](#已知局限)。版本 `0.0.1` 对应 DSH 快照 `20260810T155924Z`。
+早期。这个 loop 实现了 dsh `Agent` 的完整契约,门套件经过反转验证(每个修复都退回去跑一遍,确认对应的门真的会红),但它是个年轻的移植版,有已知缺口 —— 依赖它之前先读[已知局限](#已知局限)。版本 `0.0.1` 对应 DSH 快照 `20260811T152241Z`。
 
 ## 安装
 
@@ -46,13 +46,13 @@ dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main"
 
 DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compaction` isolate 组里,host 平面的 patch 伸不进去 —— 上面那几行只管得到 host 平面。在 `standard`、`code` 或 `cordis` 下压缩栈照旧运行,而 `dsh-token-meter` 计价的是 *surface* 而不是真正发出去的那份切片(`dsh-external/issues#564`),所以它报的压力数字描述的不是这个 loop 的真实请求。
 
-要在没有压缩的情况下跑,两个办法:选 `minimal`(唯一不挂压缩的 preset),或者自己写一个 preset 放进 `$DSH_HOME/.agent-presets/` —— 复制 `standard/agent.cordis.yml`,把 `compaction` 组删掉。
+要在没有压缩的情况下跑,自己写一个 preset 放进 `$DSH_HOME/.agent-presets/` —— 复制 `standard/agent.cordis.yml` 把 `compaction` 组删掉,或者直接用 `presets/benchmark.agent.cordis.yml`(已经删好了)。`minimal` 同样不挂压缩,但 20260811 把它收窄成一个 shell 加 `str_replace_editor`,不再是一个能直接换上的逃生门。
 
 ## 配置
 
 | 键 | 默认值 | 含义 |
 |---|--:|---|
-| `maxParallelToolCalls` | `10` | 每步同时在飞的并行安全工具体上限。并发不安全的工具仍然自成屏障。 |
+| `maxParallelToolCalls` | `10` | 每步同时在飞的并行安全工具体上限。并发不安全的工具仍然自成屏障。20260811 起它**同时限制子 agent 的扇出**:`tool-subagent` 声明自己并发安全,所以一条回复里的多个委派共用这个槽位池。 |
 | `maxStepsPerTurn` | `50` | 单轮 continuation step 硬顶。是**界**不是停滞检测 —— 见下。 |
 
 从你自己 profile 的 `cordis.patch.yml` 里设,它在上面那层 bundle 之后生效。那一行**已经存在**了,按 id 定位它:
@@ -113,7 +113,7 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 | 工具 | 路径字段 | 说明 |
 |---|---|---|
 | `write`、`edit` | `file_path` | `dsh-tool-fs` |
-| `str_replace_editor` | `path` | 只认 `create` / `str_replace` / `insert` —— `view` 是只读的,从不锚定 |
+| `str_replace_editor` | `path` | 只认 `create` / `str_replace` / `insert` —— `view` 是只读的,从不锚定。20260811 起 `standard` 不再挂载这个工具,它只留在 `minimal`。名字留着不花钱,而且能覆盖仍然挂它的部署。 |
 
 如果你的部署把文件工具注册成别的名字,锚定会**静默地找不到任何东西**,护城河的主体随之停止工作。这两种失败模式(名字不对、只观察顶层调用)都有门看着,在 `tests/driver-contract.spec.ts`;自定义工具面需要把名字加进 `src/driver.ts` 的 `EDIT_TOOL_NAMES`。
 

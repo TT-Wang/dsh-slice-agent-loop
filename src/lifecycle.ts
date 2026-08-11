@@ -7,7 +7,7 @@
  * Plan v2.1: Phase 1 — transaction and teardown.
  */
 
-import { Context } from 'cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
 import type {
   Agent,

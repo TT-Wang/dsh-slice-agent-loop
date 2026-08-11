@@ -21,7 +21,7 @@
  *   - id: slice-agent-loop-invariant
  *     name: 'dsh-slice-agent-loop/invariant'
  */
-import type { Context } from 'cordis';
+import type { Context } from '@deepseek-ai/cordis';
 /**
  * Register this package's runtime checks.
  * @param ctx - Cordis context carrying the invariant service.

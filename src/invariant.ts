@@ -22,7 +22,7 @@
  *     name: 'dsh-slice-agent-loop/invariant'
  */
 
-import type { Context } from 'cordis'
+import type { Context } from '@deepseek-ai/cordis'
 // Side-effect import: brings the `ctx.invariants` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-invariants'
 import { isAgentLoopRequest, type GenerateOptions } from '@deepseek-ai/dsh-llm'

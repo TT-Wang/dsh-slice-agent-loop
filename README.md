@@ -25,7 +25,7 @@ turn 100: 76,560 chars    turn 300: 83,473    turn 600: 92,725
 Early. The loop implements the full dsh `Agent` contract and is covered by a
 mutation-verified gate suite (every fix was checked by reverting it and watching
 its gate fail), but it is a young port with known gaps — read [Limitations](#limitations) before
-depending on it. Version `0.0.1` tracks DSH snapshot `20260810T155924Z`.
+depending on it. Version `0.0.1` tracks DSH snapshot `20260811T152241Z`.
 
 ## Install
 
@@ -63,16 +63,17 @@ On DSH 0810+ the live compaction stack sits inside each preset's `compaction`
 isolate group, which a host-plane patch cannot reach — the rows above cover the
 host plane only. Under `standard`, `code` or `cordis` the stack still runs, and
 `dsh-token-meter` prices the *surface* rather than the slice actually sent
-(`dsh-external/issues#564`). To run without it, either pick `minimal` (the one
-preset that mounts no compaction) or author your own preset under
+(`dsh-external/issues#564`). To run without it, author your own preset under
 `$DSH_HOME/.agent-presets/` — copy `standard/agent.cordis.yml` and drop the
-`compaction` group.
+`compaction` group, or start from `presets/benchmark.agent.cordis.yml`, which
+already has. `minimal` also mounts no compaction, but 20260811 narrowed it to a
+shell and `str_replace_editor`, so it is no longer a drop-in escape hatch.
 
 ## Configuration
 
 | key | default | meaning |
 |---|--:|---|
-| `maxParallelToolCalls` | `10` | Maximum in-flight parallel-safe tool bodies per step. Concurrency-unsafe tools still form barriers. |
+| `maxParallelToolCalls` | `10` | Maximum in-flight parallel-safe tool bodies per step. Concurrency-unsafe tools still form barriers. Since 20260811 this also caps subagent fan-out: `tool-subagent` declares itself concurrency-safe, so several delegations in one response run through this same slot pool. |
 | `maxStepsPerTurn` | `50` | Hard ceiling on continuation steps in one turn. A bound, not a stall detector — see below. |
 
 Set it from your profile's own `cordis.patch.yml`, which applies after the
@@ -165,7 +166,7 @@ The defaults cover DSH's own filesystem tools:
 | tool | path key | notes |
 |---|---|---|
 | `write`, `edit` | `file_path` | `dsh-tool-fs` |
-| `str_replace_editor` | `path` | only `create` / `str_replace` / `insert` — `view` is read-only and never anchors |
+| `str_replace_editor` | `path` | only `create` / `str_replace` / `insert` — `view` is read-only and never anchors. As of 20260811 `standard` no longer mounts this tool; it survives in `minimal`. Keeping the name costs nothing and covers deployments that do mount it. |
 
 If your deployment registers file tools under different names, anchoring
 silently finds nothing and the moat's main body stops working. Both failure

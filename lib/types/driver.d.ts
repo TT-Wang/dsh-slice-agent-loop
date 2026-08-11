@@ -29,7 +29,7 @@
  * batch is gone (never re-queued); cancel is first-cause-wins and never arms
  * future work when idle; agent/request-error fires BEFORE any retry.
  */
-import type { Context } from 'cordis';
+import type { Context } from '@deepseek-ai/cordis';
 import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions } from '@deepseek-ai/dsh-agent';
 import type { Message, UserMessage } from '@deepseek-ai/dsh-llm';
 import type { Scope } from '@deepseek-ai/dsh-scope';
