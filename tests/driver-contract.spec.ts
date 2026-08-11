@@ -1,4 +1,7 @@
 import { Context } from 'cordis'
+import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService, { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -191,6 +194,35 @@ describe('SliceLoopAgent contract gates', () => {
     expect(JSON.stringify(adapter.requests[1]?.messages))
       .toContain('FIRST ASSISTANT ANSWER MARKER')
     await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('rebuilds bounded continuity from a seeded session after agent recreation', async () => {
+    const adapter = new MockAdapter([
+      textResponse('PERSISTED ASSISTANT ANSWER MARKER'),
+      textResponse('resumed'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('continuity-resume-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, 'remember this across recreation')
+    await first.agent.whenIdle()
+    const seed = structuredClone(first.agent.session.events)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('continuity-resume-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'what did the prior agent answer?')
+    await resumed.agent.whenIdle()
+
+    expect(JSON.stringify(adapter.requests[1]?.messages))
+      .toContain('PERSISTED ASSISTANT ANSWER MARKER')
+    await resumed.dispose()
     await ctx.fiber.dispose()
   })
 
@@ -390,6 +422,47 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('anchors a successful file edit into the next bounded slice', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-anchor-'))
+    const path = join(root, 'anchored.txt')
+    const marker = 'ANCHORED FILE CONTENT MARKER'
+    const adapter = new MockAdapter([
+      toolCallResponse('write-1', 'write_file', { path, content: marker }),
+      textResponse('write complete'),
+      textResponse('recalled'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('file-anchor'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'write the file')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'recall the edited file')
+      await handle.agent.whenIdle()
+
+      expect(JSON.stringify(adapter.requests[2]?.messages)).toContain(marker)
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('assembles scoped system sections and registered tool schemas into the model request', async () => {
     const adapter = new MockAdapter([textResponse('ready')])
     const ctx = await harness(adapter)
@@ -425,6 +498,27 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('installs the byte-stable SliceAgent instruction prefix by default', async () => {
+    const adapter = new MockAdapter([textResponse('ready')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('slice-system-prompt'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'inspect the default instruction prefix')
+    await handle.agent.whenIdle()
+
+    const header = handle.agent.session.events.find(event => event.type === 'request/header')
+    const persisted = header?.type === 'request/header' ? header.data.header.system : undefined
+    expect({
+      request: adapter.requests[0]?.system?.startsWith('You are sliceagent') ?? false,
+      header: persisted?.startsWith('You are sliceagent') ?? false,
+    }).toEqual({ request: true, header: true })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('projects dynamic system-prompt context into durable model-visible input', async () => {
     const adapter = new MockAdapter([textResponse('ready')])
     const ctx = await harness(adapter)
@@ -451,6 +545,39 @@ describe('SliceLoopAgent contract gates', () => {
       durableContext: durableContext?.type === 'user/message'
         && JSON.stringify(durableContext.data.content).includes('AUDIT RUNTIME CONTEXT MARKER'),
     }).toEqual({ modelSawContext: true, durableContext: true })
+    await handle.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('keeps dynamic plugin context out of the exact CURRENT REQUEST authority slot', async () => {
+    const adapter = new MockAdapter([textResponse('ready')])
+    const ctx = await harness(adapter)
+    ctx.systemPrompt.context({
+      name: 'audit:lower-authority-context',
+      order: 50,
+      text: 'LOWER AUTHORITY PLUGIN CONTEXT MARKER',
+    })
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('context-authority'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    send(handle.agent, 'EXACT USER CURRENT REQUEST MARKER')
+    await handle.agent.whenIdle()
+
+    const blocks = adapter.requests[0]?.messages[0]?.content ?? []
+    const userText = blocks.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n')
+    const currentRequest = userText
+      .split('# CURRENT REQUEST (what the user is asking for RIGHT NOW — your PRIMARY instruction; address THIS)\n')[1]
+      ?.split('\n\n# NOW:')[0]
+      ?.trim()
+    expect({
+      currentRequest,
+      contextVisible: userText.includes('LOWER AUTHORITY PLUGIN CONTEXT MARKER'),
+    }).toEqual({
+      currentRequest: 'EXACT USER CURRENT REQUEST MARKER',
+      contextVisible: true,
+    })
     await handle.dispose()
     await ctx.fiber.dispose()
   })
