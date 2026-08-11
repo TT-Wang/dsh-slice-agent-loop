@@ -10,6 +10,11 @@ node_modules/
 # 锁文件曾把维护者机器上的 file:/Users/... 绝对路径钉进仓库，导致别人 `npm ci` 必挂。
 package-lock.json
 
+# 一次性工作报告：写给当时那次移植任务的，不是写给读者的。
+# 它记录的是移植完成那一刻的状态（58 个测试、"尚未提交"、分支 port/slice-engine），
+# 这些数字一提交就开始腐烂，而没有任何门会发现。
+PORT-REPORT.md
+
 # 系统噪音
 .DS_Store
 *.log
