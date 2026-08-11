@@ -61,6 +61,16 @@ declare module '@deepseek-ai/dsh-session' {
             seedDigest: string;
             messageCount: number;
         };
+        'slice/step-budget': {
+            turn: number;
+            step: number;
+            budget: number;
+        };
+    }
+    interface TurnEndReasonMap {
+        'step-budget': {
+            kind: 'step-budget';
+        };
     }
 }
 /** Full-width digest for the request audit trail (`_h` truncates to 12 for tape locators). */
@@ -71,6 +81,8 @@ export declare function seedTextOf(messages: readonly Message[]): string;
 export interface SliceLoopDriverConfig {
     /** Maximum in-flight parallel-safe tool calls per step. */
     maxParallelToolCalls: number;
+    /** Hard ceiling on continuation steps in one turn. A bound, not a diagnosis. */
+    maxStepsPerTurn: number;
 }
 export declare class SliceLoopAgent implements Agent {
     readonly id: SessionId;
@@ -82,6 +94,7 @@ export declare class SliceLoopAgent implements Agent {
     private readonly dispatch;
     private readonly ledger;
     private readonly maxParallelToolCalls;
+    private readonly maxStepsPerTurn;
     private phase;
     private activityDone;
     private requestHeaderLogged;

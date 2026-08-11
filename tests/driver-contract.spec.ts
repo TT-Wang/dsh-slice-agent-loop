@@ -1574,6 +1574,159 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
+  // 轨迹界：单轮 step 硬顶。刻意不做「停滞检测」——把那个提案的判据
+  //（continuation + 无可见文本 + 无新锚点，warn=4/terminate=8）在真实 19 轮会话上
+  // 重放，会砍掉 143 步里的 45 步，其中 24 步来自一个做了 74 次不同工具调用的
+  // 高产轮，而且在普通 5 步轮上就发警告。对推理模型「无可见文本 + 工具调用」是
+  // 常态而非病态。所以只留界，不留诊断。
+  it('ends the turn at the step ceiling instead of continuing forever', async () => {
+    // 灌远多于预算的工具响应：模型永远不收敛，只有界能停下它。
+    const adapter = new MockAdapter(
+      Array.from({ length: 20 }, (_, i) => toolCallResponse(`call-${i}`, 'noop', {})),
+    )
+    const ctx = await harness(adapter, { maxStepsPerTurn: 3 })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'noop',
+      description: 'does nothing',
+      parameters: {},
+      execute: async () => [{ type: 'text', text: 'ok' }],
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('slice-step-budget'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'never converge')
+      await handle.agent.whenIdle()
+
+      const budgets = handle.agent.session.events
+        .filter(event => event.type === 'slice/step-budget')
+        .map(event => ({ step: event.data.step, budget: event.data.budget }))
+      const ends = handle.agent.session.events
+        .filter(event => event.type === 'turn/end')
+        .map(event => event.data.reason.kind)
+
+      expect({ budgets, ends, requests: adapter.requests.length }).toEqual({
+        budgets: [{ step: 3, budget: 3 }],
+        ends: ['step-budget'],
+        requests: 3,
+      })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('does not spend the step budget on a turn that converges on its own', async () => {
+    const adapter = new MockAdapter([
+      toolCallResponse('call-1', 'noop', {}),
+      textResponse('converged'),
+    ])
+    const ctx = await harness(adapter, { maxStepsPerTurn: 3 })
+    ctx.tools.register(defineContentToolFixture({
+      name: 'noop',
+      description: 'does nothing',
+      parameters: {},
+      execute: async () => [{ type: 'text', text: 'ok' }],
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('slice-step-budget-clean'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'converge normally')
+      await handle.agent.whenIdle()
+
+      expect({
+        budgets: handle.agent.session.events.filter(e => e.type === 'slice/step-budget').length,
+        ends: handle.agent.session.events
+          .filter(e => e.type === 'turn/end')
+          .map(e => e.data.reason.kind),
+      }).toEqual({ budgets: 0, ends: ['completed'] })
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+    }
+  })
+
+  it('rejects a non-positive maxStepsPerTurn at construction', async () => {
+    const adapter = new MockAdapter([])
+    await expect(harness(adapter, { maxStepsPerTurn: 0 })).rejects.toThrow(
+      'maxStepsPerTurn must be a positive integer',
+    )
+  })
+
+  // 接线门 2：模型可见面里出现的每一个「工具调用形状」，其名字必须是宿主真实
+  // 注册过的工具。
+  //
+  // 这条门是为一个已经发生过的 bug 类而加的，不是假想：移植时把渲染器搬了过来、
+  // 把解析器留在了原地，于是切片每轮都在教模型调 `read_file(...)`——DSH 注册的
+  // 是 `read`，而且参数是 {file_path} 不是位置字符串。模型一次都没试过
+  //（实测 104 轮 / 135 次调用 / 0 次），所以没有任何门红过；直到某一轮它真的
+  // 照着找，花了 20 步 35 次搜索去找一个不存在的文件。
+  //
+  // 「没人用」不能证明「能用」。这条门检查的是能用。
+  it('never renders a tool-call shape whose name the host does not register', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-loop-callname-'))
+    const path = join(root, 'anchored.txt')
+    const adapter = new MockAdapter([
+      toolCallResponse('write-1', 'write_file', { path, content: 'BODY' }),
+      textResponse('written'),
+      textResponse('second turn seals the first'),
+      textResponse('third turn renders the tape plus the open-files index'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.tools.register(defineContentToolFixture({
+      name: 'write_file',
+      description: 'write a UTF-8 file',
+      parameters: {
+        path: { type: 'string', required: true },
+        content: { type: 'string', required: true },
+      },
+      execute: async ({ path: target, content }) => {
+        await writeFile(target, content, 'utf8')
+        return [{ type: 'text', text: 'written' }]
+      },
+    }))
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('slice-call-names'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+
+    try {
+      send(handle.agent, 'write the file')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'seal that turn')
+      await handle.agent.whenIdle()
+      send(handle.agent, 'now render the tape and the open files index')
+      await handle.agent.whenIdle()
+
+      // 最后一次请求：tape 有两条封存轮、OPEN FILES 有一个锚定文件——两个热点
+      // 站点都渲染了。
+      const surface = JSON.parse(JSON.stringify(adapter.requests.at(-1)?.messages ?? []))
+      const text = JSON.stringify(surface)
+      expect(text).toContain('anchored.txt')
+
+      const registered = new Set(ctx.tools.schemas().map((schema) => schema.name))
+      // `name("` / `name('` = 一个可以照抄的调用形状。散文里的动词不匹配这个形状，
+      // 所以只有真的在教模型敲某个调用时才会被抓到。
+      const offenders = [...new Set(
+        [...text.matchAll(/([a-z_][a-z0-9_]{2,})\\?["'(]\\?["']/gi)]
+          .map((m) => m[1])
+          .filter((name) => /^[a-z_][a-z0-9_]*$/.test(name)),
+      )].filter((name) => name.endsWith('_file') || name.endsWith('_history') || name === 'read')
+        .filter((name) => !registered.has(name))
+
+      expect(offenders).toEqual([])
+    } finally {
+      await handle.dispose()
+      await ctx.fiber.dispose()
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   // 接线门（评审 A）：锚定必须挂在宿主真实注册的工具名上，而不是 fixture 名。
   // DSH 0810 的 tool-fs 注册 `write`/`edit`（参数键 file_path），
   // tool-str-replace-editor 注册 `str_replace_editor`（参数键 path + command）。
@@ -1769,7 +1922,7 @@ describe('SliceLoopAgent contract gates', () => {
       const text = JSON.stringify(adapter.requests[2]?.messages)
       expect({
         tape: text.includes(marker),
-        indexed: text.includes(`read_file(\\"${path}\\") to view`),
+        indexed: text.includes(`${path} — 1 lines · sha256:`),
       }).toEqual({ tape: true, indexed: true })
       await resumed.dispose()
     } finally {
@@ -1825,7 +1978,7 @@ describe('SliceLoopAgent contract gates', () => {
       const text = JSON.stringify(adapter.requests[2]?.messages)
       expect({
         tape: text.includes(marker),
-        indexed: text.includes(`read_file(\\"${path}\\") to view`),
+        indexed: text.includes(`${path} — 1 lines · sha256:`),
       }).toEqual({ tape: false, indexed: false })
       await resumed.dispose()
     } finally {

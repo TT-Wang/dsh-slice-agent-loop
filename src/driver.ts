@@ -122,6 +122,14 @@ declare module '@deepseek-ai/dsh-session' {
   interface SessionEventMap {
     'slice/file-anchor': { turn: number; path: string; body: string }
     'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number }
+    'slice/step-budget': { turn: number; step: number; budget: number }
+  }
+  // dsh-session documents this map as a plugin extension point ("plugins extend
+  // it by merging variants into the map"), so `step-budget` is a first-class
+  // turn end, not a repurposed existing kind. StepEndReason narrows to
+  // completed|max-tokens and is unaffected.
+  interface TurnEndReasonMap {
+    'step-budget': { kind: 'step-budget' }
   }
 }
 
@@ -158,6 +166,8 @@ type PreparedStep =
 export interface SliceLoopDriverConfig {
   /** Maximum in-flight parallel-safe tool calls per step. */
   maxParallelToolCalls: number
+  /** Hard ceiling on continuation steps in one turn. A bound, not a diagnosis. */
+  maxStepsPerTurn: number
 }
 
 /** One tool call after argument parsing, ready to schedule. */
@@ -184,6 +194,7 @@ export class SliceLoopAgent implements Agent {
   private readonly dispatch: AgentEventDispatch
   private readonly ledger: InboxLedger
   private readonly maxParallelToolCalls: number
+  private readonly maxStepsPerTurn: number
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
   private requestHeaderLogged = false
@@ -207,6 +218,7 @@ export class SliceLoopAgent implements Agent {
     this.options = options
     this.session = session
     this.maxParallelToolCalls = config.maxParallelToolCalls
+    this.maxStepsPerTurn = config.maxStepsPerTurn
     this.scope = createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = agentEvents(this.ctx, this)
@@ -714,6 +726,18 @@ export class SliceLoopAgent implements Agent {
           signal.throwIfAborted()
         }
         if (turnEnds && this.inbox.nextStep.length === 0) break
+        // Trajectory bound. Reached only on a continuation (turnEnds === null,
+        // or steering kept the turn open), so a turn that finishes on its own
+        // never sees it. Deliberately does NOT run the `agent/turn-stopping`
+        // seam above: that seam's contract is "object by steering, and the
+        // steering continues in the SAME turn", which is the opposite of a
+        // hard stop. Steering that arrives now stays in the inbox and is
+        // claimed by the next turn — the same disposition as the error path.
+        if (step >= this.maxStepsPerTurn) {
+          turnEnds = { kind: 'step-budget' }
+          this.session.append('slice/step-budget', { turn, step, budget: this.maxStepsPerTurn })
+          break
+        }
         target = 'next-step'
       }
     } catch (error: unknown) {
@@ -1193,7 +1217,15 @@ export class SliceLoopAgent implements Agent {
       if (disk.kind === 'missing') return `### ${p} (not created yet)`
       if (disk.kind === 'unreadable') return `### ${p} (exists but not shown: ${disk.reason})`
       const body = redactText(disk.body, { codeFile: true })
-      return `### ${p} — ${pySplitlines(body).length} lines · sha256:${_h(body)} · read_file("${p}") to view · (edited this session)`
+      // Path + line count + hash, and no call name. `read_file("...")` was
+      // wrong twice over here: DSH registers its reader as `read`, and that
+      // tool takes {file_path}, not a positional string. Hardcoding `read`
+      // instead would rot on any host rename, and discovering the name at
+      // runtime cannot be done without guessing — ToolSchema is
+      // {name, description, parameters} with no capability tag, category, or
+      // well-known name to match on. The model can already see its own tool
+      // schemas; it only needs to be told WHICH file to re-read.
+      return `### ${p} — ${pySplitlines(body).length} lines · sha256:${_h(body)} · (edited this session)`
     }).join('\n')
   }
 

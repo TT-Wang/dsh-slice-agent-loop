@@ -73,6 +73,7 @@ preset that mounts no compaction) or author your own preset under
 | key | default | meaning |
 |---|--:|---|
 | `maxParallelToolCalls` | `10` | Maximum in-flight parallel-safe tool bodies per step. Concurrency-unsafe tools still form barriers. |
+| `maxStepsPerTurn` | `50` | Hard ceiling on continuation steps in one turn. A bound, not a stall detector — see below. |
 
 Set it from your profile's own `cordis.patch.yml`, which applies after the
 bundle layer above. The row already exists — target it **by id**:
@@ -128,22 +129,27 @@ stock companion it is **true** for this loop:
 |---|---|---|
 | `slice/file-anchor` | `{ turn, path, body }` | Redacted post-state of one successful edit, appended at the turn seal. Agent recreation rebuilds tape file anchors from the log alone — never from an inferred disk re-read. |
 | `slice/request-slice` | `{ turn, step, seedDigest, messageCount }` | Audit record for one dispatched request (see above). |
+| `slice/step-budget` | `{ turn, step, budget }` | The turn hit `maxStepsPerTurn` and was ended. `turn/end` carries `reason.kind: 'step-budget'`. |
 
-Both are plugin-owned and log-only: they never enter the model surface, so they
+All three are plugin-owned and log-only: they never enter the model surface, so they
 add nothing to the prompt.
 
 ## File anchoring
 
 Cross-turn file continuity is what makes the slice cheaper than a transcript:
 edited files ride as `base`/`patch` tape entries plus an OPEN FILES locator
-index (path · line count · sha256 · a `read_file("<path>")` re-read pointer),
-instead of being re-pasted in full.
+index (path · line count · sha256), instead of being re-pasted in full.
 
-That pointer still carries the sliceagent-native name from the Python port —
-DSH registers its reader as `read` — so read the last field as *which file to
-re-read*, not as a call to paste verbatim. Same for the `recall:` line on each
-sealed turn digest, whose `@sliceagent/...` path names a virtual filesystem
-that has no counterpart here; see [Limitations](#limitations).
+The index names files, not calls. It used to append `read_file("<path>")`,
+which was wrong twice over — DSH registers its reader as `read`, and that tool
+takes `{file_path}`, not a positional string — and no gate noticed, because the
+model never tried it. Hardcoding `read` would rot on a host rename and runtime
+discovery cannot be done without guessing (`ToolSchema` is
+`{name, description, parameters}`, with no capability tag to match on), so the
+call name is simply not rendered. The model can already see its own tool
+schemas; it only needs to know which file to re-read. A gate in
+`tests/driver-contract.spec.ts` now fails if any rendered call shape names a
+tool the host does not register.
 
 Anchoring observes the **execution plane**, not what the model sees. It listens
 on `tools/result` and keys off `exec.name` — the tool that actually ran.
@@ -167,6 +173,25 @@ modes — wrong names, and top-level-only observation — are gated in
 `tests/driver-contract.spec.ts`; a custom tool surface needs its names added to
 `EDIT_TOOL_NAMES` in `src/driver.ts`.
 
+## Step budget
+
+`maxStepsPerTurn` ends a turn that will not converge. It is a **bound, not a
+diagnosis**: no attempt is made to judge whether the model is making progress.
+
+A stall detector was designed and rejected. Its predicate — a continuation step
+with no assistant text and no new file anchor — was replayed against a real
+19-turn session: it would have cut 45 of 143 steps (31%), including 24 steps off
+a turn that made 74 distinct tool calls of real work, and it raised warnings on
+ordinary 5-step turns. For a reasoning model "no visible text plus tool calls"
+is the normal shape of investigation, so a productive 49-step turn and a futile
+20-step turn are indistinguishable on that axis — and on repetition too, both 0%.
+
+Hitting the ceiling appends `slice/step-budget` and ends the turn with
+`reason.kind: 'step-budget'`. It does **not** run the `agent/turn-stopping`
+seam, whose contract is "object by steering, and continue in the same turn" —
+the opposite of a hard stop. Steering that arrives at the ceiling stays in the
+inbox for the next turn, the same disposition as the error path.
+
 ## Limitations
 
 - **Elasticity degrades exactly one region.** The driver computes a character
@@ -181,17 +206,19 @@ modes — wrong names, and top-level-only observation — are gated in
   back to the unbounded projection and warns, so an unfittable slice never kills
   a turn; the bound is still enforced by the tape budget, not by per-region
   degradation.
-- **The retrieval affordances name a tool this harness does not have.** Every
-  paging pointer the slice renders — the OPEN FILES index, the per-turn
-  `recall:` locator, the memory and history index lines — is written as
-  `read_file(...)`, which `dsh-tool-fs` does not register (its reader is
-  `read`). Worse, the `@sliceagent/...` paths those pointers use are routes into
-  the Python engine's virtual context filesystem, and the durability layer that
-  serves them was deliberately not ported. Real-file pointers are recoverable —
-  the path is correct, only the call name is wrong — but nothing can serve an
-  `@sliceagent/` path here. Measured on a 104-turn session: 13 distinct
-  `@sliceagent` paths advertised, and 0 of 135 tool calls ever reached for one.
-  The channel being unused has been hiding the fact that it is unusable.
+- **Retrieval affordances are deliberately absent, not broken.** The ported
+  Python renderers emit paging pointers written as `read_file(...)` into
+  `@sliceagent/...` — a virtual context filesystem served by the durability
+  layer this port did not take. DSH cannot serve it either: there is no path
+  interception, no read middleware, and no resolver hook. The driver-side
+  pointers were removed rather than faked, so the tape states that a reply was
+  cut without naming a call that cannot succeed. Full untruncated text stays
+  durable in the session log; to let the model reach it, mount
+  `@deepseek-ai/dsh-tool-session-query` (`session_search`, `session_event_read`,
+  and three more — all real registered tools). The engine-side renderers under
+  `src/slice/` still carry the Python spelling because they are pinned
+  byte-for-byte by the golden suite; they render only in regions this port
+  leaves empty.
 - **The stock invariant is incompatible** (see above).
 - **`dsh-token-meter` and the compaction stack price the surface**, not the
   slice actually dispatched, so their pressure numbers do not describe this
