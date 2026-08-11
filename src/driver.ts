@@ -99,6 +99,15 @@ import {
 } from './continuity.js'
 import { RESOLVED_SYSTEM_PROMPT } from './system-prompt.js'
 
+/** The slice driver's plugin-owned durable event: one successful edit's redacted
+ * post-state, appended by the turn-end seal so agent recreation can rebuild the
+ * tape's file anchors from the log alone (never an inferred disk re-anchor). */
+declare module '@deepseek-ai/dsh-session' {
+  interface SessionEventMap {
+    'slice/file-anchor': { turn: number; path: string; body: string }
+  }
+}
+
 type Phase =
   | { kind: 'idle'; lastTurn: number }
   | { kind: 'maintenance'; abort: AbortController; lastTurn: number; wakeRequested: boolean }
@@ -201,6 +210,7 @@ export class SliceLoopAgent implements Agent {
   private restoreContinuity(session: Session): void {
     let step = 0
     let pendingFirstStep: string[] = []
+    let pendingAnchors: Array<{ path: string; body: string }> = []
     let recordedThisTurn = false
     const flushFirstStep = (): void => {
       const text = pendingFirstStep.filter(Boolean).join('\n')
@@ -223,9 +233,13 @@ export class SliceLoopAgent implements Agent {
         fillAssistant(this.cont, event.data.message.content
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join(''))
+      } else if (event.type === 'slice/file-anchor') {
+        // 耐久的脱敏后态锚点：在该轮 turn/end 的重封存里恢复 base/patch 锚定。
+        pendingAnchors.push({ path: event.data.path, body: event.data.body })
       } else if (event.type === 'turn/end') {
         flushFirstStep()
         if (recordedThisTurn) {
+          this.cont.pendingEdits = pendingAnchors
           const last = this.cont.conversation[this.cont.conversation.length - 1]
           sealTurn(this.cont, {
             turnId: `slice-turn-${event.data.turn}-resumed`,
@@ -235,6 +249,7 @@ export class SliceLoopAgent implements Agent {
             sessionId: this.session.id,
           })
         }
+        pendingAnchors = []
         recordedThisTurn = false
         step = 0
       }
@@ -473,27 +488,31 @@ export class SliceLoopAgent implements Agent {
       }
       this.throwError(error)
     } finally {
-      try {
-        this.session.append('turn/end', { turn, reason: turnEnds! })
-      } catch (error: unknown) {
-        this.throwError(error)
-      }
       // 轮末封存（continuity.ts sealTurn）：digest + 文件锚点 + 答复冻结进
-      // SESSION TAPE + GC——下一轮 slice 的近期交换呈现层。只封存本轮真正记录
-      // 了输入的轮：无 step 的被拒/空轮不把上一轮的陈旧答复再次冻结。
+      // SESSION TAPE + GC。只封存本轮真正记录了输入的轮：无 step 的被拒/空轮
+      // 不把上一轮的陈旧答复再次冻结。锚定的后态作为 durable
+      // `slice/file-anchor` 事件落账（在开轮内、turn/end 之前），重建据此恢复。
       if (recordedThisTurn) {
         try {
           const last = this.cont.conversation[this.cont.conversation.length - 1]
-          sealTurn(this.cont, {
+          const sealed = sealTurn(this.cont, {
             turnId: `slice-turn-${turn}-${Date.now().toString(36)}`,
             status: turnEnds?.kind ?? 'error',
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
           })
+          for (const anchor of sealed.anchored) {
+            this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })
+          }
         } catch {
           // 封存失败不反转已完成的轮（与 sidecar 同级容错）。
         }
+      }
+      try {
+        this.session.append('turn/end', { turn, reason: turnEnds! })
+      } catch (error: unknown) {
+        this.throwError(error)
       }
     }
     if (!this.inbox.hasPending) return false

@@ -147,7 +147,7 @@ export function sealTurn(
     assistantReply: string
     sessionId: string
   },
-): { entries: number; gcRemoved: number; epochFolds: number } {
+): { entries: number; gcRemoved: number; epochFolds: number; anchored: Array<{ path: string; body: string }> } {
   const tape = c.sessionTape
   const files = c.tapeFiles
 
@@ -162,6 +162,8 @@ export function sealTurn(
   // 文件锚定：编辑后态 → base/patch 取渲染更短者（tape.py:_anchor 语义）。
   // 后态在成功 tool/result 边界即已快照 + 脱敏（redactText codeFile 模式）——
   // 一轮内对同一文件的多次成功编辑各自锚定，不塌缩为最终盘态。
+  // anchored 返回给 driver 落 durable 事件，供重建恢复（tape 耐久性）。
+  const anchored: Array<{ path: string; body: string }> = []
   for (const { path, body } of c.pendingEdits) {
     const state = files[path]
     const hash = sha256(body)
@@ -174,6 +176,7 @@ export function sealTurn(
       tape.push(patch.rendered.length < base.rendered.length ? patch : base)
     }
     files[path] = { hash, content: body }
+    anchored.push({ path, body })
   }
   c.pendingEdits = []
 
@@ -181,7 +184,7 @@ export function sealTurn(
   if (rep !== null) tape.push(rep)
 
   const info = compactTape(tape, files)
-  return { entries: tape.length, gcRemoved: info.gc_removed, epochFolds: info.epoch_folds }
+  return { entries: tape.length, gcRemoved: info.gc_removed, epochFolds: info.epoch_folds, anchored }
 }
 
 /**
