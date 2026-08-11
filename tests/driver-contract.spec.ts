@@ -715,6 +715,147 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
+  it('does not assign runtime-context replacement nodes to the turn user component', async () => {
+    const originalUser = 'RUNTIME CONTEXT OWNER ORIGINAL USER MUST REMAIN'
+    const originalAssistant = 'RUNTIME CONTEXT OWNER ASSISTANT MUST REMAIN'
+    const contextMarker = 'RUNTIME CONTEXT OWNER SNAPSHOT'
+    const replacementContext = 'RUNTIME CONTEXT REPLACEMENT MUST NOT BECOME THE TURN ASK'
+    const adapter = new MockAdapter([
+      textResponse(originalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    ctx.systemPrompt.context({
+      name: 'audit:replacement-owner',
+      order: 50,
+      text: contextMarker,
+    })
+    const first = await ctx.agents.create({
+      sessionId: SessionId('runtime-context-owner-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const contextEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message'
+      && event.data.source.kind === 'plugin'
+      && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
+    if (contextEvent?.type !== 'user/message') {
+      throw new Error('missing runtime-context fixture event')
+    }
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: replacementContext }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: { op: 'replace', start: contextEvent.seq, end: contextEvent.seq },
+      sourceEventSeqs: [contextEvent.seq],
+    })
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live runtime-context replacement owner')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[1]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('runtime-context-owner-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt runtime-context replacement owner')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[2]?.messages)
+
+    const projection = (text: string) => ({
+      originalUser: text.includes(originalUser),
+      originalAssistant: text.includes(originalAssistant),
+      replacementAsTurnAsk: text.includes(`ask: ${replacementContext}`),
+    })
+    const expected = {
+      originalUser: true,
+      originalAssistant: true,
+      replacementAsTurnAsk: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
+  it('does not assign same-turn steering replacements to the first-step user component', async () => {
+    const originalUser = 'STEERING OWNER ORIGINAL USER MUST REMAIN'
+    const steering = 'STEERING OWNER SAME-TURN INPUT'
+    const replacementSteering = 'STEERING REPLACEMENT MUST NOT BECOME THE TURN ASK'
+    const finalAssistant = 'STEERING OWNER FINAL ASSISTANT MUST REMAIN'
+    const adapter = new MockAdapter([
+      textResponse('first step answer'),
+      textResponse(finalAssistant),
+      textResponse('live probe complete'),
+      textResponse('resumed probe complete'),
+    ])
+    const ctx = await harness(adapter)
+    const first = await ctx.agents.create({
+      sessionId: SessionId('steering-owner-source'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    let steered = false
+    first.agent.ctx.on('agent/turn-stopping', ({ agent }) => {
+      if (steered) return
+      steered = true
+      agent.steer(createUserMessage({
+        content: [{ type: 'text', text: steering }],
+        source: { kind: 'plugin', plugin: 'driver-contract' },
+      }))
+    })
+    send(first.agent, originalUser)
+    await first.agent.whenIdle()
+
+    const steeringEvent = first.agent.session.events.find(event =>
+      event.type === 'user/message' && JSON.stringify(event.data.content).includes(steering))
+    if (steeringEvent?.type !== 'user/message') {
+      throw new Error('missing steering-owner fixture event')
+    }
+    first.agent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: replacementSteering }],
+      source: { kind: 'plugin', plugin: 'driver-contract-compaction' },
+    }), {
+      surfaceOp: { op: 'replace', start: steeringEvent.seq, end: steeringEvent.seq },
+      sourceEventSeqs: [steeringEvent.seq],
+    })
+    const seed = structuredClone(first.agent.session.events)
+
+    send(first.agent, 'inspect the live steering replacement owner')
+    await first.agent.whenIdle()
+    const live = JSON.stringify(adapter.requests[2]?.messages)
+    await first.dispose()
+
+    const resumed = await ctx.agents.create({
+      sessionId: SessionId('steering-owner-target'),
+      seed,
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    send(resumed.agent, 'inspect the rebuilt steering replacement owner')
+    await resumed.agent.whenIdle()
+    const rebuilt = JSON.stringify(adapter.requests[3]?.messages)
+
+    const projection = (text: string) => ({
+      originalUser: text.includes(originalUser),
+      finalAssistant: text.includes(finalAssistant),
+      replacementAsTurnAsk: text.includes(`ask: ${replacementSteering}`),
+    })
+    const expected = {
+      originalUser: true,
+      finalAssistant: true,
+      replacementAsTurnAsk: false,
+    }
+    expect({ live: projection(live), rebuilt: projection(rebuilt) })
+      .toEqual({ live: expected, rebuilt: expected })
+    await resumed.dispose()
+    await ctx.fiber.dispose()
+  })
+
   it('replays same-turn steering with the same bounded grouping as the live agent', async () => {
     const marker = 'SAME TURN STEERING MUST NOT BECOME A NEW TURN MARKER'
     const adapter = new MockAdapter([
