@@ -201,11 +201,14 @@ export class SliceLoopAgent implements Agent {
    * grouping as live execution: only each turn's first-step (next-turn
    * boundary) input batch joins the conversation ring, merged into one row;
    * same-turn steering (later steps) never becomes a new row. Each turn that
-   * recorded input is re-sealed at its turn/end (digest + reply entries) so
-   * the resumed agent's SESSION TAPE carries the prior exchanges; turns with
-   * no recorded input (rejected/empty) seal nothing. File anchors cannot be
-   * recovered from the log (post-state lives on disk, not in events);
-   * runtime-context snapshots are re-projected live, never replayed.
+   * recorded input is re-sealed at its turn/end under the SAME deterministic
+   * turn ID live used (`slice-turn-N` — turn numbers are unique within a
+   * session log), with that turn's durable `slice/file-anchor` post-states
+   * restored as its pending edits, so the resumed agent's SESSION TAPE
+   * reproduces the live tape: digests, file anchors, and replies with
+   * identical sealed identity. Turns with no recorded input (rejected/empty)
+   * seal nothing. Runtime-context snapshots are re-projected live, never
+   * replayed.
    */
   private restoreContinuity(session: Session): void {
     let step = 0
@@ -242,7 +245,7 @@ export class SliceLoopAgent implements Agent {
           this.cont.pendingEdits = pendingAnchors
           const last = this.cont.conversation[this.cont.conversation.length - 1]
           sealTurn(this.cont, {
-            turnId: `slice-turn-${event.data.turn}-resumed`,
+            turnId: `slice-turn-${event.data.turn}`,
             status: event.data.reason.kind,
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
@@ -496,7 +499,9 @@ export class SliceLoopAgent implements Agent {
         try {
           const last = this.cont.conversation[this.cont.conversation.length - 1]
           const sealed = sealTurn(this.cont, {
-            turnId: `slice-turn-${turn}-${Date.now().toString(36)}`,
+            // 确定性封存身份：轮号在会话日志内单调唯一，重建产出同一 ID——
+            // recall locator 永不指向伪造工件。
+            turnId: `slice-turn-${turn}`,
             status: turnEnds?.kind ?? 'error',
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
