@@ -86,6 +86,7 @@ import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/index.js'
 import { pySplitlines } from './slice/internal/pytext.js'
+import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
 import {
   createContinuity,
@@ -866,15 +867,19 @@ export class SliceLoopAgent implements Agent {
 
   /**
    * OPEN FILES locator index（seed.py:190-233 的 MVP 移植）：每个驻留文件一行
-   * path · 行数 · 当前盘态 sha256(12) · 精确 read 调用。盘读失败回退 seal 时
-   * 锚定的后态；所有驻留文件都是本轮会话编辑过的。
+   * path · 行数 · 当前盘态 sha256(12) · 精确 read 调用。hash 落在脱敏字节上
+   * （HASH SEAM：与 tape 锚定同一 redactText(codeFile) 域，否则永不命中）。
+   * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
    */
   private openFilesIndex(): string {
     const paths = Object.keys(this.cont.tapeFiles).sort()
     if (paths.length === 0) return ''
     const cwd = this.sessionCwd()
     return paths.map((p) => {
-      const body = readFileSafe(cwd, p) ?? this.cont.tapeFiles[p]!.content
+      const disk = readDiskStatus(cwd, p)
+      if (disk.kind === 'missing') return `### ${p} (not created yet)`
+      if (disk.kind === 'unreadable') return `### ${p} (exists but not shown: ${disk.reason})`
+      const body = redactText(disk.body, { codeFile: true })
       return `### ${p} — ${pySplitlines(body).length} lines · sha256:${_h(body)} · read_file("${p}") to view · (edited this session)`
     }).join('\n')
   }
@@ -900,12 +905,14 @@ export class SliceLoopAgent implements Agent {
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     this.turnTrajectory.push(message)
-    // 编辑族工具：仅在成功结果后记录路径，轮末 seal 锚定文件后态——失败或
-    // 中止的调用绝不把未触动的盘态冒充为已应用编辑（continuity.ts trackEdit）。
+    // 编辑族工具：仅在成功结果后快照盘态（trackEdit 内做 codeFile 脱敏），
+    // 轮末 seal 锚定该后态——失败/中止的调用绝不锚定未触动的盘态，一轮内
+    // 多次成功编辑各自保留自己的后态（continuity.ts trackEdit）。
     if (!result.isError && EDIT_TOOL_NAMES.has(block.name)) {
       const path = toolPath(block.arguments)
       if (path !== undefined) {
-        trackEdit(this.cont, path, () => readFileSafe(this.sessionCwd(), path))
+        const disk = readDiskStatus(this.sessionCwd(), path)
+        if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
       }
     }
   }
@@ -972,13 +979,22 @@ function toolPath(rawArguments: string): string | undefined {
   }
 }
 
-/** 读文件后态；缺失/二进制/越界一律 null（该文件本轮不进 tape 锚点）。 */
-function readFileSafe(cwd: string, relOrAbs: string): string | null {
+/** 盘态读取：区分缺失/不可读/正常——索引只对正常文件发布受信 hash。 */
+type DiskStatus =
+  | { kind: 'ok'; body: string }
+  | { kind: 'missing' }
+  | { kind: 'unreadable'; reason: string }
+
+function readDiskStatus(cwd: string, relOrAbs: string): DiskStatus {
   try {
     const abs = isAbsolute(relOrAbs) ? relOrAbs : resolvePath(cwd, relOrAbs)
     const body = readFileSync(abs, 'utf8')
-    return body.includes('\0') ? null : body
-  } catch {
-    return null
+    if (body.includes('\0')) return { kind: 'unreadable', reason: 'binary file' }
+    return { kind: 'ok', body }
+  } catch (error) {
+    const code = (error as { code?: unknown }).code
+    if (code === 'ENOENT' || code === 'ENOTDIR') return { kind: 'missing' }
+    const message = error instanceof Error ? error.message : String(error)
+    return { kind: 'unreadable', reason: message.split('\n')[0]!.slice(0, 120) }
   }
 }

@@ -23,6 +23,7 @@ import {
   compactTape,
   tapeChars,
 } from './slice/tape.js'
+import { redactText } from './slice/internal/safety.js'
 import type { SliceCtx, SliceState } from './slice/state.js'
 
 // ---------------------------------------------------------------- ring bounds
@@ -65,8 +66,8 @@ export interface Continuity {
   conversation: ConversationRow[]
   sessionTape: TapeEntry[]
   tapeFiles: Record<string, TapeFileState>
-  /** 本轮编辑过的文件（executeToolCalls 记录，seal 时锚定后清空）。 */
-  pendingEdits: Array<{ path: string; read: () => string | null }>
+  /** 本轮编辑过的文件（成功 tool/result 边界快照后态，seal 时锚定后清空）。 */
+  pendingEdits: Array<{ path: string; body: string }>
   turns: number
 }
 
@@ -159,9 +160,9 @@ export function sealTurn(
   }), opts.turnId))
 
   // 文件锚定：编辑后态 → base/patch 取渲染更短者（tape.py:_anchor 语义）。
-  for (const { path, read } of c.pendingEdits) {
-    const body = read()
-    if (body === null) continue
+  // 后态在成功 tool/result 边界即已快照 + 脱敏（redactText codeFile 模式）——
+  // 一轮内对同一文件的多次成功编辑各自锚定，不塌缩为最终盘态。
+  for (const { path, body } of c.pendingEdits) {
     const state = files[path]
     const hash = sha256(body)
     if (state !== undefined && state.hash === hash) continue // 幂等编辑
@@ -183,9 +184,13 @@ export function sealTurn(
   return { entries: tape.length, gcRemoved: info.gc_removed, epochFolds: info.epoch_folds }
 }
 
-/** 编辑族工具调用记录（driver 在 tool/call 时调用，seal 时读取后态）。 */
-export function trackEdit(c: Continuity, path: string, read: () => string | null): void {
-  if (path.trim()) c.pendingEdits.push({ path, read })
+/**
+ * 编辑后态快照（driver 在成功 tool/result 边界调用）：立即读取盘态并做
+ * codeFile 脱敏后留存——tape 永远只锚定脱敏字节，hash 也落在脱敏字节上
+ * （seed.py HASH SEAM 同构），且一轮内多次成功编辑各自保留自己的后态。
+ */
+export function trackEdit(c: Continuity, path: string, body: string): void {
+  if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }) })
 }
 
 // ---------------------------------------------------------------- slice 重建
