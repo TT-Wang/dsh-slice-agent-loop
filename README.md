@@ -20,8 +20,9 @@ turn 100: 76,560 chars    turn 300: 83,473    turn 600: 92,725
 
 ## Status
 
-Early. The loop implements the full dsh `Agent` contract and passes 150 gates,
-but it is a young port with known gaps — read [Limitations](#limitations) before
+Early. The loop implements the full dsh `Agent` contract and is covered by a
+mutation-verified gate suite (every fix was checked by reverting it and watching
+its gate fail), but it is a young port with known gaps — read [Limitations](#limitations) before
 depending on it. Version `0.0.1` tracks DSH snapshot `20260810T155924Z`.
 
 ## Install
@@ -162,7 +163,8 @@ modes — wrong names, and top-level-only observation — are gated in
 - **The stock invariant is incompatible** (see above).
 - **`dsh-token-meter` and the compaction stack price the surface**, not the
   slice actually dispatched, so their pressure numbers do not describe this
-  loop's real requests.
+  loop's real requests. The divergence grows with turn count and does not
+  converge; reported upstream as `dsh-external/issues#564`.
 - **Only three context regions are populated** — `session_tape`,
   `task_objective`, `open_files`. The ported engine has more (intent, findings,
   progress signals, world), and they render empty.
@@ -193,6 +195,12 @@ then `~/.dsh/source/current`.
 removes the peer symlinks, and the failure looks like the whole harness went
 missing (`Cannot find module '@deepseek-ai/dsh-agent'`).
 
+CI only runs what does not need the harness: the ported slice engine is
+peer-free, and its 44 golden cases assert byte-level parity against the
+upstream Python implementation. The driver, lifecycle and inbox gates need the
+private harness peers, so the full suite is a pre-push gate rather than a CI
+one — faking those peers would test a mock instead of the contract.
+
 Regenerating the Python-parity goldens additionally needs a
 [sliceagent](https://github.com/TT-Wang) checkout — set `$SLICEAGENT_REPO` and
 run `npm run goldens`. Running the tests does not: the expectations are checked
@@ -200,4 +208,4 @@ in.
 
 ## License
 
-BSD-3-Clause
+BSD-3-Clause — see [LICENSE](LICENSE).

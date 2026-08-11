@@ -1,0 +1,51 @@
+# CI can only run what does NOT need the DeepSeek Harness.
+#
+# Every meaningful gate in this repo (154 tests) needs the harness peers, which
+# are private packages resolved from a local `dsh` checkout via `npm run
+# link:dsh` — a GitHub runner has no such checkout, so the driver, lifecycle and
+# inbox gates cannot run here. Faking those peers to make CI green would test a
+# mock instead of the contract, which is worse than not testing them.
+#
+# What CI does cover: the ported slice engine (regions, tape, elasticity,
+# pytext, difflib) is pure and peer-free, and its 44 golden cases assert
+# byte-level parity against the upstream Python implementation. That is the part
+# most likely to drift silently, so it is the part worth gating in CI.
+#
+# The full suite is the maintainer's pre-push gate:
+#   npm run link:dsh && npm run typecheck && npm test
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slice-engine:
+    name: slice engine (peer-free)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dev dependencies
+        # No lockfile by design (see .gitignore): every runtime dependency is a
+        # peer supplied by the host, leaving only typescript/vitest/tsx/@types.
+        run: npm install --no-audit --no-fund
+
+      - name: Golden parity against the Python engine
+        run: npx vitest run tests/parity.test.ts
+
+      - name: Typecheck the peer-free slice engine
+        # The full `npm run typecheck` needs the harness peers; this checks the
+        # ported engine on its own.
+        run: npx tsc --noEmit --strict --target es2022 --module nodenext
+             --moduleResolution nodenext --skipLibCheck src/slice/index.ts
