@@ -183,28 +183,22 @@ modes — wrong names, and top-level-only observation — are gated in
 
 ```bash
 npm install
-npm run link:dsh    # symlink the harness peers from your dsh checkout
-npm run typecheck
-npm test
+npm run link:dsh    # symlink the private harness peers from your dsh checkout
+npm run typecheck && npm test
 ```
 
-`link:dsh` finds the harness via `$DSH_SOURCE`, then `$DSH_HOME/source/current`,
-then `~/.dsh/source/current`.
+Two things the scripts cannot tell you themselves:
 
-**Re-run `link:dsh` after any `npm install`** — npm rewrites `node_modules` and
-removes the peer symlinks, and the failure looks like the whole harness went
-missing (`Cannot find module '@deepseek-ai/dsh-agent'`).
+- **Re-run `link:dsh` after any `npm install`.** npm rewrites `node_modules` and
+  drops the peer symlinks; the failure then reads as if the whole harness
+  vanished (`Cannot find module '@deepseek-ai/dsh-agent'`).
+- **`lib/` is committed** — rebuild before pushing, or a git-source install
+  serves stale output.
 
-CI only runs what does not need the harness: the ported slice engine is
-peer-free, and its 44 golden cases assert byte-level parity against the
-upstream Python implementation. The driver, lifecycle and inbox gates need the
-private harness peers, so the full suite is a pre-push gate rather than a CI
-one — faking those peers would test a mock instead of the contract.
-
-Regenerating the Python-parity goldens additionally needs a
-[sliceagent](https://github.com/TT-Wang) checkout — set `$SLICEAGENT_REPO` and
-run `npm run goldens`. Running the tests does not: the expectations are checked
-in.
+The full suite is a pre-push gate rather than a CI one: the harness peers are
+private, and faking them would test a mock instead of the contract. What CI can
+cover, and why that is the part worth covering, is in
+[`ci.yml`](.github/workflows/ci.yml).
 
 ## License
 
