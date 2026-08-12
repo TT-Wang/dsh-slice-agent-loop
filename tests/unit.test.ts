@@ -3,6 +3,7 @@
  * (test_region_registry.py / test_context_elasticity.py / test_session_tape.py).
  */
 import { describe, expect, it } from "vitest";
+import { searchSessionEvents, renderSearchHits } from "../src/recall.js";
 import {
   ContextBlock, ContextUnfitError, ElasticityController, Fidelity, FreshnessClass,
   InstructionClass, PyTypeError, REGIONS, REGION_META, REGION_ORDER, REGION_ROLES,
@@ -362,7 +363,6 @@ describe("applyUnified boundary: -0,0 hunk against a non-empty source", () => {
 });
 
 describe("recall_search corpus and flood guard (Reasonix 借鉴)", () => {
-  const { searchSessionEvents, renderSearchHits } = require("../src/recall.ts") as typeof import("../src/recall.js");
   const ev = (type: string, data: unknown) => ({ type, data });
   const events = [
     ev("turn/start", { turn: 1 }),
@@ -399,9 +399,56 @@ describe("recall_search corpus and flood guard (Reasonix 借鉴)", () => {
       { type: "text", text: "token ".repeat(300) } ] } });
     const short = ev("assistant/message", { turn: 3, step: 1, message: { content: [
       { type: "text", text: "the deploy token is QQ-91" } ] } });
-    const es = [ev("turn/start",{turn:2}), long, ev("turn/start",{turn:3}), short];
+    const es = [
+      ev("turn/start",{turn:2}), long, ev("turn/end",{turn:2,reason:{kind:"completed"}}),
+      ev("turn/start",{turn:3}), short, ev("turn/end",{turn:3,reason:{kind:"completed"}}),
+    ];
     const hits = searchSessionEvents(es as never, "deploy token");
     expect(hits[0].turn).toBe(3);
+  });
+});
+
+describe("recall_search 评审修复三门(2026-08-12 复审)", () => {
+  const ev = (type: string, data: unknown) => ({ type, data });
+
+  it("①未封存的当前轮不进语料,recall 工具自身调用不进 tool_input", () => {
+    const events = [
+      ev("turn/start", { turn: 1 }),
+      ev("assistant/message", { turn: 1, step: 1, message: { content: [{ type: "text", text: "the gateway port is 7443" }] } }),
+      ev("turn/end", { turn: 1, reason: { kind: "completed" } }),
+      ev("turn/start", { turn: 2 }),
+      ev("user/message", { content: [{ type: "text", text: "what gateway port did we pick?" }] }),
+      ev("assistant/message", { turn: 2, step: 1, message: { content: [
+        { type: "tool-call", name: "recall_search", arguments: '{"query":"gateway port"}' },
+      ] } }),
+    ];
+    const hits = searchSessionEvents(events as never, "gateway port");
+    expect(hits.length).toBe(1);
+    expect(hits[0].turn).toBe(1);
+
+    // 把 turn 2 封存后再搜:recall 自身的调用即使已进历史,也不得作为
+    // tool_input 语料自命中(开轮排除罩不住这条,必须靠名字跳过)。
+    const sealed = [...events, ev("turn/end", { turn: 2, reason: { kind: "completed" } })];
+    const hits2 = searchSessionEvents(sealed as never, "gateway port");
+    expect(hits2.every(h => h.kind !== "tool_input")).toBe(true);
+  });
+
+  it("②turn/end 之后注入的消息不归属已封存轮(与 renderSealedTurn 同规)", () => {
+    const events = [
+      ev("turn/start", { turn: 1 }),
+      ev("assistant/message", { turn: 1, step: 1, message: { content: [{ type: "text", text: "real turn one" }] } }),
+      ev("turn/end", { turn: 1, reason: { kind: "completed" } }),
+      ev("user/message", { content: [{ type: "text", text: "INJECTED BETWEEN TURNS" }] }),
+      ev("turn/start", { turn: 2 }),
+      ev("turn/end", { turn: 2, reason: { kind: "completed" } }),
+    ];
+    expect(searchSessionEvents(events as never, "INJECTED BETWEEN")).toEqual([]);
+  });
+
+  it("③零命中文案报告实际搜过的 kinds,不建议重复已做的事", () => {
+    expect(renderSearchHits("x", [], ["tool_output"])).toContain("kinds tool_output");
+    expect(renderSearchHits("x", [], ["tool_output"])).not.toContain('kinds: ["tool_output"]');
+    expect(renderSearchHits("x", [])).toContain('kinds: ["tool_output"]');
   });
 });
 

@@ -85,7 +85,7 @@ export declare function searchSessionEvents(events: Iterable<{
     limit?: number;
 }): RecallHit[];
 /** Render hits as a compact, actionable page: every hit names its recall_turn follow-up. */
-export declare function renderSearchHits(query: string, hits: readonly RecallHit[]): string;
+export declare function renderSearchHits(query: string, hits: readonly RecallHit[], searchedKinds?: readonly SearchKind[]): string;
 /** The search tool: tier 1 of the two-tier recall (search → recall_turn verbatim fetch). */
 export declare function recallSearchToolDefinition(): ToolDefinition;
 /**

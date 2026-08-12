@@ -1,4 +1,11 @@
-# Plan: Reasonix 学习成果落地（4 项全做）
+# Plan: Reasonix 学习成果落地
+
+> **处置记录(2026-08-12,本节为准;下文为原始计划,标题曾写"4 项全做")**
+> - **#5 前缀不变门 — 已落地**(`keeps the system prefix and tool catalog byte-stable across turns`,变异验证)
+> - **#2 recall 两级化 — 已落地,形态有别于计划**:独立工具 `recall_search`(评分检索 + kind 防洪)+ 既有 `recall_turn`,未做 `around` 操作(轮粒度的 recall_turn 已覆盖邻域需求)、未做 operation 复用单工具(两工具目录语义更清晰)
+> - **#1 bounded-call 隔离 — 判定不适用,未落地**:本 loop 唯一模型调用即主轮请求(driver.ts:971),无元调用消费者;按仓库纪律不造无消费者的基础设施
+> - **#3 TTL 感知恢复 — 判定不适用,未落地**:切片每轮重建有界上下文,冷恢复无可修剪之物
+> 详见 README「Memory recall」节与 commit aa80006 / 后续修复提交。
 
 来源：DeepSeek-Reasonix 研究（2026-08-12）· 目标仓库：`~/code/dsh-slice-agent-loop`
 原则：每项都带测试门（本仓库惯例：变异验证）；不引入新持久化；bounded slice 哲学优先。

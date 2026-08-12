@@ -203,7 +203,12 @@ export function searchSessionEvents(
   const terms = tokenize(query)
   if (terms.length === 0) return []
 
-  // Corpus assembly mirrors renderSealedTurn's turn attribution.
+  // Corpus assembly mirrors renderSealedTurn's turn attribution EXACTLY —
+  // including the turn/end clearing this function originally lacked. Without
+  // it, anything injected between turns (a task notice, a host-side summary)
+  // was silently attributed to the turn that had just ENDED, so search would
+  // name a turn whose recall_turn page then failed to contain the text: two
+  // tools disagreeing about the same locator (review repro #2).
   const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number }> = []
   let openTurn: number | null = null
   let seq = 0
@@ -213,6 +218,9 @@ export function searchSessionEvents(
     switch (event.type) {
       case 'turn/start':
         openTurn = data.turn as number
+        break
+      case 'turn/end':
+        if (openTurn === (data.turn as number)) openTurn = null
         break
       case 'user/message':
         if (kinds.has('user') && openTurn !== null) {
@@ -231,6 +239,10 @@ export function searchSessionEvents(
         if (kinds.has('tool_input')) {
           for (const block of message.content as ReadonlyArray<{ type: string; name?: string; arguments?: string }>) {
             if (block.type === 'tool-call') {
+              // The recall tools' own calls are queries ABOUT history, not
+              // history: indexing them makes every search self-match its own
+              // argument string (review repro #1).
+              if (block.name === RECALL_TOOL_NAME || block.name === RECALL_SEARCH_TOOL_NAME) continue
               const text = `${block.name ?? ''} ${block.arguments ?? ''}`
               if (text.trim()) docs.push({ turn, step, kind: 'tool_input', text, seq })
             }
@@ -254,8 +266,14 @@ export function searchSessionEvents(
     }
   }
 
+  // The still-open turn is NOT history: its content already sits in front of
+  // the model, and its events include the very search being executed. Serving
+  // it back is pure self-noise (review repro #1), so the open turn at scan
+  // end is excluded from the corpus.
+  const sealedDocs = openTurn === null ? docs : docs.filter((doc) => doc.turn !== openTurn)
+
   const hits: RecallHit[] = []
-  for (const doc of docs) {
+  for (const doc of sealedDocs) {
     const lower = doc.text.toLowerCase()
     let tf = 0
     let matched = 0
@@ -280,10 +298,20 @@ export function searchSessionEvents(
 }
 
 /** Render hits as a compact, actionable page: every hit names its recall_turn follow-up. */
-export function renderSearchHits(query: string, hits: readonly RecallHit[]): string {
+export function renderSearchHits(
+  query: string,
+  hits: readonly RecallHit[],
+  searchedKinds: readonly SearchKind[] = DEFAULT_SEARCH_KINDS,
+): string {
   if (hits.length === 0) {
-    return `[recall_search "${query}" · 0 hits over kinds user/assistant/tool_input/tool_error — `
-      + `retry with kinds: ["tool_output"] if the fact was tool-born, or broaden the query]`
+    // Say what was ACTUALLY searched. The first version hardcoded the default
+    // kind list and suggested kinds: ["tool_output"] even to a caller who had
+    // just searched exactly that (review repro #3).
+    const searched = searchedKinds.join('/')
+    const hint = searchedKinds.includes('tool_output')
+      ? 'broaden the query, or check earlier sealed turns with recall_turn'
+      : 'retry with kinds: ["tool_output"] if the fact was tool-born, or broaden the query'
+    return `[recall_search "${query}" · 0 hits over kinds ${searched} — ${hint}]`
   }
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — for the verbatim full turn, call `
@@ -328,7 +356,7 @@ export function recallSearchToolDefinition(): ToolDefinition {
       const kinds = Array.isArray(a.kinds) && a.kinds.length > 0 ? a.kinds as SearchKind[] : undefined
       const limit = typeof a.limit === 'number' ? a.limit : undefined
       const hits = searchSessionEvents(agent.session.events, query, { ...(kinds ? { kinds } : {}), ...(limit ? { limit } : {}) })
-      return renderSearchHits(query, hits)
+      return renderSearchHits(query, hits, kinds ?? DEFAULT_SEARCH_KINDS)
     },
   })
 }
