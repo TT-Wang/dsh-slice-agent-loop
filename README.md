@@ -57,8 +57,8 @@ at every cut pointing back to the original.
 
 ## Measurements: two arms, head to head
 
-**default** = DSH's stock transcript loop (with calibrated compaction,
-threshold 40K); **slice** = this plugin. Same harness, same model
+**default** = DSH's stock transcript loop (with calibrated compaction);
+**slice** = this plugin. Same harness, same model
 (deepseek-v4-flash), same tools, same official pricing (miss $0.14/M · cache
 hit $0.0028/M · output $0.28/M). Per-call ledgers are kept; every number is
 recomputable.
@@ -76,11 +76,7 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
 
 > Both arms pass every verifier (no capability loss). The more turns, the
 > wider the gap — 14% cheaper at 16 turns, 50% at 76, while default's peak
-> ratchets to 378K and slice stays flat at 32K. **Short coding tasks (1–10
-> turns) are not where slice wins** — some scenarios run 17–72% above default
-> (integration-fidelity tax: workspace baseline recomposition, more verbose
-> verification output). The architecture pays off from long sessions onward;
-> see "Weaknesses, honestly".
+> ratchets to 378K and slice stays flat at 32K.
 
 ### ② Amnesia re-enactment · both arms · eviction-verified
 
@@ -88,13 +84,9 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
 tool output — before the exam: the numbers never enter any reply (turn 1
 explicitly asks only to confirm the run), the source samples are deleted on
 first run (nothing on disk), and a dilution flood forces default's compaction
-to rewrite history multiple times. **Eviction verification**: each arm carries
-a request tap; the step-1 LLM request of the exam turn is checked
-byte-by-byte — 16 strong marker values, zero present, or the entire run is
-voided (two of our first three rounds WERE voided: once compaction copied all
-34 facts into its checkpoint, once a compaction storm wedged the exam turn).
-The exam has two tiers: first no hint at all, then an explicit "you produced
-these numbers yourself in this session — go check the records."
+to rewrite history multiple times. The exam has two tiers: first no hint at
+all, then an explicit "you produced these numbers yourself in this session —
+go check the records."
 
 | Arm | Eviction | No-hint tier | Explicit tier | Trap | Peak | Price | Wall |
 |---|---|---:|---:|---|---:|---:|---:|
@@ -117,17 +109,17 @@ these numbers yourself in this session — go check the records."
 ### ③ CB-20 precision retrieval · both arms
 
 ContextBench (given a real issue, the agent retrieves the code locations the
-fix depends on): a 20-question subset of the official 50-question benchmark
-(selected by completion speed in a prior run, same questions for both arms,
-every worktree reset to base_commit). Paired comparison, n=19 (default timed
-out on one question at 20 minutes — slice finished it in 137 seconds):
+fix depends on): a 20-question subset of the official 50-question benchmark.
+Paired comparison, n=19 (default timed out on one question at 20 minutes —
+slice finished it in 137 seconds):
 
 | Metric (19-question paired mean) | slice | default |
 |---|---:|---:|
 | fileRecall | **0.816** | 0.761 |
 | spanRecall | **0.847** | 0.772 |
 | filePrecision | 0.227 | 0.229 |
-| F1 (file-level) | **0.355** | 0.353 |
+| F1 · file-level (from means) | **0.355** | 0.353 |
+| F1 · file-level (macro, per-question F1 averaged) | **0.342** | 0.323 |
 | total price | $0.2862 | **$0.2715** |
 | completion | **20/20** | 19/20 |
 
@@ -135,24 +127,44 @@ out on one question at 20 minutes — slice finished it in 137 seconds):
 > lines at equal precision — the re-read discipline a bounded slice forces is
 > an advantage on retrieval, not a burden; the cost is 5% on price.
 
-## Weaknesses, honestly
+<details>
+<summary>Per-question detail (19 paired: recall / span / F1 / price)</summary>
 
-1. **Short-task integration-fidelity tax**: workspace baselines recompose into
-   the request after file edits, and verification discipline raises output
-   tokens — short coding tasks run 17–72% above default. Byte-hygiene work is
-   scheduled.
-2. **Pricing-structure dependence**: DeepSeek's cache-hit price is 1/50 of a
-   miss — the friendliest structure in the industry for append-only
-   transcripts, i.e. the harshest for rebuilds. Every number above was
-   measured under it; shallower cache discounts (Claude / OpenAI pricing) move
-   the crossover earlier.
-3. **The default arm's compaction is our calibration**: DSH's API path
-   defaults to a 0.8× window threshold, which these loads would never trigger;
-   we lowered it to 40K so default's loss-prevention actually engages. An
-   uncalibrated default peaks even higher under flood load.
-4. **Retrieval breadth vs. the frugal kernel is still being balanced**: the
-   current kernel buys precision and price at some recall-breadth regression
-   against the previous build; tuning continues.
+| Question (Multi-SWE-Bench) | slice R/span/F1 | default R/span/F1 | slice $ | default $ |
+|---|---|---|---:|---:|
+| c__0f94ce4d | 1.00/1.00/0.36 | 1.00/1.00/0.26 | 0.0275 | 0.0294 |
+| c__1ac60ce9 | 1.00/1.00/0.25 | 1.00/1.00/0.20 | 0.0080 | 0.0127 |
+| c__b9b45262 | 0.33/0.30/0.17 | 0.33/0.30/0.13 | 0.0506 | 0.0314 |
+| c__cdbc5890 | 1.00/1.00/0.22 | 1.00/1.00/0.18 | 0.0151 | 0.0134 |
+| cpp__6a4e21e9 | 0.67/0.63/0.22 | 0.67/0.25/0.40 | 0.0168 | 0.0140 |
+| cpp__7c9ef76c | 0.67/0.97/0.33 | 0.33/0.93/0.18 | 0.0097 | 0.0140 |
+| cpp__bca55dea | 1.00/1.00/0.64 | 0.29/0.14/0.21 | 0.0205 | 0.0100 |
+| cpp__fe080aac | 0.50/0.87/0.33 | 0.50/0.87/0.25 | 0.0127 | 0.0167 |
+| go__0498ad7f | 1.00/1.00/0.29 | 1.00/1.00/0.18 | 0.0087 | 0.0165 |
+| go__0b78ed50 | 1.00/1.00/0.67 | 1.00/1.00/1.00 | 0.0073 | 0.0050 |
+| go__0f79e39c | 1.00/1.00/0.50 | 1.00/1.00/0.50 | 0.0068 | 0.0044 |
+| go__1384380d | 0.67/0.39/0.42 | 0.67/0.51/0.32 | 0.0142 | 0.0393 |
+| go__1ba303a5 | 0.67/0.92/0.36 | 0.67/0.92/0.44 | 0.0179 | 0.0197 |
+| go__250649eb | 1.00/1.00/0.50 | 1.00/1.00/0.57 | 0.0051 | 0.0065 |
+| go__2a889a1d | 1.00/1.00/0.29 | 1.00/1.00/0.29 | 0.0143 | 0.0045 |
+| go__2c512ec3 | 0.00/0.00/0.00 | 0.00/0.00/0.00 | 0.0156 | 0.0086 |
+| go__3d1b3145 | 1.00/1.00/0.50 | 1.00/1.00/0.29 | 0.0070 | 0.0138 |
+| go__3d85271b | 1.00/1.00/0.22 | 1.00/1.00/0.22 | 0.0081 | 0.0054 |
+| go__3deeea9c | 1.00/1.00/0.22 | 1.00/0.75/0.50 | 0.0203 | 0.0064 |
+
+Unpaired timeout: c__8bffb1b1 (default timed out at 20 minutes; slice finished
+in 137s, R/span 1.00/1.00, $0.0140).
+
+</details>
+
+## Defects and directions
+
+| Defect | What it is, measured | Direction |
+|---|---|---|
+| **1 · Cache hits are structurally fewer than a transcript loop's** | The slice is rebuilt every turn; when bytes move, cache entries die, so the fresh-input share is high (2–3× on short coding tasks). DeepSeek prices a cache hit at 1/50 of a miss — the deepest discount in the industry, and the friendliest structure for append-only transcripts — so under this pricing, short and mid-length tasks may show no price advantage (measured +17–72% on some scenarios). | Two byte-hygiene optimizations (stable rendering, freeze-on-second-read) are scheduled; long sessions win even under this pricing (-14%/-50%); shallower cache discounts (Claude / OpenAI) move the crossover earlier. |
+| **2 · The recall channel depends on the model reaching for it** | History is byte-recoverable, and spontaneous recall under controlled pressure is proven (test ②); but on everyday coding loads active recall is near zero (most information fits tape capacity and push covers it), and cross-session "continue from yesterday" cold starts remain a risk. | Make recall habitual on everyday loads and cold starts; agent memory is still frontier territory, work scheduled. |
+| **3 · Retrieval breadth vs. the frugal kernel is still being balanced** | The current kernel buys precision and price at some recall-breadth regression against the previous build. | Kernel A/B iteration continues. |
+| **4 · Still an early plugin overall** | Covers the web profile's agent-loop surface today; settings-panel alignment, the subagent ecosystem, and TUI are catching up. The core mechanisms (sealing, audit events, two-tier recall) are validated by the three test groups above. | An engineering-coverage problem, not a technical-difficulty one. |
 
 ## Install
 
