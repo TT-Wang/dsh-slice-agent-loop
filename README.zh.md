@@ -20,12 +20,13 @@
 ## 安装
 
 ```sh
-dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main"
+# 重试吸收 git fetch 阶段的瞬时代理 SSL 抖动;add 是幂等的
+for i in 1 2 3; do dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main" && break; sleep 3; done
 ```
 
 自带的 patch 会禁用 stock loop 与压缩 —— 有界重建同时替代两者。如果你的
 组合里有 `agent-loop-invariant` 行,删掉它:重建的切片不可能与派生历史
-逐字节相等,本插件在那条断言旁会拒绝加载。git fetch 阶段的瞬时 `SSL_ERROR_SYSCALL`(代理环境常见)不是安装失败 —— 重跑同一条命令即可,它是幂等的。
+逐字节相等,本插件在那条断言旁会拒绝加载。
 
 ## 配置
 
