@@ -23,9 +23,11 @@ which turn said something. Bounded context, lossless history.
 ## Install
 
 ```sh
-# retries absorb transient proxy SSL flakes during git fetch; the add is idempotent
-for i in 1 2 3; do dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main" && break; sleep 3; done
+dsh plugin --profile web add "github:dsh-external/dsh-slice-agent-loop#main"
 ```
+
+Or from a local checkout: `git clone` then `dsh plugin --profile web add .`
+Restart web afterwards — bundles are composed at boot.
 
 The bundled patch disables the stock loop and compaction — the bounded rebuild
 replaces both. If your composition carries an `agent-loop-invariant` row,

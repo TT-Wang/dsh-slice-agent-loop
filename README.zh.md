@@ -20,9 +20,11 @@
 ## 安装
 
 ```sh
-# 重试吸收 git fetch 阶段的瞬时代理 SSL 抖动;add 是幂等的
-for i in 1 2 3; do dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main" && break; sleep 3; done
+dsh plugin --profile web add "github:dsh-external/dsh-slice-agent-loop#main"
 ```
+
+或本地目录:`git clone` 后 `dsh plugin --profile web add .`
+装完**重启 web** 生效 —— bundle 在启动时合成。
 
 自带的 patch 会禁用 stock loop 与压缩 —— 有界重建同时替代两者。如果你的
 组合里有 `agent-loop-invariant` 行,删掉它:重建的切片不可能与派生历史
