@@ -6,8 +6,8 @@
  * This adapter owns only the loop-facing routing and wakeup rules.
  */
 
-import { Inbox } from '@deepseek-ai/dsh-agent'
-import type { AgentEventDispatch, InboxTarget } from '@deepseek-ai/dsh-agent'
+import type { AgentEventDispatch, Inbox, InboxTarget } from '@deepseek-ai/dsh-agent'
+import { harnessUniverse } from './universe.js'
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session'
 
 /** Driver state needed to route waking input without coupling to its phase type. */
@@ -42,7 +42,7 @@ export class InboxLedger {
     dispatch: AgentEventDispatch,
     private readonly activity: InboxLedgerActivity,
   ) {
-    this.inbox = new Inbox(session, {
+    this.inbox = new (harnessUniverse().agent.Inbox)(session, {
       inserted: message => { dispatch.emit('agent/inbox/inserted', { message }) },
       discarded: message => { dispatch.emit('agent/inbox/discarded', { message }) },
       claimed: (message, turn) => { dispatch.emit('agent/inbox/claimed', { message, turn }) },

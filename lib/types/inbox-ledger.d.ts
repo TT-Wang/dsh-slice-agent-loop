@@ -5,8 +5,7 @@
  * normalized durable splices, pending-message identity, and claim deletion.
  * This adapter owns only the loop-facing routing and wakeup rules.
  */
-import { Inbox } from '@deepseek-ai/dsh-agent';
-import type { AgentEventDispatch, InboxTarget } from '@deepseek-ai/dsh-agent';
+import type { AgentEventDispatch, Inbox, InboxTarget } from '@deepseek-ai/dsh-agent';
 import type { Session, UserMessage } from '@deepseek-ai/dsh-session';
 /** Driver state needed to route waking input without coupling to its phase type. */
 export interface InboxLedgerActivity {

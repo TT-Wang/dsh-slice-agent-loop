@@ -25,8 +25,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 // Side-effect import: brings the `ctx.invariants` Context augmentation into scope.
 import type {} from '@deepseek-ai/dsh-invariants'
-import { isAgentLoopRequest, type GenerateOptions } from '@deepseek-ai/dsh-llm'
+import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { sliceDigest, seedTextOf } from './driver.js'
+import { maybeHarnessUniverse } from './universe.js'
 
 const PACKAGE_NAME = 'dsh-slice-agent-loop'
 
@@ -38,8 +39,13 @@ const PACKAGE_NAME = 'dsh-slice-agent-loop'
 const install = (ctx: Context, fail: (message: string) => never): void => {
   ctx.on('llm/stream', (options: GenerateOptions, next) => {
     // Only this loop's own requests carry the mark; anything else (title
-    // generation, summarizers, host tools) is none of our business.
-    if (!isAgentLoopRequest(options) || options.sessionId === undefined) return next()
+    // generation, summarizers, host tools) is none of our business. The mark
+    // lives in the HOST universe's WeakSet (markAgentLoopRequest in the
+    // driver goes through the same adapter); before the universe resolves no
+    // driver has run, so nothing can be marked yet.
+    const universe = maybeHarnessUniverse()
+    if (universe === undefined) return next()
+    if (!universe.llm.isAgentLoopRequest(options) || options.sessionId === undefined) return next()
     const session = ctx.sessions.get(options.sessionId)
     if (session === undefined) return next()
 

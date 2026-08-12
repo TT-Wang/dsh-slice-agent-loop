@@ -3,6 +3,12 @@ import { Inbox, type AgentEventDispatch } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, type UserMessage } from '@deepseek-ai/dsh-session'
 import { InboxLedger, type InboxLedgerActivity } from '../src/inbox-ledger.js'
+import { Context } from '@deepseek-ai/cordis'
+import { ensureHarnessUniverse } from '../src/universe.js'
+
+// InboxLedger reads the harness universe (single-instance Inbox); tests
+// construct it directly without the lifecycle's await, so resolve it here.
+await ensureHarnessUniverse(new Context())
 
 function message(text: string): UserMessage {
   return createUserMessage({

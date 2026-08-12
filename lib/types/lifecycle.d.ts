@@ -7,9 +7,9 @@
  * Plan v2.1: Phase 1 — transaction and teardown.
  */
 import { Context } from '@deepseek-ai/cordis';
+import { type HarnessUniverse } from './universe.js';
 import type { Agent, AgentFactory, AgentHandle, AgentOptions, CreateAgentOptions, ResumeAgentOptions } from '@deepseek-ai/dsh-agent';
-import { SessionId } from '@deepseek-ai/dsh-session';
-import type { Session } from '@deepseek-ai/dsh-session';
+import type { Session, SessionId } from '@deepseek-ai/dsh-session';
 /** The driver surface the lifecycle owns and unwinds after quiescence. */
 export interface LifecycleAgent extends Agent {
     /** Agent-local Cordis scope created by the driver constructor. */
@@ -29,8 +29,9 @@ export type LifecycleAgentBuilder = (loopCtx: Context, id: SessionId, options: A
 export declare class SliceAgentLifecycle implements AgentFactory {
     private readonly ctx;
     private readonly buildAgent;
+    private readonly universeReady;
     private readonly ownership;
-    constructor(ctx: Context, buildAgent: LifecycleAgentBuilder);
+    constructor(ctx: Context, buildAgent: LifecycleAgentBuilder, universeReady: Promise<HarnessUniverse>);
     /** Create a fresh, unpublished Session and publish its Agent transaction. */
     createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle>;
     /** Consume a persistence-balanced preparation and publish a new live Agent. */

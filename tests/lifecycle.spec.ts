@@ -23,6 +23,7 @@ import SessionPersistence, {
   type SessionPersistenceSnapshot,
 } from '@deepseek-ai/dsh-session-persistence'
 import { SliceAgentLifecycle, type LifecycleAgent } from '../src/lifecycle.js'
+import { ensureHarnessUniverse } from '../src/universe.js'
 
 function deferred<T>(): {
   readonly promise: Promise<T>
@@ -99,6 +100,7 @@ async function harness(idleGate?: Promise<void>): Promise<Harness> {
     const lifecycle = new SliceAgentLifecycle(
       loopCtx,
       (runtime, id, options, session) => new TestAgent(runtime, id, options, session, order, idleGate),
+      ensureHarnessUniverse(loopCtx),
     )
     loopCtx.effect(() => loopCtx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
   }, { inject: ['agents', 'sessions'] }))

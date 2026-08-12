@@ -13,7 +13,7 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
-import { KNOWN_SESSION_EVENT_TYPES } from '@deepseek-ai/dsh-session'
+import { ensureHarnessUniverse, type HarnessUniverse } from './universe.js'
 import { RESOLVED_SYSTEM_PROMPT, SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
@@ -92,8 +92,10 @@ function resolveMaxStepsPerTurn(value: number | undefined): number {
  */
 const SLICE_EVENT_TYPES = ['slice/file-anchor', 'slice/request-slice', 'slice/step-budget'] as const
 
-function registerSliceEventTypes(ctx: Context): void {
-  const vocabulary = KNOWN_SESSION_EVENT_TYPES as Set<string>
+function registerSliceEventTypes(ctx: Context, universe: HarnessUniverse): void {
+  // The HOST's Set, via the universe adapter: mutating our own copy's Set
+  // would leave the host's persistence read path still refusing slice/* logs.
+  const vocabulary = universe.session.KNOWN_SESSION_EVENT_TYPES as Set<string>
   if (typeof vocabulary.add !== 'function' || typeof vocabulary.delete !== 'function') {
     // A future harness freezing the set must fail HERE, loudly, at load —
     // not at the next resume with a poisoned log.
@@ -166,7 +168,20 @@ export class SliceLoopPlugin extends Service {
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
     guardStockLoopInvariant(ctx)
-    registerSliceEventTypes(ctx)
+    // Resolve which copy of the harness packages the HOST runs (universe.ts:
+    // a source-run dsh loads plugins through the internal ModuleLoader, so our
+    // static imports may be a second copy with split symbol identities). Event
+    // types register as soon as it resolves — before any session can prepare,
+    // because every createAgent/resume awaits this same promise and rethrows
+    // its failure, so a failed resolution fails loudly at the first session
+    // instead of silently writing logs the host refuses to read back.
+    const universeReady: Promise<HarnessUniverse> = ensureHarnessUniverse(ctx).then((universe) => {
+      registerSliceEventTypes(ctx, universe)
+      return universe
+    })
+    // The rejection (if any) is DELIVERED at every createAgent/resume await;
+    // this guard only stops it from also surfacing as an unhandled rejection.
+    universeReady.catch(() => {})
     // The byte-stable sliceagent kernel rides the prompt REGISTRY as an
     // ordinary section (order -1000: first), not a driver-side prepend. Same
     // bytes in the ordinary case — renderPrompt joins sections with '\n\n',
@@ -206,6 +221,7 @@ export class SliceLoopPlugin extends Service {
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
         new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn }),
+      universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
   }

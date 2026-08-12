@@ -34,7 +34,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { isAbsolute, resolve as resolvePath } from 'node:path'
-import { agentEvents, assembleContextFor } from '@deepseek-ai/dsh-agent'
+import { harnessUniverse } from './universe.js'
 import type {
   Agent,
   AgentCancelCause,
@@ -56,16 +56,16 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import {
   BlockAssembler,
-  LlmError,
   assertNever,
   createAssistantMessage,
   createToolResultMessage,
   createUserMessage,
   deepFreeze,
   errorChain,
-  markAgentLoopRequest,
 } from '@deepseek-ai/dsh-llm'
-import { createScope } from '@deepseek-ai/dsh-scope'
+// LlmError / markAgentLoopRequest / createScope / agentEvents /
+// assembleContextFor / TOOL_REGISTRY_SCHEDULER are identity-sensitive and
+// route through harnessUniverse() — see src/universe.ts.
 import type { Scope } from '@deepseek-ai/dsh-scope'
 import type {
   EpochHeader,
@@ -79,7 +79,6 @@ import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEven
 import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
-  TOOL_REGISTRY_SCHEDULER,
   type ToolExecutionInput,
   type ToolExecutionMode,
   type ToolExecutionResult,
@@ -218,9 +217,9 @@ export class SliceLoopAgent implements Agent {
     this.session = session
     this.maxParallelToolCalls = config.maxParallelToolCalls
     this.maxStepsPerTurn = config.maxStepsPerTurn
-    this.scope = createScope(loopCtx, this)
+    this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
-    this.dispatch = agentEvents(this.ctx, this)
+    this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
     this.ledger = new InboxLedger(session, this.dispatch, {
       signal: () => (this.phase.kind === 'idle' ? undefined : this.phase.abort.signal),
       // 必须透传 wakeAfterAbort：丢掉它 latch 永不武装（取消收敛期的消息被吞）。
@@ -624,7 +623,7 @@ export class SliceLoopAgent implements Agent {
     const claimed = target === 'next-turn'
       ? this.ledger.claimFirstStep(position.turn)
       : this.ledger.claimNextStep(position.turn)
-    const assembly = await this.loopCtx.systemPrompt.assemble(assembleContextFor(this, signal))
+    const assembly = await this.loopCtx.systemPrompt.assemble(harnessUniverse().agent.assembleContextFor(this, signal))
     signal.throwIfAborted()
     // 动态运行时上下文投影（stock agent.ts:211 同构）：快照变化时作为
     // plugin/@deepseek-ai/dsh-system-prompt 的 durable 消息并入批。
@@ -748,7 +747,7 @@ export class SliceLoopAgent implements Agent {
       // flattens to errorChain text under the UNKNOWN code.
       turnEnds = {
         kind: 'error',
-        error: error instanceof LlmError
+        error: error instanceof harnessUniverse().llm.LlmError
           ? error.failure
           : { message: errorChain(error), code: 'UNKNOWN' },
       }
@@ -863,7 +862,7 @@ export class SliceLoopAgent implements Agent {
         config = preparedCall.config
       } catch (error: unknown) {
         // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
-        if (!(error instanceof LlmError) || error.code !== 'NO_ADAPTER') throw error
+        if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'NO_ADAPTER') throw error
         config = proposed
       }
       signal.throwIfAborted()
@@ -957,7 +956,7 @@ export class SliceLoopAgent implements Agent {
         seedDigest: sliceDigest(seedTextOf(messages)),
         messageCount: messages.length,
       })
-      const request = markAgentLoopRequest(deepFreeze({
+      const request = harnessUniverse().llm.markAgentLoopRequest(deepFreeze({
         ...header.config,
         messages,
         ...(header.system !== undefined ? { system: header.system } : {}),
@@ -986,7 +985,7 @@ export class SliceLoopAgent implements Agent {
         )
         signal.throwIfAborted()
         if (action?.kind !== 'retry') {
-          throw new LlmError(finish.failure.message, finish.failure.code, finish.failure)
+          throw new (harnessUniverse().llm.LlmError)(finish.failure.message, finish.failure.code, finish.failure)
         }
         continue
       }
@@ -1076,7 +1075,7 @@ export class SliceLoopAgent implements Agent {
     mode: ToolExecutionMode['kind'],
     signal: AbortSignal,
   ): Promise<{ consumed: number; aborted: boolean; concluded: boolean }> {
-    const scheduler = this.loopCtx.tools[TOOL_REGISTRY_SCHEDULER]
+    const scheduler = this.loopCtx.tools[harnessUniverse().tools.TOOL_REGISTRY_SCHEDULER]
     const slots: Array<ToolSlot | undefined> = group.map(() => undefined)
     // Started slots retain their tool/call seq for result provenance.
     const callSeqs: number[] = group.map(() => -1)

@@ -8,7 +8,7 @@
  */
 
 import { Context } from '@deepseek-ai/cordis'
-import { emitAgentEvent } from '@deepseek-ai/dsh-agent'
+import { harnessUniverse, type HarnessUniverse } from './universe.js'
 import type {
   Agent,
   AgentFactory,
@@ -19,8 +19,7 @@ import type {
   ResumeAgentOptions,
   SessionStartSource,
 } from '@deepseek-ai/dsh-agent'
-import { SessionId, SessionPreparation } from '@deepseek-ai/dsh-session'
-import type { Session } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId, SessionPreparation } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence } from '@deepseek-ai/dsh-session-persistence'
 
 /** The driver surface the lifecycle owns and unwinds after quiescence. */
@@ -176,6 +175,7 @@ export class SliceAgentLifecycle implements AgentFactory {
   constructor(
     private readonly ctx: Context,
     private readonly buildAgent: LifecycleAgentBuilder,
+    private readonly universeReady: Promise<HarnessUniverse>,
   ) {
     this.ownership = new FactoryOwnership(ctx.fiber)
     ctx.effect(() => () => this.ownership.dispose(), 'sliceLoop.transactions()')
@@ -183,7 +183,12 @@ export class SliceAgentLifecycle implements AgentFactory {
 
   /** Create a fresh, unpublished Session and publish its Agent transaction. */
   async createAgent(ownerCtx: Context, options: CreateAgentOptions): Promise<AgentHandle> {
-    const preparation = SessionPreparation.create(this.ctx.sessions.prepare(options.sessionId, {
+    // Universe first: every identity-sensitive value below (SessionPreparation,
+    // createScope in the driver, emitAgentEvent) must come from the HOST's
+    // module instances, and this await is what guarantees harnessUniverse()
+    // is resolved before any of them run. Its rejection is the loud failure.
+    const { session: sessionModule } = await this.universeReady
+    const preparation = sessionModule.SessionPreparation.create(this.ctx.sessions.prepare(options.sessionId, {
       ...options.seed === undefined ? {} : { seed: options.seed },
       ...options.meta === undefined ? {} : { meta: options.meta },
     }))
@@ -202,6 +207,9 @@ export class SliceAgentLifecycle implements AgentFactory {
 
   /** Consume a persistence-balanced preparation and publish a new live Agent. */
   async resume(ownerCtx: Context, options: ResumeAgentOptions): Promise<AgentHandle> {
+    // Same gate as createAgent: the driver and emitAgentEvent downstream
+    // require the resolved host universe.
+    await this.universeReady
     const persistence = this.ctx.get('sessionPersistence')
     if (persistence === undefined) {
       throw new Error('cannot resume: session persistence is not configured (load a dsh-session-persistence backend)')
@@ -378,7 +386,7 @@ export class SliceAgentLifecycle implements AgentFactory {
           assertLive()
           this.ctx.agents.announce(agent!)
           assertLive()
-          emitAgentEvent(this.ctx, agent!, 'agent/session-start', { source })
+          harnessUniverse().agent.emitAgentEvent(this.ctx, agent!, 'agent/session-start', { source })
           assertLive()
           // The caller's signal is creation-only; returned live handles do not
           // inherit later aborts from it.
