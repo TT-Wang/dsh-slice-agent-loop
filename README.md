@@ -78,6 +78,7 @@ else: no sliceagent kernel, no tool guidance.
 |---|--:|---|
 | `maxParallelToolCalls` | `10` | Maximum in-flight parallel-safe tool bodies per step. Concurrency-unsafe tools still form barriers. Since 20260811 this also caps subagent fan-out: `tool-subagent` declares itself concurrency-safe, so several delegations in one response run through this same slot pool. |
 | `maxStepsPerTurn` | `50` | Hard ceiling on continuation steps in one turn. A bound, not a stall detector — see below. |
+| `kernel` | `'slice'` | Which prompt kernel rides the `slice:kernel` section. `'slice'` (1.9k, default) carries only slice-structural facts — tape semantics, the hash trust rule, truncation + recall, absence≠false — and no behavioral corset; general conduct stays with the host's own sections. `'ported'` (12.7k) is the verbatim Python prompt, kept as the A/B arm: first wired on CB50 it cost 0.13 paired spanRecall (its "stop exploring once grounded" discipline collapsed exploration on 26/45 questions) while buying +0.016 precision and -38% cost, and it teaches machinery this deployment does not mount. |
 
 Set it from your profile's own `cordis.patch.yml`, which applies after the
 bundle layer above. The row already exists — target it **by id**:

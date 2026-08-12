@@ -1641,6 +1641,63 @@ describe('SliceLoopAgent contract gates', () => {
   })
 
 
+
+  // ── 合成 kernel(默认)────────────────────────────────────────────────────
+  // CB50 A/B 的直接产物:默认 kernel 只保留 slice 结构必需(tape 语义 / hash
+  // 信任规则 / 截断与 recall / 缺席≠不存在),行为束身衣全部不进面 —— 那三句
+  // 节俭纪律实测砍掉 0.13 配对 spanR。'ported' 配置臂保留逐字移植版做 A/B。
+  it('ships the synthesized kernel by default, without the frugality corset', async () => {
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(adapter)
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('kernel-synth'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'hi'); await handle.agent.whenIdle()
+      const system = String(adapter.requests[0]?.system ?? '')
+      expect({
+        opensAsSliceagent: system.startsWith('You are sliceagent'),
+        sliceSection: system.includes('<slice>'),
+        tapeRule: system.includes('composition IS the current file'),
+        recallTaught: system.includes('recall_turn({"turn": "slice-turn-N"}')
+          && system.includes('recall_search'),
+        absenceRule: system.includes('never false'),
+        // 束身衣三句必须缺席 —— 它们是 CB50 探索塌缩的文本源头。
+        corsetGone: !system.includes('stop exploring once the decision is grounded')
+          && !system.includes('make no further tool call')
+          && !system.includes('Do not accumulate transcript'),
+        // 未挂载的 Python 机器不再被教。
+        deadMachineryGone: !system.includes('ACTIVE WORK') && !system.includes('WorkDelta'),
+        noUnresolvedSlots: !system.includes('{{'),
+      }).toEqual({
+        opensAsSliceagent: true, sliceSection: true, tapeRule: true, recallTaught: true,
+        absenceRule: true, corsetGone: true, deadMachineryGone: true, noUnresolvedSlots: true,
+      })
+    } finally {
+      await handle.dispose(); await ctx.fiber.dispose()
+    }
+  })
+
+  it("kernel: 'ported' restores the verbatim Python prompt as the A/B arm", async () => {
+    const adapter = new MockAdapter([textResponse('ok')])
+    const ctx = await harness(adapter, { kernel: 'ported' })
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('kernel-ported'),
+      agentOptions: { provider: 'mock', model: 'mock' },
+    })
+    try {
+      send(handle.agent, 'hi'); await handle.agent.whenIdle()
+      const system = String(adapter.requests[0]?.system ?? '')
+      expect({
+        corset: system.includes('stop exploring once the decision is grounded'),
+        contract: system.includes('# BRAIN AND SOURCE-LINKED ACTIVE WORK CONTRACT'),
+      }).toEqual({ corset: true, contract: true })
+    } finally {
+      await handle.dispose(); await ctx.fiber.dispose()
+    }
+  })
+
   // ── 两级取回:recall_search → recall_turn ────────────────────────────────
   it('recall_search finds a fact by content and hands back a recall_turn locator', async () => {
     const FACT = 'the rollout gate threshold is ZX-4471'
@@ -2554,7 +2611,8 @@ describe('SliceLoopAgent contract gates', () => {
 
   it('resolves the production memory-model splice before sending the system prompt', async () => {
     const adapter = new MockAdapter([textResponse('ready')])
-    const ctx = await harness(adapter)
+    // 拼接契约属于移植 kernel(A/B 臂);默认合成 kernel 没有这段。
+    const ctx = await harness(adapter, { kernel: 'ported' })
     const handle = await ctx.agents.create({
       sessionId: SessionId('slice-memory-contract'),
       agentOptions: { provider: 'mock', model: 'mock' },

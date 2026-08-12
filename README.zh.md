@@ -54,6 +54,7 @@ DSH 0810 之后,真正在跑的压缩栈待在每个 preset 自己的 `compactio
 |---|--:|---|
 | `maxParallelToolCalls` | `10` | 每步同时在飞的并行安全工具体上限。并发不安全的工具仍然自成屏障。20260811 起它**同时限制子 agent 的扇出**:`tool-subagent` 声明自己并发安全,所以一条回复里的多个委派共用这个槽位池。 |
 | `maxStepsPerTurn` | `50` | 单轮 continuation step 硬顶。是**界**不是停滞检测 —— 见下。 |
+| `kernel` | `'slice'` | `slice:kernel` 段用哪份 kernel。`'slice'`(1.9k,默认)只带 slice 结构必需 —— tape 语义、hash 信任规则、截断与 recall、缺席≠不存在 —— 不带任何行为束身衣;一般操守归宿主自己的段。`'ported'`(12.7k)是 Python prompt 逐字移植,留作 A/B 臂:它首次接线跑 CB50 时,"grounded 即停"的节俭纪律让 26/45 题探索塌缩、配对 spanRecall 掉 0.13,换来 +0.016 精度与 -38% 成本;且它教的一套机器(ACTIVE WORK 等)在本部署根本没挂载。 |
 
 从你自己 profile 的 `cordis.patch.yml` 里设,它在上面那层 bundle 之后生效。那一行**已经存在**了,按 id 定位它:
 

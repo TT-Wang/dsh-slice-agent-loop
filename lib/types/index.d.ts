@@ -13,6 +13,15 @@ import { Context, Service } from '@deepseek-ai/cordis';
 export interface Config {
     maxParallelToolCalls?: number;
     maxStepsPerTurn?: number;
+    /**
+     * Which kernel rides the `slice:kernel` prompt section.
+     * `'slice'` (default) — the 1.9k synthesized kernel: slice-structural facts
+     * only (tape semantics, hash trust rule, truncation + recall, absence≠false),
+     * no behavioral corset; general conduct stays with the host's own sections.
+     * `'ported'` — the 12.7k verbatim port of the Python sliceagent prompt, kept
+     * as the A/B arm and the parity reference.
+     */
+    kernel?: 'slice' | 'ported';
 }
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
 export declare const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
