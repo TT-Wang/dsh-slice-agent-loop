@@ -29,7 +29,9 @@ dsh plugin --profile <name> add "github:dsh-external/dsh-slice-agent-loop#main"
 The bundled patch disables the stock loop and compaction — the bounded rebuild
 replaces both. If your composition carries an `agent-loop-invariant` row,
 remove it: a rebuilt slice cannot equal the derived history byte-for-byte, and
-this plugin refuses to load beside that assertion.
+this plugin refuses to load beside that assertion. A transient
+`SSL_ERROR_SYSCALL` during the git fetch (common behind proxies) is not a
+failed install — re-run the same command; it is idempotent.
 
 ## Configuration
 
