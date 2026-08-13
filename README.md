@@ -59,12 +59,12 @@ at every cut pointing back to the original.
 
 **default** = DSH's stock transcript loop (with calibrated compaction);
 **slice** = this plugin. Same harness, same tools, **one round on each of two
-model generations**: deepseek-v4-flash (0731; miss $0.14/M · hit $0.0028/M ·
-output $0.28/M) and deepseek-v4-pro (0813; $0.435 / $0.003625 / $0.87) — each
-at its official pricing, per-call ledgers kept, every number recomputable.
-Pro's cache discount (1/120) is even deeper than flash's (1/50) — a pricing
-structure that favors append-only transcripts; results below report both
-rounds.
+model generations**: deepseek-v4-flash (0731) and deepseek-v4-pro (0813). Prices use the **sheet
+effective 2026-08-16, at off-peak rates**: flash miss $0.22/M · hit $0.007/M ·
+output $0.66/M; pro $0.66 / $0.022 / $1.98 (peak doubles every rate, so
+relative deltas are unchanged). The new sheet narrows both cache discounts to
+~1/30 (formerly flash 1/50, pro 1/120). Per-call ledgers kept, every number
+recomputable; results below report both rounds.
 
 ### ① Long-horizon loads · both arms × both models
 
@@ -74,10 +74,10 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
 
 | Scenario | Arm | Verifier (flash / pro) | Price (flash / pro) | Peak (flash / pro) |
 |---|---|---|---|---|
-| s13 (16 turns) | slice | ✓ / ✓ | **$0.0127** / $0.0440 | **16K** / **17K** |
-| | default | ✓ / ✓ | $0.0147 / **$0.0383** | 59K / 40K |
-| s10 (76-turn flood) | slice | **✓ zero loss / ✓ zero loss** | **$0.0843** / **$0.2960** | **32K** / 43K |
-| | default | ✓ / **✗ early timeline LOST** | $0.1700 / $0.3992 | 378K / 42K |
+| s13 (16 turns) | slice | ✓ / ✓ | **$0.0241** / $0.0900 | **16K** / **17K** |
+| | default | ✓ / ✓ | $0.0296 / **$0.0852** | 59K / 40K |
+| s10 (76-turn flood) | slice | **✓ zero loss / ✓ zero loss** | **$0.1529** / **$0.6163** | **32K** / 43K |
+| | default | ✓ / **✗ early timeline LOST** | $0.3755 / $0.7682 | 378K / 42K |
 
 > **The two s10 rounds together are the transcript dilemma caught whole.**
 > Flash round: default's compaction can't keep up with the flood, the peak
@@ -86,9 +86,9 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
 > sawtooths 40→34→39→40, bounded at the threshold) — and it costs the early
 > timeline that lived only in history: **the verifier fails the run.**
 > Unbounded peak or lossy forgetting: a transcript must pick one. Slice, both
-> rounds: bounded peak + zero loss, at 50% / 26% lower price. The short s13
-> scenario's price swings with the pricing structure (slice -14% under flash,
-> +15% under pro's 1/120 discount); the peak advantage (2.4–3.7×) does not.
+> rounds: bounded peak + zero loss, at 59% / 20% lower price. The short s13
+> scenario's price swings with the pricing structure (slice -18% under flash,
+> +6% under pro); the peak advantage (2.4–3.7×) does not.
 
 ### ② Amnesia re-enactment · both arms · eviction-verified
 
@@ -102,10 +102,10 @@ go check the records."
 
 | Model | Arm | Eviction | No-hint tier | Explicit tier | Trap | Peak | Price | Wall |
 |---|---|---|---:|---:|---|---:|---:|---:|
-| flash | slice | ✓ 0/16 | **24/24** | 24/24 | no fabrication ✓ | **21.5K** | **$0.0287** | **222s** |
-| | default | ✓ 0/16 | **0/24** | 24/24 | no fabrication ✓ | 51.9K | $0.0541 | 569s |
-| pro | slice | ✓ 0/16 | **24/24** | 24/24 | no fabrication ✓ | **22.1K** | **$0.0897** | **383s** |
-| | default | ✓ 0/16 | 24/24 | 24/24 | no fabrication ✓ | 33.4K | $0.2863 | 2014s |
+| flash | slice | ✓ 0/16 | **24/24** | 24/24 | no fabrication ✓ | **21.5K** | **$0.0521** | **222s** |
+| | default | ✓ 0/16 | **0/24** | 24/24 | no fabrication ✓ | 51.9K | $0.0910 | 569s |
+| pro | slice | ✓ 0/16 | **24/24** | 24/24 | no fabrication ✓ | **22.1K** | **$0.1692** | **383s** |
+| | default | ✓ 0/16 | 24/24 | 24/24 | no fabrication ✓ | 33.4K | $0.4612 | 2014s |
 
 > Both arms share the same durable substrate — DSH persists the full session
 > log, so recovery is possible *in principle* for either. The difference is
@@ -117,8 +117,8 @@ go check the records."
 > where it zstd-decompressed its own session jsonl and dug the values out.
 > Pro is strong enough that default performs that forensic dig unprompted —
 > so the gap moves from *whether* recovery happens to **what it costs**: the
-> same 24/24 takes slice **3 requests** (383s / $0.090) and default **32
-> requests** (2014s / $0.286) — 3.2× the price, 5.2× the wall clock.
+> same 24/24 takes slice **3 requests** (383s / $0.169) and default **32
+> requests** (2014s / $0.461) — 2.7× the price, 5.2× the wall clock.
 > "Recoverable" and "goes and recovers" are separated by one layer of tools
 > and signposts; the stronger the model, the more that layer shows up as pure
 > efficiency.
@@ -137,13 +137,13 @@ round (different questions; both finished by slice in minutes):
 | filePrecision | 0.227 | 0.229 | **0.244** | 0.212 |
 | F1 · file-level (from means) | **0.355** | 0.353 | **0.368** | 0.333 |
 | F1 · file-level (macro) | **0.342** | 0.323 | **0.343** | 0.327 |
-| total price | $0.2862 | **$0.2715** | **$0.5718** | $0.8228 |
+| total price | $0.6021 | **$0.5414** | **$1.3603** | $1.7318 |
 | completion | **20/20** | 19/20 | **20/20** | 19/20 |
 
 > The two generations swap the recall lead (slice +5.5pp under flash, default
 > +2.8pp under pro), but **slice wins F1 and completion on both**, and pulls
-> ahead on precision under pro (+3.2pp); price flips from +5% under flash to
-> **-31%** under pro — pro's output is expensive ($0.87/M), and default's
+> ahead on precision under pro (+3.2pp); price flips from +11% under flash to
+> **-21%** under pro — pro's output is expensive ($1.98/M), and default's
 > longer sessions and extra steps cost more on an expensive model. The
 > re-read discipline a bounded slice forces stays an advantage on retrieval
 > across both generations.
@@ -153,28 +153,28 @@ round (different questions; both finished by slice in minutes):
 
 | Question (Multi-SWE-Bench) | slice R/span/F1 | default R/span/F1 | slice $ | default $ |
 |---|---|---|---:|---:|
-| c__0f94ce4d | 1.00/1.00/0.36 | 1.00/1.00/0.26 | 0.0275 | 0.0294 |
-| c__1ac60ce9 | 1.00/1.00/0.25 | 1.00/1.00/0.20 | 0.0080 | 0.0127 |
-| c__b9b45262 | 0.33/0.30/0.17 | 0.33/0.30/0.13 | 0.0506 | 0.0314 |
-| c__cdbc5890 | 1.00/1.00/0.22 | 1.00/1.00/0.18 | 0.0151 | 0.0134 |
-| cpp__6a4e21e9 | 0.67/0.63/0.22 | 0.67/0.25/0.40 | 0.0168 | 0.0140 |
-| cpp__7c9ef76c | 0.67/0.97/0.33 | 0.33/0.93/0.18 | 0.0097 | 0.0140 |
-| cpp__bca55dea | 1.00/1.00/0.64 | 0.29/0.14/0.21 | 0.0205 | 0.0100 |
-| cpp__fe080aac | 0.50/0.87/0.33 | 0.50/0.87/0.25 | 0.0127 | 0.0167 |
-| go__0498ad7f | 1.00/1.00/0.29 | 1.00/1.00/0.18 | 0.0087 | 0.0165 |
-| go__0b78ed50 | 1.00/1.00/0.67 | 1.00/1.00/1.00 | 0.0073 | 0.0050 |
-| go__0f79e39c | 1.00/1.00/0.50 | 1.00/1.00/0.50 | 0.0068 | 0.0044 |
-| go__1384380d | 0.67/0.39/0.42 | 0.67/0.51/0.32 | 0.0142 | 0.0393 |
-| go__1ba303a5 | 0.67/0.92/0.36 | 0.67/0.92/0.44 | 0.0179 | 0.0197 |
-| go__250649eb | 1.00/1.00/0.50 | 1.00/1.00/0.57 | 0.0051 | 0.0065 |
-| go__2a889a1d | 1.00/1.00/0.29 | 1.00/1.00/0.29 | 0.0143 | 0.0045 |
-| go__2c512ec3 | 0.00/0.00/0.00 | 0.00/0.00/0.00 | 0.0156 | 0.0086 |
-| go__3d1b3145 | 1.00/1.00/0.50 | 1.00/1.00/0.29 | 0.0070 | 0.0138 |
-| go__3d85271b | 1.00/1.00/0.22 | 1.00/1.00/0.22 | 0.0081 | 0.0054 |
-| go__3deeea9c | 1.00/1.00/0.22 | 1.00/0.75/0.50 | 0.0203 | 0.0064 |
+| c__0f94ce4d | 1.00/1.00/0.36 | 1.00/1.00/0.26 | 0.0601 | 0.0597 |
+| c__1ac60ce9 | 1.00/1.00/0.25 | 1.00/1.00/0.20 | 0.0160 | 0.0237 |
+| c__b9b45262 | 0.33/0.30/0.17 | 0.33/0.30/0.13 | 0.1118 | 0.0627 |
+| c__cdbc5890 | 1.00/1.00/0.22 | 1.00/1.00/0.18 | 0.0300 | 0.0267 |
+| cpp__6a4e21e9 | 0.67/0.63/0.22 | 0.67/0.25/0.40 | 0.0363 | 0.0283 |
+| cpp__7c9ef76c | 0.67/0.97/0.33 | 0.33/0.93/0.18 | 0.0194 | 0.0276 |
+| cpp__bca55dea | 1.00/1.00/0.64 | 0.29/0.14/0.21 | 0.0438 | 0.0206 |
+| cpp__fe080aac | 0.50/0.87/0.33 | 0.50/0.87/0.25 | 0.0258 | 0.0342 |
+| go__0498ad7f | 1.00/1.00/0.29 | 1.00/1.00/0.18 | 0.0175 | 0.0341 |
+| go__0b78ed50 | 1.00/1.00/0.67 | 1.00/1.00/1.00 | 0.0150 | 0.0095 |
+| go__0f79e39c | 1.00/1.00/0.50 | 1.00/1.00/0.50 | 0.0135 | 0.0094 |
+| go__1384380d | 0.67/0.39/0.42 | 0.67/0.51/0.32 | 0.0302 | 0.0764 |
+| go__1ba303a5 | 0.67/0.92/0.36 | 0.67/0.92/0.44 | 0.0365 | 0.0389 |
+| go__250649eb | 1.00/1.00/0.50 | 1.00/1.00/0.57 | 0.0099 | 0.0129 |
+| go__2a889a1d | 1.00/1.00/0.29 | 1.00/1.00/0.29 | 0.0299 | 0.0088 |
+| go__2c512ec3 | 0.00/0.00/0.00 | 0.00/0.00/0.00 | 0.0315 | 0.0171 |
+| go__3d1b3145 | 1.00/1.00/0.50 | 1.00/1.00/0.29 | 0.0137 | 0.0270 |
+| go__3d85271b | 1.00/1.00/0.22 | 1.00/1.00/0.22 | 0.0162 | 0.0106 |
+| go__3deeea9c | 1.00/1.00/0.22 | 1.00/0.75/0.50 | 0.0449 | 0.0131 |
 
 Unpaired timeout: c__8bffb1b1 (default timed out at 20 minutes; slice finished
-in 137s, R/span 1.00/1.00, $0.0140).
+in 137s, R/span 1.00/1.00, $0.0213).
 
 </details>
 
@@ -183,28 +183,28 @@ in 137s, R/span 1.00/1.00, $0.0140).
 
 | Question (Multi-SWE-Bench) | slice R/span/F1 | default R/span/F1 | slice $ | default $ |
 |---|---|---|---:|---:|
-| c__0f94ce4d | 0.40/0.65/0.17 | 0.80/0.85/0.33 | 0.0572 | 0.0646 |
-| c__8bffb1b1 | 1.00/1.00/0.44 | 1.00/1.00/0.36 | 0.0222 | 0.0437 |
-| c__b9b45262 | 0.33/0.30/0.40 | 0.33/0.30/0.20 | 0.0222 | 0.0727 |
-| c__cdbc5890 | 1.00/1.00/0.20 | 1.00/1.00/0.18 | 0.0225 | 0.0606 |
-| cpp__6a4e21e9 | 0.67/0.49/0.16 | 0.33/0.15/0.13 | 0.0533 | 0.0427 |
-| cpp__7c9ef76c | 0.33/0.93/0.12 | 0.67/0.97/0.27 | 0.0489 | 0.0526 |
-| cpp__bca55dea | 0.71/0.56/0.45 | 0.86/0.86/0.36 | 0.0457 | 0.0804 |
-| cpp__fe080aac | 0.50/0.87/0.36 | 0.50/0.71/0.29 | 0.0280 | 0.0372 |
-| go__0498ad7f | 1.00/1.00/0.40 | 1.00/1.00/0.29 | 0.0224 | 0.0228 |
-| go__0b78ed50 | 1.00/1.00/0.67 | 1.00/1.00/0.40 | 0.0190 | 0.0469 |
-| go__0f79e39c | 1.00/1.00/0.40 | 1.00/1.00/0.50 | 0.0163 | 0.0126 |
-| go__1384380d | 0.67/0.36/0.47 | 0.67/0.66/0.44 | 0.0400 | 0.0413 |
-| go__1ba303a5 | 0.67/0.92/0.44 | 0.67/0.92/0.36 | 0.0257 | 0.0588 |
-| go__250649eb | 1.00/1.00/0.57 | 1.00/1.00/0.50 | 0.0298 | 0.0163 |
-| go__2a889a1d | 1.00/1.00/0.22 | 1.00/1.00/0.40 | 0.0183 | 0.0251 |
-| go__2c512ec3 | 0.00/0.00/0.00 | 0.00/0.00/0.00 | 0.0282 | 0.0443 |
-| go__3d1b3145 | 1.00/1.00/0.29 | 1.00/1.00/0.29 | 0.0233 | 0.0218 |
-| go__3d85271b | 1.00/1.00/0.40 | 1.00/1.00/0.40 | 0.0126 | 0.0127 |
-| go__3deeea9c | 1.00/1.00/0.33 | 1.00/1.00/0.50 | 0.0362 | 0.0656 |
+| c__0f94ce4d | 0.40/0.65/0.17 | 0.80/0.85/0.33 | 0.1446 | 0.1326 |
+| c__8bffb1b1 | 1.00/1.00/0.44 | 1.00/1.00/0.36 | 0.0485 | 0.0906 |
+| c__b9b45262 | 0.33/0.30/0.40 | 0.33/0.30/0.20 | 0.0501 | 0.1579 |
+| c__cdbc5890 | 1.00/1.00/0.20 | 1.00/1.00/0.18 | 0.0515 | 0.1199 |
+| cpp__6a4e21e9 | 0.67/0.49/0.16 | 0.33/0.15/0.13 | 0.1411 | 0.0947 |
+| cpp__7c9ef76c | 0.33/0.93/0.12 | 0.67/0.97/0.27 | 0.1240 | 0.1051 |
+| cpp__bca55dea | 0.71/0.56/0.45 | 0.86/0.86/0.36 | 0.1144 | 0.1728 |
+| cpp__fe080aac | 0.50/0.87/0.36 | 0.50/0.71/0.29 | 0.0648 | 0.0763 |
+| go__0498ad7f | 1.00/1.00/0.40 | 1.00/1.00/0.29 | 0.0486 | 0.0551 |
+| go__0b78ed50 | 1.00/1.00/0.67 | 1.00/1.00/0.40 | 0.0415 | 0.1038 |
+| go__0f79e39c | 1.00/1.00/0.40 | 1.00/1.00/0.50 | 0.0346 | 0.0257 |
+| go__1384380d | 0.67/0.36/0.47 | 0.67/0.66/0.44 | 0.0976 | 0.0872 |
+| go__1ba303a5 | 0.67/0.92/0.44 | 0.67/0.92/0.36 | 0.0604 | 0.1281 |
+| go__250649eb | 1.00/1.00/0.57 | 1.00/1.00/0.50 | 0.0630 | 0.0348 |
+| go__2a889a1d | 1.00/1.00/0.22 | 1.00/1.00/0.40 | 0.0393 | 0.0603 |
+| go__2c512ec3 | 0.00/0.00/0.00 | 0.00/0.00/0.00 | 0.0643 | 0.0902 |
+| go__3d1b3145 | 1.00/1.00/0.29 | 1.00/1.00/0.29 | 0.0545 | 0.0501 |
+| go__3d85271b | 1.00/1.00/0.40 | 1.00/1.00/0.40 | 0.0259 | 0.0266 |
+| go__3deeea9c | 1.00/1.00/0.33 | 1.00/1.00/0.50 | 0.0915 | 0.1201 |
 
 Unpaired timeout: c__1ac60ce9 (default timed out at 20 minutes; slice finished
-in 949s, R/span 1.00/1.00, $0.0463).
+in 949s, R/span 1.00/1.00, $0.1222).
 
 </details>
 
@@ -212,7 +212,7 @@ in 949s, R/span 1.00/1.00, $0.0463).
 
 | Defect | What it is, measured | Direction |
 |---|---|---|
-| **1 · Cache hits are structurally fewer than a transcript loop's** | The slice is rebuilt every turn; when bytes move, cache entries die, so the fresh-input share is high (2–3× on short coding tasks). DeepSeek's deep cache discounts (flash 1/50, pro 1/120 — the deepest in the industry) favor append-only transcripts — short and mid-length tasks may show no price advantage (measured +17–72% on some flash scenarios, +15% on s13 under pro). | Two byte-hygiene optimizations (stable rendering, freeze-on-second-read) are scheduled; long-session and retrieval loads win under both pricings (s10: -50%/-26%; CB-20 pro: -31%); shallower cache discounts (Claude / OpenAI) move the crossover earlier. |
+| **1 · Cache hits are structurally fewer than a transcript loop's** | The slice is rebuilt every turn; when bytes move, cache entries die, so the fresh-input share is high (2–3× on short coding tasks). DeepSeek's cache discounts favor append-only transcripts (both ~1/30 under the sheet effective 2026-08-16; formerly flash 1/50, pro 1/120) — short and mid-length tasks may show no price advantage (measured +10–65% on some flash scenarios, though long-horizon debug now flips to -38%; +6% on s13 under pro). | Two byte-hygiene optimizations (stable rendering, freeze-on-second-read) are scheduled; long-session and retrieval loads win under both pricings (s10: -59%/-20%; CB-20 pro: -21%); shallower cache discounts (Claude / OpenAI) move the crossover earlier. |
 | **2 · The recall channel depends on the model reaching for it** | History is byte-recoverable, and spontaneous recall under controlled pressure is proven (test ②); but on everyday coding loads active recall is near zero (most information fits tape capacity and push covers it), and cross-session "continue from yesterday" cold starts remain a risk. | Make recall habitual on everyday loads and cold starts; agent memory is still frontier territory, work scheduled. |
 | **3 · Retrieval breadth vs. the frugal kernel is still being balanced** | The current kernel buys precision and price at some recall-breadth regression against the previous build. | Kernel A/B iteration continues. |
 | **4 · Still an early plugin overall** | Covers the web profile's agent-loop surface today; settings-panel alignment, the subagent ecosystem, and TUI are catching up. The core mechanisms (sealing, audit events, two-tier recall) are validated by the three test groups above. | An engineering-coverage problem, not a technical-difficulty one. |
