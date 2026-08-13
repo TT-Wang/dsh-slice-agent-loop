@@ -15,7 +15,7 @@
  *     context" at preset mount, killing every session.create.
  *   - `KNOWN_SESSION_EVENT_TYPES` is a mutable Set: registering slice/*
  *     types on our copy leaves the host's read path refusing our logs.
- *   - `TOOL_REGISTRY_SCHEDULER` is a non-global symbol: indexing the host's
+ *   - `TOOL_RUNTIME_SCHEDULER` (rc.1: TOOL_REGISTRY_SCHEDULER) is a non-global symbol: indexing the host's
  *     tool registry with our copy reads `undefined`.
  *   - `agentEvents`/`emitAgentEvent`/`assembleContextFor` brand carriers
  *     with scope symbols; `AGENT_LOOP_REQUESTS` is a module-level WeakSet

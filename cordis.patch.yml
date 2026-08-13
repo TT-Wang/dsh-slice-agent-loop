@@ -17,7 +17,11 @@
 - id: agent-loop
   disabled: true
 
+# rc.1 名字;rc.2 改名 compaction-basic——两行都带,未命中的一行只 warn。
 - id: compact-basic
+  disabled: true
+
+- id: compaction-basic
   disabled: true
 
 - id: command-compact

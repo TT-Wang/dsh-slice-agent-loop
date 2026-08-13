@@ -70,11 +70,35 @@ const harness = resolveHarness()
 const modules = join(REPO, 'node_modules')
 let linked = 0
 
+// Discover every workspace package by its manifest name, so a snapshot that
+// moves a directory (support/invariants → runtime-diagnostics/invariants in
+// 20260812) cannot silently break a hardcoded path.
+import { readFileSync, readdirSync } from 'node:fs'
+const byName = new Map()
+for (const root of ['packages', 'vendor']) {
+  const rootDir = join(harness, root)
+  if (!existsSync(rootDir)) continue
+  for (const lvl1 of readdirSync(rootDir)) {
+    for (const dir of [join(rootDir, lvl1), ...(() => {
+      const d = join(rootDir, lvl1)
+      try { return readdirSync(d).map(x => join(d, x)) } catch { return [] }
+    })()]) {
+      const manifest = join(dir, 'package.json')
+      if (!existsSync(manifest)) continue
+      try {
+        const name = JSON.parse(readFileSync(manifest, 'utf8')).name
+        if (name && !byName.has(name)) byName.set(name, dir)
+      } catch { /* unparseable manifest — skip */ }
+    }
+  }
+}
+
 for (const [name, subpath] of Object.entries(PEERS)) {
   const options = [subpath, ...(FALLBACKS[name] ?? [])]
-  const target = options.map(p => join(harness, p)).find(p => existsSync(join(p, 'package.json')))
+  const target = byName.get(name)
+    ?? options.map(p => join(harness, p)).find(p => existsSync(join(p, 'package.json')))
   if (target === undefined) {
-    console.error(`✗ ${name}: not found under ${harness} (tried ${options.join(', ')})`)
+    console.error(`✗ ${name}: not found under ${harness} (scanned by name; tried ${options.join(', ')})`)
     process.exitCode = 1
     continue
   }

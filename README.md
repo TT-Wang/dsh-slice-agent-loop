@@ -12,7 +12,7 @@ slice loop built around that one sentence into the
 same tools and persistence — only the agent loop is swapped**, so in every
 comparison below the loop itself is the only variable.
 
-Early beta; tracks DSH snapshot `20260811T152241Z`.
+Early beta; tracks DSH snapshot `20260812T172954Z` (rc.2; rc.1-compatible).
 
 ## One sentence, two constraints
 

@@ -149,7 +149,7 @@
 # owning agent anyway, so one host instance serves every session. What a preset
 # chooses is whether its agent can collect and stop background work at all.
 - id: tool-tasks
-  name: '@deepseek-ai/dsh-tool-tasks'
+  name: '@deepseek-ai/dsh-tool-jobs'
 
 # ── skills ──────────────────────────────────────────────────────────────────
 
@@ -159,7 +159,7 @@
 # `tool-skill` gives them the catalog and loader; the merged catalog also
 # carries whatever the deployment registered globally (repository plugins).
 - id: skill-local
-  name: '@deepseek-ai/dsh-skill-local'
+  name: '@deepseek-ai/dsh-skill-filesystem'
 
 - id: tool-skill
   name: '@deepseek-ai/dsh-tool-skill'
@@ -231,7 +231,7 @@
   name: cordis:group
   group: true
   isolate:
-    workflows: true
+    workflowEngine: true
   config:
     - id: tool-subagent-control
       name: '@deepseek-ai/dsh-tool-subagent-control'
@@ -275,7 +275,7 @@
         maxDepth: provider-managed
 
     - id: workflow-workerthread
-      name: '@deepseek-ai/dsh-workflow-workerthread'
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
       config:
         provider: spawn
 

@@ -1075,7 +1075,10 @@ export class SliceLoopAgent implements Agent {
     mode: ToolExecutionMode['kind'],
     signal: AbortSignal,
   ): Promise<{ consumed: number; aborted: boolean; concluded: boolean }> {
-    const scheduler = this.loopCtx.tools[harnessUniverse().tools.TOOL_REGISTRY_SCHEDULER]
+    // rc.2 renamed TOOL_REGISTRY_SCHEDULER -> TOOL_RUNTIME_SCHEDULER; accept either
+    const toolsMod = harnessUniverse().tools as Record<string, symbol | undefined> & typeof import('@deepseek-ai/dsh-tools')
+    const schedulerKey = (toolsMod.TOOL_RUNTIME_SCHEDULER ?? toolsMod.TOOL_REGISTRY_SCHEDULER) as typeof toolsMod.TOOL_RUNTIME_SCHEDULER
+    const scheduler = (this.loopCtx.tools as unknown as Record<symbol, unknown>)[schedulerKey] as import('@deepseek-ai/dsh-tools').ToolRuntimeScheduler
     const slots: Array<ToolSlot | undefined> = group.map(() => undefined)
     // Started slots retain their tool/call seq for result provenance.
     const callSeqs: number[] = group.map(() => -1)
