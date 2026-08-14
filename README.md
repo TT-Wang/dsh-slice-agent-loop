@@ -220,7 +220,7 @@ in 949s, R/span 1.00/1.00, $0.1222).
 ## Install
 
 ```sh
-dsh plugin --profile web add "github:dsh-external/dsh-slice-agent-loop#main"
+dsh plugin --profile web add "github:TT-Wang/dsh-slice-agent-loop#main"
 ```
 
 Or from a local checkout: `git clone` then `dsh plugin --profile web add .`

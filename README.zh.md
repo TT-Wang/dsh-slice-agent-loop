@@ -154,7 +154,7 @@ ContextBench(给一个真实 issue,agent 检索出修复所依赖的代码位置
 ## 安装
 
 ```sh
-dsh plugin --profile web add "github:dsh-external/dsh-slice-agent-loop#main"
+dsh plugin --profile web add "github:TT-Wang/dsh-slice-agent-loop#main"
 ```
 
 或本地目录:`git clone` 后 `dsh plugin --profile web add .`
