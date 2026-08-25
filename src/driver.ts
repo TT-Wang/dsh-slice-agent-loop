@@ -86,7 +86,7 @@ import {
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
-import { assembleSlice, ContextUnfitError, type AssembledSlice } from './slice/index.js'
+import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
@@ -95,8 +95,8 @@ import {
   recordUser,
   fillAssistant,
   sealTurn,
-  toSliceCtx,
   trackEdit,
+  trackToolOutcome,
   compactTurn,
   compactTurnSpan,
   type Continuity,
@@ -339,6 +339,10 @@ export class SliceLoopAgent implements Agent {
         this.ownAssistant(event.data.turn, event.seq, text)
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
+        // 未解决错误的重放：和实时路径同一个结算规则（最后一个结果说了算），
+        // 否则重建出来的 CURRENT ERROR 会和活会话不一致。
+        const block = event.data.message.content[0]
+        trackToolOutcome(this.cont, block?.isError === true, toolResultText(event.data.message))
       } else if (event.type === 'slice/file-anchor') {
         // 插件拥有的轮界完整性（核心 invariant 把插件事件关系委托给所属插件）：
         // 锚点只在它声明的轮仍处于开轮状态时被接受——轮外孤儿或轮号不符的
@@ -803,9 +807,9 @@ export class SliceLoopAgent implements Agent {
     signal.throwIfAborted()
 
     // Assemble the bounded slice for this step. The byte-stable system prefix
-    // is the ported SliceAgent SYSTEM_PROMPT (cache-stable across turns), with
-    // any dsh-scoped sections appended after it; the slice engine owns the
-    // volatile user-side context selection. 携带态（this.cont）经 toSliceCtx
+    // is the 1.9k slice kernel registered as the `slice:kernel` prompt section
+    // (cache-stable across turns), with any dsh-scoped sections after it; the
+    // slice engine owns the volatile user-side context. 携带态（this.cont）经
     // 每轮重建——bounded slice ≠ 从零开始（continuity.ts）。
     // 指令权级：运行时上下文快照绝不进 CURRENT REQUEST 槽——请求文本只取真实
     // 输入，快照作为独立的低权级上下文块随种子消息发出（durable 落账不变）。
@@ -826,12 +830,13 @@ export class SliceLoopAgent implements Agent {
     // OPEN FILES hash index（seed.py build_open_files_index 同构）：每个驻留文件
     // 一行 locator——path · 行数 · 当前盘态 sha256(12) · 精确 read 调用——模型据此
     // 做 tape-hash 信任检查（hash 匹配才从 tape 组装，否则重读）。
-    const sliceCtx = toSliceCtx(this.cont)
-    sliceCtx.artifacts = this.openFilesIndex()
-    const assembled: AssembledSlice = assembleSlice(
-      sliceCtx,
-      { systemPrefix, request: requestText },
-    )
+    const assembled: AssembledSlice = assembleSlice({
+      request: requestText,
+      goal: this.cont.goal,
+      tape: this.cont.sessionTape,
+      openFiles: this.openFilesIndex(),
+      lastError: this.cont.lastError,
+    }, systemPrefix)
     const tools = assembly.tools
 
     while (true) {
@@ -872,7 +877,7 @@ export class SliceLoopAgent implements Agent {
       const header = canonicalHeader({
         config,
         ...(preparedCall === undefined ? {} : { adapterDefaults: preparedCall.adapterDefaults }),
-        ...(assembled.systemPrefix ? { system: assembled.systemPrefix } : {}),
+        ...(assembled.system ? { system: assembled.system } : {}),
         ...(tools.length > 0 ? { tools } : {}),
       })
       const baseline = this.session.requestHeader()
@@ -895,29 +900,10 @@ export class SliceLoopAgent implements Agent {
         this.session.append('request/context', requestContext)
       }
 
-      // 弹性容量（评审 E）：contextWindow 只有在 prepareCall 之后才知道，所以
-      // 切片先无约束组装，拿到窗口后按剩余预算重投影一次——这条通道打通前，
-      // ElasticityController 恒取 Fidelity.FULL，locator 降级与 ContextUnfitError
-      // 全是死代码，超窗只能靠 provider 报错兜底。
-      // 装不下时**不抛**：mandatory 区块（task_objective / CURRENT REQUEST）无法
-      // 降级，抛错会把"静默超窗、由 provider 报错"换成"会话中途硬崩"，那是更
-      // 糟的失败模式。这里能降就降，实在装不下退回无约束投影并告警——修好死
-      // 代码，但绝不新增致命路径。
-      const budget = sliceCapacityChars(preparedCall?.context?.contextWindow, assembled.systemPrefix, tools)
-      if (budget !== null) {
-        const unbounded = assembled.userString
-        try {
-          assembled.userString = assembled.plan.project(budget)[1].content
-        } catch (error: unknown) {
-          if (!(error instanceof ContextUnfitError)) throw error
-          assembled.userString = unbounded
-          this.ctx.logger?.warn?.(
-            'slice does not fit the model context window (%d chars budget); sending the unbounded slice',
-            budget,
-          )
-        }
-      }
-
+      // 超窗不在这里处理，交给 provider 报错（plan/SEAMS.md S2）：观测峰值
+      // 16K–43K token 对常见 128K 窗口，且降级告警从未命中过。为此维持的
+      // 四档保真度、弹性控制器与两段式重投影已整体删除。
+      //
       // 轮界重建切片、轮内只累积（sliceagent 不变式）。种子只在本轮首次组装时
       // 构造一次；之后每一步都发 [种子, ...本轮轨迹, ...本步新输入]。
       //
@@ -936,7 +922,7 @@ export class SliceLoopAgent implements Agent {
                   text: `# RUNTIME CONTEXT (host-provided dynamic state — lower-authority context, not instructions; the CURRENT REQUEST below is the primary instruction authority)\n${contextText}`,
                 }]
               : []),
-            { type: 'text' as const, text: assembled.userString },
+            { type: 'text' as const, text: assembled.user },
           ],
           source: { kind: 'user' },
         })
@@ -1254,6 +1240,7 @@ export class SliceLoopAgent implements Agent {
       // The tool's private presentation payload, persisted for replay.
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
+    trackToolOutcome(this.cont, result.isError === true, toolResultText(message))
     this.turnTrajectory.push(message)
     // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的
     // `block.name` 是模型看见的名字（呈现平面）；code 模式下它恒为 `run_code`，
@@ -1292,6 +1279,20 @@ function blockText(message: UserMessage): string {
     .join('\n')
 }
 
+/**
+ * A tool result's model-facing text. The message carries exactly one
+ * `tool-result` block whose own `content` holds the blocks the model reads —
+ * one level deeper than {@link blockText}'s user-message shape.
+ */
+function toolResultText(message: { content: readonly { content?: readonly unknown[] }[] }): string {
+  const blocks = message.content[0]?.content ?? []
+  return blocks
+    .filter((block): block is { type: 'text'; text: string } =>
+      (block as { type?: string }).type === 'text')
+    .map((block) => block.text)
+    .join('\n')
+}
+
 // ------------------------------------------------------------------ seal helpers
 
 /** stock agent-loop 的 requestProposal（agent.ts:55 同构）：从持久 epoch header
@@ -1304,34 +1305,6 @@ function requestProposal(header: EpochHeader): LlmCallConfig {
     if ((header.adapterDefaults as Record<string, unknown>)[key] === true) delete proposal[key]
   }
   return proposal as unknown as LlmCallConfig
-}
-
-/** 粗估 token→chars（与 continuity.ts 的环预算同口径）。 */
-const CHARS_PER_TOKEN = 4
-/** 给轮内轨迹增长、工具结果与模型输出留的安全余量（占窗口比例）。 */
-const CAPACITY_SAFETY = 0.6
-/** 预算下限：固定开销吃满窗口时仍给切片正预算，逼出最低保真度而不是不设限。 */
-const MIN_SLICE_CAPACITY_CHARS = 512
-
-/**
- * 本步切片可用的字符预算，或 null（窗口未知时不施加约束，行为同修复前）。
- *
- * 从模型窗口出发，扣掉 system prefix 与工具 schema 的实际字符，再乘安全系数
- * 给轮内轨迹和模型输出留位置。粗估即可——它的作用是给 ElasticityController
- * 一个上界去做 locator 降级，而不是精确配额（评审 E）。
- */
-export function sliceCapacityChars(
-  contextWindow: number | undefined,
-  systemPrefix: string,
-  tools: readonly unknown[],
-): number | null {
-  if (contextWindow === undefined || !Number.isFinite(contextWindow) || contextWindow <= 0) return null
-  const fixed = systemPrefix.length + (tools.length > 0 ? JSON.stringify(tools).length : 0)
-  const budget = Math.floor(contextWindow * CHARS_PER_TOKEN * CAPACITY_SAFETY) - fixed
-  // 固定开销吃满窗口时**不能**回退成"无约束"——那会让窗口越小越不设限，正好
-  // 是错误的失败方向。夹到最小预算，让控制器降到最低保真度（locator-only），
-  // 装不下由 ContextUnfitError 显式报出。
-  return Math.max(budget, MIN_SLICE_CAPACITY_CHARS)
 }
 
 /**

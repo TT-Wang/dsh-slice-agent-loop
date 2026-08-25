@@ -1,5 +1,4 @@
 import { TapeEntry } from './slice/tape.js';
-import type { SliceCtx } from './slice/state.js';
 export interface ConversationRow {
     user: string;
     assistant: string;
@@ -27,6 +26,14 @@ export interface Continuity {
         path: string;
         body: string;
     }>;
+    /**
+     * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
+     * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
+     * seal 时转成 {@link Continuity.lastError} 供下一轮的 CURRENT ERROR 段用。
+     */
+    pendingError: string;
+    /** 上一轮结束时未解决的工具错误原文，渲染为 CURRENT ERROR 段。 */
+    lastError: string;
     /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
     sealMeta: Record<string, {
         status: string;
@@ -78,11 +85,11 @@ export declare function sealTurn(c: Continuity, opts: {
  */
 export declare function trackEdit(c: Continuity, path: string, body: string): void;
 /**
- * 携带态 → SliceCtx：每轮重建有界切片的输入。直接构造（绕过 JSON normalize——
- * 我们手里就是活对象）。findings/activeWork 等 PFC 区域随移植深入逐块点亮；
- * 引擎对非空 activeWork 会大声抛错（PORT-REPORT §3），所以这里保持 null。
+ * 工具结果结算（driver 在每个 tool/result 边界调用，实时与重放两条路都要走）。
+ * 最后一个结果说了算：失败留下正文，成功清空。正文过 redactText —— CURRENT
+ * ERROR 段直接进上下文，和 tape 走同一条安全边界（SEAMS S1 Trust）。
  */
-export declare function toSliceCtx(c: Continuity): SliceCtx;
+export declare function trackToolOutcome(c: Continuity, isError: boolean, text: string): void;
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */
 export declare function continuityStats(c: Continuity): {
     tapeChars: number;
