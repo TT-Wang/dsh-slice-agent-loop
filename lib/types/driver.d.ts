@@ -34,6 +34,7 @@ import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions 
 import type { Message, UserMessage } from '@deepseek-ai/dsh-llm';
 import type { Scope } from '@deepseek-ai/dsh-scope';
 import type { Session, SessionId } from '@deepseek-ai/dsh-session';
+import type { SliceContributor } from './index.js';
 /**
  * The slice driver's plugin-owned durable events.
  *
@@ -83,6 +84,8 @@ export interface SliceLoopDriverConfig {
     maxParallelToolCalls: number;
     /** Hard ceiling on continuation steps in one turn. A bound, not a diagnosis. */
     maxStepsPerTurn: number;
+    /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
+    contributors: readonly SliceContributor[];
 }
 export declare class SliceLoopAgent implements Agent {
     readonly id: SessionId;
@@ -95,6 +98,7 @@ export declare class SliceLoopAgent implements Agent {
     private readonly ledger;
     private readonly maxParallelToolCalls;
     private readonly maxStepsPerTurn;
+    private readonly contributors;
     private phase;
     private activityDone;
     private requestHeaderLogged;

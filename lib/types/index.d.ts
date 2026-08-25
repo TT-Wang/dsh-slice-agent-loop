@@ -35,6 +35,40 @@ export declare const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;
  * session (longest was 49) while still bounding the trajectory.
  */
 export declare const DEFAULT_MAX_STEPS_PER_TURN = 50;
+/**
+ * 切片贡献登记口 —— loop 对插件开放的第四个报名处（前三个是 DSH 自己的：
+ * 提示词段、运行时上下文、工具）。插件在启动时登记一个渲染函数；driver 每轮
+ * 把事实包交给每个登记者，非空返回按 order 排好进切片的 PLUGIN CONTEXT 段。
+ *
+ * loop 永远不认识具体插件：这里只存 {name, order, render}。出场规则（第几轮
+ * 出现、看什么条件）写在插件自己的 render 里 —— loop 提供事实，不定政策。
+ */
+export interface SliceContributionFacts {
+    /** 用户这轮的原话。 */
+    readonly request: string;
+    /** 第几轮（1 起）。 */
+    readonly turn: number;
+    /** 已经在 tape 上的文件路径。 */
+    readonly tapePaths: readonly string[];
+    /** 会话工作目录。 */
+    readonly cwd: string;
+}
+export interface SliceContributor {
+    readonly name: string;
+    /** 段内排序，小的在前。缺省 50。 */
+    readonly order?: number;
+    /** 返回要塞进切片的文本；空串 = 这轮不出场。报错/超时按空串处理。 */
+    render(facts: SliceContributionFacts): string | Promise<string>;
+}
+export interface SliceContextService {
+    /** 登记一个贡献者；返回注销函数（配 ctx.effect 与插件同生共死）。 */
+    contribute(entry: SliceContributor): () => void;
+}
+declare module '@deepseek-ai/cordis' {
+    interface Context {
+        sliceContext: SliceContextService;
+    }
+}
 export declare class SliceLoopPlugin extends Service {
     static inject: string[];
     constructor(ctx: Context, config?: Config);

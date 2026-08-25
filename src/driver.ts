@@ -87,6 +87,7 @@ import {
 import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
+import type { SliceContributionFacts, SliceContributor } from './index.js'
 import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
@@ -166,6 +167,40 @@ export interface SliceLoopDriverConfig {
   maxParallelToolCalls: number
   /** Hard ceiling on continuation steps in one turn. A bound, not a diagnosis. */
   maxStepsPerTurn: number
+  /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
+  contributors: readonly SliceContributor[]
+}
+
+/** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
+const CONTRIBUTION_CAP_CHARS = 4000
+/** 全体贡献者的收集时限。慢的当没说话，绝不拖垮轮次。 */
+const CONTRIBUTION_TIMEOUT_MS = 5000
+
+/**
+ * 每轮向登记簿收贡献。四条防线：报错=空串、超时=空串、超长截断留标记、
+ * 空串不出场。排序按声明的 order（缺省 50），同序按名字 —— 稳定可复现。
+ */
+async function collectContributions(
+  contributors: readonly SliceContributor[],
+  facts: SliceContributionFacts,
+): Promise<{ name: string; text: string }[]> {
+  if (contributors.length === 0) return []
+  const timeout = new Promise<string>((resolve) => setTimeout(() => resolve(''), CONTRIBUTION_TIMEOUT_MS))
+  const settled = await Promise.all(contributors.map(async (c) => {
+    let text = ''
+    try {
+      text = await Promise.race([Promise.resolve(c.render(facts)), timeout])
+    } catch { /* 失败即沉默（SEAMS S1 Failure）。 */ }
+    if (typeof text !== 'string') text = ''
+    if (text.length > CONTRIBUTION_CAP_CHARS) {
+      text = text.slice(0, CONTRIBUTION_CAP_CHARS) + ` …[+${text.length - CONTRIBUTION_CAP_CHARS} chars truncated by the loop]`
+    }
+    return { name: c.name, order: c.order ?? 50, text }
+  }))
+  return settled
+    .filter((c) => c.text.trim() !== '')
+    .sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map(({ name, text }) => ({ name, text }))
 }
 
 /** One tool call after argument parsing, ready to schedule. */
@@ -193,6 +228,7 @@ export class SliceLoopAgent implements Agent {
   private readonly ledger: InboxLedger
   private readonly maxParallelToolCalls: number
   private readonly maxStepsPerTurn: number
+  private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
   private requestHeaderLogged = false
@@ -217,6 +253,7 @@ export class SliceLoopAgent implements Agent {
     this.session = session
     this.maxParallelToolCalls = config.maxParallelToolCalls
     this.maxStepsPerTurn = config.maxStepsPerTurn
+    this.contributors = config.contributors
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -836,6 +873,12 @@ export class SliceLoopAgent implements Agent {
       tape: this.cont.sessionTape,
       openFiles: this.openFilesIndex(),
       lastError: this.cont.lastError,
+      contributions: await collectContributions(this.contributors, {
+        request: requestText,
+        turn: this.cont.turns,
+        tapePaths: Object.keys(this.cont.tapeFiles).sort(),
+        cwd: this.sessionCwd(),
+      }),
     }, systemPrefix)
     const tools = assembly.tools
 

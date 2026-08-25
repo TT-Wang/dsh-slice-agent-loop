@@ -151,6 +151,44 @@ function guardStockLoopInvariant(ctx: Context): void {
   }
 }
 
+/**
+ * 切片贡献登记口 —— loop 对插件开放的第四个报名处（前三个是 DSH 自己的：
+ * 提示词段、运行时上下文、工具）。插件在启动时登记一个渲染函数；driver 每轮
+ * 把事实包交给每个登记者，非空返回按 order 排好进切片的 PLUGIN CONTEXT 段。
+ *
+ * loop 永远不认识具体插件：这里只存 {name, order, render}。出场规则（第几轮
+ * 出现、看什么条件）写在插件自己的 render 里 —— loop 提供事实，不定政策。
+ */
+export interface SliceContributionFacts {
+  /** 用户这轮的原话。 */
+  readonly request: string
+  /** 第几轮（1 起）。 */
+  readonly turn: number
+  /** 已经在 tape 上的文件路径。 */
+  readonly tapePaths: readonly string[]
+  /** 会话工作目录。 */
+  readonly cwd: string
+}
+
+export interface SliceContributor {
+  readonly name: string
+  /** 段内排序，小的在前。缺省 50。 */
+  readonly order?: number
+  /** 返回要塞进切片的文本；空串 = 这轮不出场。报错/超时按空串处理。 */
+  render(facts: SliceContributionFacts): string | Promise<string>
+}
+
+export interface SliceContextService {
+  /** 登记一个贡献者；返回注销函数（配 ctx.effect 与插件同生共死）。 */
+  contribute(entry: SliceContributor): () => void
+}
+
+declare module '@deepseek-ai/cordis' {
+  interface Context {
+    sliceContext: SliceContextService
+  }
+}
+
 export class SliceLoopPlugin extends Service {
   static inject = ['agents', 'sessions', 'llm', 'tools', 'systemPrompt']
 
@@ -159,6 +197,18 @@ export class SliceLoopPlugin extends Service {
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
     guardStockLoopInvariant(ctx)
+    // 贡献登记簿。provide 挂在本插件的 fiber 上，插件卸载即服务消失，
+    // 依赖它的贡献插件随之休眠 —— 无需任何清理代码。
+    const contributors: SliceContributor[] = []
+    ctx.provide('sliceContext', {
+      contribute(entry: SliceContributor) {
+        contributors.push(entry)
+        return () => {
+          const i = contributors.indexOf(entry)
+          if (i >= 0) contributors.splice(i, 1)
+        }
+      },
+    })
     // Resolve which copy of the harness packages the HOST runs (universe.ts:
     // a source-run dsh loads plugins through the internal ModuleLoader, so our
     // static imports may be a second copy with split symbol identities). Event
@@ -207,7 +257,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

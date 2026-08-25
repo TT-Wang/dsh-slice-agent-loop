@@ -27,6 +27,14 @@ export interface SliceInput {
     openFiles: string;
     /** 上一轮结束时未解决的工具错误原文。 */
     lastError: string;
+    /**
+     * 各插件经 loop 的登记口塞进来的内容（driver 已收集、截断、排好序）。
+     * loop 不知道也不关心它们是谁——空数组 = 这一段不出现。
+     */
+    contributions: readonly {
+        name: string;
+        text: string;
+    }[];
 }
 export interface AssembledSlice {
     /** 宿主拥有的字节稳定 system 前缀，原样透传。 */
