@@ -211,14 +211,6 @@ export declare class SliceLoopAgent implements Agent {
     private appendSkippedToolCall;
 }
 /**
- * 本步切片可用的字符预算，或 null（窗口未知时不施加约束，行为同修复前）。
- *
- * 从模型窗口出发，扣掉 system prefix 与工具 schema 的实际字符，再乘安全系数
- * 给轮内轨迹和模型输出留位置。粗估即可——它的作用是给 ElasticityController
- * 一个上界去做 locator 降级，而不是精确配额（评审 E）。
- */
-export declare function sliceCapacityChars(contextWindow: number | undefined, systemPrefix: string, tools: readonly unknown[]): number | null;
-/**
  * 编辑族工具，seal 时锚定文件后态。**必须匹配宿主真实注册的工具名**：DSH 0810
  * 的 tool-fs 注册 `write`/`edit`（参数键 file_path），str_replace_editor 注册
  * `str_replace_editor`（参数键 path，且仅 create/str_replace/insert 才写盘——view

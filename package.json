@@ -30,7 +30,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
     "link:dsh": "node scripts/link-dsh.mjs",
-    "goldens": "node scripts/gen-goldens.mjs",
     "e2e:recall": "tsx scripts/e2e-recall.mts"
   },
   "license": "BSD-3-Clause",

@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`assembleSlice > matches the exact assembled bytes 1`] = `
+"<context>
+# SESSION TAPE (append-only sealed record: turn digests · file base versions · the patches YOU already applied (recorded by the host exactly as executed). CURRENT content of a tracked file = its latest [base] + every later [patch], in order; each patch shows the resulting sha256 — if it equals the file's hash in the OPEN FILES index below, your composition IS the current file and you may edit from it directly. A file marked [external], absent from the tape, or with a non-matching hash must be read_file'd before editing. Digest entries are the sealed record of earlier turns, not current-world truth)
+[turn slice-turn-1 · task t · completed]
+ask: 做点事
+[base a.py @sha256:cc42155088fc · 1 lines]
+print(1)
+[end base a.py]
+
+# STABLE TASK OBJECTIVE (original user objective; keep it active across follow-ups)
+修 bug
+
+# OPEN FILES (index — path · lines · CURRENT on-disk sha256. Contents are NOT here: compose them from the SESSION TAPE (base+patches) when the hashes match, read the file when they don't)
+### a.py — 1 lines
+
+# CURRENT ERROR (unresolved — fix this, verbatim)
+E
+
+
+</context>
+
+# CURRENT REQUEST (what the user is asking for RIGHT NOW — your PRIMARY instruction; address THIS)
+继续
+
+# NOW: address the CURRENT REQUEST above. If it asks a QUESTION or for an explanation, answer it directly (observation tools may ground the answer). If it asks for action, use reasonable reversible judgment to carry it through within the exact user constraints; ask only when a material ambiguity would change the result or before an unclear consequential external action. Base changes on the current file text — your SESSION TAPE composition when its hash matches the OPEN FILES index, otherwise a fresh read_file; once the request is fully handled and verified as well as the environment allows, deliver a brief closeout (outcome + verification — the host already records each edit) and make NO tool call.
+hint"
+`;

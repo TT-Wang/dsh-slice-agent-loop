@@ -1,159 +1,17 @@
 /**
- * Pure-logic unit semantics ported from the Python test anchors
- * (test_region_registry.py / test_context_elasticity.py / test_session_tape.py).
+ * Pure-logic unit semantics: tape 条目语义与跨轮连续性。
+ *
+ * 原文件还含 region registry / elasticity 两组（移植自 test_region_registry.py
+ * 与 test_context_elasticity.py）——它们测的分区表、四档保真度和弹性控制器已被
+ * src/slice/assemble.ts 取代，随之删除。tape 与 continuity 部分原样保留。
  */
 import { describe, expect, it } from "vitest";
 import { searchSessionEvents, renderSearchHits } from "../src/recall.js";
 import {
-  ContextBlock, ContextUnfitError, ElasticityController, Fidelity, FreshnessClass,
-  InstructionClass, PyTypeError, REGIONS, REGION_META, REGION_ORDER, REGION_ROLES,
-  RepresentationLoss, TAPE_ZONE, TapeEntry, ValueError, assertPlacementLaw, composeAfter, contextBlock,
-  baseEntry, patchEntry, regionZone, renderProgressSignals, tapeChars, applyUnified, unifiedPatch, _h,
-} from "../src/slice/index.js";
-import { sliceCapacityChars } from "../src/driver.js";
+  TapeEntry, composeAfter, baseEntry, patchEntry, tapeChars, applyUnified, unifiedPatch, _h,
+} from "../src/slice/tape.js";
 import { createContinuity, recordUser, fillAssistant, sealTurn, compactTurn, compactTurnSpan } from "../src/continuity.js";
 
-const kw = {
-  alternativeGroup: "g",
-  priority: 1,
-  instructionClass: InstructionClass.DATA,
-  freshness: FreshnessClass.LIVE,
-  fidelity: Fidelity.FULL,
-  representationLoss: RepresentationLoss.NONE,
-  content: "c",
-};
-
-describe("region registry invariants (test_region_registry.py)", () => {
-  it("names are unique", () => {
-    const names = REGIONS.map((r) => r.name);
-    expect(new Set(names).size).toBe(names.length);
-  });
-
-  it("derivation is total (no META/ROLES drift)", () => {
-    for (const r of REGIONS) {
-      expect(REGION_META.has(r.name)).toBe(true);
-      expect(REGION_ROLES.has(r.name)).toBe(true);
-      const meta = REGION_META.get(r.name) as readonly [number, InstructionClass, FreshnessClass, boolean];
-      expect(meta).toEqual([r.priority, r.instructionClass, r.freshness, r.mandatory]);
-      expect(REGION_ROLES.get(r.name)).toBe(r.role);
-    }
-    expect(REGION_ORDER.map((t) => t[0])).toEqual(REGIONS.map((r) => r.name));
-  });
-
-  it("golden layout snapshot (name, zone)", () => {
-    expect(REGIONS.map((r) => [r.name, r.zone])).toEqual([
-      ["intent", 2], ["task_objective", 2], ["corrections", 2],
-      ["task_constraints", 2], ["open_files", 2], ["related_code", 3],
-      ["skills", 2], ["memory", 2], ["session_tape", 1],
-      ["findings", 5], ["progress", 5], ["world", 5],
-      ["threads", 5], ["turn_contract", 6], ["focus", 6],
-      ["worktree", 6], ["user_report", 6], ["reconciliation", 6],
-      ["error", 6],
-    ]);
-  });
-
-  it("exactly ONE tape region; HEAD is empty by proof", () => {
-    expect(REGIONS.filter((r) => r.zone === TAPE_ZONE).map((r) => r.name)).toEqual(["session_tape"]);
-    expect(REGIONS.filter((r) => r.zone === 0)).toEqual([]);
-  });
-
-  it("corrections is tier-1 mandatory user authority", () => {
-    expect(REGION_META.get("corrections")).toEqual([98, InstructionClass.USER, FreshnessClass.REVISION_BOUND, true]);
-    const corr = (REGION_META.get("corrections") as readonly [number, unknown, unknown, unknown])[0];
-    const objective = (REGION_META.get("task_objective") as readonly [number, unknown, unknown, unknown])[0];
-    expect(corr).toBeGreaterThan(objective);
-  });
-
-  it("region_zone is total: unknown names land in the TAIL", () => {
-    for (const r of REGIONS) {
-      expect(regionZone(r.name)).toBe(r.zone);
-      expect(regionZone(`region:${r.name}`)).toBe(r.zone);
-    }
-    expect(regionZone("active-work")).toBe(2);
-    expect(regionZone("active-receipt")).toBe(5);
-    expect(regionZone("a-region-invented-next-year")).toBe(2);
-  });
-
-  it("the factory refuses a hand-picked slot and derives the lawful one", () => {
-    expect(() => contextBlock("intent", { ...kw, blockId: "x", slot: 0 })).toThrow(PyTypeError);
-    const blk = contextBlock("intent", { ...kw, blockId: "x" });
-    expect(blk.slot).toBe(REGIONS.find((r) => r.name === "intent")?.zone);
-  });
-
-  it("the seam rejects any producer above the tape, and tape duplicates", () => {
-    for (const [item, slot] of [["region:session_tape", 0], ["region:intent", 0], ["session_tape", 0], ["future-producer", 0]] as const) {
-      expect(() => new ContextBlock({ ...kw, blockId: "x", itemId: item, slot })).toThrow(ValueError);
-    }
-    for (const [item, slot] of [["region:session_tape", 5], ["region:intent", 6]] as const) {
-      const blk = new ContextBlock({ ...kw, blockId: "x", itemId: item, slot });
-      expect(() => assertPlacementLaw([blk])).toThrow(ValueError);
-    }
-    const tapes = ["a", "b"].map((id) => new ContextBlock({ ...kw, blockId: id, itemId: "region:session_tape", slot: TAPE_ZONE }));
-    expect(() => assertPlacementLaw(tapes)).toThrow(/2 blocks in the TAPE zone/);
-    expect(new ContextBlock({ ...kw, blockId: "x", itemId: "future-producer" }).slot).toBe(2);
-  });
-});
-
-describe("elasticity semantics (test_context_elasticity.py)", () => {
-  const block = (name: string, text: string, extra: Partial<ConstructorParameters<typeof ContextBlock>[0]> = {}) =>
-    new ContextBlock({
-      blockId: `${name}:${(extra.fidelity ?? Fidelity.FULL) as string}`,
-      itemId: name,
-      alternativeGroup: name,
-      priority: 5,
-      instructionClass: InstructionClass.TASK_STATE,
-      freshness: FreshnessClass.DERIVED,
-      fidelity: Fidelity.FULL,
-      representationLoss: RepresentationLoss.NONE,
-      content: text,
-      ...extra,
-    });
-
-  it("incomplete representation requires recovery", () => {
-    expect(() => block("x", "summary", {
-      fidelity: Fidelity.DIGEST,
-      representationLoss: RepresentationLoss.SUMMARY,
-    })).toThrow(/recovery/);
-  });
-
-  it("revision-tagged live excerpt can be re-observed", () => {
-    const excerpt = block("file:a", "lines 10-20", {
-      fidelity: Fidelity.EXCERPT,
-      representationLoss: RepresentationLoss.SELECTION,
-      reobservable: true,
-    });
-    expect(new ElasticityController().select([excerpt]).blocks).toEqual([excerpt]);
-  });
-
-  it("mandatory meaning never degrades lossily", () => {
-    const exact = block("intent", "do exactly this", { mandatory: true, priority: 100 });
-    expect(() => block("intent", "do this", {
-      mandatory: true,
-      fidelity: Fidelity.DIGEST,
-      representationLoss: RepresentationLoss.SUMMARY,
-      handles: ["turn:1"],
-    })).toThrow(ValueError);
-    try {
-      new ElasticityController().select([exact], { capacityChars: 3 });
-      expect.unreachable("mandatory state that cannot fit must fail honestly");
-    } catch (exc) {
-      expect(exc).toBeInstanceOf(ContextUnfitError);
-      expect((exc as ContextUnfitError).mandatoryItems).toEqual(["intent"]);
-    }
-  });
-
-  it("legacy execution progress is not projected as cross-turn truth", () => {
-    const rendered = renderProgressSignals([
-      { kind: "blocked", detail: "spawn_agent failed", count: 13 },
-      { kind: "edit", detail: "a.py", count: 1 },
-      { kind: "evidence", detail: "new evidence from spawn_agent", count: 11 },
-      { kind: "reconciliation", detail: "workspace re-observed", count: 1 },
-    ]);
-    expect(rendered).not.toContain("spawn_agent");
-    expect(rendered).not.toContain("a.py");
-    expect(rendered).toBe("- reconciliation: workspace re-observed");
-  });
-});
 
 describe("tape entry semantics (test_session_tape.py)", () => {
   it("renderers are deterministic and typed entries round-trip", () => {
@@ -306,31 +164,6 @@ describe("tape stays bounded over a long session (评审 #16 / G)", () => {
     // 折叠是罕见事件（实测 300 轮 0–2 次）。频繁重折会打光前缀缓存，
     // 这里钉住它不退化成抖动。
     expect(folds).toBeLessThan(20);
-  });
-});
-
-describe("slice capacity budget (评审 E)", () => {
-  it("returns null only when the model context window is unknown", () => {
-    expect(sliceCapacityChars(undefined, "sys", [])).toBeNull();
-    expect(sliceCapacityChars(0, "sys", [])).toBeNull();
-    expect(sliceCapacityChars(Number.NaN, "sys", [])).toBeNull();
-    expect(sliceCapacityChars(100_000, "sys", [])).toBeGreaterThan(0);
-  });
-
-  it("subtracts the fixed system prefix and tool schemas from the window", () => {
-    const wide = sliceCapacityChars(100_000, "", []);
-    const withPrefix = sliceCapacityChars(100_000, "P".repeat(10_000), []);
-    const withTools = sliceCapacityChars(100_000, "", [{ name: "t".repeat(5_000) }]);
-    expect(withPrefix!).toBeLessThan(wide!);
-    expect(withTools!).toBeLessThan(wide!);
-  });
-
-  it("clamps to a positive floor instead of falling back to unbounded", () => {
-    // 固定开销吃满窗口时回退成 null（=不设限）会让窗口越小越不设限——
-    // 正好是错误的失败方向。必须仍给一个正预算。
-    const tiny = sliceCapacityChars(100, "P".repeat(50_000), []);
-    expect(tiny).not.toBeNull();
-    expect(tiny!).toBeGreaterThan(0);
   });
 });
 

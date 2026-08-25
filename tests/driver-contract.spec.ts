@@ -15,6 +15,7 @@ import * as sliceInvariant from '../src/invariant.js'
 import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import { sliceDigest, seedTextOf } from '../src/driver.js'
+import { REPLY_CAP_CHARS } from '../src/slice/tape.js'
 import {
   errorResponse,
   MockAdapter,
@@ -1679,25 +1680,6 @@ describe('SliceLoopAgent contract gates', () => {
     }
   })
 
-  it("kernel: 'ported' restores the verbatim Python prompt as the A/B arm", async () => {
-    const adapter = new MockAdapter([textResponse('ok')])
-    const ctx = await harness(adapter, { kernel: 'ported' })
-    const handle = await ctx.agents.create({
-      sessionId: SessionId('kernel-ported'),
-      agentOptions: { provider: 'mock', model: 'mock' },
-    })
-    try {
-      send(handle.agent, 'hi'); await handle.agent.whenIdle()
-      const system = String(adapter.requests[0]?.system ?? '')
-      expect({
-        corset: system.includes('stop exploring once the decision is grounded'),
-        contract: system.includes('# BRAIN AND SOURCE-LINKED ACTIVE WORK CONTRACT'),
-      }).toEqual({ corset: true, contract: true })
-    } finally {
-      await handle.dispose(); await ctx.fiber.dispose()
-    }
-  })
-
   // ── 两级取回:recall_search → recall_turn ────────────────────────────────
   it('recall_search finds a fact by content and hands back a recall_turn locator', async () => {
     const FACT = 'the rollout gate threshold is ZX-4471'
@@ -1770,7 +1752,9 @@ describe('SliceLoopAgent contract gates', () => {
   // 这三条门锁的分别是:全文回得来、模型真的看得见、以及不截断就不广告。
 
   it('recall_turn serves the verbatim full text of a truncated sealed turn', async () => {
-    const LONG = `HEAD-${'x'.repeat(1400)}-TAIL-MARKER-9137`
+    // 从常量派生，别写死：cap 调过一次（1200 → 5000），写死的 fixture 会在
+    // 下一次调整时静默变成"没截断"，测的就不再是它宣称测的东西。
+    const LONG = `HEAD-${'x'.repeat(REPLY_CAP_CHARS + 200)}-TAIL-MARKER-9137`
     const adapter = new MockAdapter([
       textResponse(LONG),                                          // turn 1:超长回复,tape 必截
       toolCallResponse('r1', 'recall_turn', { turn: 'slice-turn-1' }), // turn 2 step 1
@@ -2609,25 +2593,6 @@ describe('SliceLoopAgent contract gates', () => {
     await ctx.fiber.dispose()
   })
 
-  it('resolves the production memory-model splice before sending the system prompt', async () => {
-    const adapter = new MockAdapter([textResponse('ready')])
-    // 拼接契约属于移植 kernel(A/B 臂);默认合成 kernel 没有这段。
-    const ctx = await harness(adapter, { kernel: 'ported' })
-    const handle = await ctx.agents.create({
-      sessionId: SessionId('slice-memory-contract'),
-      agentOptions: { provider: 'mock', model: 'mock' },
-    })
-
-    send(handle.agent, 'inspect the production memory contract')
-    await handle.agent.whenIdle()
-
-    expect({
-      unresolvedMarker: adapter.requests[0]?.system?.includes('{{MEMORY_MODEL}}') ?? false,
-      contract: adapter.requests[0]?.system?.includes('# BRAIN AND SOURCE-LINKED ACTIVE WORK CONTRACT') ?? false,
-    }).toEqual({ unresolvedMarker: false, contract: true })
-    await handle.dispose()
-    await ctx.fiber.dispose()
-  })
 
   it('does not re-seal the prior reply for a rejected no-step turn', async () => {
     const adapter = new MockAdapter([

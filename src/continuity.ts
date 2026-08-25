@@ -10,7 +10,7 @@
  *                     并跑 compactTape GC。下一轮 slice 的近期交换呈现层。
  *
  * PFC 携带 = 本模块的 Continuity 对象随 agent 存活（每会话一份），每轮
- * toSliceCtx() 重建有界切片——bounded slice ≠ 每轮从零开始。
+ * assembleSlice() 重建有界切片——bounded slice ≠ 每轮从零开始。
  */
 import { createHash } from 'node:crypto'
 import {
@@ -26,7 +26,6 @@ import {
 } from './slice/tape.js'
 import { pyStrip } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
-import type { SliceCtx, SliceState } from './slice/state.js'
 
 // ---------------------------------------------------------------- ring bounds
 
@@ -78,6 +77,14 @@ export interface Continuity {
   tapeFiles: Record<string, TapeFileState>
   /** 本轮编辑过的文件（成功 tool/result 边界快照后态，seal 时锚定后清空）。 */
   pendingEdits: Array<{ path: string; body: string }>
+  /**
+   * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
+   * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
+   * seal 时转成 {@link Continuity.lastError} 供下一轮的 CURRENT ERROR 段用。
+   */
+  pendingError: string
+  /** 上一轮结束时未解决的工具错误原文，渲染为 CURRENT ERROR 段。 */
+  lastError: string
   /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
   sealMeta: Record<string, { status: string; files: string[] }>
   turns: number
@@ -90,6 +97,8 @@ export function createContinuity(): Continuity {
     sessionTape: [],
     tapeFiles: {},
     pendingEdits: [],
+    pendingError: '',
+    lastError: '',
     sealMeta: {},
     turns: 0,
   }
@@ -112,7 +121,7 @@ export function fillAssistant(c: Continuity, text: string): void {
 
 // ---------------------------------------------------------------- turn digest
 
-const ASK_CAP_CHARS = 600
+const ASK_CAP_CHARS = 1000
 
 /** render_turn_digest 的 TS 移植（spine.py:35-87，无 segment 变体）。 */
 export function renderTurnDigest(opts: {
@@ -221,6 +230,12 @@ export function sealTurn(
   }
   c.pendingEdits = []
 
+  // 轮末结算未解决的工具错误。本轮最后一个 tool/result 失败 ⇒ 下一轮的
+  // CURRENT ERROR 段带上它；成功或本轮没有工具调用 ⇒ 清空。错误正文不进
+  // tape——tape 是已封存的历史，CURRENT ERROR 是"现在还没解决的症状"。
+  c.lastError = c.pendingError
+  c.pendingError = ''
+
   const rep = replyEntry(opts.turnId, opts.assistantReply)
   if (rep !== null) tape.push(rep)
 
@@ -237,54 +252,13 @@ export function trackEdit(c: Continuity, path: string, body: string): void {
   if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }) })
 }
 
-// ---------------------------------------------------------------- slice 重建
-
 /**
- * 携带态 → SliceCtx：每轮重建有界切片的输入。直接构造（绕过 JSON normalize——
- * 我们手里就是活对象）。findings/activeWork 等 PFC 区域随移植深入逐块点亮；
- * 引擎对非空 activeWork 会大声抛错（PORT-REPORT §3），所以这里保持 null。
+ * 工具结果结算（driver 在每个 tool/result 边界调用，实时与重放两条路都要走）。
+ * 最后一个结果说了算：失败留下正文，成功清空。正文过 redactText —— CURRENT
+ * ERROR 段直接进上下文，和 tape 走同一条安全边界（SEAMS S1 Trust）。
  */
-export function toSliceCtx(c: Continuity): SliceCtx {
-  const s: SliceState = {
-    intent: null,
-    task: {
-      goal: c.goal,
-      goalSource: 'conversation',
-      objectiveStatus: '',
-      progressSignals: [],
-      deliverableRequirement: null,
-    },
-    findings: [],
-    findingSource: {},
-    sessionTape: c.sessionTape,
-    activeFiles: Object.keys(c.tapeFiles).sort(),
-    activeSkills: [],
-    world: {},
-    openReport: '',
-    lastError: '',
-    reconciliationRequired: '',
-    reconciliationTargets: [],
-    continuity: {
-      tapeFindingHashes: new Set(),
-      tapeKnowledgeHashes: new Set(),
-      tapeTaskId: '',
-      lastKnowledgeRender: '',
-    },
-    activeWork: null,
-    conversation: c.conversation.map((r) => ({ ...r })),
-  }
-  return {
-    s,
-    artifacts: '',
-    discovery: '',
-    memory: '',
-    threads: '',
-    worktree: '',
-    focus: '',
-    repoMap: '',
-    openFilePaths: Object.keys(c.tapeFiles).sort(),
-    maxFindings: 20,
-  }
+export function trackToolOutcome(c: Continuity, isError: boolean, text: string): void {
+  c.pendingError = isError ? redactText(text.trim()) : ''
 }
 
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */
@@ -357,12 +331,12 @@ export function compactTurnSpan(
     ref: first,
     refEnd: last,
     // No retrieval pointer, for the same reason renderTurnDigest emits none:
-    // the @sliceagent/ namespace has nothing serving it here. Unlike the GC
-    // marker in slice/tape.ts — which keeps the Python spelling because the
-    // golden suite pins it byte for byte — this renderer is driver-side and
-    // free to be honest. (Verified: rewriting this string leaves all 44 golden
-    // cases green.) The fact that N turns collapsed into one summary is worth
-    // stating; a call that cannot run is not.
+    // the @sliceagent/ namespace has nothing serving it here. The GC marker in
+    // slice/tape.ts used to keep the Python spelling because the golden suite
+    // pinned it byte for byte; that suite retired with the old schema, and the
+    // marker now names recall_turn/recall_search like everything else. The fact
+    // that N turns collapsed into one summary is worth stating; a call that
+    // cannot run is not.
     rendered:
       `[turns compacted: ${first}..${last} — ${unique.length} turns replaced by one summary]`
       + `\n${summary}\n`,

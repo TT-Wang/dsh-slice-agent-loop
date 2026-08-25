@@ -38,7 +38,7 @@ export declare function applyUnified(before: string, diffText: string): string;
 export declare function composeAfter(entry: TapeEntry, before: string): string;
 export declare function renderTapeExternal(path: string, newHash: string, reason: string): string;
 export declare function externalEntry(path: string, newHash: string, reason: string): TapeEntry;
-export declare const REPLY_CAP_CHARS = 1200;
+export declare const REPLY_CAP_CHARS = 2000;
 export declare function renderTapeReply(artifactId: string, text: string): string;
 export declare function replyEntry(artifactId: string, text: string): TapeEntry | null;
 export declare const REASONING_CAP_CHARS = 4000;

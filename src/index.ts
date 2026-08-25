@@ -14,7 +14,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { ensureHarnessUniverse, type HarnessUniverse } from './universe.js'
-import { RESOLVED_SYSTEM_PROMPT, SLICE_SYSTEM_PROMPT } from './system-prompt.js'
+import { SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
@@ -22,15 +22,6 @@ import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
 export interface Config {
   maxParallelToolCalls?: number
   maxStepsPerTurn?: number
-  /**
-   * Which kernel rides the `slice:kernel` prompt section.
-   * `'slice'` (default) — the 1.9k synthesized kernel: slice-structural facts
-   * only (tape semantics, hash trust rule, truncation + recall, absence≠false),
-   * no behavioral corset; general conduct stays with the host's own sections.
-   * `'ported'` — the 12.7k verbatim port of the Python sliceagent prompt, kept
-   * as the A/B arm and the parity reference.
-   */
-  kernel?: 'slice' | 'ported'
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
@@ -190,15 +181,11 @@ export class SliceLoopPlugin extends Service {
     // becomes the SOLE prompt: assembly restores it alone, and this kernel
     // correctly disappears with every other contribution. A driver-side
     // prepend silently voided that host guarantee.
-    const kernel = config.kernel ?? 'slice'
-    if (kernel !== 'slice' && kernel !== 'ported') {
-      throw new Error(`kernel must be 'slice' or 'ported', got ${JSON.stringify(kernel)}`)
-    }
     ctx.effect(
       () => ctx.systemPrompt.section({
         name: 'slice:kernel',
         order: -1000,
-        text: kernel === 'ported' ? RESOLVED_SYSTEM_PROMPT : SLICE_SYSTEM_PROMPT,
+        text: SLICE_SYSTEM_PROMPT,
       }),
       'sliceLoop.kernelSection()',
     )

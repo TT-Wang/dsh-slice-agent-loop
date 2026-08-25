@@ -1,15 +1,18 @@
 # CI can only run what does NOT need the DeepSeek Harness.
 #
-# Every meaningful gate in this repo (154 tests) needs the harness peers, which
+# Every meaningful gate in this repo needs the harness peers, which
 # are private packages resolved from a local `dsh` checkout via `npm run
 # link:dsh` — a GitHub runner has no such checkout, so the driver, lifecycle and
 # inbox gates cannot run here. Faking those peers to make CI green would test a
 # mock instead of the contract, which is worse than not testing them.
 #
-# What CI does cover: the ported slice engine (regions, tape, elasticity,
-# pytext, difflib) is pure and peer-free, and its 44 golden cases assert
-# byte-level parity against the upstream Python implementation. That is the part
-# most likely to drift silently, so it is the part worth gating in CI.
+# What CI does cover: the slice engine (assemble, tape, pytext, difflib) is
+# pure and peer-free. Its gates are behavior tests — the Python parity goldens
+# retired with the schema they pinned (plan/SEAMS.md). The load-bearing one is
+# `tests/assemble.spec.ts`'s tape-comes-first assertion: the prefix-cache
+# boundary is `system + 上一轮结束时的 tape`, so anything that moves the tape
+# off the front silently destroys the cost model — exactly the drift worth
+# gating here.
 #
 # The full suite is the maintainer's pre-push gate:
 #   npm run link:dsh && npm run typecheck && npm test
@@ -41,8 +44,8 @@ jobs:
         # peer supplied by the host, leaving only typescript/vitest/tsx/@types.
         run: npm install --no-audit --no-fund
 
-      - name: Golden parity against the Python engine
-        run: npx vitest run tests/parity.test.ts
+      - name: Peer-free engine behavior tests
+        run: npx vitest run tests/assemble.spec.ts tests/tape.spec.ts
 
       - name: Typecheck the peer-free slice engine
         # The full `npm run typecheck` needs the harness peers; this checks the
