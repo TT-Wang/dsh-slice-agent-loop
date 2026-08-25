@@ -2,14 +2,37 @@
 #
 # WHY THIS EXISTS
 #
-# The slice loop does not replace the system prompt; it PREPENDS to it.
-# driver.ts renders `${RESOLVED_SYSTEM_PROMPT}\n\n${renderPrompt(assembly)}`,
-# so the ported sliceagent prefix arrives first and every section DSH's own
-# registry contributes follows it. Measured on a real session:
+# The slice loop does not replace the system prompt; it CONTRIBUTES one section
+# to it. `src/index.ts` registers the slice kernel as `slice:kernel` at order
+# -1000, so it renders first and every section DSH's own registry contributes
+# follows it in the same string — `renderPrompt(assembly)` joins them all.
 #
-#     total system prompt        17,292 chars
-#       ported sliceagent prefix 12,671   (this loop)
-#       appended by DSH           4,621   (registry sections)
+#     this loop's section       1,924 chars   (verified 2026-08-24)
+#     appended by DSH          ~4,621         (registry sections — measured
+#                                              under the OLD composition;
+#                                              RE-MEASURE before quoting)
+#     ─────────────────────────────────
+#     total                    ~6,545         (was 17,292)
+#
+# WHAT CHANGED, AND WHY IT MATTERS FOR MEASUREMENT
+#
+# This used to be a driver-side prepend of RESOLVED_SYSTEM_PROMPT, the 12,671-
+# char verbatim port of the Python sliceagent prompt. Both the prepend and the
+# ported prompt are gone:
+#
+#   - the manual prepend silently voided the host's `complete: true` guarantee
+#     (a section declaring it must become the SOLE prompt, kernel included);
+#   - the ported prompt measured WORSE on CB50 — its frugality discipline
+#     ("stop exploring once grounded") cut paired spanRecall by 0.13 — while
+#     teaching machinery this deployment never mounted: ACTIVE WORK (7 mentions),
+#     PFC (4), KNOWLEDGE (3), CURRENT PROJECT, YOUR NOTES, OPEN USER REPORT and
+#     ENVIRONMENT had no renderer here. 7 of the 12 structures it named were
+#     dangling.
+#
+# The `kernel: 'ported'` config that selected it is deleted with it, so this
+# preset has no A/B arm to switch. **A/B runs from before this change are not
+# comparable**: the system prompt fell from ~17.3k to ~6.5k, and the difference
+# is not padding — it is instruction the model was following. Re-run BOTH arms.
 #
 # Most of that 4,621 is tool instruction — "Use the read tool, not shell
 # commands like cat", "Use the glob tool, not shell find" — and it MUST stay.
@@ -20,7 +43,7 @@
 # session carried FOUR of them:
 #
 #   1. "You are sliceagent, an interactive engineering agent…"      (this loop)
-#   2. "You are an AI agent powered by the DeepSeek Harness SDK."   (registry)
+#   2. "You are an AI agent powered by DeepSeek Harness."          (registry)
 #   3. "You are interacting with the user through the … Web GUI…"   (web bundle)
 #   4. "You are a coding agent powered by the {{model}} model…"     (preset)
 #

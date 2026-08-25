@@ -3,7 +3,7 @@
  *
  * Same composition as the vitest harness, but the LLM adapter is the real
  * DeepSeekAdapter registered on the same seam the mock uses. Three turns:
- *   T1  force a >1,200-char reply ending in a verifiable code word
+ *   T1  force a reply past REPLY_CAP_CHARS, ending in a verifiable code word
  *   T2  NEUTRAL ask for the exact final sentence (affordance test: does the
  *       model reach for recall_turn on its own, given only the tape's line?)
  *   T3  only if T2 didn't call it: explicit instruction (plumbing test)
@@ -21,6 +21,7 @@ import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import apply from '../src/index.ts'
+import { REPLY_CAP_CHARS } from '../src/slice/tape.ts'
 
 // llm-deepseek 不在 peer 集里(它是宿主的供应商插件,不是 loop 的依赖),
 // 所以从 harness 检出取 adapter 源码 —— 解析顺序与 scripts/link-dsh.mjs 一致。
@@ -89,7 +90,14 @@ await agent.whenIdle()
 const t1 = agent.session.events.filter(e => e.type === 'assistant/message').at(-1)
 const t1text = (t1?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
   .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
-console.log(`T1 reply: ${[...t1text].length} code points; code word present: ${t1text.includes(CODE_WORD)}`)
+const t1len = [...t1text].length
+console.log(`T1 reply: ${t1len} code points; code word present: ${t1text.includes(CODE_WORD)}`)
+// cap 调过两次（1200 → 5000 → 2000）。没超过 cap 就没有截断，后面两轮测的
+// 就不是 recall 而是"模型记不记得刚说过的话"——静默地测了别的东西。
+if (t1len <= REPLY_CAP_CHARS) {
+  console.warn(`!! T1 reply (${t1len}) did NOT exceed REPLY_CAP_CHARS (${REPLY_CAP_CHARS}); `
+    + 'nothing was truncated, so T2/T3 are not exercising recall. Lengthen the T1 prompt.')
+}
 
 // ── T2:中性提问(affordance 测试)───────────────────────────────────────
 send(agent, 'Quote, verbatim and in full, the exact final sentence of your previous reply. Do not paraphrase.')
