@@ -15,7 +15,7 @@ import * as sliceInvariant from '../src/invariant.js'
 import { CodeRuntime } from '@deepseek-ai/dsh-code-runtime'
 import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import { sliceDigest, seedTextOf } from '../src/driver.js'
-import { REPLY_CAP_CHARS } from '../src/slice/tape.js'
+import { REPLY_CAP_CHARS, REPLY_HEAD_CHARS, REPLY_TAIL_CHARS } from '../src/slice/tape.js'
 import {
   errorResponse,
   MockAdapter,
@@ -1752,9 +1752,10 @@ describe('SliceLoopAgent contract gates', () => {
   // 这三条门锁的分别是:全文回得来、模型真的看得见、以及不截断就不广告。
 
   it('recall_turn serves the verbatim full text of a truncated sealed turn', async () => {
-    // 从常量派生，别写死：cap 调过一次（1200 → 5000），写死的 fixture 会在
-    // 下一次调整时静默变成"没截断"，测的就不再是它宣称测的东西。
-    const LONG = `HEAD-${'x'.repeat(REPLY_CAP_CHARS + 200)}-TAIL-MARKER-9137`
+    // 从常量派生，别写死：cap 已调过多次。头+尾截断落地后，被切的是**中段**——
+    // 验证标记必须落在 head 之后、tail 之前，否则它留在 digest 里，
+    // "被切内容靠 recall 找回"这个前提就不成立。
+    const LONG = `HEAD-${'x'.repeat(REPLY_HEAD_CHARS)}-MID-MARKER-9137-${'x'.repeat(REPLY_TAIL_CHARS + 300)}-END`
     const adapter = new MockAdapter([
       textResponse(LONG),                                          // turn 1:超长回复,tape 必截
       toolCallResponse('r1', 'recall_turn', { turn: 'slice-turn-1' }), // turn 2 step 1
@@ -1785,9 +1786,9 @@ describe('SliceLoopAgent contract gates', () => {
       expect({
         tapeMarksCut: seed.includes('chars in sealed turn]'),
         tapeAdvertises: seed.includes('recall: recall_turn({\\"turn\\": \\"slice-turn-1\\"})'),
-        seedWithheldTail: !seed.includes('TAIL-MARKER-9137'),
-        resultVerbatim: resultText.includes('TAIL-MARKER-9137'),
-        modelSawIt: trajectory.includes('TAIL-MARKER-9137'),
+        seedWithheldTail: !seed.includes('MID-MARKER-9137'),
+        resultVerbatim: resultText.includes('MID-MARKER-9137'),
+        modelSawIt: trajectory.includes('MID-MARKER-9137'),
       }).toEqual({
         tapeMarksCut: true,
         tapeAdvertises: true,

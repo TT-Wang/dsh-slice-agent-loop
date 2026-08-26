@@ -39,6 +39,9 @@ export declare function composeAfter(entry: TapeEntry, before: string): string;
 export declare function renderTapeExternal(path: string, newHash: string, reason: string): string;
 export declare function externalEntry(path: string, newHash: string, reason: string): TapeEntry;
 export declare const REPLY_CAP_CHARS = 2000;
+/** 与 ask 同理:长答复的结论/判定常在结尾,头+尾同预算严格多信息。 */
+export declare const REPLY_HEAD_CHARS = 1400;
+export declare const REPLY_TAIL_CHARS = 500;
 export declare function renderTapeReply(artifactId: string, text: string): string;
 export declare function replyEntry(artifactId: string, text: string): TapeEntry | null;
 export declare const REASONING_CAP_CHARS = 4000;

@@ -223,12 +223,17 @@ export function externalEntry(path: string, newHash: string, reason: string): Ta
 }
 
 export const REPLY_CAP_CHARS = 2000;
+/** 与 ask 同理:长答复的结论/判定常在结尾,头+尾同预算严格多信息。 */
+export const REPLY_HEAD_CHARS = 1400;
+export const REPLY_TAIL_CHARS = 500;
 
 export function renderTapeReply(artifactId: string, text: string): string {
   let body = pyStrip(String(text ?? ""));
   const chars = Array.from(body);
   if (chars.length > REPLY_CAP_CHARS) {
-    body = chars.slice(0, REPLY_CAP_CHARS).join("") + ` …[+${chars.length - REPLY_CAP_CHARS} chars in sealed turn]`;
+    body = chars.slice(0, REPLY_HEAD_CHARS).join("")
+      + ` …[+${chars.length - REPLY_HEAD_CHARS - REPLY_TAIL_CHARS} chars in sealed turn]… `
+      + chars.slice(-REPLY_TAIL_CHARS).join("");
   }
   return body ? `[reply ${artifactId}]\n${body}\n[end reply]\n` : "";
 }
