@@ -16,6 +16,7 @@ const { system, user } = assembleSlice(
     ],
     openFiles: '### a.py — 1 lines · sha256:cc42155088fc · (edited this session)',
     lastError: '',                           // 空 ⇒ CURRENT ERROR 段应当不渲染
+    contributions: [],                       // 无插件登记 ⇒ PLUGIN CONTEXT 段不出现
   },
   '<SYSTEM PREFIX>',
 )

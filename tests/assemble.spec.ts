@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest'
 import { assembleSlice, type SliceInput } from '../src/slice/assemble.js'
 import { baseEntry, digestEntry, type TapeEntry } from '../src/slice/tape.js'
 
-const EMPTY: SliceInput = { request: '', goal: '', tape: [], openFiles: '', lastError: '' }
+const EMPTY: SliceInput = { request: '', goal: '', tape: [], openFiles: '', lastError: '', contributions: [] }
 
 function tape(): TapeEntry[] {
   return [
@@ -77,10 +77,35 @@ describe('assembleSlice', () => {
     expect(filled.user).toContain('# CURRENT ERROR (unresolved — fix this, verbatim)\nE')
   })
 
+  // ── 4.5 · 插件贡献段：出现在文件索引之后、错误之前；空文本的贡献不出场。
+  it('renders contributions between open files and the error, dropping blank ones', () => {
+    const { user } = assembleSlice(
+      {
+        ...EMPTY, request: 'r', openFiles: '### a.py', lastError: 'E',
+        contributions: [
+          { name: 'b-plugin', text: 'from B' },
+          { name: 'a-plugin', text: '   ' },        // 纯空白 → 不出场
+        ],
+      },
+      'SYS',
+    )
+    expect(user).toContain('# PLUGIN CONTEXT')
+    expect(user).toContain('## b-plugin\nfrom B')
+    expect(user).not.toContain('a-plugin')
+    const order = [user.indexOf('# OPEN FILES'), user.indexOf('# PLUGIN CONTEXT'), user.indexOf('# CURRENT ERROR')]
+    expect(order).toEqual([...order].sort((x, y) => x - y))
+
+    const none = assembleSlice({ ...EMPTY, request: 'r' }, 'SYS')
+    expect(none.user).not.toContain('# PLUGIN CONTEXT')
+  })
+
   // ── 5 · 完整输出快照。防无意改动：header 文字和拼接空白都在这一份里。
   it('matches the exact assembled bytes', () => {
     const { user } = assembleSlice(
-      { request: '继续', goal: '修 bug', tape: tape(), openFiles: '### a.py — 1 lines', lastError: 'E' },
+      {
+        request: '继续', goal: '修 bug', tape: tape(), openFiles: '### a.py — 1 lines', lastError: 'E',
+        contributions: [{ name: 'code-index', text: 'lib/a.c\n    L10–L20   match "foo"' }],
+      },
       'SYS',
       'hint',
     )

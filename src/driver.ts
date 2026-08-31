@@ -56,13 +56,14 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import {
   BlockAssembler,
-  assertNever,
   createAssistantMessage,
   createToolResultMessage,
   createUserMessage,
-  deepFreeze,
   errorChain,
 } from '@deepseek-ai/dsh-llm'
+// rc8: assertNever/deepFreeze 从 dsh-llm 迁至独立的 util 包(运行时已不再从
+// dsh-llm 导出——CJS 拿到 undefined,调用即炸)。
+import { assertNever, deepFreeze } from '@deepseek-ai/dsh-util-values'
 // LlmError / markAgentLoopRequest / createScope / agentEvents /
 // assembleContextFor / TOOL_REGISTRY_SCHEDULER are identity-sensitive and
 // route through harnessUniverse() — see src/universe.ts.
@@ -87,6 +88,7 @@ import {
 import { InboxLedger } from './inbox-ledger.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
+import type { SliceContributionFacts, SliceContributor } from './index.js'
 import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
@@ -97,6 +99,7 @@ import {
   sealTurn,
   trackEdit,
   trackToolOutcome,
+  trackReasoning,
   compactTurn,
   compactTurnSpan,
   type Continuity,
@@ -166,6 +169,40 @@ export interface SliceLoopDriverConfig {
   maxParallelToolCalls: number
   /** Hard ceiling on continuation steps in one turn. A bound, not a diagnosis. */
   maxStepsPerTurn: number
+  /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
+  contributors: readonly SliceContributor[]
+}
+
+/** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
+const CONTRIBUTION_CAP_CHARS = 4000
+/** 全体贡献者的收集时限。慢的当没说话，绝不拖垮轮次。 */
+const CONTRIBUTION_TIMEOUT_MS = 5000
+
+/**
+ * 每轮向登记簿收贡献。四条防线：报错=空串、超时=空串、超长截断留标记、
+ * 空串不出场。排序按声明的 order（缺省 50），同序按名字 —— 稳定可复现。
+ */
+async function collectContributions(
+  contributors: readonly SliceContributor[],
+  facts: SliceContributionFacts,
+): Promise<{ name: string; text: string }[]> {
+  if (contributors.length === 0) return []
+  const timeout = new Promise<string>((resolve) => setTimeout(() => resolve(''), CONTRIBUTION_TIMEOUT_MS))
+  const settled = await Promise.all(contributors.map(async (c) => {
+    let text = ''
+    try {
+      text = await Promise.race([Promise.resolve(c.render(facts)), timeout])
+    } catch { /* 失败即沉默（SEAMS S1 Failure）。 */ }
+    if (typeof text !== 'string') text = ''
+    if (text.length > CONTRIBUTION_CAP_CHARS) {
+      text = text.slice(0, CONTRIBUTION_CAP_CHARS) + ` …[+${text.length - CONTRIBUTION_CAP_CHARS} chars truncated by the loop]`
+    }
+    return { name: c.name, order: c.order ?? 50, text }
+  }))
+  return settled
+    .filter((c) => c.text.trim() !== '')
+    .sort((a, b) => a.order - b.order || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map(({ name, text }) => ({ name, text }))
 }
 
 /** One tool call after argument parsing, ready to schedule. */
@@ -193,6 +230,7 @@ export class SliceLoopAgent implements Agent {
   private readonly ledger: InboxLedger
   private readonly maxParallelToolCalls: number
   private readonly maxStepsPerTurn: number
+  private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
   private requestHeaderLogged = false
@@ -217,6 +255,7 @@ export class SliceLoopAgent implements Agent {
     this.session = session
     this.maxParallelToolCalls = config.maxParallelToolCalls
     this.maxStepsPerTurn = config.maxStepsPerTurn
+    this.contributors = config.contributors
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -336,6 +375,7 @@ export class SliceLoopAgent implements Agent {
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join('')
         fillAssistant(this.cont, text)
+        if (process.env.SLICE_REASONING_TAPE === '1') trackReasoning(this.cont, reasoningText(event.data.message))
         this.ownAssistant(event.data.turn, event.seq, text)
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
@@ -836,6 +876,12 @@ export class SliceLoopAgent implements Agent {
       tape: this.cont.sessionTape,
       openFiles: this.openFilesIndex(),
       lastError: this.cont.lastError,
+      contributions: await collectContributions(this.contributors, {
+        request: requestText,
+        turn: this.cont.turns,
+        tapePaths: Object.keys(this.cont.tapeFiles).sort(),
+        cwd: this.sessionCwd(),
+      }),
     }, systemPrefix)
     const tools = assembly.tools
 
@@ -995,6 +1041,11 @@ export class SliceLoopAgent implements Agent {
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
         .map((b) => b.text).join('')
       fillAssistant(this.cont, assistantText)
+      // 推理链上带:默认关。两侧实验同判(2026-08-31,archives 20260831-reasoning-ab):
+      // slice 塞入旧推理 → 生成 +42%;default 剪掉原生回传 → 生成 −25%——
+      // 旧推理在上下文里是纯成本,default 的省思考来自轻信叙事,与召回无关。
+      // SLICE_REASONING_TAPE=1 重新启用,供未来通道级实验。
+      if (process.env.SLICE_REASONING_TAPE === '1') trackReasoning(this.cont, reasoningText(message))
       // 助手组件所有权 = 本轮最新一条 assistant/message（与 fillAssistant 同义）。
       this.ownAssistant(turn, assistantEvent.seq, assistantText)
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
@@ -1270,6 +1321,14 @@ function parseArguments(raw: string): unknown {
   } catch {
     return raw
   }
+}
+
+/** 一条助手消息里的推理链原文(各 reasoning 块按序拼接)。 */
+function reasoningText(message: { content: readonly { type?: string; text?: string }[] }): string {
+  return message.content
+    .filter((b) => b.type === 'reasoning')
+    .map((b) => b.text ?? '')
+    .join('')
 }
 
 function blockText(message: UserMessage): string {

@@ -32,6 +32,8 @@ export interface Continuity {
      * seal 时转成 {@link Continuity.lastError} 供下一轮的 CURRENT ERROR 段用。
      */
     pendingError: string;
+    /** 本轮各步的推理链原文(实时与重放同源累积),seal 时整段上带后清空。 */
+    pendingReasoning: string[];
     /** 上一轮结束时未解决的工具错误原文，渲染为 CURRENT ERROR 段。 */
     lastError: string;
     /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
@@ -90,6 +92,8 @@ export declare function trackEdit(c: Continuity, path: string, body: string): vo
  * ERROR 段直接进上下文，和 tape 走同一条安全边界（SEAMS S1 Trust）。
  */
 export declare function trackToolOutcome(c: Continuity, isError: boolean, text: string): void;
+/** 本轮一步的推理链(模型自产,与 reply 同级——原样,不脱敏不截断)。 */
+export declare function trackReasoning(c: Continuity, text: string): void;
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */
 export declare function continuityStats(c: Continuity): {
     tapeChars: number;

@@ -116,6 +116,11 @@ class PreparedPersistence extends SessionPersistence {
   // declares `true` must also override readRaw().
   override readonly supportsRawArtifacts = false
 
+  // rc8 新增抽象成员:无后备存储的桩诚实拒绝。
+  override borrowSession(_id: SessionId, _signal?: AbortSignal): Promise<never> {
+    return Promise.reject(new Error('unused'))
+  }
+
   override locate(_meta: SessionHeader): SessionLocation | undefined { return undefined }
   override create(_meta: SessionHeader): Promise<void> { return Promise.resolve() }
   override append(_id: SessionId, _events: readonly SessionEvent[]): Promise<void> { return Promise.resolve() }

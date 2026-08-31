@@ -19,6 +19,7 @@ import {
   patchEntry,
   externalEntry,
   replyEntry,
+  reasoningEntry,
   digestEntry,
   compactTape,
   tapeChars,
@@ -83,6 +84,8 @@ export interface Continuity {
    * seal 时转成 {@link Continuity.lastError} 供下一轮的 CURRENT ERROR 段用。
    */
   pendingError: string
+  /** 本轮各步的推理链原文(实时与重放同源累积),seal 时整段上带后清空。 */
+  pendingReasoning: string[]
   /** 上一轮结束时未解决的工具错误原文，渲染为 CURRENT ERROR 段。 */
   lastError: string
   /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
@@ -98,6 +101,7 @@ export function createContinuity(): Continuity {
     tapeFiles: {},
     pendingEdits: [],
     pendingError: '',
+    pendingReasoning: [],
     lastError: '',
     sealMeta: {},
     turns: 0,
@@ -122,6 +126,11 @@ export function fillAssistant(c: Continuity, text: string): void {
 // ---------------------------------------------------------------- turn digest
 
 const ASK_CAP_CHARS = 1000
+/** 截断保留的头/尾配比。尾部单独保留:长 ask 的**结尾**往往是真正的动作要求
+ * ("只写值本身"/"回复 X 即可"/正文最后几条),只留头会把它们全部切掉——
+ * 头+尾在同等预算下严格多信息(n1/n3 场景的 ask 形状实测)。 */
+const ASK_HEAD_CHARS = 700
+const ASK_TAIL_CHARS = 250
 
 /** render_turn_digest 的 TS 移植（spine.py:35-87，无 segment 变体）。 */
 export function renderTurnDigest(opts: {
@@ -138,7 +147,7 @@ export function renderTurnDigest(opts: {
   const head = `[turn ${aid} · task ${opts.taskId || 'unknown'} · ${opts.status || 'unknown'}]`
   const raw = opts.userRequest.trim()
   const ask = raw.length > ASK_CAP_CHARS
-    ? `${raw.slice(0, ASK_CAP_CHARS)} …[+${raw.length - ASK_CAP_CHARS} chars in sealed turn]`
+    ? `${raw.slice(0, ASK_HEAD_CHARS)} …[+${raw.length - ASK_HEAD_CHARS - ASK_TAIL_CHARS} chars in sealed turn]… ${raw.slice(-ASK_TAIL_CHARS)}`
     : raw || '(empty request)'
   const lines = [head, `ask: ${ask}`]
   const fs = [...new Set((opts.files ?? []).filter((f) => f.trim()))].sort()
@@ -236,6 +245,11 @@ export function sealTurn(
   c.lastError = c.pendingError
   c.pendingError = ''
 
+  // 推理链上带:think → answer 的顺序(reasoning 在 reply 前)。空则不占位。
+  const rsn = reasoningEntry(opts.turnId, c.pendingReasoning.join('\n'))
+  if (rsn !== null) tape.push(rsn)
+  c.pendingReasoning = []
+
   const rep = replyEntry(opts.turnId, opts.assistantReply)
   if (rep !== null) tape.push(rep)
 
@@ -259,6 +273,11 @@ export function trackEdit(c: Continuity, path: string, body: string): void {
  */
 export function trackToolOutcome(c: Continuity, isError: boolean, text: string): void {
   c.pendingError = isError ? redactText(text.trim()) : ''
+}
+
+/** 本轮一步的推理链(模型自产,与 reply 同级——原样,不脱敏不截断)。 */
+export function trackReasoning(c: Continuity, text: string): void {
+  if (text) c.pendingReasoning.push(text)
 }
 
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */
