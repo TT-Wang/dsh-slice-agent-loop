@@ -375,7 +375,7 @@ export class SliceLoopAgent implements Agent {
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join('')
         fillAssistant(this.cont, text)
-        if (process.env.SLICE_REASONING_TAPE !== '0') trackReasoning(this.cont, reasoningText(event.data.message))
+        if (process.env.SLICE_REASONING_TAPE === '1') trackReasoning(this.cont, reasoningText(event.data.message))
         this.ownAssistant(event.data.turn, event.seq, text)
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
@@ -1041,9 +1041,11 @@ export class SliceLoopAgent implements Agent {
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
         .map((b) => b.text).join('')
       fillAssistant(this.cont, assistantText)
-      // A/B 开关:默认上带(用户指令:原样全字节)。SLICE_REASONING_TAPE=0 关闭,
-      // 用于同 harness 同 binary 的干净配对测量——跨版本对比在 alpha.2 面前不可信。
-      if (process.env.SLICE_REASONING_TAPE !== '0') trackReasoning(this.cont, reasoningText(message))
+      // 推理链上带:默认关。两侧实验同判(2026-08-31,archives 20260831-reasoning-ab):
+      // slice 塞入旧推理 → 生成 +42%;default 剪掉原生回传 → 生成 −25%——
+      // 旧推理在上下文里是纯成本,default 的省思考来自轻信叙事,与召回无关。
+      // SLICE_REASONING_TAPE=1 重新启用,供未来通道级实验。
+      if (process.env.SLICE_REASONING_TAPE === '1') trackReasoning(this.cont, reasoningText(message))
       // 助手组件所有权 = 本轮最新一条 assistant/message（与 fillAssistant 同义）。
       this.ownAssistant(turn, assistantEvent.seq, assistantText)
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
