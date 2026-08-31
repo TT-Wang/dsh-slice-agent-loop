@@ -19,6 +19,7 @@ import {
   patchEntry,
   externalEntry,
   replyEntry,
+  reasoningEntry,
   digestEntry,
   compactTape,
   tapeChars,
@@ -83,6 +84,8 @@ export interface Continuity {
    * seal 时转成 {@link Continuity.lastError} 供下一轮的 CURRENT ERROR 段用。
    */
   pendingError: string
+  /** 本轮各步的推理链原文(实时与重放同源累积),seal 时整段上带后清空。 */
+  pendingReasoning: string[]
   /** 上一轮结束时未解决的工具错误原文，渲染为 CURRENT ERROR 段。 */
   lastError: string
   /** 每轮封存的元数据（turnId → status/files），表面替换重写 digest 时按原样再渲染。 */
@@ -98,6 +101,7 @@ export function createContinuity(): Continuity {
     tapeFiles: {},
     pendingEdits: [],
     pendingError: '',
+    pendingReasoning: [],
     lastError: '',
     sealMeta: {},
     turns: 0,
@@ -241,6 +245,11 @@ export function sealTurn(
   c.lastError = c.pendingError
   c.pendingError = ''
 
+  // 推理链上带:think → answer 的顺序(reasoning 在 reply 前)。空则不占位。
+  const rsn = reasoningEntry(opts.turnId, c.pendingReasoning.join('\n'))
+  if (rsn !== null) tape.push(rsn)
+  c.pendingReasoning = []
+
   const rep = replyEntry(opts.turnId, opts.assistantReply)
   if (rep !== null) tape.push(rep)
 
@@ -264,6 +273,11 @@ export function trackEdit(c: Continuity, path: string, body: string): void {
  */
 export function trackToolOutcome(c: Continuity, isError: boolean, text: string): void {
   c.pendingError = isError ? redactText(text.trim()) : ''
+}
+
+/** 本轮一步的推理链(模型自产,与 reply 同级——原样,不脱敏不截断)。 */
+export function trackReasoning(c: Continuity, text: string): void {
+  if (text) c.pendingReasoning.push(text)
 }
 
 /** 观测用：当前携带态的切片体积（tape 字符数 + 环行数）。 */

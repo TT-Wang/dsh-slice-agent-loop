@@ -7,7 +7,7 @@ import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService, { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
-import ToolRegistry, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH } from '@deepseek-ai/dsh-tools'
+import ToolRegistry, { defineContentToolFixture, TOOL_ABORTED_BEFORE_DISPATCH, type ToolPresentationMode } from '@deepseek-ai/dsh-tools'
 import apply, { type Config } from '../src/index.js'
 import InvariantService from '@deepseek-ai/dsh-invariants'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
@@ -3074,7 +3074,8 @@ describe('Code Mode file anchoring (评审 · 执行平面)', () => {
       sessionId: SessionId('code-mode-anchor'),
       agentOptions: { provider: 'mock', model: 'mock' },
       // preset 平面声明 code 模式：模型只看得到 run_code。
-      setup: (agentCtx: Context) => { agentCtx.tools.presentAs('code') },
+      // rc8: presentAs 的 'code' 档更名 'ptc'。
+      setup: (agentCtx: Context) => { agentCtx.tools.presentAs('ptc' as ToolPresentationMode) },
     })
     // run_code 程序体：调一次真实的 write 子工具。
     ;(ctx.codeRuntime as FakeRuntime).behavior = async (request: CodeRunRequest) => {

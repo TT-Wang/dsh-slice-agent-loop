@@ -1,5 +1,6 @@
 import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { CallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
+// rc8: CallId 更名 ToolCallId(brand 化)。
+import { ToolCallId, LlmAdapter } from '@deepseek-ai/dsh-llm'
 
 export function textResponse(text: string): StreamChunk[] {
   return [
@@ -16,7 +17,7 @@ export function errorResponse(message = 'provider failed', code = 'SERVER'): Str
 }
 
 export function toolCallResponse(rawCallId: string, name: string, args: object): StreamChunk[] {
-  const id = CallId(rawCallId)
+  const id = ToolCallId(rawCallId)
   const argumentsJson = JSON.stringify(args)
   return [
     { type: 'block-start', index: 0, blockType: 'tool-call' },
@@ -40,7 +41,7 @@ export function multiToolCallResponse(
         index,
         block: {
           type: 'tool-call',
-          id: CallId(call.id),
+          id: ToolCallId(call.id),
           name: call.name,
           arguments: JSON.stringify(call.args),
         },

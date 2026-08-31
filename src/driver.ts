@@ -56,13 +56,14 @@ import type {
 } from '@deepseek-ai/dsh-llm'
 import {
   BlockAssembler,
-  assertNever,
   createAssistantMessage,
   createToolResultMessage,
   createUserMessage,
-  deepFreeze,
   errorChain,
 } from '@deepseek-ai/dsh-llm'
+// rc8: assertNever/deepFreeze 从 dsh-llm 迁至独立的 util 包(运行时已不再从
+// dsh-llm 导出——CJS 拿到 undefined,调用即炸)。
+import { assertNever, deepFreeze } from '@deepseek-ai/dsh-util-values'
 // LlmError / markAgentLoopRequest / createScope / agentEvents /
 // assembleContextFor / TOOL_REGISTRY_SCHEDULER are identity-sensitive and
 // route through harnessUniverse() — see src/universe.ts.
@@ -98,6 +99,7 @@ import {
   sealTurn,
   trackEdit,
   trackToolOutcome,
+  trackReasoning,
   compactTurn,
   compactTurnSpan,
   type Continuity,
@@ -373,6 +375,7 @@ export class SliceLoopAgent implements Agent {
           .filter((block): block is { type: 'text'; text: string } => block.type === 'text')
           .map((block) => block.text).join('')
         fillAssistant(this.cont, text)
+        if (process.env.SLICE_REASONING_TAPE !== '0') trackReasoning(this.cont, reasoningText(event.data.message))
         this.ownAssistant(event.data.turn, event.seq, text)
       } else if (event.type === 'tool/result') {
         if (isSurfaceEvent(event)) this.foldSurfaceEvent(event)
@@ -1038,6 +1041,9 @@ export class SliceLoopAgent implements Agent {
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
         .map((b) => b.text).join('')
       fillAssistant(this.cont, assistantText)
+      // A/B 开关:默认上带(用户指令:原样全字节)。SLICE_REASONING_TAPE=0 关闭,
+      // 用于同 harness 同 binary 的干净配对测量——跨版本对比在 alpha.2 面前不可信。
+      if (process.env.SLICE_REASONING_TAPE !== '0') trackReasoning(this.cont, reasoningText(message))
       // 助手组件所有权 = 本轮最新一条 assistant/message（与 fillAssistant 同义）。
       this.ownAssistant(turn, assistantEvent.seq, assistantText)
       if (finish.kind === 'max-tokens') return { kind: 'max-tokens' }
@@ -1313,6 +1319,14 @@ function parseArguments(raw: string): unknown {
   } catch {
     return raw
   }
+}
+
+/** 一条助手消息里的推理链原文(各 reasoning 块按序拼接)。 */
+function reasoningText(message: { content: readonly { type?: string; text?: string }[] }): string {
+  return message.content
+    .filter((b) => b.type === 'reasoning')
+    .map((b) => b.text ?? '')
+    .join('')
 }
 
 function blockText(message: UserMessage): string {
