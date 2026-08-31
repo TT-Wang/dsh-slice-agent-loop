@@ -1,3 +1,9 @@
+> ⚠️ **2026-08-31 勘误/后续**:本报告 flash 轮 **default 臂**的 s10 数字已**作废**
+> (压缩因配置名漂移未真正生效,"零丢失"是无效对照;修正标定后 flash default 同样
+> FAIL)。schema 已重写(四档保真度 / kernel:'ported' 等机制随之移除,文中相关描述
+> 为历史记录)。修正结论与新系列见 README「Results update — 2026-08」与
+> results/20260826-retention · 20260827-cost1m · 20260831-reasoning-ab 档案。
+
 # dsh-slice-agent-loop 评测报告（slice vs transcript default）
 
 日期：2026-08-10 · 双臂同模型（deepseek-v4-flash）· 官方计价（输入 $0.14/M · 缓存命中 $0.0028/M · 输出 $0.28/M，api-docs.deepseek.com 2026-08-09 抓取）

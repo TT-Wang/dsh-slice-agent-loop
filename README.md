@@ -12,7 +12,7 @@ slice loop built around that one sentence into the
 same tools and persistence — only the agent loop is swapped**, so in every
 comparison below the loop itself is the only variable.
 
-Early beta; tracks DSH snapshot `20260812T172954Z` (rc.2; rc.1-compatible).
+Early beta; tracks DSH `0.1.2-alpha.2` (slash-route wire + cookie auth; the bundled bench driver speaks the new protocol).
 
 ## One sentence, two constraints
 
@@ -89,6 +89,51 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
 > rounds: bounded peak + zero loss, at 59% / 20% lower price. The short s13
 > scenario's price swings with the pricing structure (slice -18% under flash,
 > +6% under pro); the peak advantage (2.4–3.7×) does not.
+
+> **Amendment (2026-08)** — the flash-round **default** cell above is
+> *invalidated*: a config-name drift (`compact-basic` → `compaction-basic`)
+> had silently disabled that arm's compaction, which is exactly why its peak
+> ratcheted to 378K while "keeping everything". Re-run with compaction
+> correctly calibrated **and verified firing**, the flash default **fails the
+> verifier too** (3 planted facts lost; peak 96K sawtooth). Both model
+> generations now resolve the dilemma the same way: once compaction actually
+> runs, the transcript pays with lossy forgetting. Slice cells re-validated
+> unchanged on the rewritten schema.
+
+### Results update — 2026-08-24 → 31 (rewritten schema)
+
+- **Schema rewritten DSH-native**: 19 ported regions → 4 fed segments + 2
+  fixed slots; the fidelity ladder / elasticity controller / Python golden
+  parity retired (−3.4K lines). Kernel prompt 12.7k → **1.9k** chars; ask/
+  reply truncation now keeps **head AND tail** with exact cut markers; a
+  plugin contribution registry (`ctx.sliceContext`) lets plugins feed the
+  slice without the loop knowing them.
+- **Retention series** (7 new paired scenarios + re-runs; same model & effort
+  both arms; per-call ledgers): **slice 12/12, transcript 10/12** — both
+  transcript losses are compaction-destroys-history (the s10 flood, and a
+  3.4KB verbatim-restore scenario where slice recovered via a *self-directed*
+  `recall_turn` — first benchmark-level proof the recall path is
+  load-bearing, not decoration).
+- **1M-window cost** (product-default compaction 0.8/0.16; the transcript arm
+  genuinely climbs to 764–779K and crosses twice; 74 turns ≈ 2M tok content):
+  slice **−27%** (pure input flood) / **−39%** (flood + real coding work).
+  The differential is the transcript's per-cycle history re-reads
+  (≈ W²/2Δ ≈ 10M cache tokens/cycle) plus summarization billed as output.
+- **Honest cons, measured**: light/short sessions cost **+5–46%** on slice —
+  reasoning generation runs 2–5× (visible text equal; the price of
+  re-orienting against a compiled dossier plus verify-don't-trust
+  epistemics). Crossover ≈ the transcript's first compaction. Single-turn
+  (Ralph-style) work gains nothing: within a turn this loop is a transcript.
+- **Reasoning-passback refuted from both sides**: feeding old chains onto the
+  tape → reasoning **+42%**; stripping the transcript's native
+  `reasoning_content` passback (471 strips) → **−25%**, run still passes.
+  Old reasoning in context is cost, never continuation; the transcript's
+  thrift comes from trusting its own narrative — the exact failure mode this
+  loop removes. Wiring kept behind `SLICE_REASONING_TAPE=1`.
+- Archives: `results/20260826-retention`, `results/20260827-cost1m`,
+  `results/20260831-reasoning-ab` in the companion workspace, plus a
+  per-request viewer (`build-request-viewer.mjs`) that renders exactly what
+  each arm sent the model, turn by turn.
 
 ### ② Amnesia re-enactment · both arms · eviction-verified
 
