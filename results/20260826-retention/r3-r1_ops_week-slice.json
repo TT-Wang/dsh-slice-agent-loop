@@ -1,0 +1,152 @@
+{
+ "scenario": "r1_ops_week",
+ "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-r1_ops_week-slice-S2nRTL",
+ "turns": [
+  {
+   "turn": 1,
+   "wallMs": 7028,
+   "input": 9956,
+   "output": 410,
+   "cacheRead": 21504,
+   "peakInput": 10852,
+   "steps": 3
+  },
+  {
+   "turn": 2,
+   "wallMs": 2007,
+   "input": 6872,
+   "output": 118,
+   "cacheRead": 3712,
+   "peakInput": 10584,
+   "steps": 1
+  },
+  {
+   "turn": 3,
+   "wallMs": 8112,
+   "input": 2618,
+   "output": 783,
+   "cacheRead": 31616,
+   "peakInput": 12429,
+   "steps": 3
+  },
+  {
+   "turn": 4,
+   "wallMs": 8015,
+   "input": 2193,
+   "output": 597,
+   "cacheRead": 44288,
+   "peakInput": 12299,
+   "steps": 4
+  },
+  {
+   "turn": 5,
+   "wallMs": 10027,
+   "input": 1637,
+   "output": 1043,
+   "cacheRead": 32512,
+   "peakInput": 11902,
+   "steps": 3
+  },
+  {
+   "turn": 6,
+   "wallMs": 28130,
+   "input": 2060,
+   "output": 2881,
+   "cacheRead": 50688,
+   "peakInput": 14783,
+   "steps": 4
+  },
+  {
+   "turn": 7,
+   "wallMs": 16040,
+   "input": 2700,
+   "output": 1687,
+   "cacheRead": 61184,
+   "peakInput": 13883,
+   "steps": 5
+  },
+  {
+   "turn": 8,
+   "wallMs": 12050,
+   "input": 2038,
+   "output": 1239,
+   "cacheRead": 37888,
+   "peakInput": 13946,
+   "steps": 3
+  },
+  {
+   "turn": 9,
+   "wallMs": 7089,
+   "input": 1607,
+   "output": 526,
+   "cacheRead": 37632,
+   "peakInput": 13286,
+   "steps": 3
+  },
+  {
+   "turn": 10,
+   "wallMs": 9031,
+   "input": 1341,
+   "output": 1002,
+   "cacheRead": 39680,
+   "peakInput": 14034,
+   "steps": 3
+  },
+  {
+   "turn": 11,
+   "wallMs": 5020,
+   "input": 1369,
+   "output": 282,
+   "cacheRead": 39040,
+   "peakInput": 13644,
+   "steps": 3
+  },
+  {
+   "turn": 12,
+   "wallMs": 9125,
+   "input": 1057,
+   "output": 1062,
+   "cacheRead": 12416,
+   "peakInput": 13473,
+   "steps": 1
+  },
+  {
+   "turn": 13,
+   "wallMs": 22055,
+   "input": 1395,
+   "output": 2756,
+   "cacheRead": 44544,
+   "peakInput": 16485,
+   "steps": 3
+  },
+  {
+   "turn": 14,
+   "wallMs": 5017,
+   "input": 1584,
+   "output": 396,
+   "cacheRead": 27264,
+   "peakInput": 14612,
+   "steps": 2
+  },
+  {
+   "turn": 15,
+   "wallMs": 10549,
+   "input": 2011,
+   "output": 916,
+   "cacheRead": 43136,
+   "peakInput": 15525,
+   "steps": 3
+  }
+ ],
+ "totals": {
+  "input": 40438,
+  "output": 15698,
+  "cacheRead": 527104,
+  "wallMs": 159295
+ },
+ "verdict": [
+  true,
+  "realistic week all hold (re-verified after verifier fix: annotated-param + new-defs-only rules)"
+ ],
+ "failed": null
+}

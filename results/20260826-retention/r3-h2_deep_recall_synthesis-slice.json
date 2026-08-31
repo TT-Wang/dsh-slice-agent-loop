@@ -1,0 +1,161 @@
+{
+  "scenario": "h2_deep_recall_synthesis",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-h2_deep_recall_synthesis-slice-87OSdG",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 3014,
+      "input": 9522,
+      "output": 122,
+      "cacheRead": 11008,
+      "peakInput": 10341,
+      "steps": 2
+    },
+    {
+      "turn": 2,
+      "wallMs": 2007,
+      "input": 7046,
+      "output": 89,
+      "cacheRead": 3712,
+      "peakInput": 10758,
+      "steps": 1
+    },
+    {
+      "turn": 3,
+      "wallMs": 2011,
+      "input": 6935,
+      "output": 57,
+      "cacheRead": 9472,
+      "peakInput": 16407,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 6012,
+      "input": 1510,
+      "output": 207,
+      "cacheRead": 32256,
+      "peakInput": 11367,
+      "steps": 3
+    },
+    {
+      "turn": 5,
+      "wallMs": 2010,
+      "input": 6586,
+      "output": 61,
+      "cacheRead": 10240,
+      "peakInput": 16826,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 2009,
+      "input": 7028,
+      "output": 85,
+      "cacheRead": 10496,
+      "peakInput": 17524,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 1005,
+      "input": 7259,
+      "output": 52,
+      "cacheRead": 10624,
+      "peakInput": 17883,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 3008,
+      "input": 7121,
+      "output": 52,
+      "cacheRead": 11008,
+      "peakInput": 18129,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 2010,
+      "input": 7402,
+      "output": 40,
+      "cacheRead": 11392,
+      "peakInput": 18794,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 2012,
+      "input": 7576,
+      "output": 57,
+      "cacheRead": 11648,
+      "peakInput": 19224,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 2008,
+      "input": 7517,
+      "output": 37,
+      "cacheRead": 12032,
+      "peakInput": 19549,
+      "steps": 1
+    },
+    {
+      "turn": 12,
+      "wallMs": 2009,
+      "input": 7811,
+      "output": 57,
+      "cacheRead": 12416,
+      "peakInput": 20227,
+      "steps": 1
+    },
+    {
+      "turn": 13,
+      "wallMs": 2007,
+      "input": 7743,
+      "output": 40,
+      "cacheRead": 12800,
+      "peakInput": 20543,
+      "steps": 1
+    },
+    {
+      "turn": 14,
+      "wallMs": 9015,
+      "input": 2380,
+      "output": 808,
+      "cacheRead": 58880,
+      "peakInput": 15874,
+      "steps": 4
+    },
+    {
+      "turn": 15,
+      "wallMs": 33077,
+      "input": 3371,
+      "output": 1171,
+      "cacheRead": 93056,
+      "peakInput": 16959,
+      "steps": 6
+    },
+    {
+      "turn": 16,
+      "wallMs": 7018,
+      "input": 1744,
+      "output": 668,
+      "cacheRead": 44928,
+      "peakInput": 15836,
+      "steps": 3
+    }
+  ],
+  "totals": {
+    "input": 98551,
+    "output": 3603,
+    "cacheRead": 355968,
+    "wallMs": 80232
+  },
+  "verdict": [
+    true,
+    "mid 4-7 verbatim + seed from tool output + synthesis ok | prov: '该数值是从本会话历史中查回的:用 recall_search 检索了 slice-turn-1 里运行 tools/gen_report.py 的工具输出,其中'"
+  ],
+  "failed": null
+}

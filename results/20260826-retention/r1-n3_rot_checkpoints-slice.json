@@ -1,0 +1,170 @@
+{
+  "scenario": "n3_rot_checkpoints",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-n3_rot_checkpoints-slice-rCc37Z",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 3015,
+      "input": 9450,
+      "output": 172,
+      "cacheRead": 768,
+      "peakInput": 10218,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 3017,
+      "input": 11556,
+      "output": 210,
+      "cacheRead": 3712,
+      "peakInput": 15268,
+      "steps": 1
+    },
+    {
+      "turn": 3,
+      "wallMs": 2008,
+      "input": 6206,
+      "output": 82,
+      "cacheRead": 9472,
+      "peakInput": 15678,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 6019,
+      "input": 1575,
+      "output": 448,
+      "cacheRead": 33280,
+      "peakInput": 11884,
+      "steps": 3
+    },
+    {
+      "turn": 5,
+      "wallMs": 2016,
+      "input": 6514,
+      "output": 123,
+      "cacheRead": 10368,
+      "peakInput": 16882,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 2008,
+      "input": 6536,
+      "output": 58,
+      "cacheRead": 10624,
+      "peakInput": 17160,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 3014,
+      "input": 6634,
+      "output": 118,
+      "cacheRead": 10880,
+      "peakInput": 17514,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 4013,
+      "input": 1662,
+      "output": 179,
+      "cacheRead": 23808,
+      "peakInput": 12850,
+      "steps": 2
+    },
+    {
+      "turn": 9,
+      "wallMs": 2009,
+      "input": 7093,
+      "output": 120,
+      "cacheRead": 11520,
+      "peakInput": 18613,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 2021,
+      "input": 7173,
+      "output": 65,
+      "cacheRead": 11904,
+      "peakInput": 19077,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 3011,
+      "input": 7376,
+      "output": 135,
+      "cacheRead": 12032,
+      "peakInput": 19408,
+      "steps": 1
+    },
+    {
+      "turn": 12,
+      "wallMs": 4024,
+      "input": 1620,
+      "output": 225,
+      "cacheRead": 26368,
+      "peakInput": 14111,
+      "steps": 2
+    },
+    {
+      "turn": 13,
+      "wallMs": 2024,
+      "input": 7689,
+      "output": 70,
+      "cacheRead": 12800,
+      "peakInput": 20489,
+      "steps": 1
+    },
+    {
+      "turn": 14,
+      "wallMs": 2009,
+      "input": 7672,
+      "output": 57,
+      "cacheRead": 13184,
+      "peakInput": 20856,
+      "steps": 1
+    },
+    {
+      "turn": 15,
+      "wallMs": 3017,
+      "input": 7875,
+      "output": 57,
+      "cacheRead": 13312,
+      "peakInput": 21187,
+      "steps": 1
+    },
+    {
+      "turn": 16,
+      "wallMs": 5026,
+      "input": 1637,
+      "output": 183,
+      "cacheRead": 28800,
+      "peakInput": 15324,
+      "steps": 2
+    },
+    {
+      "turn": 17,
+      "wallMs": 6017,
+      "input": 1645,
+      "output": 464,
+      "cacheRead": 29568,
+      "peakInput": 15909,
+      "steps": 2
+    }
+  ],
+  "totals": {
+    "input": 99913,
+    "output": 2766,
+    "cacheRead": 262400,
+    "wallMs": 54268
+  },
+  "verdict": [
+    true,
+    "all checkpoints exact + trap honest | ck1=Y,ck2=Y,ck3=Y,ck4=Y,ck5=Y,ck6=Y"
+  ],
+  "failed": null
+}

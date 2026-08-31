@@ -1,0 +1,125 @@
+{
+  "scenario": "n1_verbatim_restore",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-n1_verbatim_restore-default-ct0oPK",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 4018,
+      "input": 15514,
+      "output": 193,
+      "cacheRead": 384,
+      "peakInput": 15898,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 9017,
+      "input": 839,
+      "output": 698,
+      "cacheRead": 82688,
+      "peakInput": 17152,
+      "steps": 5
+    },
+    {
+      "turn": 3,
+      "wallMs": 3014,
+      "input": 6410,
+      "output": 246,
+      "cacheRead": 17024,
+      "peakInput": 23434,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 2008,
+      "input": 6260,
+      "output": 48,
+      "cacheRead": 23680,
+      "peakInput": 29940,
+      "steps": 1
+    },
+    {
+      "turn": 5,
+      "wallMs": 1014,
+      "input": 6250,
+      "output": 25,
+      "cacheRead": 29952,
+      "peakInput": 36202,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 18035,
+      "input": 25868,
+      "output": 51,
+      "cacheRead": 9088,
+      "peakInput": 34956,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 16026,
+      "input": 20256,
+      "output": 58,
+      "cacheRead": 14848,
+      "peakInput": 35104,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 19031,
+      "input": 20258,
+      "output": 33,
+      "cacheRead": 14976,
+      "peakInput": 35234,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 10026,
+      "input": 20277,
+      "output": 6,
+      "cacheRead": 14976,
+      "peakInput": 35253,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 11036,
+      "input": 19951,
+      "output": 6,
+      "cacheRead": 15104,
+      "peakInput": 35055,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 31142,
+      "input": 14225,
+      "output": 2815,
+      "cacheRead": 78208,
+      "peakInput": 31868,
+      "steps": 3
+    },
+    {
+      "turn": 12,
+      "wallMs": 5017,
+      "input": 418,
+      "output": 267,
+      "cacheRead": 96256,
+      "peakInput": 32452,
+      "steps": 3
+    }
+  ],
+  "totals": {
+    "input": 156526,
+    "output": 4446,
+    "cacheRead": 397184,
+    "wallMs": 129384
+  },
+  "verdict": [
+    false,
+    "agent declared CANNOT-RECOVER (honest but lost) | "
+  ],
+  "failed": null
+}

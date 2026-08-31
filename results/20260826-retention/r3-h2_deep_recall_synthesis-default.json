@@ -1,0 +1,161 @@
+{
+  "scenario": "h2_deep_recall_synthesis",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-h2_deep_recall_synthesis-default-WFnOOG",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 4011,
+      "input": 15145,
+      "output": 131,
+      "cacheRead": 16000,
+      "peakInput": 15653,
+      "steps": 2
+    },
+    {
+      "turn": 2,
+      "wallMs": 3010,
+      "input": 303,
+      "output": 197,
+      "cacheRead": 15616,
+      "peakInput": 15919,
+      "steps": 1
+    },
+    {
+      "turn": 3,
+      "wallMs": 2012,
+      "input": 5739,
+      "output": 6,
+      "cacheRead": 16000,
+      "peakInput": 21739,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 3009,
+      "input": 250,
+      "output": 156,
+      "cacheRead": 43392,
+      "peakInput": 21879,
+      "steps": 2
+    },
+    {
+      "turn": 5,
+      "wallMs": 2011,
+      "input": 5675,
+      "output": 6,
+      "cacheRead": 21888,
+      "peakInput": 27563,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 1013,
+      "input": 6008,
+      "output": 6,
+      "cacheRead": 27520,
+      "peakInput": 33528,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 115135,
+      "input": 6081,
+      "output": 6,
+      "cacheRead": 33408,
+      "peakInput": 39489,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 17158,
+      "input": 24881,
+      "output": 43,
+      "cacheRead": 9088,
+      "peakInput": 33969,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 2010,
+      "input": 6380,
+      "output": 39,
+      "cacheRead": 33920,
+      "peakInput": 40300,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 8011,
+      "input": 19870,
+      "output": 6,
+      "cacheRead": 14848,
+      "peakInput": 34718,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 9018,
+      "input": 20022,
+      "output": 6,
+      "cacheRead": 14976,
+      "peakInput": 34998,
+      "steps": 1
+    },
+    {
+      "turn": 12,
+      "wallMs": 10022,
+      "input": 19968,
+      "output": 6,
+      "cacheRead": 15232,
+      "peakInput": 35200,
+      "steps": 1
+    },
+    {
+      "turn": 13,
+      "wallMs": 21033,
+      "input": 20333,
+      "output": 35,
+      "cacheRead": 15232,
+      "peakInput": 35565,
+      "steps": 1
+    },
+    {
+      "turn": 14,
+      "wallMs": 52304,
+      "input": 265,
+      "output": 2145,
+      "cacheRead": 92160,
+      "peakInput": 31697,
+      "steps": 3
+    },
+    {
+      "turn": 15,
+      "wallMs": 6020,
+      "input": 312,
+      "output": 450,
+      "cacheRead": 96000,
+      "peakInput": 32366,
+      "steps": 3
+    },
+    {
+      "turn": 16,
+      "wallMs": 4009,
+      "input": 157,
+      "output": 250,
+      "cacheRead": 65024,
+      "peakInput": 32726,
+      "steps": 2
+    }
+  ],
+  "totals": {
+    "input": 151389,
+    "output": 3488,
+    "cacheRead": 530304,
+    "wallMs": 259786
+  },
+  "verdict": [
+    true,
+    "mid 4-7 verbatim + seed from tool output + synthesis ok | prov: '直接记得:该值来自本会话先前运行 python3 tools/gen_report.py 时的输出(\"BUILD-SEED: 739041\"),由会话上下文记忆'"
+  ],
+  "failed": null
+}

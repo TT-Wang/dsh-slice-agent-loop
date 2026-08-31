@@ -1,0 +1,527 @@
+{
+  "scenario": "x2_workday_1m",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-x2_workday_1m-default-cgo4BM",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 3012,
+      "input": 15005,
+      "output": 92,
+      "cacheRead": 384,
+      "peakInput": 15389,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 4020,
+      "input": 31195,
+      "output": 262,
+      "cacheRead": 15360,
+      "peakInput": 46555,
+      "steps": 1
+    },
+    {
+      "turn": 3,
+      "wallMs": 3018,
+      "input": 31317,
+      "output": 28,
+      "cacheRead": 46720,
+      "peakInput": 78037,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 2029,
+      "input": 31121,
+      "output": 6,
+      "cacheRead": 77952,
+      "peakInput": 109073,
+      "steps": 1
+    },
+    {
+      "turn": 5,
+      "wallMs": 3030,
+      "input": 31151,
+      "output": 6,
+      "cacheRead": 109056,
+      "peakInput": 140207,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 3039,
+      "input": 31167,
+      "output": 6,
+      "cacheRead": 140160,
+      "peakInput": 171327,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 4036,
+      "input": 31214,
+      "output": 45,
+      "cacheRead": 171264,
+      "peakInput": 202478,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 5106,
+      "input": 31230,
+      "output": 6,
+      "cacheRead": 202496,
+      "peakInput": 233726,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 13109,
+      "input": 702,
+      "output": 351,
+      "cacheRead": 1169280,
+      "peakInput": 234238,
+      "steps": 5
+    },
+    {
+      "turn": 10,
+      "wallMs": 3032,
+      "input": 31115,
+      "output": 6,
+      "cacheRead": 234240,
+      "peakInput": 265355,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 4025,
+      "input": 31067,
+      "output": 6,
+      "cacheRead": 265344,
+      "peakInput": 296411,
+      "steps": 1
+    },
+    {
+      "turn": 12,
+      "wallMs": 5059,
+      "input": 31231,
+      "output": 6,
+      "cacheRead": 296320,
+      "peakInput": 327551,
+      "steps": 1
+    },
+    {
+      "turn": 13,
+      "wallMs": 6034,
+      "input": 31146,
+      "output": 6,
+      "cacheRead": 327552,
+      "peakInput": 358698,
+      "steps": 1
+    },
+    {
+      "turn": 14,
+      "wallMs": 5024,
+      "input": 31284,
+      "output": 6,
+      "cacheRead": 358656,
+      "peakInput": 389940,
+      "steps": 1
+    },
+    {
+      "turn": 15,
+      "wallMs": 5050,
+      "input": 31370,
+      "output": 6,
+      "cacheRead": 389888,
+      "peakInput": 421258,
+      "steps": 1
+    },
+    {
+      "turn": 16,
+      "wallMs": 4031,
+      "input": 31199,
+      "output": 6,
+      "cacheRead": 421248,
+      "peakInput": 452447,
+      "steps": 1
+    },
+    {
+      "turn": 17,
+      "wallMs": 6043,
+      "input": 31158,
+      "output": 6,
+      "cacheRead": 452352,
+      "peakInput": 483510,
+      "steps": 1
+    },
+    {
+      "turn": 18,
+      "wallMs": 16036,
+      "input": 355,
+      "output": 197,
+      "cacheRead": 1934336,
+      "peakInput": 483837,
+      "steps": 4
+    },
+    {
+      "turn": 19,
+      "wallMs": 7024,
+      "input": 31147,
+      "output": 6,
+      "cacheRead": 483840,
+      "peakInput": 514987,
+      "steps": 1
+    },
+    {
+      "turn": 20,
+      "wallMs": 5031,
+      "input": 31345,
+      "output": 6,
+      "cacheRead": 514944,
+      "peakInput": 546289,
+      "steps": 1
+    },
+    {
+      "turn": 21,
+      "wallMs": 6024,
+      "input": 31164,
+      "output": 6,
+      "cacheRead": 546176,
+      "peakInput": 577340,
+      "steps": 1
+    },
+    {
+      "turn": 22,
+      "wallMs": 7087,
+      "input": 31195,
+      "output": 6,
+      "cacheRead": 577280,
+      "peakInput": 608475,
+      "steps": 1
+    },
+    {
+      "turn": 23,
+      "wallMs": 5016,
+      "input": 31190,
+      "output": 6,
+      "cacheRead": 608384,
+      "peakInput": 639574,
+      "steps": 1
+    },
+    {
+      "turn": 24,
+      "wallMs": 19046,
+      "input": 500,
+      "output": 297,
+      "cacheRead": 2558976,
+      "peakInput": 640102,
+      "steps": 4
+    },
+    {
+      "turn": 25,
+      "wallMs": 8047,
+      "input": 31350,
+      "output": 6,
+      "cacheRead": 640000,
+      "peakInput": 671350,
+      "steps": 1
+    },
+    {
+      "turn": 26,
+      "wallMs": 9032,
+      "input": 31317,
+      "output": 6,
+      "cacheRead": 671232,
+      "peakInput": 702549,
+      "steps": 1
+    },
+    {
+      "turn": 27,
+      "wallMs": 16050,
+      "input": 385,
+      "output": 188,
+      "cacheRead": 2107776,
+      "peakInput": 702845,
+      "steps": 3
+    },
+    {
+      "turn": 28,
+      "wallMs": 9023,
+      "input": 31157,
+      "output": 6,
+      "cacheRead": 702848,
+      "peakInput": 734005,
+      "steps": 1
+    },
+    {
+      "turn": 29,
+      "wallMs": 8037,
+      "input": 31447,
+      "output": 6,
+      "cacheRead": 733952,
+      "peakInput": 765399,
+      "steps": 1
+    },
+    {
+      "turn": 30,
+      "wallMs": 21058,
+      "input": 37766,
+      "output": 38,
+      "cacheRead": 9088,
+      "peakInput": 46854,
+      "steps": 1
+    },
+    {
+      "turn": 31,
+      "wallMs": 2019,
+      "input": 31662,
+      "output": 38,
+      "cacheRead": 46848,
+      "peakInput": 78510,
+      "steps": 1
+    },
+    {
+      "turn": 32,
+      "wallMs": 3012,
+      "input": 31186,
+      "output": 38,
+      "cacheRead": 78464,
+      "peakInput": 109650,
+      "steps": 1
+    },
+    {
+      "turn": 33,
+      "wallMs": 3021,
+      "input": 31296,
+      "output": 38,
+      "cacheRead": 109568,
+      "peakInput": 140864,
+      "steps": 1
+    },
+    {
+      "turn": 34,
+      "wallMs": 3028,
+      "input": 31195,
+      "output": 38,
+      "cacheRead": 140800,
+      "peakInput": 171995,
+      "steps": 1
+    },
+    {
+      "turn": 35,
+      "wallMs": 3023,
+      "input": 31031,
+      "output": 38,
+      "cacheRead": 172032,
+      "peakInput": 203063,
+      "steps": 1
+    },
+    {
+      "turn": 36,
+      "wallMs": 5016,
+      "input": 249,
+      "output": 153,
+      "cacheRead": 406144,
+      "peakInput": 203274,
+      "steps": 2
+    },
+    {
+      "turn": 37,
+      "wallMs": 4070,
+      "input": 31187,
+      "output": 38,
+      "cacheRead": 203264,
+      "peakInput": 234451,
+      "steps": 1
+    },
+    {
+      "turn": 38,
+      "wallMs": 5037,
+      "input": 31299,
+      "output": 38,
+      "cacheRead": 234368,
+      "peakInput": 265667,
+      "steps": 1
+    },
+    {
+      "turn": 39,
+      "wallMs": 5028,
+      "input": 31277,
+      "output": 38,
+      "cacheRead": 265600,
+      "peakInput": 296877,
+      "steps": 1
+    },
+    {
+      "turn": 40,
+      "wallMs": 4015,
+      "input": 31301,
+      "output": 38,
+      "cacheRead": 296832,
+      "peakInput": 328133,
+      "steps": 1
+    },
+    {
+      "turn": 41,
+      "wallMs": 5025,
+      "input": 31406,
+      "output": 38,
+      "cacheRead": 328064,
+      "peakInput": 359470,
+      "steps": 1
+    },
+    {
+      "turn": 42,
+      "wallMs": 5025,
+      "input": 31311,
+      "output": 38,
+      "cacheRead": 359424,
+      "peakInput": 390735,
+      "steps": 1
+    },
+    {
+      "turn": 43,
+      "wallMs": 6029,
+      "input": 31141,
+      "output": 38,
+      "cacheRead": 390656,
+      "peakInput": 421797,
+      "steps": 1
+    },
+    {
+      "turn": 44,
+      "wallMs": 7033,
+      "input": 31250,
+      "output": 38,
+      "cacheRead": 421760,
+      "peakInput": 453010,
+      "steps": 1
+    },
+    {
+      "turn": 45,
+      "wallMs": 9030,
+      "input": 207,
+      "output": 184,
+      "cacheRead": 906112,
+      "peakInput": 453252,
+      "steps": 2
+    },
+    {
+      "turn": 46,
+      "wallMs": 8028,
+      "input": 31173,
+      "output": 38,
+      "cacheRead": 453248,
+      "peakInput": 484421,
+      "steps": 1
+    },
+    {
+      "turn": 47,
+      "wallMs": 6061,
+      "input": 31377,
+      "output": 38,
+      "cacheRead": 484352,
+      "peakInput": 515729,
+      "steps": 1
+    },
+    {
+      "turn": 48,
+      "wallMs": 13056,
+      "input": 239,
+      "output": 329,
+      "cacheRead": 1547776,
+      "peakInput": 516197,
+      "steps": 3
+    },
+    {
+      "turn": 49,
+      "wallMs": 6059,
+      "input": 31452,
+      "output": 38,
+      "cacheRead": 516096,
+      "peakInput": 547548,
+      "steps": 1
+    },
+    {
+      "turn": 50,
+      "wallMs": 7031,
+      "input": 31078,
+      "output": 38,
+      "cacheRead": 547584,
+      "peakInput": 578662,
+      "steps": 1
+    },
+    {
+      "turn": 51,
+      "wallMs": 7025,
+      "input": 31246,
+      "output": 38,
+      "cacheRead": 578688,
+      "peakInput": 609934,
+      "steps": 1
+    },
+    {
+      "turn": 52,
+      "wallMs": 7019,
+      "input": 31169,
+      "output": 38,
+      "cacheRead": 609920,
+      "peakInput": 641089,
+      "steps": 1
+    },
+    {
+      "turn": 53,
+      "wallMs": 7071,
+      "input": 31182,
+      "output": 38,
+      "cacheRead": 641024,
+      "peakInput": 672206,
+      "steps": 1
+    },
+    {
+      "turn": 54,
+      "wallMs": 10039,
+      "input": 173,
+      "output": 158,
+      "cacheRead": 1344512,
+      "peakInput": 672422,
+      "steps": 2
+    },
+    {
+      "turn": 55,
+      "wallMs": 5024,
+      "input": 31199,
+      "output": 38,
+      "cacheRead": 672384,
+      "peakInput": 703583,
+      "steps": 1
+    },
+    {
+      "turn": 56,
+      "wallMs": 9042,
+      "input": 31031,
+      "output": 38,
+      "cacheRead": 703616,
+      "peakInput": 734647,
+      "steps": 1
+    },
+    {
+      "turn": 57,
+      "wallMs": 8028,
+      "input": 31191,
+      "output": 38,
+      "cacheRead": 734592,
+      "peakInput": 765783,
+      "steps": 1
+    }
+  ],
+  "totals": {
+    "input": 1523498,
+    "output": 3322,
+    "cacheRead": 29960832,
+    "wallMs": 378102
+  },
+  "verdict": null,
+  "failed": "Error: turn timeout (no turn/end)"
+}

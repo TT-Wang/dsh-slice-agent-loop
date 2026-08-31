@@ -1,0 +1,116 @@
+{
+  "scenario": "n2_intent_ledger",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-n2_intent_ledger-default-gmyG0v",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 9013,
+      "input": 15376,
+      "output": 825,
+      "cacheRead": 32128,
+      "peakInput": 16100,
+      "steps": 3
+    },
+    {
+      "turn": 2,
+      "wallMs": 36057,
+      "input": 5603,
+      "output": 5613,
+      "cacheRead": 43648,
+      "peakInput": 27469,
+      "steps": 2
+    },
+    {
+      "turn": 3,
+      "wallMs": 8028,
+      "input": 811,
+      "output": 569,
+      "cacheRead": 111104,
+      "peakInput": 28326,
+      "steps": 4
+    },
+    {
+      "turn": 4,
+      "wallMs": 39069,
+      "input": 23159,
+      "output": 5487,
+      "cacheRead": 37504,
+      "peakInput": 33802,
+      "steps": 2
+    },
+    {
+      "turn": 5,
+      "wallMs": 11019,
+      "input": 864,
+      "output": 1062,
+      "cacheRead": 110208,
+      "peakInput": 28441,
+      "steps": 4
+    },
+    {
+      "turn": 6,
+      "wallMs": 44082,
+      "input": 19351,
+      "output": 5991,
+      "cacheRead": 43392,
+      "peakInput": 34514,
+      "steps": 2
+    },
+    {
+      "turn": 7,
+      "wallMs": 47243,
+      "input": 19704,
+      "output": 6057,
+      "cacheRead": 43136,
+      "peakInput": 34302,
+      "steps": 2
+    },
+    {
+      "turn": 8,
+      "wallMs": 8034,
+      "input": 769,
+      "output": 722,
+      "cacheRead": 116224,
+      "peakInput": 29725,
+      "steps": 4
+    },
+    {
+      "turn": 9,
+      "wallMs": 48093,
+      "input": 19413,
+      "output": 5960,
+      "cacheRead": 44800,
+      "peakInput": 35724,
+      "steps": 2
+    },
+    {
+      "turn": 10,
+      "wallMs": 46092,
+      "input": 19743,
+      "output": 5991,
+      "cacheRead": 43392,
+      "peakInput": 34590,
+      "steps": 2
+    },
+    {
+      "turn": 11,
+      "wallMs": 15040,
+      "input": 1280,
+      "output": 1580,
+      "cacheRead": 147840,
+      "peakInput": 30873,
+      "steps": 5
+    }
+  ],
+  "totals": {
+    "input": 126073,
+    "output": 39857,
+    "cacheRead": 773376,
+    "wallMs": 311770
+  },
+  "verdict": [
+    true,
+    "all current rules honored"
+  ],
+  "failed": null
+}

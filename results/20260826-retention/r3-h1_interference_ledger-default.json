@@ -1,0 +1,188 @@
+{
+  "scenario": "h1_interference_ledger",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-h1_interference_ledger-default-xI5nPt",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 29108,
+      "input": 15098,
+      "output": 443,
+      "cacheRead": 384,
+      "peakInput": 15482,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 4017,
+      "input": 5076,
+      "output": 394,
+      "cacheRead": 15872,
+      "peakInput": 20948,
+      "steps": 1
+    },
+    {
+      "turn": 3,
+      "wallMs": 2036,
+      "input": 113,
+      "output": 45,
+      "cacheRead": 21248,
+      "peakInput": 21361,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 2022,
+      "input": 5103,
+      "output": 88,
+      "cacheRead": 21376,
+      "peakInput": 26479,
+      "steps": 1
+    },
+    {
+      "turn": 5,
+      "wallMs": 2009,
+      "input": 90,
+      "output": 47,
+      "cacheRead": 26496,
+      "peakInput": 26586,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 2007,
+      "input": 5294,
+      "output": 35,
+      "cacheRead": 26624,
+      "peakInput": 31918,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 2017,
+      "input": 5427,
+      "output": 26,
+      "cacheRead": 31872,
+      "peakInput": 37299,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 13030,
+      "input": 17745,
+      "output": 46,
+      "cacheRead": 9088,
+      "peakInput": 26833,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 2015,
+      "input": 5603,
+      "output": 33,
+      "cacheRead": 26752,
+      "peakInput": 32355,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 2017,
+      "input": 24,
+      "output": 24,
+      "cacheRead": 32384,
+      "peakInput": 32408,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 2013,
+      "input": 5680,
+      "output": 6,
+      "cacheRead": 32384,
+      "peakInput": 38064,
+      "steps": 1
+    },
+    {
+      "turn": 12,
+      "wallMs": 11071,
+      "input": 18157,
+      "output": 6,
+      "cacheRead": 14848,
+      "peakInput": 33005,
+      "steps": 1
+    },
+    {
+      "turn": 13,
+      "wallMs": 2028,
+      "input": 137,
+      "output": 32,
+      "cacheRead": 32896,
+      "peakInput": 33033,
+      "steps": 1
+    },
+    {
+      "turn": 14,
+      "wallMs": 2007,
+      "input": 5624,
+      "output": 6,
+      "cacheRead": 33024,
+      "peakInput": 38648,
+      "steps": 1
+    },
+    {
+      "turn": 15,
+      "wallMs": 22115,
+      "input": 12304,
+      "output": 74,
+      "cacheRead": 14976,
+      "peakInput": 27280,
+      "steps": 1
+    },
+    {
+      "turn": 16,
+      "wallMs": 2011,
+      "input": 6127,
+      "output": 26,
+      "cacheRead": 27264,
+      "peakInput": 33391,
+      "steps": 1
+    },
+    {
+      "turn": 17,
+      "wallMs": 1013,
+      "input": 5935,
+      "output": 6,
+      "cacheRead": 33408,
+      "peakInput": 39343,
+      "steps": 1
+    },
+    {
+      "turn": 18,
+      "wallMs": 12074,
+      "input": 13198,
+      "output": 374,
+      "cacheRead": 43392,
+      "peakInput": 28500,
+      "steps": 2
+    },
+    {
+      "turn": 19,
+      "wallMs": 5014,
+      "input": 301,
+      "output": 468,
+      "cacheRead": 57472,
+      "peakInput": 29175,
+      "steps": 2
+    }
+  ],
+  "totals": {
+    "input": 127036,
+    "output": 2179,
+    "cacheRead": 501760,
+    "wallMs": 119624
+  },
+  "verdict": [
+    true,
+    "current+history+trap all exact"
+  ],
+  "failed": null
+}

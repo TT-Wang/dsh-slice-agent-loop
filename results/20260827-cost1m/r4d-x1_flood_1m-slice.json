@@ -1,0 +1,158 @@
+{
+  "scenario": "x1_flood_1m",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-x1_flood_1m-slice-HaIjfw",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 3026,
+      "input": 9348,
+      "output": 132,
+      "cacheRead": 768,
+      "peakInput": 10116,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 195683,
+      "input": 38228,
+      "output": 31917,
+      "cacheRead": 192384,
+      "peakInput": 73558,
+      "steps": 4
+    },
+    {
+      "turn": 3,
+      "wallMs": 196554,
+      "input": 63973,
+      "output": 31437,
+      "cacheRead": 218112,
+      "peakInput": 104614,
+      "steps": 3
+    },
+    {
+      "turn": 4,
+      "wallMs": 199647,
+      "input": 69364,
+      "output": 31405,
+      "cacheRead": 306944,
+      "peakInput": 136037,
+      "steps": 3
+    },
+    {
+      "turn": 5,
+      "wallMs": 200594,
+      "input": 126055,
+      "output": 31406,
+      "cacheRead": 341888,
+      "peakInput": 166587,
+      "steps": 3
+    },
+    {
+      "turn": 6,
+      "wallMs": 212870,
+      "input": 156840,
+      "output": 31336,
+      "cacheRead": 404096,
+      "peakInput": 197489,
+      "steps": 3
+    },
+    {
+      "turn": 7,
+      "wallMs": 215159,
+      "input": 187945,
+      "output": 31475,
+      "cacheRead": 466560,
+      "peakInput": 228782,
+      "steps": 3
+    },
+    {
+      "turn": 8,
+      "wallMs": 204916,
+      "input": 218835,
+      "output": 31278,
+      "cacheRead": 528128,
+      "peakInput": 259524,
+      "steps": 3
+    },
+    {
+      "turn": 9,
+      "wallMs": 216034,
+      "input": 249862,
+      "output": 31556,
+      "cacheRead": 590976,
+      "peakInput": 290886,
+      "steps": 3
+    },
+    {
+      "turn": 10,
+      "wallMs": 218106,
+      "input": 280973,
+      "output": 31591,
+      "cacheRead": 653184,
+      "peakInput": 322034,
+      "steps": 3
+    },
+    {
+      "turn": 11,
+      "wallMs": 215534,
+      "input": 312062,
+      "output": 31382,
+      "cacheRead": 714880,
+      "peakInput": 352872,
+      "steps": 3
+    },
+    {
+      "turn": 12,
+      "wallMs": 208214,
+      "input": 343374,
+      "output": 31541,
+      "cacheRead": 777728,
+      "peakInput": 384349,
+      "steps": 3
+    },
+    {
+      "turn": 13,
+      "wallMs": 223487,
+      "input": 374341,
+      "output": 31421,
+      "cacheRead": 839424,
+      "peakInput": 415143,
+      "steps": 3
+    },
+    {
+      "turn": 14,
+      "wallMs": 217448,
+      "input": 405506,
+      "output": 31461,
+      "cacheRead": 902016,
+      "peakInput": 446420,
+      "steps": 3
+    },
+    {
+      "turn": 15,
+      "wallMs": 207419,
+      "input": 436780,
+      "output": 31492,
+      "cacheRead": 964352,
+      "peakInput": 477676,
+      "steps": 3
+    },
+    {
+      "turn": 16,
+      "wallMs": 228499,
+      "input": 467881,
+      "output": 31489,
+      "cacheRead": 1026688,
+      "peakInput": 508784,
+      "steps": 3
+    }
+  ],
+  "totals": {
+    "input": 3741367,
+    "output": 472319,
+    "cacheRead": 8928128,
+    "wallMs": 3163190
+  },
+  "verdict": null,
+  "failed": "Error: turn timeout (no turn/end)"
+}

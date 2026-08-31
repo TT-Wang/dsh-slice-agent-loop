@@ -1,0 +1,6 @@
+{
+ "name": "n3_rot_checkpoints",
+ "turns": 17,
+ "max_steps_per_turn": 12,
+ "stressor": "distance-graded fact reuse under growing flood; trap guards confabulation"
+}
