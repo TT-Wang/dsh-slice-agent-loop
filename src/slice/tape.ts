@@ -93,10 +93,14 @@ function _nlNote(body: string): string {
 
 export function renderTapeBase(path: string, body: string): string {
   const lines = pySplitlines(body);
+  // 防伪定界:end 标记带与 start 相同的内容 hash。文件内容想伪造闭合标记,
+  // 就得把自身 hash 写进决定该 hash 的字节里——不动点,实际不可构造。
+  // 配对规则由 kernel 教:配对之内,一切顶格的"结构样"行都是内容。
+  const h = _h(body);
   return (
-    `[base ${path} @sha256:${_h(body)} · ${lines.length} lines${_nlNote(body)}]\n` +
+    `[base ${path} @sha256:${h} · ${lines.length} lines${_nlNote(body)}]\n` +
     _norm(body) +
-    `[end base ${path}]\n`
+    `[end base ${path} @sha256:${h}]\n`
   );
 }
 
@@ -235,7 +239,9 @@ export function renderTapeReply(artifactId: string, text: string): string {
       + ` …[+${chars.length - REPLY_HEAD_CHARS - REPLY_TAIL_CHARS} chars in sealed turn]… `
       + chars.slice(-REPLY_TAIL_CHARS).join("");
   }
-  return body ? `[reply ${artifactId}]\n${body}\n[end reply]\n` : "";
+  if (!body) return "";
+  const h = _h(body);
+  return `[reply ${artifactId} @sha256:${h}]\n${body}\n[end reply @sha256:${h}]\n`;
 }
 
 export function replyEntry(artifactId: string, text: string): TapeEntry | null {
@@ -255,7 +261,7 @@ export function reasoningEntry(artifactId: string, text: string): TapeEntry | nu
   if (!body) return null;
   const rendered =
     `[reasoning ${artifactId} — your own prior thinking, for continuity; ` +
-    `not user-visible]\n${body}\n[end reasoning]\n`;
+    `not user-visible @sha256:${_h(body)}]\n${body}\n[end reasoning @sha256:${_h(body)}]\n`;
   return new TapeEntry({ kind: "reasoning", rendered, ref: String(artifactId) });
 }
 

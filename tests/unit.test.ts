@@ -161,8 +161,9 @@ describe("tape stays bounded over a long session (评审 #16 / G)", () => {
   it("keeps the tape bounded when every turn edits files", () => {
     const { sizes, folds } = longSession(300, true);
     expect(Math.max(...sizes)).toBeLessThan(200_000);
-    // 折叠是罕见事件（实测 300 轮 0–2 次）。频繁重折会打光前缀缓存，
-    // 这里钉住它不退化成抖动。
+    // 折叠是罕见事件（实测 300 轮 4 次、约 47 轮一折）。频繁重折会打光前缀
+    // 缓存，这里钉住它不退化成抖动——曾抓到 base/patch 选型踩平手刀刃时
+    // 折叠飙到 39 次（修复见 continuity.ts 的 0.9 边际）。
     expect(folds).toBeLessThan(20);
   });
 });

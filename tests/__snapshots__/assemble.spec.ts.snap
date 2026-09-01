@@ -7,7 +7,7 @@ exports[`assembleSlice > matches the exact assembled bytes 1`] = `
 ask: 做点事
 [base a.py @sha256:cc42155088fc · 1 lines]
 print(1)
-[end base a.py]
+[end base a.py @sha256:cc42155088fc]
 
 # STABLE TASK OBJECTIVE (original user objective; keep it active across follow-ups)
 修 bug
