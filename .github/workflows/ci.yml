@@ -42,7 +42,13 @@ jobs:
       - name: Install dev dependencies
         # No lockfile by design (see .gitignore): every runtime dependency is a
         # peer supplied by the host, leaving only typescript/vitest/tsx/@types.
-        run: npm install --no-audit --no-fund
+        # --legacy-peer-deps because the line above is literally true: every runtime
+        # dependency here is a peer the host supplies. Without it npm 7+ tries to satisfy
+        # those peers from the registry and the tree no longer resolves at all (the published
+        # dsh packages moved on; dsh-agent@rc.6 wants dsh-llm ^0.1.0-rc.6 while the root range
+        # admits rc.8). That ERESOLVE is what took this workflow down, and it will keep moving
+        # with every upstream release — so stop asking npm to resolve peers we never install.
+        run: npm install --no-audit --no-fund --legacy-peer-deps
 
       - name: Peer-free engine behavior tests
         run: npx vitest run tests/assemble.spec.ts tests/tape.spec.ts
@@ -50,5 +56,10 @@ jobs:
       - name: Typecheck the peer-free slice engine
         # The full `npm run typecheck` needs the harness peers; this checks the
         # ported engine on its own.
-        run: npx tsc --noEmit --strict --target es2022 --module nodenext
+        # Scoped to src/slice — the step's own description says it "checks the ported engine
+        # on its own", but the bare command typechecked the whole project, driver.ts included,
+        # which cannot compile without the peers this job deliberately does not install. The
+        # peer-facing half (driver/lifecycle/universe/…) is covered by `npm run typecheck`
+        # against a real dsh checkout; CI gates the half it can honestly gate.
+        run: npx tsc --noEmit --strict --target es2022 --module nodenext $(find src/slice -name '*.ts' | tr '\n' ' ')
              --moduleResolution nodenext --skipLibCheck src/slice/index.ts
