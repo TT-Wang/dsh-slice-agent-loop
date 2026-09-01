@@ -49,14 +49,10 @@ const TAPE_HDR =
   "before editing. Digest entries are the sealed record of earlier turns, not " +
   "current-world truth)\n";
 
-// The ported header promised a "· read call" column. `openFilesIndex` stopped
-// emitting one (driver.ts: DSH registers its reader as `read` taking
-// {file_path}, so a hardcoded call rots on any host rename) — the promise
-// outlived the column. Dropped.
-const FILES_HDR =
-  "# OPEN FILES (index — path · lines · CURRENT on-disk sha256. Contents are NOT here: " +
-  "compose them from the SESSION TAPE (base+patches) when the hashes match, read the file " +
-  "when they don't)\n";
+// 教学点纪律:合成规则(composition==hash ⇒ 直接编辑,否则重读)只在 kernel 的
+// FILES 段教一遍——这里曾逐字复述,属现付文本,删。列名本身 kernel 也教过,
+// 但索引行离了列名不可读,这是标注不是教学。
+const FILES_HDR = "# OPEN FILES (path · lines · current on-disk sha256)\n";
 
 // The ported header pointed at a "RETAINED USER CORRECTIONS section" that this
 // deployment never rendered and this schema does not define; its second branch
@@ -81,7 +77,8 @@ const NOW_FOOTER =
   "it directly (observation tools may ground the answer). If it asks for action, use reasonable " +
   "reversible judgment to carry it through within the exact user constraints; ask only when a " +
   "material ambiguity would change the result or before an unclear consequential external action. " +
-  "Base changes on the current file text — your SESSION TAPE composition when its hash matches the OPEN FILES index, otherwise a fresh read_file; once the request is fully handled and verified " +
+  // NOW 只留轮内行为纪律;合成规则的教学点在 kernel,此处曾是第三处复述,删。
+  "Once the request is fully handled and verified " +
   "as well as the environment allows, deliver a brief closeout (outcome + verification — the host " +
   "already records each edit) and make NO tool call.";
 
