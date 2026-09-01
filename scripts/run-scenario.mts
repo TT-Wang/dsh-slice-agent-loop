@@ -55,6 +55,12 @@ if (!scenarioDir || !existsSync(join(scenarioDir, 'prompts.json'))) {
 }
 const modelIdx = args.indexOf('--model')
 const MODEL = modelIdx !== -1 ? args[modelIdx + 1]! : 'deepseek-v4-flash'
+const effortIdx = args.indexOf('--effort')
+const EFFORT = effortIdx !== -1 ? args[effortIdx + 1]! : 'high'
+if (!['off', 'low', 'high', 'max', 'default'].includes(EFFORT)) {
+  console.error(`--effort must be off|low|high|max|default, got ${EFFORT}`)
+  process.exit(2)
+}
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
 const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number }
@@ -75,7 +81,7 @@ const py = (fn: string) =>
     fn,
   ].join('\n')], { encoding: 'utf8' })
 py(`import setup; setup.setup(${JSON.stringify(workdir)})`)
-console.log(`scenario ${scenario} · ${prompts.length} turns (meta says ${meta.turns}) · model ${MODEL}\nworkdir ${workdir}`)
+console.log(`scenario ${scenario} · ${prompts.length} turns (meta says ${meta.turns}) · model ${MODEL} · effort ${EFFORT}\nworkdir ${workdir}`)
 
 // ── boot ────────────────────────────────────────────────────────────────────
 const ctx = new Context()
@@ -86,11 +92,17 @@ await ctx.plugin(ToolRegistry)
 await ctx.plugin(AgentRegistry)
 await ctx.plugin(LocalFileSystem, { cwd: workdir })
 await ctx.plugin(ToolFs, {})
-await ctx.plugin(apply, {})
+// effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
+// 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
+// 'default' = 不传配置,验证出厂默认的真实生效路径。
+await ctx.plugin(apply, EFFORT === 'default' ? {} : { defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max' })
 
 const connection = {
   baseURL: PUBLIC_BASE_URL,
   apiKeyEnv: 'DEEPSEEK_API_KEY' as never,
+  // effort 阶梯实验(20260901 共识 Q2):经 connection defaults 注入——四臂提示词
+  // 字节完全相同,epoch header 自动带 adapterDefaults 标记。恒显式设置以保证
+  // 四臂走同一条解析路径。
   defaults: {},
   maxTokens: DEFAULT_MAX_TOKENS,
   defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
@@ -107,7 +119,7 @@ ctx.llm.registerAdapter(['deepseek'], new DeepSeekAdapter({
   prepareExtensions: () => Promise.resolve({ fields: {}, accept: () => Promise.resolve() }),
 }))
 
-const sessionId = `slice-val-${scenario}-${Date.now()}`
+const sessionId = `slice-val-${scenario}-${EFFORT}-${Date.now()}`
 const handle = await ctx.agents.create({
   sessionId: SessionId(sessionId),
   agentOptions: { provider: 'deepseek', model: MODEL },
@@ -145,10 +157,21 @@ for (let i = 0; i < prompts.length; i += 1) {
 await agent.whenIdle()
 
 // ── verify.py ───────────────────────────────────────────────────────────────
+// 行为闸门数据(Q3-b):工具名直方图——n1 召回调用数 / n2 施工轮工具数由此判。
+const names: Record<string, number> = {}
+for (const e of agent.session.events) {
+  if (e.type !== 'tool/call') continue
+  const d = e.data as Record<string, unknown> | undefined
+  const call = (d?.call ?? d) as Record<string, unknown> | undefined
+  const name = String(call?.name ?? call?.tool ?? '?')
+  names[name] = (names[name] ?? 0) + 1
+}
+console.log('tool histogram:', JSON.stringify(names))
+
 const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-writeFileSync(join(workdir, 'verdict.json'), JSON.stringify({ scenario, sessionId, model: MODEL, ...verdict }, null, 2))
+writeFileSync(join(workdir, 'verdict.json'), JSON.stringify({ scenario, sessionId, model: MODEL, effort: EFFORT, toolHistogram: names, ...verdict }, null, 2))
 console.log(`verdict: ${verdict.ok ? '✓' : '✗'} ${verdict.detail}\nsession ${sessionId}\nsidecar ${process.env.SLICE_CALL_LEDGER_DIR ?? '(unset)'}/${sessionId}.calls.jsonl`)
 process.exit(0)

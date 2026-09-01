@@ -87,6 +87,7 @@ import {
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
 import { recordSeedEvent, recordCallEvent } from './call-ledger.js'
+import { applyEffortDefault, type ReasoningEffortDefault } from './effort-default.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import type { SliceContributionFacts, SliceContributor } from './index.js'
@@ -172,6 +173,8 @@ export interface SliceLoopDriverConfig {
   maxStepsPerTurn: number
   /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
   contributors: readonly SliceContributor[]
+  /** 无人显式选择时注入的 reasoningEffort 默认档；'inherit' 退出注入。 */
+  defaultReasoningEffort: ReasoningEffortDefault
 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
@@ -231,6 +234,7 @@ export class SliceLoopAgent implements Agent {
   private readonly ledger: InboxLedger
   private readonly maxParallelToolCalls: number
   private readonly maxStepsPerTurn: number
+  private readonly defaultReasoningEffort: ReasoningEffortDefault
   private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
@@ -257,6 +261,7 @@ export class SliceLoopAgent implements Agent {
     this.maxParallelToolCalls = config.maxParallelToolCalls
     this.maxStepsPerTurn = config.maxStepsPerTurn
     this.contributors = config.contributors
+    this.defaultReasoningEffort = config.defaultReasoningEffort
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -907,15 +912,20 @@ export class SliceLoopAgent implements Agent {
       if (!proposed.provider || !proposed.model) {
         throw new Error(`agent "${this.id}" has no provider/model: set AgentOptions.provider and AgentOptions.model or supply both via the agent/request waterfall`)
       }
+      // Q4-b:无人显式选择 effort 时注入插件默认(low)。显式值(选项/恢复头/
+      // waterfall)已在 proposed 上定义,恒不覆盖;适配器默认在 requestProposal
+      // 剥离,落到这里恒 undefined。注入发生在 header 规范化之前,epoch header
+      // 如实记录生效值——logged ⟺ sent 审计不变式不破。
+      const effortResolved = applyEffortDefault(proposed, this.defaultReasoningEffort)
       let config: LlmCallConfig
       let preparedCall: PreparedLlmCall | undefined
       try {
-        preparedCall = await this.loopCtx.llm.prepareCall(proposed, signal)
+        preparedCall = await this.loopCtx.llm.prepareCall(effortResolved, signal)
         config = preparedCall.config
       } catch (error: unknown) {
         // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
         if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'NO_ADAPTER') throw error
-        config = proposed
+        config = effortResolved
       }
       signal.throwIfAborted()
 

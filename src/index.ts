@@ -17,11 +17,14 @@ import { ensureHarnessUniverse, type HarnessUniverse } from './universe.js'
 import { SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
+import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
 
 export interface Config {
   maxParallelToolCalls?: number
   maxStepsPerTurn?: number
+  /** reasoningEffort 插件默认档(无人显式选择时注入);'inherit' 退出。缺省 'low'。 */
+  defaultReasoningEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
@@ -196,6 +199,10 @@ export class SliceLoopPlugin extends Service {
     super(ctx, 'sliceAgentLoop')
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
+    const defaultReasoningEffort = config.defaultReasoningEffort ?? DEFAULT_REASONING_EFFORT
+    if (!REASONING_EFFORT_DEFAULTS.includes(defaultReasoningEffort)) {
+      throw new Error(`defaultReasoningEffort must be one of ${REASONING_EFFORT_DEFAULTS.join('|')}`)
+    }
     guardStockLoopInvariant(ctx)
     // 贡献登记簿。provide 挂在本插件的 fiber 上，插件卸载即服务消失，
     // 依赖它的贡献插件随之休眠 —— 无需任何清理代码。
@@ -259,7 +266,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
