@@ -82,6 +82,21 @@ const NOW_FOOTER =
   "as well as the environment allows, deliver a brief closeout (outcome + verification — the host " +
   "already records each edit) and make NO tool call.";
 
+/**
+ * Zone header table, in body order. Exported for offline miss attribution
+ * (src/slice/miss-attribution.ts maps a byte-divergence offset back to the
+ * zone whose header precedes it). These are the SAME constants the assembly
+ * below joins — lockstep by construction, not by copy.
+ */
+export const ZONE_HEADERS: readonly { readonly zone: string; readonly header: string }[] = [
+  { zone: 'tape', header: TAPE_HDR },
+  { zone: 'objective', header: OBJ_HDR },
+  { zone: 'open-files', header: FILES_HDR },
+  { zone: 'plugin', header: PLUGIN_HDR },
+  { zone: 'error', header: ERR_HDR },
+  { zone: 'request', header: REQ_HDR },
+]
+
 // ─────────────────────────────────────────────────────────────── 装配
 
 function renderContributions(items: readonly { name: string; text: string }[]): string {
