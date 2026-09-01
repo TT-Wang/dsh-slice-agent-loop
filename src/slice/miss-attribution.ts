@@ -54,7 +54,10 @@ export interface CallRecord {
 
 /** DeepSeek prefix cache granularity: 64-token blocks. */
 export const BLOCK_TOKENS = 64
-export const DEFAULT_TOLERANCE_BLOCKS = 2
+/** 实测(20260901,两场景 27 轮界):线性自校准后健康轮界的残差散布 ±3 块
+ *  (CJK/ASCII 混合比逐轮波动的估算噪音);关注的漂移事件是 +100 块量级。
+ *  默认 4 块 = 噪音之上、信号之下。 */
+export const DEFAULT_TOLERANCE_BLOCKS = 4
 /** chars-per-token clamp + fallback when a sidecar carries no usable usage. */
 const CPT_MIN = 1.5
 const CPT_MAX = 6
@@ -170,6 +173,11 @@ export interface Analysis {
   boundaries: BoundaryReport[]
   charsPerToken: number
   calibratedTurns: number
+  /** Self-calibrated fixed per-first-call overhead (tokens) the client-side
+   *  byte diff cannot see — median(actual − expected) over healthy user-field
+   *  boundaries, clamped at 0. Real data 20260901: ≈350 tokens, consistent
+   *  across scenarios; verdicts compare against expected + envelope. */
+  envelopeTokens: number
   totals: AnalysisTotals
 }
 
@@ -219,42 +227,67 @@ export function analyze(
   const seeds = [...seedsIn].sort((a, b) => a.turn - b.turn)
   const { charsPerToken, calibratedTurns } = calibrateCharsPerToken(seeds, calls)
 
-  const boundaries: BoundaryReport[] = []
+  // Pass 1: raw expectations per boundary; collect (actual − expected) on
+  // structurally-healthy user-field boundaries to learn the fixed envelope.
+  interface Prelim { prev: SeedRecord; next: SeedRecord; divergence: Divergence; expected: number; actual?: number; structural: Verdict | null }
+  const prelims: Prelim[] = []
   for (let i = 1; i < seeds.length; i += 1) {
     const prev = seeds[i - 1]!
     const next = seeds[i]!
     const divergence = findDivergence(prev, next)
-    const expectedMissTokens = Math.round(divergence.freshChars / charsPerToken)
+    const expected = Math.round(divergence.freshChars / charsPerToken)
     const actual = firstCallOf(calls, next.turn)?.norm?.input
-    const deltaBlocks = actual === undefined
-      ? 0
-      : Math.round((actual - expectedMissTokens) / BLOCK_TOKENS)
-
-    let verdict: Verdict
-    if (divergence.field === 'system') {
-      verdict = 'system-drift'
-    } else if (divergence.field === 'runtime-context') {
-      verdict = 'runtime-context-volatile'
-    } else if (divergence.field === 'user') {
+    let structural: Verdict | null = null
+    if (divergence.field === 'system') structural = 'system-drift'
+    else if (divergence.field === 'runtime-context') structural = 'runtime-context-volatile'
+    else if (divergence.field === 'user') {
       const prevTapeEnd = tapeContentEnd(prev.user)
-      if (prevTapeEnd !== -1 && divergence.offset < prevTapeEnd) {
-        verdict = 'tape-drift'
-      } else if (actual !== undefined && actual - expectedMissTokens > tolerance) {
-        verdict = 'suspect-size'
-      } else {
-        verdict = 'ok'
-      }
-    } else {
-      // Identical head: any observed miss is envelope/trajectory, not the seed.
-      verdict = actual !== undefined && actual > tolerance ? 'suspect-size' : 'ok'
+      if (prevTapeEnd !== -1 && divergence.offset < prevTapeEnd) structural = 'tape-drift'
     }
+    prelims.push({ prev, next, divergence, expected, ...(actual === undefined ? {} : { actual }), structural })
+  }
+  // 实测残差是双峰的:大轮界被 cpt 高估(负残差),小轮界带固定请求包络
+  // (正残差 ~350t)。单一常数吸收不了两者——线性自校准 actual ≈ a + b·expected:
+  // a=客户端看不见的固定包络,b=估算斜率。样本 <4 或拟合病态时退化为 a=0,b=1
+  // (即原始语义,合成小样本的单元测试走这条路)。
+  const pts = prelims
+    .filter((p) => p.structural === null && p.actual !== undefined)
+    .map((p) => ({ x: p.expected, y: p.actual! }))
+  let intercept = 0
+  let slope = 1
+  if (pts.length >= 4) {
+    const n = pts.length
+    const sx = pts.reduce((a, q) => a + q.x, 0)
+    const sy = pts.reduce((a, q) => a + q.y, 0)
+    const sxx = pts.reduce((a, q) => a + q.x * q.x, 0)
+    const sxy = pts.reduce((a, q) => a + q.x * q.y, 0)
+    const denom = n * sxx - sx * sx
+    if (denom > 0) {
+      const b = (n * sxy - sx * sy) / denom
+      const a = (sy - b * sx) / n
+      if (b > 0.3 && b < 1.5 && a >= 0) {
+        slope = b
+        intercept = Math.round(a)
+      }
+    }
+  }
+  const envelopeTokens = intercept
 
+  // Pass 2: verdicts against the calibrated prediction a + b·expected.
+  const boundaries: BoundaryReport[] = []
+  for (const p of prelims) {
+    const expectedAdj = Math.round(intercept + slope * p.expected)
+    const deltaBlocks = p.actual === undefined ? 0 : Math.round((p.actual - expectedAdj) / BLOCK_TOKENS)
+    let verdict: Verdict
+    if (p.structural !== null) verdict = p.structural
+    else if (p.actual !== undefined && p.actual - expectedAdj > tolerance) verdict = 'suspect-size'
+    else verdict = 'ok'
     boundaries.push({
-      turn: next.turn,
-      prevTurn: prev.turn,
-      divergence,
-      expectedMissTokens,
-      ...(actual === undefined ? {} : { actualMissTokens: actual }),
+      turn: p.next.turn,
+      prevTurn: p.prev.turn,
+      divergence: p.divergence,
+      expectedMissTokens: p.expected,
+      ...(p.actual === undefined ? {} : { actualMissTokens: p.actual }),
       deltaBlocks,
       verdict,
     })
@@ -271,5 +304,5 @@ export function analyze(
   const prompt = totals.input + totals.cacheRead
   totals.hitRate = prompt > 0 ? totals.cacheRead / prompt : 0
 
-  return { boundaries, charsPerToken, calibratedTurns, totals }
+  return { boundaries, charsPerToken, calibratedTurns, envelopeTokens, totals }
 }

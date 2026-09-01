@@ -153,6 +153,13 @@ describe('miss attribution', () => {
       completion_tokens: 50,
     })).toEqual({ input: 500, cacheRead: 2_500, output: 50, reasoning: 0 })
 
+    // DSH BlockAssembler 计量形状(探针实测):inputTokens 为 prompt 总量。
+    // inputTokens 是 billed(=miss)输入,不做减法(n2 洪水轮实证:1060+1664+139=totalTokens)。
+    expect(normalizeUsage({
+      inputTokens: 1_060, outputTokens: 139, totalTokens: 2_863,
+      cacheReadTokens: 1_664, reasoningTokens: 18,
+    })).toEqual({ input: 1_060, cacheRead: 1_664, output: 139, reasoning: 18 })
+
     expect(normalizeUsage(undefined)).toBeUndefined()
     expect(normalizeUsage({ note: 'no numbers here' })).toBeUndefined()
   })

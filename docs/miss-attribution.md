@@ -27,6 +27,13 @@ Sidecar 每会话一个文件（`<sessionId>.calls.jsonl`）：每轮一条 `see
 | `system-drift` | system 前缀会话中途变了 | 修装配 |
 | `runtime-context-volatile` | 宿主 runtime-context 块变了；它排在切片**之前**，抖一次 = 整条 tape 前缀作废 | 最高优先级排查 |
 
+## 校准与容差(20260901 实测定标)
+
+- **DSH usage 语义**:`inputTokens` 是 billed(=MISS)输入,`cacheReadTokens` 单列,`totalTokens = input + cacheRead + output`(llm/src/types.ts:131 + n2 洪水轮实证)。归一化按此处理,不做减法。
+- **线性自校准**:客户端字节 diff 看不见 ~350–450 token 的固定每调用包络(报告行 `envelope`),且 chars/token 全局值对不同 CJK/ASCII 配比的轮界有 ±3% 斜率误差。`analyze` 用健康轮界拟合 `actual ≈ a + b·expected` 后再判尺寸(样本 <4 退化为 a=0,b=1)。
+- **默认容差 4×64 块**:实测健康散布 ±3 块,真实漂移(如 n2-turn2 悬案量级)是 +100 块级。
+- **首次实跑结论(n2+n3,27 轮界)**:结构全部干净——分歧点全在 tape 追加位,零 tape-drift / system-drift / runtime-context-volatile;两场景任务判定均 ✓。注意本 runner 的 runtime-context 块为空,桌面/bench 宿主注入动态块时该通道才受考验。
+
 ## 已知限制
 
 - 期望 miss 是字符→token 估算（用 sidecar 自身校准 chars/token），容差按 DeepSeek 64-token 块粒度给；它抓的是"12.5K vs 期望 2K"量级的异常，不是逐 token 对账。

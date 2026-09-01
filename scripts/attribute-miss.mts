@@ -72,6 +72,7 @@ function report(session: SessionData, analysis: Analysis): void {
     + `  ·  miss ${fmt(t.input)} · hit ${fmt(t.cacheRead)} (${(t.hitRate * 100).toFixed(1)}%)`
     + `  ·  out ${fmt(t.output)} (reasoning ${fmt(t.reasoning)})`
     + `  ·  chars/token ${analysis.charsPerToken.toFixed(2)} over ${analysis.calibratedTurns} turns`
+    + `  ·  envelope ${analysis.envelopeTokens}t`
     + (session.badLines > 0 ? `  ·  ${session.badLines} unparsable lines skipped` : ''),
   )
   if (analysis.boundaries.length === 0) {

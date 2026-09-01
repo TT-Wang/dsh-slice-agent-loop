@@ -51,10 +51,17 @@ export function normalizeUsage(u: unknown): NormalizedUsage | undefined {
   const promptDetails = (r.prompt_tokens_details ?? r.promptTokensDetails) as Record<string, unknown> | undefined
   const completionDetails = (r.completion_tokens_details ?? r.completionTokensDetails) as Record<string, unknown> | undefined
 
+  // DSH 计量形状(llm/src/types.ts:131 + 20260901 实证):cacheReadTokens 单列,
+  // inputTokens 是 billed(=MISS)输入,total = input + cacheRead + output。
+  // OpenAI 形状:prompt_tokens 是总量,hit 在 prompt_cache_hit_tokens/details。
+  const hitDsh = num(r.cacheReadTokens) ?? num(r.cache_read_tokens)
   const hit = num(r.prompt_cache_hit_tokens) ?? num(r.promptCacheHitTokens)
+    ?? hitDsh
     ?? num(promptDetails?.cached_tokens) ?? num(promptDetails?.cachedTokens)
-  const promptTotal = num(r.prompt_tokens) ?? num(r.promptTokens) ?? num(r.input_tokens) ?? num(r.inputTokens)
+  const promptTotal = num(r.prompt_tokens) ?? num(r.promptTokens)
+    ?? (hitDsh === undefined ? num(r.input_tokens) ?? num(r.inputTokens) : undefined)
   const missDirect = num(r.prompt_cache_miss_tokens) ?? num(r.promptCacheMissTokens)
+    ?? (hitDsh !== undefined ? num(r.inputTokens) ?? num(r.input_tokens) : undefined)
   const output = num(r.completion_tokens) ?? num(r.completionTokens)
     ?? num(r.output_tokens) ?? num(r.outputTokens) ?? 0
   const reasoning = num(completionDetails?.reasoning_tokens) ?? num(completionDetails?.reasoningTokens)
