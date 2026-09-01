@@ -34,6 +34,23 @@ Sidecar 每会话一个文件（`<sessionId>.calls.jsonl`）：每轮一条 `see
 - **默认容差 4×64 块**:实测健康散布 ±3 块,真实漂移(如 n2-turn2 悬案量级)是 +100 块级。
 - **首次实跑结论(n2+n3,27 轮界)**:结构全部干净——分歧点全在 tape 追加位,零 tape-drift / system-drift / runtime-context-volatile;两场景任务判定均 ✓。注意本 runner 的 runtime-context 块为空,桌面/bench 宿主注入动态块时该通道才受考验。
 
+## runtime-context 通道复验(20260901,真实生产者)
+
+静态审计:全宿主仅 3 个 context 生产者——sandbox-policy / user-approval / subagent-delegation,全部是**事件驱动的常量文本**(approval 源码注释明言"完整值走保留历史之后,切换不重写稳定前缀"——宿主自身就是缓存自觉的)。不存在每轮必变的生产者。
+
+实测(`scripts/probe-runtime-context.mts`,挂真实 user-approval,5 轮,turn2→3 间 setPolicy ask→never):
+
+| 边界 | verdict | 解释 |
+|---|---|---|
+| 2 | runtime-context-volatile | **bootstrap**:会话首个快照在 turn1 期间才到达,turn2 种子首次携带 |
+| 3 | runtime-context-volatile | 策略切换本尊 ✓ |
+| 4 | runtime-context-volatile | **投影时序 smear**:新快照落在 turn3 轮内,turn4 种子才稳定 |
+| 5 | ok | 稳态干净 |
+
+结论:通道稳态字节稳定;**一次状态切换的真实缓存代价 ≈ 2 个轮界**(变更本身 + 时序 smear),外加会话级一次 bootstrap 破缓存。切换后整条切片自 runtime-context 块起重 miss——slice 峰值有界,单次代价 ≈ 一次切片重读,可接受但值得知道。若要省,可探索把快照挪到动态附录尾部(与 tape 解耦),属后续优化,非缺陷。
+
+n2-turn2 悬案改判:原始账本 turn2 只是洪水轮的合法大 miss;真正异常是其 cacheRead 3,712(前缀 ~26K 丢失,turn3 即恢复 33,280)。代码同源复跑 27+4 边界零漂移排除客户端字节嫌疑;结合 h2h 双臂共享账号缓存、default 臂 59K–378K 峰值提示词穿插其间,**最可能是跨臂缓存挤占(服务端逐出)**——bench 侧建议双臂错峰,或接受 h2h 首调用命中噪音并只对结构 verdict 设 CI 断言。
+
 ## 已知限制
 
 - 期望 miss 是字符→token 估算（用 sidecar 自身校准 chars/token），容差按 DeepSeek 64-token 块粒度给；它抓的是"12.5K vs 期望 2K"量级的异常，不是逐 token 对账。
