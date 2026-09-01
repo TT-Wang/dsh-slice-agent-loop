@@ -1,0 +1,125 @@
+{
+  "scenario": "n1_verbatim_restore",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-n1_verbatim_restore-slice-f0kPjx",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 18412,
+      "input": 1083,
+      "output": 363,
+      "cacheRead": 9600,
+      "peakInput": 10683,
+      "steps": 1
+    },
+    {
+      "turn": 2,
+      "wallMs": 20527,
+      "input": 1963,
+      "output": 933,
+      "cacheRead": 56960,
+      "peakInput": 12227,
+      "steps": 5
+    },
+    {
+      "turn": 3,
+      "wallMs": 18281,
+      "input": 7980,
+      "output": 172,
+      "cacheRead": 9728,
+      "peakInput": 17708,
+      "steps": 1
+    },
+    {
+      "turn": 4,
+      "wallMs": 17764,
+      "input": 7926,
+      "output": 78,
+      "cacheRead": 10240,
+      "peakInput": 18166,
+      "steps": 1
+    },
+    {
+      "turn": 5,
+      "wallMs": 17109,
+      "input": 8019,
+      "output": 79,
+      "cacheRead": 10496,
+      "peakInput": 18515,
+      "steps": 1
+    },
+    {
+      "turn": 6,
+      "wallMs": 19348,
+      "input": 8026,
+      "output": 74,
+      "cacheRead": 10880,
+      "peakInput": 18906,
+      "steps": 1
+    },
+    {
+      "turn": 7,
+      "wallMs": 17745,
+      "input": 8051,
+      "output": 72,
+      "cacheRead": 11264,
+      "peakInput": 19315,
+      "steps": 1
+    },
+    {
+      "turn": 8,
+      "wallMs": 16066,
+      "input": 8035,
+      "output": 62,
+      "cacheRead": 11648,
+      "peakInput": 19683,
+      "steps": 1
+    },
+    {
+      "turn": 9,
+      "wallMs": 17307,
+      "input": 8090,
+      "output": 62,
+      "cacheRead": 12032,
+      "peakInput": 20122,
+      "steps": 1
+    },
+    {
+      "turn": 10,
+      "wallMs": 17237,
+      "input": 8074,
+      "output": 64,
+      "cacheRead": 12416,
+      "peakInput": 20490,
+      "steps": 1
+    },
+    {
+      "turn": 11,
+      "wallMs": 34257,
+      "input": 3532,
+      "output": 3683,
+      "cacheRead": 67712,
+      "peakInput": 19578,
+      "steps": 4
+    },
+    {
+      "turn": 12,
+      "wallMs": 17464,
+      "input": 2716,
+      "output": 448,
+      "cacheRead": 44672,
+      "peakInput": 16107,
+      "steps": 3
+    }
+  ],
+  "totals": {
+    "input": 73495,
+    "output": 6090,
+    "cacheRead": 267648,
+    "wallMs": 231517
+  },
+  "verdict": [
+    true,
+    "clause values 12/12 verbatim; length ratio 1.00"
+  ],
+  "failed": null
+}

@@ -13,5 +13,5 @@ _Avoid_: 静态部分、system 区
 _Avoid_: 动态部分、boilerplate
 
 **教学点 (teaching site)**:
-一条规则在 slice 里被陈述的位置。设计约束：每条规则恰好一个教学点——机制类归 kernel（缓存价），轮内行为纪律归 NOW 尾（尾部显著性），header 不复述任何一方。
+一条规则在 slice 里被陈述的位置。机制类归 kernel（缓存价），轮内行为纪律归 NOW 尾（尾部显著性）；"每条规则恰好一个教学点"是志向而非不变式——复述可能靠语义之外的副作用挣回每轮成本（见 ADR-0001）。
 _Avoid_: 重复提醒、reinforcement
