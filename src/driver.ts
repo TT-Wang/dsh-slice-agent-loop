@@ -1793,7 +1793,8 @@ export class SliceLoopAgent implements Agent {
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     trackToolOutcome(this.cont, result.isError === true, toolResultText(message))
     // v3 追加流:大结果进上下文前折成紧凑视图(全文已落日志,recall_step 取回)。
-    this.turnTrajectory.push(this.mode === 'stream' ? this.digestForTrajectory(turn, step, block, message) : message)
+    // 轮内折叠:slice 与 stream 共用(默认开);state 模式保持自己的热窗设计。
+    this.turnTrajectory.push(this.digestPolicy.enabled && this.mode !== 'state' ? this.digestForTrajectory(turn, step, block, message) : message)
     this.turnTrajectorySteps.push(step)
     if (this.mode === 'state' || this.mode === 'stream') this.observeToolForState(turn, step, block, result, callSeq)
     // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的

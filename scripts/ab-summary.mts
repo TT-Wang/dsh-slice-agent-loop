@@ -17,7 +17,7 @@ interface Ledger {
   verdict: { ok: boolean; detail: string }
   toolHistogram: Record<string, number>
   state?: { extractRules?: boolean; sideEffort?: string } | null
-  digestPolicy?: { structuredBlockCap?: number } | null
+  digestPolicy?: { structuredBlockCap?: number; enabled?: boolean } | null
 }
 
 // flash 谷时刊例 $/M(与 effort-ladder 同口径;pro ×3)
@@ -29,6 +29,7 @@ function armLabel(l: Ledger): string {
   let label = l.arm
   if (l.state?.extractRules === false) label += '/no-rules'
   else if (l.state?.sideEffort !== undefined && l.state.sideEffort !== 'inherit') label += `/side-${l.state.sideEffort}`
+  if (l.digestPolicy?.enabled === false) label += '/no-fold'
   if (l.digestPolicy?.structuredBlockCap !== undefined) label += `/cap-${l.digestPolicy.structuredBlockCap}`
   if (l.effort !== 'low') label += `/effort-${l.effort}`
   return label

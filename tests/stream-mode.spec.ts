@@ -31,9 +31,10 @@ describe('digestText', () => {
     expect(d.text).toMatch(/…\[\+\d+ lines \/ \d+ chars\]…/)
     expect(d.text.length).toBeLessThan(NODE.length * 0.55)
     expect(digestText('short', 'x').digested).toBe(false)
-    // 全是结构行:折不省 → 原样
+    // 全是结构行(配置/数据表/代码):不设块上限,折不省 → 原样
     const allKv = Array.from({ length: 200 }, (_, i) => `k${i} = v${i}`).join('\n')
     expect(digestText(allKv, 'x').digested).toBe(false)
+    expect(digestText(allKv, 'x', { ...DEFAULT_DIGEST_POLICY, structuredBlockCap: 2 }).digested).toBe(false)
     // read 工具的 `N: ` 行号前缀不影响结构判定;行号原样保留;纯空行的间隔不出省略标记。
     const numbered = NODE.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n') + '\n\n(End of file - total 250 lines)'
     const dn = digestText(numbered, 'recall_step(1, 2)')
@@ -50,7 +51,7 @@ describe('digestText', () => {
     expect(capped.text).toContain('  k1: v1')            // 第 3 行(cap 3)
     expect(capped.text).not.toContain('  k2: v2')        // 第 4 行起并入省略
     expect(capped.text).toContain('end = yes')
-    const uncapped = digestText(withBlocks, 'x')
+    const uncapped = digestText(withBlocks, 'x', { ...DEFAULT_DIGEST_POLICY, structuredBlockCap: Infinity })
     expect(uncapped.text).toContain('  k11: v11')
   })
 })

@@ -11,6 +11,8 @@
  */
 
 export interface DigestPolicy {
+  /** 轮内折叠开关(slice / stream 模式默认开;state 模式不用)。 */
+  enabled: boolean
   /** 低于此字符数不折。 */
   minChars: number
   headLines: number
@@ -25,7 +27,7 @@ export interface DigestPolicy {
   structuredBlockCap: number
 }
 
-export const DEFAULT_DIGEST_POLICY: DigestPolicy = { minChars: 1500, headLines: 10, tailLines: 4, maxKeepRatio: 0.55, structuredBlockCap: Infinity }
+export const DEFAULT_DIGEST_POLICY: DigestPolicy = { enabled: true, minChars: 1500, headLines: 10, tailLines: 4, maxKeepRatio: 0.55, structuredBlockCap: 4 }
 
 /** 结构行:`key = value`、`key: value`、markdown/注释标题、围栏。噪音正文极少长这样。 */
 const STRUCTURED = /^\s*(?:[A-Za-z_][\w.\-]*\s*[=:]\s*\S|#{1,6}\s|\[[^\]]+\]\s*$|```)/
@@ -50,10 +52,14 @@ export function digestText(text: string, _recallHint: string, policy: DigestPoli
   const keep = new Set<number>()
   for (let i = 0; i < Math.min(policy.headLines, n); i += 1) keep.add(i)
   for (let i = Math.max(0, n - policy.tailLines); i < n; i += 1) keep.add(i)
+  // 结构块上限只针对"噪音正文里夹着附录表"的混合文件;结构行占比 ≥ 80% 的文件(配置、
+  // 数据表、多数代码)视为整体结构化,不设上限——留给 maxKeepRatio 守卫决定折不折。
+  const structuredCount = lines.reduce((a, l) => a + (isStructured(l) ? 1 : 0), 0)
+  const cap = structuredCount >= n * 0.8 ? Infinity : policy.structuredBlockCap
   let run = 0
   for (let i = 0; i < n; i += 1) {
     if (!isStructured(lines[i]!)) { run = 0; continue }
-    if (i < policy.headLines || run < policy.structuredBlockCap) keep.add(i)
+    if (i < policy.headLines || run < cap) keep.add(i)
     run += 1
   }
 
@@ -85,5 +91,6 @@ export function resolveDigestPolicy(input: Partial<DigestPolicy> | undefined): D
   if (!Number.isInteger(p.headLines) || p.headLines < 0 || !Number.isInteger(p.tailLines) || p.tailLines < 0) throw new Error('digest.headLines/tailLines must be non-negative integers')
   if (!(p.maxKeepRatio > 0 && p.maxKeepRatio <= 1)) throw new Error('digest.maxKeepRatio must be in (0, 1]')
   if (!(p.structuredBlockCap >= 1)) throw new Error('digest.structuredBlockCap must be >= 1 (Infinity = no cap)')
+  if (typeof p.enabled !== 'boolean') throw new Error('digest.enabled must be a boolean')
   return p
 }

@@ -14,7 +14,7 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { ensureHarnessUniverse, type HarnessUniverse } from './universe.js'
-import { SLICE_SYSTEM_PROMPT, STREAM_SYSTEM_ADDENDUM } from './system-prompt.js'
+import { CONSTITUTION_SYSTEM_ADDENDUM, FOLD_SYSTEM_ADDENDUM, SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
@@ -263,8 +263,8 @@ export class SliceLoopPlugin extends Service {
         // rc8 把 HARNESS_IDENTITY 排到 -1000,与本 kernel 同序竞位——kernel 必须
         // 是模型读到的第一个字(缓存前缀与身份宣告都系于此),再前移一档。
         order: -1200,
-        // stream 模式追加一段可供性说明(折叠 + 召回 + 流水);其余模式字节不变。
-        text: mode === 'stream' ? `${SLICE_SYSTEM_PROMPT}\n\n${STREAM_SYSTEM_ADDENDUM}` : SLICE_SYSTEM_PROMPT,
+        // 折叠开启(slice/stream 默认)追加 <fold> 可供性说明;stream 再追加宪法说明;state 模式字节不变。
+        text: [SLICE_SYSTEM_PROMPT, ...(digest.enabled && mode !== 'state' ? [FOLD_SYSTEM_ADDENDUM] : []), ...(mode === 'stream' ? [CONSTITUTION_SYSTEM_ADDENDUM] : [])].join('\n\n'),
       }),
       'sliceLoop.kernelSection()',
     )
