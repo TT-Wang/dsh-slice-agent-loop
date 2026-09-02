@@ -68,8 +68,8 @@ if (!['off', 'low', 'high', 'max', 'default'].includes(EFFORT)) {
 // slice-noseal = 现状 slice;slice-seal = 轮内封存开启。同 effort、同工具、同种子。
 const armIdx = args.indexOf('--arm')
 const ARM = armIdx !== -1 ? args[armIdx + 1]! : 'slice-noseal'
-if (!['transcript', 'slice-noseal', 'slice-seal', 'state'].includes(ARM)) {
-  console.error(`--arm must be transcript|slice-noseal|slice-seal|state, got ${ARM}`)
+if (!['transcript', 'slice-noseal', 'slice-seal', 'state', 'stream'].includes(ARM)) {
+  console.error(`--arm must be transcript|slice-noseal|slice-seal|state|stream, got ${ARM}`)
   process.exit(2)
 }
 const num = (flag: string, dflt: number) => { const i = args.indexOf(flag); return i !== -1 ? Number(args[i + 1]) : dflt }
@@ -124,6 +124,7 @@ if (ARM === 'transcript') {
     // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
     maxStepsPerTurn: MAX_STEPS,
     ...(ARM === 'state' ? { mode: 'state' as const, state: { hotWindowSteps: HOT, pushHits: PUSH } } : {}),
+    ...(ARM === 'stream' ? { mode: 'stream' as const } : {}),
   })
 }
 
@@ -207,6 +208,8 @@ for (const e of agent.session.snapshotEvents()) {
 const turnRows = [...rowsByTurn.values()].sort((a, b) => a.turn - b.turn)
 const seals = agent.session.snapshotEvents().filter((e) => e.type === 'slice/step-seal').length
 const bounces = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-bounce').length
+const digests = agent.session.snapshotEvents().filter((e) => e.type === 'slice/digest') as Array<{ data: { charsBefore: number; charsAfter: number } }>
+const digestStat = digests.length ? { count: digests.length, charsBefore: digests.reduce((a, e) => a + e.data.charsBefore, 0), charsAfter: digests.reduce((a, e) => a + e.data.charsAfter, 0) } : null
 const rulesEv = agent.session.snapshotEvents().find((e) => e.type === 'slice/state-rules') as { data?: { rules?: number; enforced?: number; error?: string } } | undefined
 const totals = turnRows.reduce((t, r) => ({ input: t.input + r.input, cacheRead: t.cacheRead + r.cacheRead, output: t.output + r.output, reasoning: t.reasoning + r.reasoning, steps: t.steps + r.steps, peakInput: Math.max(t.peakInput, r.peakInput) }), { input: 0, cacheRead: 0, output: 0, reasoning: 0, steps: 0, peakInput: 0 })
 
@@ -226,11 +229,11 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' ? { hotWindowSteps: HOT, pushHits: PUSH } : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' ? { hotWindowSteps: HOT, pushHits: PUSH } : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
 writeFileSync(join(workdir, 'verdict.json'), JSON.stringify(ledger, null, 2))
-console.log(`totals: steps=${totals.steps} miss=${totals.input} hit=${totals.cacheRead} out=${totals.output} (reasoning ${totals.reasoning}) peakPrompt=${totals.peakInput} seals=${seals} bounces=${bounces}${rulesEv ? ` rules=${rulesEv.data?.rules}/${rulesEv.data?.enforced}enforced` : ''}`)
+console.log(`totals: steps=${totals.steps} miss=${totals.input} hit=${totals.cacheRead} out=${totals.output} (reasoning ${totals.reasoning}) peakPrompt=${totals.peakInput} seals=${seals} bounces=${bounces}${rulesEv ? ` rules=${rulesEv.data?.rules}/${rulesEv.data?.enforced}enforced` : ''}${digestStat ? ` digests=${digestStat.count} (${digestStat.charsBefore}→${digestStat.charsAfter} chars)` : ''}`)
 console.log(`verdict: ${verdict.ok ? '✓' : '✗'} ${verdict.detail}\nsession ${sessionId}\nledger ${ledgerPath}`)
 process.exit(0)

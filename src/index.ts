@@ -20,6 +20,7 @@ import { SliceLoopAgent } from './driver.js'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
 import { resolveSealPolicy } from './slice/step-tape.js'
 import { DEFAULT_STATE_POLICY } from './driver.js'
+import { resolveDigestPolicy } from './slice/result-digest.js'
 import { recallStepToolDefinition } from './recall-step.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
 
@@ -31,7 +32,9 @@ export interface Config {
   /** 轮内封存(提案 2026-09-02)。缺省关闭;A/B 裁决后再定出厂值。 */
   inTurnSeal?: { enabled?: boolean; sealTokens?: number; batchSteps?: number; keepSteps?: number }
   /** 'slice'(缺省)或 'state':世界状态循环(提案 2026-09-02)。 */
-  mode?: 'slice' | 'state'
+  mode?: 'slice' | 'state' | 'stream'
+  /** v3 追加流的注入时摘要策略。 */
+  digest?: { minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean }
 }
 
@@ -210,7 +213,8 @@ export class SliceLoopPlugin extends Service {
     const defaultReasoningEffort = config.defaultReasoningEffort ?? DEFAULT_REASONING_EFFORT
     const inTurnSeal = resolveSealPolicy(config.inTurnSeal)
     const mode = config.mode ?? 'slice'
-    if (mode !== 'slice' && mode !== 'state') throw new Error("mode must be 'slice' or 'state'")
+    if (mode !== 'slice' && mode !== 'state' && mode !== 'stream') throw new Error("mode must be 'slice', 'state' or 'stream'")
+    const digest = resolveDigestPolicy(config.digest)
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits'] as const) {
       if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
@@ -283,7 +287,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
