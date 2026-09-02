@@ -22,6 +22,25 @@ export interface Config {
         batchSteps?: number;
         keepSteps?: number;
     };
+    /** 'slice'(缺省)或 'state':世界状态循环(提案 2026-09-02)。 */
+    mode?: 'slice' | 'state' | 'stream';
+    /** v3 追加流的注入时摘要策略。 */
+    digest?: {
+        minChars?: number;
+        headLines?: number;
+        tailLines?: number;
+        maxKeepRatio?: number;
+    };
+    state?: {
+        hotWindowSteps?: number;
+        pinSteps?: number;
+        pushHits?: number;
+        extractRules?: boolean;
+        sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit';
+        contractBounceBudget?: number;
+        extractAtStep?: number;
+        enforceFromStep?: number;
+    };
 }
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
 export declare const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;

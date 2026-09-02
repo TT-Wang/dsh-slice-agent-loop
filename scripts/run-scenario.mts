@@ -66,7 +66,7 @@ const modelIdx = args.indexOf('--model')
 const MODEL = modelIdx !== -1 ? args[modelIdx + 1]! : 'deepseek-v4-flash'
 const effortIdx = args.indexOf('--effort')
 const EFFORT = effortIdx !== -1 ? args[effortIdx + 1]! : 'high'
-if (!['off', 'low', 'high', 'max', 'default'].includes(EFFORT)) {
+if (!['off', 'low', 'high', 'max', 'default', 'inherit'].includes(EFFORT)) {
   console.error(`--effort must be off|low|high|max|default, got ${EFFORT}`)
   process.exit(2)
 }
@@ -100,7 +100,9 @@ const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
 const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number; max_steps_per_turn?: number }
-const MAX_STEPS = meta.max_steps_per_turn ?? 60
+const MAX_STEPS_META = meta.max_steps_per_turn ?? 60
+// --max-steps N 覆盖场景 meta 的每轮步数上限(历史 h2h 评测 slice 臂用 250,default 臂无上限)。
+const MAX_STEPS = num('--max-steps', MAX_STEPS_META)
 if (!process.env.DEEPSEEK_API_KEY) {
   console.error('DEEPSEEK_API_KEY not in env')
   process.exit(2)
@@ -163,7 +165,8 @@ const connection = {
   // 字节完全相同,epoch header 自动带 adapterDefaults 标记。恒显式设置以保证
   // 四臂走同一条解析路径。
   // transcript 臂没有插件注入通道,effort 经适配器默认落地;slice 臂两条通道同值。
-  defaults: EFFORT === 'default' ? {} : { reasoningEffort: EFFORT },
+  // 'inherit':插件不注入档位、适配器也不设默认 → 走适配器出厂档(与 2026-08 历史 default 臂同条件)。
+  defaults: EFFORT === 'default' || EFFORT === 'inherit' ? {} : { reasoningEffort: EFFORT },
   maxTokens: DEFAULT_MAX_TOKENS,
   defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
   models: [{ id: MODEL }],

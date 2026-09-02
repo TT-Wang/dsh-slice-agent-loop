@@ -47,6 +47,10 @@ export interface SealPolicy {
     batchSteps: number;
     /** 始终保留原文的最近步数。 */
     keepSteps: number;
+    /** 轮内「宪法」保护:前 N 步(规则确立/清单读取)永不折叠。跨轮 seed 永不
+     *  折叠的步内类比。v2 重载荷 A/B 实证:折叠 manifest 步 → 模型丢规则
+     *  (l1 42/45、l2 0/45),即使 recall_step 可用也补不回。 */
+    protectEarlySteps: number;
 }
 export declare const DEFAULT_SEAL_POLICY: SealPolicy;
 /** 封存批次的渲染体量必须 ≤ 原文的这个比例才值得(否则折叠只多付一次缓存重建
@@ -61,5 +65,5 @@ export declare const SEAL_CHARS_PER_TOKEN = 3.2;
  * 条件:启用 && 轨迹 ≥ 阈值 && 未封存的已完成步 ≥ batch + keep;
  * 封 batch 步,且封完仍保留 ≥ keep 步原文。
  */
-export declare function stepsToSeal(policy: SealPolicy, trajectoryChars: number, unsealedCompletedSteps: number): number;
+export declare function stepsToSeal(policy: SealPolicy, trajectoryChars: number, unsealedCompletedSteps: number, consideredThrough: number): number;
 export declare function resolveSealPolicy(input: Partial<SealPolicy> | undefined): SealPolicy;
