@@ -138,7 +138,7 @@ declare module '@deepseek-ai/dsh-session' {
     'slice/step-seal': { turn: number; step: number; sealedThrough: number; sealedSteps: number; entries: number; trajectoryCharsBefore: number; trajectoryCharsAfter: number }
     /** 世界状态循环审计。 */
     'slice/state-seed': { turn: number; step: number; seedDigest: string; files: number; facts: number; pinned: number; rules: number }
-    'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; list?: string[]; error?: string }
+    'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; list?: string[]; raw?: string; error?: string }
     'slice/side-call': { turn: number; step: number; label: string; usage?: unknown }
     'slice/contract-bounce': { turn: number; step: number; path: string; violations: string[] }
     'slice/contract-suspend': { turn: number; step: number; path: string; rules: string[] }
@@ -1478,7 +1478,7 @@ export class SliceLoopAgent implements Agent {
       try {
         const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
-        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`) })
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`), raw: raw.slice(0, 400) })
       } catch (error: unknown) {
         this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
       }
@@ -1513,7 +1513,7 @@ export class SliceLoopAgent implements Agent {
         const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
         for (const r of c.rules) addFact(this.worldState, { kind: 'rule', text: `${r.id}: ${r.text}`, sourceDigest: 'host:rules', step })
-        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`) })
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`), raw: raw.slice(0, 400) })
       } catch (error: unknown) {
         // 提取失败:规则只以原文(钉住文件)形态存在,契约不执行。落账,不打断。
         this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
