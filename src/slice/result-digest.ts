@@ -17,9 +17,15 @@ export interface DigestPolicy {
   tailLines: number
   /** 折后 ≥ 原文的这个比例就放弃(不值一次省略)。 */
   maxKeepRatio: number
+  /**
+   * 头部区之外,每个连续结构行块最多保留几行(其余并入省略)。Infinity = 不限。
+   * 依据:字段型文件的"正文字段"在头部;深处成块出现的 key: value 多是附录表
+   * (l2 记录里的 [prior-reconciliation] 块占了折后视图的一半),需要时一步可召回。
+   */
+  structuredBlockCap: number
 }
 
-export const DEFAULT_DIGEST_POLICY: DigestPolicy = { minChars: 1500, headLines: 10, tailLines: 4, maxKeepRatio: 0.55 }
+export const DEFAULT_DIGEST_POLICY: DigestPolicy = { minChars: 1500, headLines: 10, tailLines: 4, maxKeepRatio: 0.55, structuredBlockCap: Infinity }
 
 /** 结构行:`key = value`、`key: value`、markdown/注释标题、围栏。噪音正文极少长这样。 */
 const STRUCTURED = /^\s*(?:[A-Za-z_][\w.\-]*\s*[=:]\s*\S|#{1,6}\s|\[[^\]]+\]\s*$|```)/
@@ -44,7 +50,12 @@ export function digestText(text: string, recallHint: string, policy: DigestPolic
   const keep = new Set<number>()
   for (let i = 0; i < Math.min(policy.headLines, n); i += 1) keep.add(i)
   for (let i = Math.max(0, n - policy.tailLines); i < n; i += 1) keep.add(i)
-  for (let i = 0; i < n; i += 1) if (isStructured(lines[i]!)) keep.add(i)
+  let run = 0
+  for (let i = 0; i < n; i += 1) {
+    if (!isStructured(lines[i]!)) { run = 0; continue }
+    if (i < policy.headLines || run < policy.structuredBlockCap) keep.add(i)
+    run += 1
+  }
 
   const out: string[] = []
   let i = 0
@@ -71,5 +82,6 @@ export function resolveDigestPolicy(input: Partial<DigestPolicy> | undefined): D
   if (!Number.isInteger(p.minChars) || p.minChars < 0) throw new Error('digest.minChars must be a non-negative integer')
   if (!Number.isInteger(p.headLines) || p.headLines < 0 || !Number.isInteger(p.tailLines) || p.tailLines < 0) throw new Error('digest.headLines/tailLines must be non-negative integers')
   if (!(p.maxKeepRatio > 0 && p.maxKeepRatio <= 1)) throw new Error('digest.maxKeepRatio must be in (0, 1]')
+  if (!(p.structuredBlockCap >= 1)) throw new Error('digest.structuredBlockCap must be >= 1 (Infinity = no cap)')
   return p
 }

@@ -1,0 +1,94 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "sessionId": "slice-val-l2_ledger_state-stream-low-1788335958310",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-r3NOCO",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 50,
+      "input": 58542,
+      "cacheRead": 2018944,
+      "output": 18732,
+      "reasoning": 7500,
+      "peakInput": 71991,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 58542,
+    "cacheRead": 2018944,
+    "output": 18732,
+    "reasoning": 7500,
+    "steps": 50,
+    "peakInput": 71991
+  },
+  "seals": 0,
+  "bounces": 2,
+  "suspends": [
+    "R1",
+    "R2",
+    "R5",
+    "R6",
+    "R7",
+    "R8",
+    "R10",
+    "R11",
+    "R12",
+    "R14",
+    "R17"
+  ],
+  "digest": {
+    "count": 45,
+    "charsBefore": 812885,
+    "charsAfter": 106414
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 18,
+    "enforced": 16,
+    "list": [
+      "R1 [path-regex]: For every record write exactly one posting file.",
+      "R2 [path-regex]: Posting file path must be postings/<ref in lowercase>.post (e.g., TX-4K7Q -> postings/tx-4k7q.post).",
+      "R3 [content-includes]: Line 1 of each posting is exactly `# cashbook posting v7`.",
+      "R4 [line-regex]: The last line of each posting is exactly `;; posted 9c41`.",
+      "R5 [line-regex]: Between the first and last lines there are exactly seven `key: value` lines in this order: ref, seq, kind, amount, before, after, flag, with one space after the colon and nothing before it.",
+      "R6 [line-regex]: There must be no blank lines and no comments in the posting file.",
+      "R7 [line-regex]: The ref line must be `ref: <original ref exactly as in record>` (e.g., TX-D8QQ).",
+      "R8 [line-regex]: The seq line must be `seq: <three-digit zero-padded position>` (e.g., 001, 002...).",
+      "R9 [field-enum]: The kind line must be `kind: R` for receipt, `kind: P` for payment, `kind: J` for adjustment.",
+      "R10 [line-regex]: The amount line must show the signed effect on balance with explicit sign: receipt `+<amount>`, payment `-<amount>`, adjustment as given (e.g., +716 or -40).",
+      "R11 [line-regex]: The before line must be `before: <previous posting's after>` or `1480` for the first posting, as plain integer without separators or plus sign, leading minus for negative.",
+      "R12 [line-regex]: The after line must be `after: <computed balance after applying this record>`, a plain integer without separators or plus sign, leading minus for negative.",
+      "R13 [field-enum]: The flag line must be exactly one of `flag: NONE`, `flag: OVERDRAFT`, `flag: HELD` (uppercase).",
+      "R14 [field-enum]: When a payment or negative adjustment would leave the balance below zero, charge fee 35 and set flag OVERDRAFT.",
+      "R15: The amount in the case of R6 is applied as: after = before + amount - 35.",
+      "R16: When payment is not applied due to HOLD, set after = before and flag = HELD.",
+      "R17 [path-regex]: The journal file must be at postings/JOURNAL.txt.",
+      "R18 [line-regex]: JOURNAL.txt lists every posting as `<seq> <ref> <after>` with a single space between fields, one per line, newest first, no header."
+    ]
+  },
+  "toolHistogram": {
+    "read": 48,
+    "write": 48
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

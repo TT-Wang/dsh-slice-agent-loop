@@ -14,7 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import apply from '../src/index.js'
-import { digestText } from '../src/slice/result-digest.js'
+import { DEFAULT_DIGEST_POLICY, digestText } from '../src/slice/result-digest.js'
 import { renderSealedStepPage } from '../src/recall-step.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
@@ -42,6 +42,16 @@ describe('digestText', () => {
     expect(dn.text).toContain('owner: ops-team')
     expect(dn.text).toContain('(End of file - total 250 lines)')
     expect(dn.text).not.toMatch(/\[1 lines \/ 1 chars elided/)
+    // 结构块上限:头部区外的连续结构行块只保留前 cap 行;头部区不受限。
+    const block = Array.from({ length: 12 }, (_, i) => `  k${i}: v${i}`).join('\n')
+    const withBlocks = `a = 1\nb = 2\n\n${NOISE}\n[appendix]\n${block}\n${NOISE}\nend = yes\n`
+    const capped = digestText(withBlocks, 'x', { ...DEFAULT_DIGEST_POLICY, structuredBlockCap: 3 })
+    expect(capped.text).toContain('[appendix]')          // 块首标记行是块的第 1 行
+    expect(capped.text).toContain('  k1: v1')            // 第 3 行(cap 3)
+    expect(capped.text).not.toContain('  k2: v2')        // 第 4 行起并入省略
+    expect(capped.text).toContain('end = yes')
+    const uncapped = digestText(withBlocks, 'x')
+    expect(uncapped.text).toContain('  k11: v11')
   })
 })
 

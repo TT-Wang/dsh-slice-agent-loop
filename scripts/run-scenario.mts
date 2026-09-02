@@ -84,6 +84,9 @@ const NO_RULES = args.includes('--no-rules')
 const sideIdx = args.indexOf('--side-effort')
 const SIDE_EFFORT = (sideIdx !== -1 ? args[sideIdx + 1]! : 'off') as 'off' | 'low' | 'high' | 'max' | 'inherit'
 const STATE_OPTS = { hotWindowSteps: HOT, pushHits: PUSH, extractRules: !NO_RULES, sideEffort: SIDE_EFFORT }
+// --digest-block-cap N:头部区外每个连续结构行块最多保留 N 行(默认不限)。
+const CAP = num('--digest-block-cap', Infinity)
+const DIGEST_OPTS = Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
 const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number; max_steps_per_turn?: number }
@@ -130,7 +133,7 @@ if (ARM === 'transcript') {
     // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
     maxStepsPerTurn: MAX_STEPS,
     ...(ARM === 'state' ? { mode: 'state' as const, state: STATE_OPTS } : {}),
-    ...(ARM === 'stream' ? { state: STATE_OPTS } : {}),
+    ...(ARM === 'stream' ? { state: STATE_OPTS, digest: DIGEST_OPTS } : {}),
     ...(ARM === 'stream' ? { mode: 'stream' as const } : {}),
   })
 }
@@ -249,7 +252,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
