@@ -52,16 +52,17 @@ describe('stream mode', () => {
     mkdirSync(join(root, 'nodes')); writeFileSync(join(root, 'nodes/alpha.txt'), NODE)
     const RULES = JSON.stringify([{ id: 'R1', text: 'tier ∈ {p1,p3,p7}', predicate: { kind: 'field-enum', glob: 'out/*.svc', field: 'tier', values: ['p1', 'p3', 'p7'] } }])
     const adapter = new MockAdapter([
-      toolCallResponse('c1', 'read', { file_path: 'MANIFEST.txt' }),                       // step 1(钉住)
-      toolCallResponse('c2', 'read', { file_path: 'nodes/alpha.txt' }),                    // step 2(钉住 + 大结果被摘要)
-      textResponse(RULES),                                                                  // step 3 前的旁路提取
+      toolCallResponse('c1', 'read', { file_path: 'MANIFEST.txt' }),                       // step 1(钉住,原样进流)
+      textResponse(RULES),                                                                  // step 2 前的旁路提取
+      toolCallResponse('c2', 'read', { file_path: 'nodes/alpha.txt' }),                    // step 2(非钉住,大结果被摘要)
       toolCallResponse('c3', 'write', { file_path: 'out/alpha.svc', content: 'tier = gold\n' }),  // step 3 → 弹回
       toolCallResponse('c4', 'write', { file_path: 'out/alpha.svc', content: 'tier = p3\n' }),    // step 4 → 通过
       textResponse('done'),
     ])
     const ctx = new Context()
     await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
-    await ctx.plugin(apply, { mode: 'stream', state: { pinSteps: 2, extractRules: true, pushHits: 0, hotWindowSteps: 3 } })
+    // 只钉住 step 1(MANIFEST):钉住步的读取原样进流,step 2 的大结果才会被摘要。
+    await ctx.plugin(apply, { mode: 'stream', state: { pinSteps: 1, extractRules: true, pushHits: 0, hotWindowSteps: 3 } })
     ctx.llm.registerAdapter(['mock'], adapter)
     ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'r', parameters: { file_path: { type: 'string', required: true } }, execute: async ({ file_path }) => [{ type: 'text', text: readFileSync(join(root, file_path), 'utf8') }] }))
     ctx.tools.register(defineContentToolFixture({ name: 'write', description: 'w', parameters: { file_path: { type: 'string', required: true }, content: { type: 'string', required: true } }, execute: async ({ file_path, content }) => { mkdirSync(dirname(join(root, file_path)), { recursive: true }); writeFileSync(join(root, file_path), content); return [{ type: 'text', text: `wrote ${file_path}` }] } }))

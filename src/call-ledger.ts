@@ -85,6 +85,10 @@ export interface SeedRecordInput {
 export interface CallRecordInput {
   turn: number
   step: number
+  /** 旁路调用标签(规则提取等);主路径调用不带。 */
+  side?: string
+  /** 本次响应里的工具调用名(诊断用:哪一步在召回、哪一步在写)。 */
+  tools?: string[]
   provider: string
   model: string
   usage: unknown

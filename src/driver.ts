@@ -139,6 +139,7 @@ declare module '@deepseek-ai/dsh-session' {
     /** 世界状态循环审计。 */
     'slice/state-seed': { turn: number; step: number; seedDigest: string; files: number; facts: number; pinned: number; rules: number }
     'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; error?: string }
+    'slice/side-call': { turn: number; step: number; label: string; usage?: unknown }
     'slice/contract-bounce': { turn: number; step: number; path: string; violations: string[] }
     'slice/digest': { turn: number; step: number; tool: string; charsBefore: number; charsAfter: number }
   }
@@ -1165,6 +1166,7 @@ export class SliceLoopAgent implements Agent {
         provider: requestContext.provider,
         model: requestContext.model,
         usage: assembler.usage,
+        tools: message.content.filter((b): b is ToolCallBlock => (b as { type: string }).type === 'tool-call').map((b) => b.name),
       })
       // 轮内轨迹 + 对话环助手侧（continuity.ts fillAssistant）。
       this.turnTrajectory.push(message)
@@ -1419,6 +1421,9 @@ export class SliceLoopAgent implements Agent {
 
   /** 注入时摘要:工具结果的文本块折成紧凑视图;不折的原样返回同一消息对象。 */
   private digestForTrajectory(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage {
+    // 钉住步(前 pinSteps 步)的读取是本轮的规则来源:stream 模式不在宪法里重发全文,
+    // 所以这里必须原样进流——折了规则,模型就只剩旁路提取的摘要版规则。
+    if (step <= this.statePolicy.pinSteps) return message
     const first = message.content[0] as { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> } | undefined
     if (!first || first.type !== 'tool-result' || first.isError || !first.content) return message
     let changed = false
@@ -1455,7 +1460,7 @@ export class SliceLoopAgent implements Agent {
     this.rulesExtracted = true
     if (this.statePolicy.extractRules) {
       try {
-        const raw = await this.sideCompletion(rulesExtractionPrompt(c), config, preparedCall, signal)
+        const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
         this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length })
       } catch (error: unknown) {
@@ -1489,7 +1494,7 @@ export class SliceLoopAgent implements Agent {
     if (!this.rulesExtracted && step > this.statePolicy.pinSteps && this.statePolicy.extractRules && c.pinned.length > 0) {
       this.rulesExtracted = true
       try {
-        const raw = await this.sideCompletion(rulesExtractionPrompt(c), config, preparedCall, signal)
+        const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
         for (const r of c.rules) addFact(this.worldState, { kind: 'rule', text: `${r.id}: ${r.text}`, sourceDigest: 'host:rules', step })
         this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length })
@@ -1516,6 +1521,9 @@ export class SliceLoopAgent implements Agent {
 
   /** 旁路模型调用(不带工具、不标 agent-loop、不入会话轨迹):规则提取用。 */
   private async sideCompletion(
+    turn: number,
+    step: number,
+    label: string,
     prompt: string,
     config: LlmCallConfig,
     _preparedCall: PreparedLlmCall | undefined,
@@ -1537,6 +1545,9 @@ export class SliceLoopAgent implements Agent {
     const stream = own?.stream(request) ?? this.loopCtx.llm.stream(request)
     for await (const chunk of stream) assembler.push(chunk)
     const finish = assembler.finish
+    // 旁路调用不进对话轨迹,但必须进账:会话事件供 runner 汇总,sidecar 供归因。
+    this.session.append('slice/side-call', { turn, step, label, ...(assembler.usage === undefined ? {} : { usage: assembler.usage }) })
+    recordCallEvent(this.session.id, { turn, step, side: label, provider: config.provider, model: config.model, usage: assembler.usage })
     if (finish.kind === 'error' || finish.kind === 'aborted') throw new Error(`rules extraction ${finish.kind}`)
     return assembler.blocks()
       .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')

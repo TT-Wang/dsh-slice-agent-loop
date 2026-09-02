@@ -194,13 +194,14 @@ await agent.whenIdle()
 // ── 通用账本(臂无关):从 assistant/message 事件的 usage 汇总 ─────────────────
 interface TurnRow { turn: number; steps: number; input: number; cacheRead: number; output: number; reasoning: number; peakInput: number; wallMs: number }
 const rowsByTurn = new Map<number, TurnRow>()
+// 旁路调用(slice/side-call:规则提取等)不占步数,但用量全额计入——成本比较必须诚实。
 for (const e of agent.session.snapshotEvents()) {
-  if (e.type !== 'assistant/message') continue
+  if (e.type !== 'assistant/message' && e.type !== 'slice/side-call') continue
   const d = e.data as { turn: number; step: number; usage?: unknown }
   const n = normalizeUsage(d.usage)
   if (!n) continue
   const row = rowsByTurn.get(d.turn) ?? { turn: d.turn, steps: 0, input: 0, cacheRead: 0, output: 0, reasoning: 0, peakInput: 0, wallMs: 0 }
-  row.steps = Math.max(row.steps, d.step)
+  if (e.type === 'assistant/message') row.steps = Math.max(row.steps, d.step)
   row.input += n.input; row.cacheRead += n.cacheRead; row.output += n.output; row.reasoning += n.reasoning
   row.peakInput = Math.max(row.peakInput, n.input + n.cacheRead)
   rowsByTurn.set(d.turn, row)
