@@ -1,0 +1,134 @@
+{
+  "scenario": "s5_standing_constraints",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s5_standing_constraints-slice-noseal-low-1788363287324",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s5_standing_constraints-YmKWcf",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 13,
+      "input": 3677,
+      "cacheRead": 66432,
+      "output": 4166,
+      "reasoning": 2262,
+      "peakInput": 9871,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 11,
+      "input": 6610,
+      "cacheRead": 94976,
+      "output": 4643,
+      "reasoning": 1597,
+      "peakInput": 12899,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 5,
+      "input": 6032,
+      "cacheRead": 48512,
+      "output": 6852,
+      "reasoning": 5512,
+      "peakInput": 14995,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 5,
+      "input": 5079,
+      "cacheRead": 47488,
+      "output": 3652,
+      "reasoning": 2519,
+      "peakInput": 12261,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 7,
+      "input": 6317,
+      "cacheRead": 82560,
+      "output": 5985,
+      "reasoning": 4440,
+      "peakInput": 16793,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 8,
+      "input": 7093,
+      "cacheRead": 135808,
+      "output": 10678,
+      "reasoning": 8507,
+      "peakInput": 22283,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 5,
+      "input": 6250,
+      "cacheRead": 64000,
+      "output": 3032,
+      "reasoning": 1329,
+      "peakInput": 15628,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 5,
+      "input": 8531,
+      "cacheRead": 72320,
+      "output": 1805,
+      "reasoning": 596,
+      "peakInput": 17857,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 5,
+      "input": 6839,
+      "cacheRead": 78848,
+      "output": 1354,
+      "reasoning": 168,
+      "peakInput": 18688,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 56428,
+    "cacheRead": 690944,
+    "output": 42167,
+    "reasoning": 26930,
+    "steps": 64,
+    "peakInput": 22283
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 17,
+    "glob": 8,
+    "read": 31,
+    "recall_search": 1,
+    "edit": 16,
+    "grep": 1
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "probe failed:\nTraceback (most recent call last):\n  File \"<string>\", line 190, in <module>\nTypeError: AccountService.compact() got an unexpected keyword argument 'reason'"
+  }
+}

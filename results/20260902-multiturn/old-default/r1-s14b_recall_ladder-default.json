@@ -1,0 +1,170 @@
+{
+  "scenario": "s14b_recall_ladder",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/h2h-s14b_recall_ladder-default-JW1iZ7",
+  "turns": [
+    {
+      "turn": 1,
+      "wallMs": 6032,
+      "input": 15564,
+      "output": 347,
+      "cacheRead": 31872,
+      "peakInput": 16008,
+      "steps": 3
+    },
+    {
+      "turn": 2,
+      "wallMs": 11021,
+      "input": 716,
+      "output": 880,
+      "cacheRead": 66176,
+      "peakInput": 17160,
+      "steps": 4
+    },
+    {
+      "turn": 3,
+      "wallMs": 7020,
+      "input": 613,
+      "output": 570,
+      "cacheRead": 70912,
+      "peakInput": 18210,
+      "steps": 4
+    },
+    {
+      "turn": 4,
+      "wallMs": 7019,
+      "input": 405,
+      "output": 619,
+      "cacheRead": 55808,
+      "peakInput": 18974,
+      "steps": 3
+    },
+    {
+      "turn": 5,
+      "wallMs": 6025,
+      "input": 2630,
+      "output": 403,
+      "cacheRead": 81408,
+      "peakInput": 21770,
+      "steps": 4
+    },
+    {
+      "turn": 6,
+      "wallMs": 4024,
+      "input": 2404,
+      "output": 282,
+      "cacheRead": 67840,
+      "peakInput": 24270,
+      "steps": 3
+    },
+    {
+      "turn": 7,
+      "wallMs": 5022,
+      "input": 2355,
+      "output": 248,
+      "cacheRead": 75392,
+      "peakInput": 26752,
+      "steps": 3
+    },
+    {
+      "turn": 8,
+      "wallMs": 5013,
+      "input": 2600,
+      "output": 260,
+      "cacheRead": 82688,
+      "peakInput": 29282,
+      "steps": 3
+    },
+    {
+      "turn": 9,
+      "wallMs": 5212,
+      "input": 2432,
+      "output": 282,
+      "cacheRead": 90496,
+      "peakInput": 31840,
+      "steps": 3
+    },
+    {
+      "turn": 10,
+      "wallMs": 5029,
+      "input": 2457,
+      "output": 282,
+      "cacheRead": 98176,
+      "peakInput": 34407,
+      "steps": 3
+    },
+    {
+      "turn": 11,
+      "wallMs": 4021,
+      "input": 2588,
+      "output": 297,
+      "cacheRead": 105984,
+      "peakInput": 37062,
+      "steps": 3
+    },
+    {
+      "turn": 12,
+      "wallMs": 5082,
+      "input": 2454,
+      "output": 326,
+      "cacheRead": 113920,
+      "peakInput": 39667,
+      "steps": 3
+    },
+    {
+      "turn": 13,
+      "wallMs": 26064,
+      "input": 19853,
+      "output": 720,
+      "cacheRead": 116992,
+      "peakInput": 40342,
+      "steps": 4
+    },
+    {
+      "turn": 14,
+      "wallMs": 12034,
+      "input": 864,
+      "output": 1281,
+      "cacheRead": 176384,
+      "peakInput": 30194,
+      "steps": 6
+    },
+    {
+      "turn": 15,
+      "wallMs": 4016,
+      "input": 205,
+      "output": 186,
+      "cacheRead": 60928,
+      "peakInput": 30685,
+      "steps": 2
+    },
+    {
+      "turn": 16,
+      "wallMs": 6019,
+      "input": 369,
+      "output": 681,
+      "cacheRead": 61696,
+      "peakInput": 31285,
+      "steps": 2
+    },
+    {
+      "turn": 17,
+      "wallMs": 11022,
+      "input": 782,
+      "output": 883,
+      "cacheRead": 128640,
+      "peakInput": 32780,
+      "steps": 4
+    }
+  ],
+  "totals": {
+    "input": 59291,
+    "output": 8547,
+    "cacheRead": 1485312,
+    "wallMs": 129675
+  },
+  "verdict": [
+    true,
+    "prompted recall + substrate all hold | tier1[host=exact,port=exact,token_env=exact,retry_backoff=exact] | recall_note: '部署参数(host/port/token_env/retry_backoff_ms)来自本会话内直接记忆的原值,未通过外部查询。'"
+  ],
+  "failed": null
+}

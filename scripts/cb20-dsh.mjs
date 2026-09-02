@@ -94,12 +94,14 @@ async function rpc(base, method, payload, rpcId) {
 async function runInstance(base, task, workdir) {
   // a4 typert 远程:端点 = namespace/method,POST /api/<endpoint>,body.method 必须与端点一致。
   const { sessionId } = await rpc(base, 'session/create', { cwd: workdir }, `c-${task.instance_id.slice(-8)}`)
+  console.error(`  session ${sessionId} created`)
   const t0 = Date.now()
   await rpc(base, 'session/prompt', {
     requestId: `p-${task.instance_id.slice(-8)}-${t0}`,
     sessionId, mode: 'queue',
     content: [{ type: 'text', text: `${task.problem}\n\nFix this issue in the current repository. Read only what you need, make the minimal correct change, and verify it.` }],
   }, `p-${task.instance_id.slice(-8)}`)
+  console.error(`  prompt accepted; polling session log`)
   // 事件:直接轮询磁盘上的会话日志(~/.dsh/sessions/<cwd 编码>/session-<id>/session.jsonl.zstd,
   // 宿主实时追加)。session/page 对已结束的会话报 not-found,不可靠。
   const deadline = t0 + TURN_TIMEOUT_MS
@@ -109,8 +111,10 @@ async function runInstance(base, task, workdir) {
     await new Promise((r) => setTimeout(r, 3000))
     if (!logPath) {
       try {
-        const out = execFileSync('find', [`${process.env.HOME}/.dsh/sessions`, '-maxdepth', '2', '-type', 'd', '-name', `session-${sessionId}`], { encoding: 'utf8' }).trim()
-        if (out) logPath = `${out.split('\n')[0]}/session.jsonl.zstd`
+        // sessionId 本身已带 session- 前缀(a4);目录名就是它。
+        const dirName = String(sessionId).startsWith('session-') ? String(sessionId) : `session-${sessionId}`
+        const out = execFileSync('find', [`${process.env.HOME}/.dsh/sessions`, '-maxdepth', '2', '-type', 'd', '-name', dirName], { encoding: 'utf8' }).trim()
+        if (out) { logPath = `${out.split('\n')[0]}/session.jsonl.zstd`; console.error(`  log: ${logPath}`) }
       } catch { /* not yet */ }
       if (!logPath) continue
     }

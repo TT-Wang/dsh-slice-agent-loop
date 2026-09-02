@@ -4,8 +4,8 @@ set -a; source ~/.dsh/.env; set +a
 export SLICE_CALL_LEDGER_DIR="$PWD/results/sidecars"
 SNAP=results/20260902-multiturn/scenarios-snapshot
 for scen in s1_longhorizon_debug s2_taskdag_scheduler s3_intervalset_algebra s4_multifile_refactor s5_standing_constraints s6_revert_by_reference s13_compact_amnesia s14b_recall_ladder s10_compactloss; do
-  echo "════════ CELL $scen × slice-noseal[fold,tools=full]  $(date +%H:%M:%S) ════════"
-  npx tsx scripts/run-scenario.mts $SNAP/$scen --arm slice-noseal --effort low --tools full --ledger-dir results/20260902-multiturn 2>&1 | grep -vE "^\s+at " | tail -6
+  echo "════════ CELL $scen × slice-noseal[fold,inherit,steps250,tools=full]  $(date +%H:%M:%S) ════════"
+  npx tsx scripts/run-scenario.mts $SNAP/$scen --arm slice-noseal --effort inherit --max-steps 250 --tools full --ledger-dir results/20260902-multiturn 2>&1 | grep -vE "^\s+at " | tail -6
 done
 for scen in l1_chain_migrate l2_ledger_state; do
   echo "════════ CELL $scen × slice-noseal[fold]  $(date +%H:%M:%S) ════════"
