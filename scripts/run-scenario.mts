@@ -168,7 +168,8 @@ const connection = {
   defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
   models: [{ id: MODEL }],
   streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-  retryPolicy: resolveRetryPolicy(undefined, 'run-scenario: deepseek retryPolicy'),
+  // 长批次里瞬时 TRANSPORT/RATE_LIMIT 常见:LLM 层重试放宽(默认 5 次 / 500ms 起)。
+  retryPolicy: resolveRetryPolicy({ mode: 'normal', maxRetries: 8, backoff: { initialDelayMs: 2000, maxDelayMs: 30000 } }, 'run-scenario: deepseek retryPolicy'),
 }
 ctx.llm.registerAdapter(['deepseek'], new DeepSeekAdapter({
   options: () => connection,
@@ -195,22 +196,28 @@ const agent: Agent = handle.agent
 const TURN_TIMEOUT_MS = 45 * 60_000
 const turnEnds = () => agent.session.snapshotEvents().filter((e) => e.type === 'turn/end')
 let toolCallsSeen = 0
+// 一轮以错误结束(LLM 层重试耗尽后的 TRANSPORT 等):同一提示重发,最多 3 次,15s 退避。
+// 重发是新的一轮(turn 号递增),账本按 turn/end 计;失败那轮的部分用量照常计入。
+const TURN_RETRIES = 3
 for (let i = 0; i < prompts.length; i += 1) {
   const started = Date.now()
-  const endsBefore = turnEnds().length
-  agent.followup(createUserMessage({ content: [{ type: 'text', text: prompts[i]! }], source: { kind: 'user' } }))
-  while (turnEnds().length === endsBefore) {
-    if (Date.now() - started > TURN_TIMEOUT_MS) {
-      console.error(`turn ${i + 1}: timed out after ${TURN_TIMEOUT_MS / 1000}s`)
-      process.exit(1)
+  let reason: { kind?: string; error?: { message?: string; code?: string } } | undefined
+  for (let attempt = 1; attempt <= TURN_RETRIES; attempt += 1) {
+    const endsBefore = turnEnds().length
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: prompts[i]! }], source: { kind: 'user' } }))
+    while (turnEnds().length === endsBefore) {
+      if (Date.now() - started > TURN_TIMEOUT_MS) {
+        console.error(`turn ${i + 1}: timed out after ${TURN_TIMEOUT_MS / 1000}s`)
+        process.exit(1)
+      }
+      await new Promise((r) => setTimeout(r, 400))
     }
-    await new Promise((r) => setTimeout(r, 400))
-  }
-  const end = turnEnds().at(-1)! as { data?: { reason?: { kind?: string; error?: { message?: string; code?: string } } } }
-  const reason = end.data?.reason
-  if (reason?.kind === 'error') {
-    console.error(`turn ${i + 1}: ended in error — ${reason.error?.code}: ${reason.error?.message}`)
-    process.exit(1)
+    const end = turnEnds().at(-1)! as { data?: { reason?: { kind?: string; error?: { message?: string; code?: string } } } }
+    reason = end.data?.reason
+    if (reason?.kind !== 'error') break
+    console.error(`turn ${i + 1}: ended in error (attempt ${attempt}/${TURN_RETRIES}) — ${reason.error?.code}: ${reason.error?.message}`)
+    if (attempt === TURN_RETRIES) process.exit(1)
+    await new Promise((r) => setTimeout(r, 15000))
   }
   const calls = agent.session.snapshotEvents().filter((e) => e.type === 'tool/call').length
   const steps = calls - toolCallsSeen
