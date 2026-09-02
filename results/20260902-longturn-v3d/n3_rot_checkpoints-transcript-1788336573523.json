@@ -1,0 +1,208 @@
+{
+  "scenario": "n3_rot_checkpoints",
+  "arm": "transcript",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-n3_rot_checkpoints-transcript-low-1788336573523",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-n3_rot_checkpoints-WUMOq7",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 1,
+      "input": 76,
+      "cacheRead": 768,
+      "output": 23,
+      "reasoning": 20,
+      "peakInput": 844,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 4802,
+      "cacheRead": 768,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 5570,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 1,
+      "input": 4813,
+      "cacheRead": 5504,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10317,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 2,
+      "input": 258,
+      "cacheRead": 20608,
+      "output": 116,
+      "reasoning": 24,
+      "peakInput": 10519,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 1,
+      "input": 5404,
+      "cacheRead": 10496,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 15900,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 1,
+      "input": 5305,
+      "cacheRead": 15872,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 21177,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 1,
+      "input": 5334,
+      "cacheRead": 21120,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 26454,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 2,
+      "input": 247,
+      "cacheRead": 52864,
+      "output": 82,
+      "reasoning": 0,
+      "peakInput": 26627,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 1,
+      "input": 5892,
+      "cacheRead": 26624,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 32516,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 1,
+      "input": 5977,
+      "cacheRead": 32512,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 38489,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 1,
+      "input": 6011,
+      "cacheRead": 38400,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 44411,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 2,
+      "input": 196,
+      "cacheRead": 88832,
+      "output": 88,
+      "reasoning": 0,
+      "peakInput": 44587,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 1,
+      "input": 6537,
+      "cacheRead": 44544,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 51081,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 1,
+      "input": 6492,
+      "cacheRead": 51072,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 57564,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 1,
+      "input": 6565,
+      "cacheRead": 57472,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 64037,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 149,
+      "cacheRead": 128128,
+      "output": 82,
+      "reasoning": 0,
+      "peakInput": 64210,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 2,
+      "input": 506,
+      "cacheRead": 128512,
+      "output": 276,
+      "reasoning": 36,
+      "peakInput": 64728,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 64564,
+    "cacheRead": 724096,
+    "output": 733,
+    "reasoning": 80,
+    "steps": 22,
+    "peakInput": 64728
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "write": 7
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all checkpoints exact + trap honest | ck1=Y,ck2=Y,ck3=Y,ck4=Y,ck5=Y,ck6=Y"
+  }
+}

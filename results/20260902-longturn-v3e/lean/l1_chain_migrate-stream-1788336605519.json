@@ -1,0 +1,75 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {},
+  "sessionId": "slice-val-l1_chain_migrate-stream-low-1788336605519",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-BXW3Z4",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 49,
+      "input": 50408,
+      "cacheRead": 1579520,
+      "output": 16253,
+      "reasoning": 6810,
+      "peakInput": 57884,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 50408,
+    "cacheRead": 1579520,
+    "output": 16253,
+    "reasoning": 6810,
+    "steps": 49,
+    "peakInput": 57884
+  },
+  "seals": 0,
+  "bounces": 1,
+  "suspends": [
+    "R1"
+  ],
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 66697
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 8,
+    "rules": 8,
+    "enforced": 8,
+    "list": [
+      "R1 [path-regex]: Each migrated node must be written to a file at migrated/<id in lowercase>.svc (e.g., id Q7K2 -> migrated/q7k2.svc).",
+      "R2 [content-includes]: Line 1 of each output file must be exactly: # migrated-by: kestrel-v3",
+      "R3 [content-includes]: After line 1, there must be exactly four lines in the format `key: value` (one space after the colon, nothing before it, no blank lines, no comments) in this order: name, port, owner, tier",
+      "R4 [content-excludes]: Drop a leading `legacy-` prefix from the name if present; the word \"legacy\" must not appear anywhere in the output file",
+      "R5 [line-regex]: Port must be zero-padded to 5 digits (443 -> 00443, 8080 -> 08080, 31337 -> 31337)",
+      "R6 [line-regex]: Owner: keep the local part, replace the domain with kestrel.internal (a.b@oldcorp.example -> a.b@kestrel.internal)",
+      "R7 [line-regex]: Tier: gold -> p1, silver -> p3, bronze -> p7",
+      "R8 [content-includes]: The last line of each output file must be exactly: ;; end-of-record 7f3a"
+    ]
+  },
+  "toolHistogram": {
+    "read": 48,
+    "write": 47
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

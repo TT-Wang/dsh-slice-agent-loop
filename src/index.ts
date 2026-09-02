@@ -35,7 +35,7 @@ export interface Config {
   mode?: 'slice' | 'state' | 'stream'
   /** v3 追加流的注入时摘要策略。 */
   digest?: { minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number }
-  state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number }
+  state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
@@ -216,7 +216,7 @@ export class SliceLoopPlugin extends Service {
     if (mode !== 'slice' && mode !== 'state' && mode !== 'stream') throw new Error("mode must be 'slice', 'state' or 'stream'")
     const digest = resolveDigestPolicy(config.digest)
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
-    for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep'] as const) {
+    for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
       if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
     }
     if (!REASONING_EFFORT_DEFAULTS.includes(defaultReasoningEffort)) {

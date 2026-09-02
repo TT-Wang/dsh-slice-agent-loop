@@ -216,11 +216,13 @@ export interface StatePolicy {
   sideEffort: ReasoningEffortDefault
   /** 同一规则最多打回几次;再违反即该规则谓词停用、写入放行(见 enforceContract)。 */
   contractBounceBudget: number
-  /** stream 模式:一轮走到这一步才提取规则、追加宪法(短轮不付提取与契约的税)。 */
+  /** stream 模式:一轮走到这一步(且钉住已完成)就提取规则、追加宪法。 */
   extractAtStep: number
+  /** stream 模式:契约从这一步起才执行(回滚 + 打回);短轮永远不被错谓词打回。 */
+  enforceFromStep: number
 }
 
-export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1, extractAtStep: 8 }
+export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1, extractAtStep: 3, enforceFromStep: 8 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
 const CONTRIBUTION_CAP_CHARS = 4000
@@ -1466,10 +1468,10 @@ export class SliceLoopAgent implements Agent {
   ): Promise<void> {
     if (this.constitution === null) this.constitution = { request: requestText, pinned: [], rules: [] }
     const c = this.constitution
-    // 惰性提取:一轮走到 extractAtStep 才提取规则、追加宪法——短轮(交互式问答、一两次
-    // 编辑)永远不付这笔钱。n2 交叉验证:每轮都提取时 stream $0.018 vs slice $0.012,
-    // 多出的全是提取 + 错谓词弹回;长任务(l1/l2 50 步)晚几步拿到宪法无碍——钉住的规则
-    // 文件全文本来就在流里。
+    // 提取时机 extractAtStep(默认 3 = 钉住后立刻):l2 三次运行里唯一成功的是宪法在第 3 步
+    // 就位的那次——路径决定发生在第 3 步,推迟到第 8 步(惰性提取试验)模型把 ledger/ 当根,
+    // 45 个 posting 全写错目录。宪法文本便宜(旁路 effort off ≈ 700 out),短轮的税不在
+    // 这里,而在错谓词弹回——那由 enforceFromStep 管。
     if (this.rulesExtracted || step < Math.max(this.statePolicy.pinSteps + 1, this.statePolicy.extractAtStep) || c.pinned.length === 0) return
     this.rulesExtracted = true
     if (this.statePolicy.extractRules) {
@@ -1599,6 +1601,9 @@ export class SliceLoopAgent implements Agent {
   private enforceContract(turn: number, step: number, block: ToolCallBlock, result: ToolExecutionResult): ToolExecutionResult {
     const rules = this.constitution?.rules ?? []
     if (result.isError || !rules.some((r) => r.predicate !== undefined)) return result
+    // stream 模式:短轮不执行契约——n2 交叉验证里一条错谓词在第 3 轮第 3 步打回了正确的
+    // edit(+8 步、+4.6K out);长任务的早期写入本来就有钉住原文与宪法兜着。
+    if (this.mode === 'stream' && step < this.statePolicy.enforceFromStep) return result
     const path = editedPath(block.name, parseArguments(block.arguments))
     if (path === undefined) return result
     const cwd = this.sessionCwd()
