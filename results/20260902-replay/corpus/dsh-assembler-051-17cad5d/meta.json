@@ -1,0 +1,306 @@
+{
+ "id": "dsh-assembler-051-17cad5d",
+ "repo": "dsh-assembler",
+ "cwd": "/Users/tongtao/code/dsh-assembler",
+ "repoRoot": "/Users/tongtao/code/dsh-assembler",
+ "sessionId": "1ddc9b71-a722-40ca-b90d-0aee2988c168",
+ "turnIndex": 51,
+ "sha": "17cad5ddfae6abdbe7997e8fc38002bf1025059a",
+ "shaReflogEntry": "commit: 底册终局:genui 0.9.6 升级后旧消息原地满血(17行51格)——0.8.7 抽取丢数据,上游已自修,免报 issue",
+ "shaReflogTime": "2026-08-31 16:07:45 +0800",
+ "gitBranch": "main",
+ "timestamp": "2026-09-01T08:09:46.626Z",
+ "timestampLocal": "2026-09-01 16:09:46 +0800",
+ "firstToolCallTimestamp": "2026-09-01T08:10:37.414000+00:00",
+ "endTimestamp": "2026-09-01T08:36:03.395000+00:00",
+ "durationSec": 1576.8,
+ "toolCalls": {
+  "Bash": 37,
+  "Edit": 53,
+  "Read": 8,
+  "Write": 2
+ },
+ "toolCallTotal": 100,
+ "editCount": 54,
+ "failedToolCalls": 0,
+ "failedEditCalls": 0,
+ "bashCommands": [
+  "grep -n '0\\.8\\|0\\.9' docs/BACKLOG.md | head -10; echo '── verify.ts wire 面 ──'; grep -n 'api/\\|events\\.mux\\|session\\.\\|fetch(\\|WebSocket\\|token' src/verify.ts | head -30; echo '── 报错过堂 ──'; grep -rn '过堂' docs/ --include='*.md' -l | head -5",
+  "echo '── run-generalization wire ──' && sed -n '55,110p' bench/run-generalization.mjs && echo '── vendor SDK ──' && wc -l frontends/_vendor/assembler-sdk.js scaffold/template/src/sdk/assembler-sdk.ts scripts/index-add.mjs generated/cron-trigger/index.js docs/research/gate-error-audit-2026-08-27.md",
+  "sed -n '110,165p' bench/run-generalization.mjs && echo '── 三驱动器 wire 差异 ──' && grep -n 'api/respond\\|events\\.mux\\|session\\.create\\|rpcId' bench/run-proving.mjs bench/run-writer-seat.mjs | head -12",
+  "cat package.json | python3 -c \"import json,sys; p=json.load(sys.stdin); print(json.dumps({'scripts': p.get('scripts'), 'type': p.get('type'), 'main': p.get('main')}, ensure_ascii=False, indent=1))\" && ls src/ && grep -n '\"outDir\"\\|\"module\"\\|\"target\"\\|\"strict\"' tsconfig.json",
+  "sed -n '1,16p' src/verify.ts && grep -n 'session\\.rpc\\|\\brpc(' src/verify.ts | grep -v '^6[01][0-9]:\\|^9[78][0-9]:' && grep -n '^import\\|^} from' src/verify.ts | head -8",
+  "npm run typecheck 2>&1 | tail -8",
+  "wc -l bench/run-generalization.mjs bench/run-proving.mjs bench/run-writer-seat.mjs && grep -n 'ws\\.close\\|session\\.cancel\\|清场\\|cancel' bench/run-generalization.mjs bench/run-proving.mjs bench/run-writer-seat.mjs | head -12 && echo '── generalization 收尾 ──' && sed -n '165,200p' bench/run-generalization.mjs",
+  "sed -n '1,12p' bench/run-generalization.mjs && echo '───' && sed -n '69,80p' bench/run-generalization.mjs && echo '─── prompt 行 ───' && sed -n '144,148p' bench/run-generalization.mjs && echo '═══ proving 55-120 ═══' && sed -n '55,120p' bench/run-proving.mjs",
+  "cat bench/run-writer-seat.mjs && echo '═══ proving imports ═══' && sed -n '1,20p' bench/run-proving.mjs",
+  "sed -n '120,180p' bench/run-proving.mjs && echo '── return 行 ──' && grep -n 'usage\\|session.prompt\\|tokenUsage' bench/run-proving.mjs | head -10",
+  "grep -n 'session\\.rpc\\|session\\.close\\|\\.close()\\|agentTurn(' scripts/index-add.mjs | head && grep -n '^import' scripts/index-add.mjs | head -6",
+  "npm test 2>&1 | tail -20",
+  "grep -n 'rpc\\|prompt\\|frames' tests-verify.mjs | sed -n '1,25p'",
+  "python3 - <<'EOF'\nimport re\np = 'tests-verify.mjs'\ns = open(p).read()\nold = \"rpc: async () => ({})\"\nassert s.count(old) == 3, s.count(old)\ns = s.replace(old, \"prompt: async () => {}\")\nopen(p, 'w').write(s)\nprint('replaced 3 fakes')\nEOF\nnpm test 2>&1 | tail -6",
+  "mkdir -p ~/.dsh/logs && cd /Users/tongtao/code/deepseek-harness-rc8 && nohup node --import ~/.dsh/source/current/node_modules/tsx/dist/esm/index.mjs ~/.dsh/source/current/apps/cli/src/bin.ts --profile web --patch ~/.dsh/profiles/web/port-3097.patch.yml > ~/.dsh/logs/web-3097.log 2>&1 & echo \"launched pid $!\" && sleep 25 && tail -3 ~/.dsh/logs/web-3097.log && ls ~/.dsh/.agent-presets/ 2>/dev/null | head -8",
+  "cd /private/tmp/claude-501/-Users-tongtao-code-dsh-assembler/1ddc9b71-a722-40ca-b90d-0aee2988c168/scratchpad && node wire-e2e.mjs 2>&1 | tail -18; echo \"exit=$?\"",
+  "cd /Users/tongtao/code/deepseek-harness-rc8 && grep -rn \"'session/control'\\|\\\"session/control\\\"\\|control\" packages/api/session-controller/src/index.ts 2>/dev/null | head -6; find packages/api -name 'typert.remote-client.d.ts' | head -3; grep -rn -A6 \"control\" packages/api/remotes/lib/typert.remote-client.d.ts 2>/dev/null | grep -A6 'session/control\\|control(' | head -14",
+  "cd /Users/tongtao/code/deepseek-harness-rc8 && grep -n -B2 -A6 'control' packages/api/session-controller/lib/typert.remote-client.d.ts | head -30",
+  "npm run build > /dev/null 2>&1 && cd /private/tmp/claude-501/-Users-tongtao-code-dsh-assembler/1ddc9b71-a722-40ca-b90d-0aee2988c168/scratchpad && node wire-e2e.mjs 2>&1 | tail -10; echo \"exit=$?\"",
+  "for f in frontends/chat-console/index.html frontends/bilingual-reader/index.html frontends/reader-upload-web-ui/index.html; do echo \"── $f ──\"; grep -n 'api/\\|events\\.mux\\|AssemblerSDK\\|assembler-sdk' \"$f\" | head -6; done",
+  "sed -n '52,88p' frontends/chat-console/index.html && echo '════ bilingual 170-200 ════' && sed -n '170,200p' frontends/bilingual-reader/index.html && echo '════ reader-upload 170-200 ════' && sed -n '170,200p' frontends/reader-upload-web-ui/index.html",
+  "grep -rn '_vendor' src/*.ts scripts/*.mjs | grep -v '\\.test' | head -8",
+  "grep -n '<script' frontends/chat-console/index.html | head -4",
+  "grep -n '<script' frontends/reader-upload-web-ui/index.html | head -4",
+  "sed -n '1,26p' generated/cron-trigger/index.js | grep -n 'import\\|require' ",
+  "python3 - <<'EOF'\np = 'generated/cron-trigger/index.js'\ns = open(p).read()\nold = \"import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';\\nimport { join } from 'node:path';\"\nnew = \"import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 'node:fs';\\nimport { join } from 'node:path';\\nimport { homedir } from 'node:os';\"\nassert s.count(old) == 1\nopen(p, 'w').write(s.replace(old, new))\nprint('imports patched')\nEOF\nnode --check generated/cron-trigger/index.js && echo syntax-ok && npm test 2>&1 | grep -E 'all green|FAIL|Error|✗' | tail -8",
+  "grep -n -B4 -A12 '通信层就位' tests-frontend.mjs | head -40",
+  "python3 - <<'EOF'\ns = open('tests-frontend.mjs').read()\nold = \"  const viaSdk = html.includes('_vendor/assembler-sdk.js') && html.includes('AssemblerSDK.createClient')\"\nnew = \"  // 双代 wire 核收编后(BACKLOG 0.9),页面经 SDK 的两种合法形态:createClient 全托管,或 wire.rpc/wire.stream 薄转发\\n  const viaSdk = html.includes('_vendor/assembler-sdk.js') && (html.includes('AssemblerSDK.createClient') || html.includes('AssemblerSDK.wire.'))\"\nassert s.count(old) == 1\nopen('tests-frontend.mjs', 'w').write(s.replace(old, new))\n\ns = open('frontends/chat-console/index.html').read()\nold2 = \"接线走 host 同源 wire(session.create / session.prompt / events.mux)\"\nnew2 = \"接线走 host 同源 wire(经 _vendor/assembler-sdk.js 的双代 wire 核:session.create / session.prompt / 事件流)\"\nassert s.count(old2) == 1\nopen('frontends/chat-console/index.html', 'w').write(s.replace(old2, new2))\nprint('patched')\nEOF\nnpm test 2>&1 | grep -cE '✗|FAIL' ; npm test 2>&1 | tail -3",
+  "grep -n 'readyState' frontends/*/index.html frontends/_vendor/*.js scaffold/template/src/sdk/*.ts 2>/dev/null",
+  "grep -c 'openWs' frontends/chat-console/index.html frontends/bilingual-reader/index.html frontends/reader-upload-web-ui/index.html && python3 - <<'EOF'\nimport re\nfiles = ['frontends/chat-console/index.html', 'frontends/bilingual-reader/index.html', 'frontends/reader-upload-web-ui/index.html']\nWAIT = \"  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });\"\nNEW_WAIT = \"  // 等订阅真正建立再放行(legacy=ws.open,new=follow 首帧 snapshot)——早到帧不能丢\\n  await new Promise((r) => { ws = AssemblerSDK.wire.stream(() => sessionId, handle, { onReady: r }); });\"\nDEF = \"function openWs() { ws = AssemblerSDK.wire.stream(() => sessionId, handle); }\\n\"\nfor p in files:\n    s = open(p).read()\n    assert s.count(WAIT) == 1, (p, s.count(WAIT))\n    s = s.replace(WAIT, NEW_WAIT)\n    # 建会话行去掉 openWs() 调用\n    s = re.sub(r\"sessionId = v\\.sessionId; openWs\\(\\);\", \"sessionId = v.sessionId;\", s)\n    assert 'openWs();' not in s, p\n    assert s.count(DEF) == 1, (p, s.count(DEF))\n    s = s.replace(DEF, \"\")\n    open(p, 'w').write(s)\n    print(p, 'patched')\nEOF",
+  "npm test > /tmp/assembler-test.log 2>&1; echo \"exit=$?\"; grep -c '✗' /tmp/assembler-test.log; grep '✗' /tmp/assembler-test.log | head -5; grep -c 'all green\\|OK' /tmp/assembler-test.log",
+  "grep -n 'ws\\.\\(send\\|readyState\\|onopen\\|onmessage\\|onclose\\)' frontends/*/index.html scaffold/template/src -r; echo \"── 残留检查完(无输出=干净) ──\"; ls scaffold/template/tsconfig.json 2>/dev/null && (cd scaffold/template && npx tsc --noEmit 2>&1 | head -5; echo \"tsc exit=$?\")",
+  "git log --oneline --since=2026-08-27 | grep -i '报错\\|过堂\\|执刀\\|三刀\\|gate-error' | head -5; echo '── scaffold:596 现状(第一刀靶点) ──'; grep -n '标注留档\\|未知路由' src/scaffold.ts | head -5; echo '── emit_preset 快照宣称(第二刀靶点) ──'; grep -n 'cpSync\\|已存快照\\|快照' src/orchestrated-tools.ts | head -8",
+  "grep -rn '过堂刀' src/ scripts/ | head -12; echo '── 中轻伤靶点抽查 ──'; grep -n 'presetIdHint' src/*.ts | head -3; grep -n '可手工 register' src/*.ts scripts/*.mjs 2>/dev/null | head -2; grep -n 'dsh --profile web' src/*.ts scripts/*.mjs 2>/dev/null | head -3; grep -n '剔除' src/index.ts src/orchestrated-tools.ts 2>/dev/null | head -3",
+  "grep -n '四参\\|缺哪个' src/orchestrated-tools.ts | head -3; grep -n 'listTools 为空\\|listTools' src/*.ts scripts/*.mjs 2>/dev/null | head -3; grep -n 'npm view' scripts/index-add.mjs | head -3; grep -n 'pagesDir' src/orchestrated-tools.ts src/scaffold.ts 2>/dev/null | head -4; grep -n '危险目标\\|拒绝写入' src/orchestrated-tools.ts | head -3",
+  "grep -n -B2 -A4 'verify_trigger 需要\\|触发考需要\\|四件' src/orchestrated-tools.ts | head -14; grep -n -B1 -A3 '拒发\\|不在 ~/apps' src/orchestrated-tools.ts | head -12",
+  "grep -n 'effectSql' src/orchestrated-tools.ts | head -4; grep -n 'apps 目录\\|只允许.*apps\\|targetDir' src/orchestrated-tools.ts | head -6"
+ ],
+ "droppedTrailingCalls": [
+  {
+   "name": "Bash",
+   "command": "git status --short | head -20 && git add -A && git commit --quiet -m \"0.9 结案:wire 迁移全链落地——共享客户端 src/wire.ts,七处消费点收编,3097 实弹双 PASS\n\n- src/wire.ts:双代客户端(探协议定代际;cookie 落盘缓存跨重启/包裹键读报错自适应/requestId/follow/control 投影/\\$events 代答;detach 与 close 分设)\n- verify.ts 双探针、bench 三驱动器、index-add auto:传输层换血,判定逻辑零改动(turn/end 计数、按 label 代答、INSIST 策略原样)\n- _vendor 浏览器 SDK 加双代 wire 核(中央伺服,全页即时生效);三张模板页内联客户端收编为薄转发(修掉 readyState 死等雷);scaffold 模板 SDK 同构(生成性欠债止血)\n- cron-trigger 零件:自包含迷你双代客户端,共享 wire-auth 缓存\n- 新协议事实:session/control 无参(生成声明为准;包裹键=控制器 TS 参数名再证)\n- 报错过堂底册补执刀核对记(三刀+中轻伤已落地,新客户端报错按 rustc 三问标准);BACKLOG 0.8 记入快慢闸分层与绕闸留痕两条设计约束\n- 判据:npm test 13 套零✗;3097(alpha.2)探针路回显 + 代答路 \\$events 闭环 + tokenUsage 投影真值\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>\" && git log --oneline -1 && git diff HEAD~1 --stat | tail -3"
+  }
+ ],
+ "touchedFiles": [
+  "src/wire.ts",
+  "src/verify.ts",
+  "bench/run-generalization.mjs",
+  "bench/run-proving.mjs",
+  "bench/run-writer-seat.mjs",
+  "scripts/index-add.mjs",
+  "frontends/_vendor/assembler-sdk.js",
+  "frontends/chat-console/index.html",
+  "frontends/bilingual-reader/index.html",
+  "frontends/reader-upload-web-ui/index.html",
+  "scaffold/template/src/sdk/assembler-sdk.ts",
+  "generated/cron-trigger/index.js",
+  "docs/research/gate-error-audit-2026-08-27.md",
+  "docs/BACKLOG.md",
+  "docs/research/dsh-alpha2-migration.md"
+ ],
+ "files": [
+  {
+   "path": "src/wire.ts",
+   "existedAtCommit": false,
+   "sha256Before": null,
+   "sha256After": "75bd84836d9a07de38a5192d3d35110deecf100f1a436b1481f7d79993edca6e",
+   "bytes": 22929,
+   "status": "created",
+   "bashMentions": 0,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "src/verify.ts",
+   "existedAtCommit": true,
+   "sha256Before": "f51d45d5350d2bea4f9715449a2afcbeb310e7ef437ea28b0b024e8dde839860",
+   "sha256After": "07c503f3f6052f9610e4ee5e4d5b8a5664bcf59c78fe06d2ec9b002c1ef9f62c",
+   "bytes": 53324,
+   "status": "modified",
+   "bashMentions": 2,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "bench/run-generalization.mjs",
+   "existedAtCommit": true,
+   "sha256Before": "17000e5dc099815749497754463d918e976fbb1e33a7d4e3757e396518fe7605",
+   "sha256After": "fb66dd20fbde72d5fb0a1876bb24fd2afe8fa17d83cd019059db6f524c0ad415",
+   "bytes": 14605,
+   "status": "modified",
+   "bashMentions": 4,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "bench/run-proving.mjs",
+   "existedAtCommit": true,
+   "sha256Before": "0acb71da751bb284c7442a6c90ae5291fa56a47eb474d4ccd6d38474e3f6d4fc",
+   "sha256After": "58357c4081b823a2408fee26ee050b4cec24f905b11374f537c9782624b7218c",
+   "bytes": 14118,
+   "status": "modified",
+   "bashMentions": 5,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "bench/run-writer-seat.mjs",
+   "existedAtCommit": true,
+   "sha256Before": "38185a02c9f3eb641af1e172c7b5b1a7e48ca09d8d06d3bfc2e6603b12d1879d",
+   "sha256After": "f15face70f65a32f408ac4df27acc47f9aea503fe861e065123c243e14041382",
+   "bytes": 5249,
+   "status": "modified",
+   "bashMentions": 3,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "scripts/index-add.mjs",
+   "existedAtCommit": true,
+   "sha256Before": "ca5a87ed8c61243f56eb4350421b32248c017aedd060ca00c624dbf660864dc9",
+   "sha256After": "78b08b76318bae989f37c8f3780a1d7c9b0c7e86124189a78d2d1e41ebca54f6",
+   "bytes": 55167,
+   "status": "modified",
+   "bashMentions": 3,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "frontends/_vendor/assembler-sdk.js",
+   "existedAtCommit": true,
+   "sha256Before": "0539cfb5b243e805e0bf845f814b93078f247dbb3a0fc9b889e2805bc192bfb4",
+   "sha256After": "67670df2bdbd5c813577d9d84f8315fb8abf14cbe9a6b50c5617a65ccab2b05a",
+   "bytes": 18316,
+   "status": "modified",
+   "bashMentions": 2,
+   "bashMutatingMentions": 1
+  },
+  {
+   "path": "frontends/chat-console/index.html",
+   "existedAtCommit": true,
+   "sha256Before": "1a0131a848a9eeba91810f852d292e5e0990718ad980bc4366f7da6ba70e2f8e",
+   "sha256After": "f2abe48afb88daf20c3d143a1ba15059252128378156b19d2881fa662c76b39f",
+   "bytes": 6308,
+   "status": "modified",
+   "bashMentions": 8,
+   "bashMutatingMentions": 2
+  },
+  {
+   "path": "frontends/bilingual-reader/index.html",
+   "existedAtCommit": true,
+   "sha256Before": "8c38c802a14a7b5de0b0e7b8329e995464a2576e41a97d73b555b725ea9ef820",
+   "sha256After": "1d656d56a9496dc104652afe6f5391f0c3fddebb8cf28214c6958d48eb18e4c1",
+   "bytes": 37604,
+   "status": "modified",
+   "bashMentions": 8,
+   "bashMutatingMentions": 2
+  },
+  {
+   "path": "frontends/reader-upload-web-ui/index.html",
+   "existedAtCommit": true,
+   "sha256Before": "456758ace59f2bae962d151f97c76cc7116131bfe4284a7b38731d7c6ff8e56e",
+   "sha256After": "f2ee9bf7254d8d94d6a8477fdb2a22607f1493ea8af8e26cc08d903bc8a9fe7d",
+   "bytes": 25908,
+   "status": "modified",
+   "bashMentions": 8,
+   "bashMutatingMentions": 2
+  },
+  {
+   "path": "scaffold/template/src/sdk/assembler-sdk.ts",
+   "existedAtCommit": true,
+   "sha256Before": "0bdce05d34629e67527e1d14b62d4e6719a21e1d5aba9d21676b19f7451ceb22",
+   "sha256After": "e6363cb0ab8ae10e1868d53b312f1f6f84dbef288e3d1acfc20dd4d08a3ffd0e",
+   "bytes": 14570,
+   "status": "modified",
+   "bashMentions": 1,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "generated/cron-trigger/index.js",
+   "existedAtCommit": true,
+   "sha256Before": "98c25ab935766f1b9dc256e0f305829fe6d681360bb62fea102b2cef6c8faf03",
+   "sha256After": "ad65af0c087fb19ff6551de0d8d47fbce490fbe4d9ee1eedcb98404c1b2dfbc4",
+   "bytes": 11071,
+   "status": "modified",
+   "bashMentions": 3,
+   "bashMutatingMentions": 1
+  },
+  {
+   "path": "docs/research/gate-error-audit-2026-08-27.md",
+   "existedAtCommit": true,
+   "sha256Before": "0113c3681c00b716525cb9b1af646e2bef1a00b594b0cb8e8accb43a768773b1",
+   "sha256After": "a04db74e5a70d9fd4312b129a209e34cf7ce4b3f5e017af64ceaa92b5b7a85f5",
+   "bytes": 5206,
+   "status": "modified",
+   "bashMentions": 1,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "docs/BACKLOG.md",
+   "existedAtCommit": true,
+   "sha256Before": "a2df5a1c04fad6b2f8abe50c7152f46bf1366c9ac86e275dfd3613e3f0b46705",
+   "sha256After": "31630e1615ce480d26715ed3303d5c8ff27ee190fb2772e577be60c2936c194c",
+   "bytes": 19397,
+   "status": "modified",
+   "bashMentions": 1,
+   "bashMutatingMentions": 0
+  },
+  {
+   "path": "docs/research/dsh-alpha2-migration.md",
+   "existedAtCommit": true,
+   "sha256Before": "2ade81bdce0b13e8a57dde8d18bebc887ece7a467a15ee3bcd5c8a26a9cbdd5a",
+   "sha256After": "f09a73ecd2290a3b60fb9781c9ccf8b106b63adfbdfe929561e6ad4747c70ba2",
+   "bytes": 8761,
+   "status": "modified",
+   "bashMentions": 0,
+   "bashMutatingMentions": 0
+  }
+ ],
+ "nextCommitCheck": {
+  "sha": "0160c0dbefad83ae71cd95382c4ca82f87ec9de1",
+  "subject": "commit: 0.9 结案:wire 迁移全链落地——共享客户端 src/wire.ts,七处消费点收编,3097 实弹双 PASS",
+  "time": "2026-09-01 16:36:20 +0800",
+  "secondsAfterTurnEnd": 16,
+  "interveningTurnsWithEdits": 0,
+  "match": [
+   "src/wire.ts",
+   "src/verify.ts",
+   "bench/run-generalization.mjs",
+   "bench/run-proving.mjs",
+   "bench/run-writer-seat.mjs",
+   "scripts/index-add.mjs",
+   "frontends/_vendor/assembler-sdk.js",
+   "scaffold/template/src/sdk/assembler-sdk.ts",
+   "docs/research/gate-error-audit-2026-08-27.md",
+   "docs/BACKLOG.md",
+   "docs/research/dsh-alpha2-migration.md"
+  ],
+  "differ": [
+   "frontends/chat-console/index.html",
+   "frontends/bilingual-reader/index.html",
+   "frontends/reader-upload-web-ui/index.html",
+   "generated/cron-trigger/index.js"
+  ],
+  "absent": []
+ },
+ "toleratedExternalWrites": [
+  {
+   "path": "/private/tmp/claude-501/-Users-tongtao-code-dsh-assembler/1ddc9b71-a722-40ca-b90d-0aee2988c168/scratchpad/wire-e2e.mjs",
+   "kind": "scratch",
+   "tool": "Write"
+  }
+ ],
+ "externalReads": [],
+ "specDeviations": [
+  "trailing-commit-truncated: dropped 1 trailing call(s) starting at `git commit`",
+  "F2 relaxed: 100 tool calls (spec range 12..90, configured 12..100)",
+  "F5 relaxed: prompt shorter than 20 chars (16)"
+ ],
+ "flags": {
+  "bash": {
+   "inline-script-write": 5,
+   "shell-file-mutation": 3,
+   "build": 2
+  },
+  "prompt": [],
+  "replay": {
+   "write": 1,
+   "edit": 53,
+   "strict-verified": 12
+  },
+  "warnings": []
+ },
+ "promptChars": 16,
+ "contextTurns": 4,
+ "score": 1.5,
+ "rank": 2,
+ "selected": true,
+ "excludeFromOracle": [
+  "frontends/chat-console/index.html",
+  "frontends/bilingual-reader/index.html",
+  "frontends/reader-upload-web-ui/index.html",
+  "generated/cron-trigger/index.js"
+ ]
+}

@@ -1,0 +1,604 @@
+<!doctype html>
+<!-- bilingual-reader — 中英双语读书助手(Franken UI):上传多格式电子书 ->
+     自动分章节 -> 双语分屏阅读(左原文右译文,段落对齐) -> 选中句子存入摘抄库。
+     页面自带 json 契约,与 agent 通过 host wire 协作;所有解析/入库由 agent
+     的零件完成,页面只负责交互与渲染。 -->
+<html lang="zh" class="uk-theme-zinc">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} · 双语读书</title>
+<script>if (matchMedia('(prefers-color-scheme: dark)').matches) document.documentElement.classList.add('dark')</script>
+<link rel="stylesheet" href="_vendor/core.min.css">
+<link rel="stylesheet" href="_vendor/utilities.min.css">
+<script src="_vendor/core.iife.js" defer></script>
+<script src="_vendor/assembler-sdk.js"></script>
+<style>
+  .dot{width:9px;height:9px;border-radius:9999px;background:hsl(var(--muted-foreground));flex:none}
+  .dot.busy{background:hsl(var(--primary));animation:pulse 1.1s infinite}
+  .dot.ok{background:#10a37f}
+  @keyframes pulse{50%{opacity:.3}}
+  .view{display:none}.view.on{display:block}
+  .para{padding:10px 14px;border-radius:10px;border:1px solid hsl(var(--border));cursor:pointer;transition:background .15s}
+  .para:hover{background:hsl(var(--muted)/.55)}
+  .para.sel{background:hsl(var(--primary)/.12);border-color:hsl(var(--primary)/.5)}
+  .para .idx{color:hsl(var(--muted-foreground));font-size:11px;margin-bottom:4px;display:block}
+  .para .dst{color:hsl(var(--muted-foreground))}
+  .book-card{cursor:pointer;transition:transform .12s,box-shadow .12s}
+  .book-card:hover{transform:translateY(-2px);box-shadow:0 8px 24px hsl(var(--foreground)/.08)}
+  .excerpt{border-left:3px solid hsl(var(--primary));padding:10px 14px;border-radius:0 10px 10px 0;background:hsl(var(--muted)/.35)}
+  .drop{border:2px dashed hsl(var(--border));border-radius:14px;transition:border-color .15s,background .15s}
+  .drop.over{border-color:hsl(var(--primary));background:hsl(var(--primary)/.06)}
+  .toc-item{padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .toc-item:hover{background:hsl(var(--muted))}
+  .toc-item.on{background:hsl(var(--primary)/.14);color:hsl(var(--primary));font-weight:600}
+  .tabbtn{border:1px solid transparent;border-radius:8px;padding:5px 12px;cursor:pointer;background:transparent;color:hsl(var(--muted-foreground));font-size:13px}
+  .tabbtn.on{background:hsl(var(--primary)/.12);color:hsl(var(--primary));font-weight:600}
+  .progressbar{height:4px;border-radius:99px;background:hsl(var(--muted));overflow:hidden}
+  .progressbar>div{height:100%;background:hsl(var(--primary));border-radius:99px}
+  #readerCols{display:grid;grid-template-columns:220px 1fr 1fr;gap:14px;align-items:start}
+  @media (max-width:1100px){#readerCols{grid-template-columns:1fr 1fr}#tocPane{grid-column:1/-1;max-height:160px;overflow:auto;display:flex;flex-wrap:wrap;gap:4px}}
+  .prewrap{white-space:pre-wrap;word-break:break-word}
+  .btn-mini{padding:2px 8px;font-size:12px;border-radius:6px;border:1px solid hsl(var(--border));background:hsl(var(--background));cursor:pointer;color:hsl(var(--foreground))}
+  .btn-mini:hover{background:hsl(var(--muted))}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:hsl(var(--foreground));color:hsl(var(--background));padding:8px 16px;border-radius:10px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body class="bg-background text-foreground min-h-screen">
+<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-border bg-card px-5 py-3">
+  <div class="dot" id="dot"></div>
+  <div>
+    <div class="font-semibold">{{title}} · 双语读书</div>
+    <div class="text-xs text-muted-foreground">preset {{presetId}} · 上传 · 分屏阅读 · 摘抄库</div>
+  </div>
+  <div class="flex-1"></div>
+  <div class="flex gap-1" id="tabs">
+    <button class="tabbtn on" data-view="lib">📚 书库</button>
+    <button class="tabbtn" data-view="read">📖 阅读</button>
+    <button class="tabbtn" data-view="ex">✂️ 摘抄库</button>
+  </div>
+  <select id="themeSel" class="uk-select uk-select-sm ml-2" style="width:auto" title="阅读主题">
+    <option value="light">☀️ 浅色</option>
+    <option value="dark">🌙 深色</option>
+    <option value="sepia">📜 护眼</option>
+  </select>
+</header>
+<div class="max-w-7xl mx-auto px-5 py-5">
+  <div class="uk-alert uk-alert-destructive" id="err" style="display:none"></div>
+  <div class="uk-alert" id="status" style="display:none"></div>
+
+  <!-- ══ 书库视图 ══ -->
+  <section class="view on" id="view-lib">
+    <div class="grid gap-4 md:grid-cols-[340px_1fr]">
+      <div class="flex flex-col gap-4">
+        <div class="uk-card">
+          <div class="uk-card-header"><h2 class="uk-card-title text-sm">上传电子书</h2></div>
+          <div class="uk-card-body flex flex-col gap-3 pt-0">
+            <div class="drop flex flex-col items-center gap-2 py-8 px-4 text-center" id="drop">
+              <div class="text-2xl">📥</div>
+              <div class="text-sm text-muted-foreground">点击选择或拖入文件</div>
+              <div class="text-xs text-muted-foreground">支持 PDF · EPUB · TXT · DOCX · MOBI · AZW3 · Markdown(单个 ≤ 5MB)</div>
+              <input type="file" id="fileIn" class="hidden" accept=".pdf,.epub,.txt,.docx,.mobi,.azw3,.md,.markdown">
+              <button class="uk-btn uk-btn-primary uk-btn-sm mt-1" id="pickBtn">选择文件</button>
+            </div>
+          </div>
+        </div>
+        <div class="uk-card">
+          <div class="uk-card-header"><h2 class="uk-card-title text-sm">阅读偏好</h2></div>
+          <div class="uk-card-body flex flex-col gap-2 pt-0 text-sm">
+            <label class="flex items-center justify-between"><span>译文在右(默认)</span><input type="checkbox" id="optDstRight" checked></label>
+            <label class="flex items-center justify-between"><span>显示段落编号</span><input type="checkbox" id="optParaNo" checked></label>
+          </div>
+        </div>
+      </div>
+      <div class="uk-card">
+        <div class="uk-card-header flex items-center justify-between">
+          <h2 class="uk-card-title text-sm">我的书库</h2>
+          <div class="flex gap-2">
+            <button class="uk-btn uk-btn-default uk-btn-sm" id="refreshLib">刷新</button>
+          </div>
+        </div>
+        <div class="uk-card-body pt-0">
+          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" id="books">
+            <div class="text-center text-muted-foreground py-10 col-span-full">书库还是空的——左边上传一本电子书吧。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 阅读视图 ══ -->
+  <section class="view" id="view-read">
+    <div class="flex items-center gap-2 mb-3 flex-wrap">
+      <button class="uk-btn uk-btn-default uk-btn-sm" id="backLib">← 书库</button>
+      <span class="font-semibold" id="bookTitle">未打开书籍</span>
+      <span class="text-xs text-muted-foreground" id="bookMeta"></span>
+      <div class="flex-1"></div>
+      <button class="btn-mini" id="fontDown" title="减小字号">A−</button>
+      <button class="btn-mini" id="fontUp" title="增大字号">A+</button>
+      <button class="uk-btn uk-btn-primary uk-btn-sm" id="excerptBtn" disabled>✂️ 存入摘抄库</button>
+    </div>
+    <div id="readerCols">
+      <div class="uk-card" id="tocPane">
+        <div class="uk-card-header"><h2 class="uk-card-title text-sm">目录</h2></div>
+        <div class="uk-card-body pt-0 max-h-[70vh] overflow-auto" id="toc"></div>
+      </div>
+      <div class="uk-card">
+        <div class="uk-card-header"><h2 class="uk-card-title text-sm">原文</h2><span class="text-xs text-muted-foreground" id="srcLang"></span></div>
+        <div class="uk-card-body pt-2 max-h-[70vh] overflow-auto flex flex-col gap-2" id="srcCol"></div>
+      </div>
+      <div class="uk-card">
+        <div class="uk-card-header"><h2 class="uk-card-title text-sm">译文</h2><span class="text-xs text-muted-foreground" id="dstLang"></span></div>
+        <div class="uk-card-body pt-2 max-h-[70vh] overflow-auto flex flex-col gap-2" id="dstCol"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ 摘抄库视图 ══ -->
+  <section class="view" id="view-ex">
+    <div class="uk-card">
+      <div class="uk-card-header flex items-center gap-3 flex-wrap">
+        <h2 class="uk-card-title text-sm">✂️ 摘抄库</h2>
+        <input id="exSearch" class="uk-input uk-input-sm" style="max-width:240px" placeholder="搜索摘抄内容…">
+        <select id="exBookFilter" class="uk-select uk-select-sm" style="width:auto"><option value="">全部书籍</option></select>
+        <div class="flex-1"></div>
+        <button class="uk-btn uk-btn-default uk-btn-sm" id="exportBtn">⬇ 导出 Markdown</button>
+        <button class="uk-btn uk-btn-default uk-btn-sm" id="refreshEx">刷新</button>
+      </div>
+      <div class="uk-card-body pt-2 flex flex-col gap-3" id="exList">
+        <div class="text-center text-muted-foreground py-10">还没有摘抄。阅读时选中句子,点「✂️ 存入摘抄库」即可收藏。</div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+const CFG = { presetId: '{{presetId}}', workdir: '{{workdir}}' };
+let sessionId = null, ws = null, busy = false, replyBuf = '', replyMeta = { err: null };
+let books = [], chapters = [], curBook = null, curChapter = null, paraCount = 0;
+let fontScale = 1, theme = localStorage.getItem('br-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+const $ = (id) => document.getElementById(id);
+const dot = $('dot'), toast = $('toast'), errBox = $('err'), statusBox = $('status');
+
+/* ── 契约:所有与 agent 的结构化交换都走末尾 ```json 围栏 ── */
+const CONTRACT_BOOKS = '回复末尾必须附一个 ```json 围栏列出书库全部书籍(真实存在,不许编造),形如:\n' +
+  '```json\n{"books":[{"title":"书名","author":"作者","chapters":12,"progressPercent":40,"file":"文件名","language":"zh"}]}\n```';
+const CONTRACT_CHAPTERS = '回复末尾必须附 ```json 围栏列出该书籍全部章节,形如:\n' +
+  '```json\n{"title":"书名","author":"作者","language":"zh","chapters":[{"index":0,"title":"章节标题"},{"index":1,"title":"..."}]}\n```';
+const CONTRACT_PARAS = '回复末尾必须附 ```json 围栏给出该章节逐段对照(每段一个对象,src=原文,dst=中文译文),形如:\n' +
+  '```json\n{"title":"章节标题","paragraphs":[{"n":1,"src":"原文段落","dst":"译文段落"}]}\n```\n' +
+  '原文段落按章节自然分段,不得合并或拆分;译文与原文段落一一对应、逐段翻译,不要漏段。';
+const CONTRACT_EXCERPTS = '回复末尾必须附 ```json 围栏列出摘抄库全部条目(按时间倒序),形如:\n' +
+  '```json\n{"excerpts":[{"id":1,"book":"书名","chapter":"章节","src":"原文","dst":"译文","createdAt":"2026-08-21 10:00"}]}\n```';
+
+/* ── wire:与 host 会话直连 ── */
+// wire 双代翻译在共享 SDK(_vendor/assembler-sdk.js)里:旧点号规范名进,按宿主代际出
+function rpc(method, payload) { return AssemblerSDK.wire.rpc(method, payload); }
+function openWs() { ws = AssemblerSDK.wire.stream(() => sessionId, handle); }
+function textOf(e) { const c = e.data && e.data.message && e.data.message.content;
+  if (typeof c === 'string') return c;
+  if (Array.isArray(c)) return c.map((b) => b && b.type === 'text' ? b.text : '').join(''); return ''; }
+function handle(e) {
+  if (e.type === 'assistant/message') { const t = textOf(e); if (t) replyBuf += (replyBuf === '' ? '' : '\n') + t; }
+  else if (e.type === 'tool/call') {
+    const name = (e.data && e.data.name || '?').replace(/^mcp__/, '').replace(/__/, ' · ');
+    showStatus('🔧 ' + name, 2500);
+  } else if (e.type === 'turn/end') { setBusy(false); afterReply(); }
+}
+function afterReply() {
+  const fences = [...replyBuf.matchAll(/```json\s*([\s\S]*?)```/g)];
+  if (fences.length === 0) { showToast('agent 未返回结构化数据,请重试'); return; }
+  let data; try { data = JSON.parse(fences[fences.length - 1][1]); } catch { showToast('回复数据解析失败'); return; }
+  const act = replyMeta.act;
+  if (act === 'endpoint') {
+    uploadUrl = (data && typeof data.url === 'string' && data.url.indexOf('http://127.0.0.1') === 0) ? data.url : null;
+    if (endpointWait) { endpointWait.resolve(uploadUrl); endpointWait = null; }
+    if (!uploadUrl) showToast('该 preset 无直传零件,小文件将走对话通道');
+    return;
+  }
+  if (act === 'books') { books = data.books || []; renderBooks(); }
+  else if (act === 'chapters') { chapters = data.chapters || []; curBook = curBook || {}; Object.assign(curBook, { title: data.title, author: data.author, language: data.language }); renderToc(); }
+  else if (act === 'paras') { renderParas(data.paragraphs || [], data.title); }
+  else if (act === 'excerpts') { renderExcerpts(data.excerpts || []); }
+  else if (act === 'saved') { showToast('✅ 已存入摘抄库'); refreshExcerpts(); }
+  else if (act === 'exported') { showToast('导出完成: ' + (data.file || '')); }
+}
+function setBusy(b) { busy = b; dot.className = 'dot ' + (b ? 'busy' : 'ok');
+  ['pickBtn','refreshLib','refreshEx','exportBtn','backLib','excerptBtn','fontUp','fontDown'].forEach((i) => $(i).disabled = b); }
+function showErr(m) { errBox.textContent = m; errBox.style.display = 'block'; setTimeout(() => errBox.style.display = 'none', 9000); }
+function showStatus(m, ms) { statusBox.textContent = m; statusBox.style.display = 'block'; clearTimeout(showStatus._t); showStatus._t = setTimeout(() => statusBox.style.display = 'none', ms || 3000); }
+function showToast(m) { toast.textContent = m; toast.classList.add('show'); clearTimeout(showToast._t); showToast._t = setTimeout(() => toast.classList.remove('show'), 2600); }
+async function ensureSession() {
+  if (sessionId) return;
+  const v = await rpc('session.create', { cwd: CFG.workdir, agentPreset: CFG.presetId });
+  sessionId = v.sessionId; openWs();
+  await new Promise((r) => { const t = setInterval(() => { if (ws && ws.readyState === 1) { clearInterval(t); r(); } }, 50); });
+}
+async function ask(text, act) {
+  if (busy) return;
+  replyBuf = ''; replyMeta = { act }; setBusy(true);
+  try { await ensureSession(); await rpc('session.prompt', { sessionId, mode: 'queue', content: [{ type: 'text', text }] }); }
+  catch (e) { setBusy(false); showErr(String(e && e.message || e)); }
+}
+
+/* ── 视图切换与主题 ── */
+document.querySelectorAll('.tabbtn').forEach((b) => b.onclick = () => switchView(b.dataset.view));
+function switchView(v) {
+  document.querySelectorAll('.tabbtn').forEach((x) => x.classList.toggle('on', x.dataset.view === v));
+  document.querySelectorAll('.view').forEach((x) => x.classList.toggle('on', x.id === 'view-' + v));
+}
+function applyTheme(t) {
+  theme = t; localStorage.setItem('br-theme', t);
+  document.documentElement.classList.remove('dark');
+  if (t === 'dark') document.documentElement.classList.add('dark');
+  const sepia = t === 'sepia';
+  document.documentElement.style.setProperty('--background', sepia ? '#f4ecd8' : '');
+  document.documentElement.style.setProperty('--foreground', sepia ? '#433422' : '');
+  document.documentElement.style.setProperty('--card', sepia ? '#faf3e3' : '');
+  document.documentElement.style.setProperty('--muted', sepia ? '#e8dcc0' : '');
+  $('themeSel').value = t;
+}
+$('themeSel').onchange = (e) => applyTheme(e.target.value);
+applyTheme(theme);
+
+/* ── 书库 ── */
+function refreshBooks() { ask('请列出书库中全部书籍(标题/作者/章节数/阅读进度百分数/文件名/语言)。' + CONTRACT_BOOKS, 'books'); }
+function renderBooks() {
+  const box = $('books'); box.innerHTML = '';
+  if (!books.length) { box.innerHTML = '<div class="text-center text-muted-foreground py-10 col-span-full">书库还是空的——左边上传一本电子书吧。</div>'; return; }
+  for (const b of books) {
+    const card = document.createElement('div');
+    card.className = 'uk-card book-card';
+    const pct = Math.min(100, Number(b.progressPercent) || 0);
+    card.innerHTML = '<div class="uk-card-body flex flex-col gap-1">' +
+      '<div class="font-semibold truncate">' + esc(b.title || '(未命名)') + '</div>' +
+      '<div class="text-xs text-muted-foreground truncate">' + esc(b.author || '佚名') + ' · ' + esc(String(b.language || 'zh').toUpperCase()) + '</div>' +
+      '<div class="text-xs text-muted-foreground">' + (Number(b.chapters) || 0) + ' 章 · ' + esc(b.file || '') + '</div>' +
+      '<div class="progressbar mt-1"><div style="width:' + pct + '%"></div></div>' +
+      '<div class="text-xs text-muted-foreground">阅读进度 ' + pct + '%</div>' +
+      '<div class="flex gap-2 mt-2"><button class="uk-btn uk-btn-primary uk-btn-sm read-b">继续阅读</button>' +
+      '<button class="uk-btn uk-btn-default uk-btn-sm del-b">删除</button></div></div>';
+    card.querySelector('.read-b').onclick = () => openBook(b);
+    card.querySelector('.del-b').onclick = () => deleteBook(b);
+    box.appendChild(card);
+  }
+}
+function deleteBook(b) {
+  if (!confirm('确定删除《' + (b.title || b.file) + '》及其摘抄吗?')) return;
+  ask('请删除书库中的书籍「' + (b.title || b.file) + '」:删除其文件与摘抄库中该书条目,然后:' + CONTRACT_BOOKS, 'books');
+}
+
+/* ── 阅读 ── */
+function openBook(b) {
+  curBook = b; curChapter = null;
+  $('bookTitle').textContent = b.title || b.file || '(未命名)';
+  $('bookMeta').textContent = (b.author ? b.author + ' · ' : '') + '共 ' + (b.chapters || 0) + ' 章';
+  switchView('read');
+  ask('请打开书籍「' + (b.title || b.file) + '」,读出它的章节列表(含每章标题)。' + CONTRACT_CHAPTERS, 'chapters');
+}
+function renderToc() {
+  const toc = $('toc'); toc.innerHTML = '';
+  chapters.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.className = 'toc-item' + (i === 0 ? ' on' : '');
+    d.textContent = c.title || ('第 ' + (i + 1) + ' 章');
+    d.title = c.title || '';
+    d.onclick = () => {
+      document.querySelectorAll('.toc-item').forEach((x) => x.classList.remove('on'));
+      d.classList.add('on');
+      loadChapter(i);
+    };
+    toc.appendChild(d);
+  });
+  loadChapter(0);
+}
+function loadChapter(i) {
+  const c = chapters[i]; if (!c) return;
+  curChapter = c;
+  $('srcCol').innerHTML = '<div class="text-muted-foreground py-8 text-center">正在取原文与译文…</div>';
+  $('dstCol').innerHTML = '';
+  const bookRef = curBook && (curBook.title || curBook.file) || '';
+  ask('请读取书籍「' + bookRef + '」的第 ' + (c.index ?? i) + ' 章「' + (c.title || '') + '」,逐段输出原文与中文译文。' + CONTRACT_PARAS, 'paras');
+}
+function renderParas(paras, chapterTitle) {
+  paraCount = paras.length;
+  const srcCol = $('srcCol'), dstCol = $('dstCol');
+  srcCol.innerHTML = ''; dstCol.innerHTML = '';
+  $('srcLang').textContent = curBook && curBook.language ? curBook.language.toUpperCase() + ' · 原文' : '原文';
+  $('dstLang').textContent = '中文 · 译文';
+  const font = 15 * fontScale;
+  srcCol.style.fontSize = font + 'px';
+  dstCol.style.fontSize = font + 'px';
+  if (!paras.length) { srcCol.innerHTML = '<div class="text-muted-foreground py-8 text-center">本章没有可显示的段落。</div>'; return; }
+  const sel = [];
+  paras.forEach((p, i) => {
+    const s = document.createElement('div'); s.className = 'para';
+    const d = document.createElement('div'); d.className = 'para';
+    s.innerHTML = ($('optParaNo').checked ? '<span class="idx">#' + (i + 1) + '</span>' : '') + '<div class="src prewrap">' + esc(p.src || '') + '</div>';
+    d.innerHTML = ($('optParaNo').checked ? '<span class="idx">#' + (i + 1) + '</span>' : '') + '<div class="dst prewrap">' + esc(p.dst || '') + '</div>';
+    const pick = (ev) => {
+      const r = window.getSelection();
+      const txt = r && r.toString().trim();
+      document.querySelectorAll('.para').forEach((x) => x.classList.remove('sel'));
+      if (txt && txt.length > 0) {
+        s.classList.add('sel'); d.classList.add('sel');
+        sel[0] = txt; sel[1] = p.dst || ''; sel[2] = chapterTitle || (curChapter && curChapter.title) || '';
+        window._brSel = sel;
+        $('excerptBtn').disabled = false;
+      } else { sel.length = 0; window._brSel = null; $('excerptBtn').disabled = true; }
+    };
+    s.onmouseup = pick; d.onmouseup = pick;
+    s.onclick = () => { s.classList.add('sel'); d.classList.add('sel'); dstCol.scrollIntoView ? null : null;
+      const sr = s.getBoundingClientRect(), dr = d.getBoundingClientRect();
+      dstCol.scrollTop += dr.top - sr.top; };
+    d.onclick = () => { s.classList.add('sel'); d.classList.add('sel');
+      const sr = s.getBoundingClientRect(), dr = d.getBoundingClientRect();
+      srcCol.scrollTop += sr.top - dr.top; };
+    srcCol.appendChild(s); dstCol.appendChild(d);
+  });
+  $('excerptBtn').disabled = true;
+}
+$('excerptBtn').onclick = () => {
+  const sel = window._brSel || [];
+  ask('把下面这段摘抄存入摘抄库(书:' + (curBook && (curBook.title || curBook.file)) + ';章:' + (sel && sel[2] || '') + '):\n' +
+    '原文:\n' + (sel && sel[0] || '') + '\n译文:\n' + (sel && sel[1] || '') + '\n保存后:' + CONTRACT_BOOKS, 'saved');
+};
+$('fontUp').onclick = () => { fontScale = Math.min(1.8, fontScale + 0.1); if (curChapter) loadChapter(currentTocIndex()); };
+$('fontDown').onclick = () => { fontScale = Math.max(0.7, fontScale - 0.1); if (curChapter) loadChapter(currentTocIndex()); };
+function currentTocIndex() {
+  const on = document.querySelector('.toc-item.on');
+  return on ? [...document.querySelectorAll('.toc-item')].indexOf(on) : 0;
+}
+$('backLib').onclick = () => { switchView('lib'); };
+
+/* ── 摘抄库 ── */
+function refreshExcerpts() {
+  const filter = $('exBookFilter').value;
+  ask('请列出摘抄库全部条目(书/章/原文/译文/时间,按时间倒序)。' + CONTRACT_EXCERPTS, 'excerpts');
+}
+function renderExcerpts(exs) {
+  const list = $('exList');
+  const q = $('exSearch').value.trim().toLowerCase();
+  const f = $('exBookFilter').value;
+  const booksSet = [...new Set(exs.map((e) => e.book))];
+  const cur = $('exBookFilter').value;
+  $('exBookFilter').innerHTML = '<option value="">全部书籍</option>' +
+    booksSet.map((b) => '<option' + (b === cur ? ' selected' : '') + '>' + esc(b) + '</option>').join('');
+  const rows = exs.filter((e) => (!f || e.book === f) && (!q || (e.src + ' ' + e.dst + ' ' + e.chapter).toLowerCase().includes(q)));
+  list.innerHTML = '';
+  if (!rows.length) { list.innerHTML = '<div class="text-center text-muted-foreground py-10">没有匹配的摘抄。</div>'; return; }
+  rows.forEach((e) => {
+    const d = document.createElement('div');
+    d.className = 'excerpt flex flex-col gap-1';
+    d.innerHTML = '<div class="flex items-center gap-2"><span class="uk-badge uk-badge-secondary">' + esc(e.book || '') + '</span>' +
+      '<span class="text-xs text-muted-foreground">' + esc(e.chapter || '') + '</span>' +
+      '<div class="flex-1"></div><span class="text-xs text-muted-foreground">' + esc(e.createdAt || '') + '</span>' +
+      '<button class="btn-mini del">🗑</button></div>' +
+      '<div class="prewrap text-sm">' + esc(e.src || '') + '</div>' +
+      (e.dst ? '<div class="prewrap text-xs text-muted-foreground">' + esc(e.dst || '') + '</div>' : '');
+    d.querySelector('.del').onclick = () => {
+      if (!confirm('删除这条摘抄?')) return;
+      ask('请从摘抄库删除 id=' + e.id + ' 的摘抄(书「' + e.book + '」),然后:' + CONTRACT_EXCERPTS, 'excerpts');
+    };
+    list.appendChild(d);
+  });
+}
+$('exSearch').oninput = () => { const exs = lastExcerpts || []; renderExcerpts(exs); };
+let lastExcerpts = [];
+const _rEx = renderExcerpts;
+renderExcerpts = function (exs) { lastExcerpts = exs; _rEx(exs); };
+$('exBookFilter').onchange = () => renderExcerpts(lastExcerpts);
+$('refreshEx').onclick = () => refreshExcerpts();
+$('exportBtn').onclick = () => {
+  ask('把摘抄库全部条目导出为 Markdown 文件(按书籍分组,含原文与译文,存到工作区),返回:\n' +
+    '```json\n{"file":"文件名"}\n```', 'exported');
+};
+
+/* ── 上传 ── */
+$('pickBtn').onclick = () => $('fileIn').click();
+$('fileIn').onchange = (e) => { if (e.target.files[0]) uploadFile(e.target.files[0]); };
+const drop = $('drop');
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => { const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if (f) uploadFile(f); });
+drop.onclick = () => $('fileIn').click();
+/* ── 文件直传通道(泛化 agent P1:数据流不过模型)──
+ * 老路把整本书 base64 塞进对话:实测 LLM 无法逐字节复制 2KB 以上 base64,
+ * 上传必坏。新路:向 agent 要一次 upload-info(book-intake 零件通告的本机
+ * HTTP 端点),之后浏览器把文件字节直接 POST 落盘工作区,对话里只走路径。
+ * 端点按会话缓存;没有直传零件时,小文件(<64KB)退回 base64 老路,大文件
+ * 如实报缺。 */
+let uploadUrl = null, endpointWait = null;
+function ensureUploadEndpoint() {
+  if (uploadUrl) return Promise.resolve(uploadUrl);
+  if (endpointWait) return endpointWait.promise;
+  endpointWait = {};
+  endpointWait.promise = new Promise((resolve) => { endpointWait.resolve = resolve; });
+  ask('请调用 upload-info 工具,把它返回的 JSON 原样放进回复末尾的 ```json 围栏(不增删字段);若没有该工具,回复 ```json\n{"url":null}\n```。不要执行其他操作。', 'endpoint');
+  setTimeout(() => { if (endpointWait) { endpointWait.resolve(null); endpointWait = null; } }, 120000);
+  return endpointWait.promise;
+}
+async function uploadFile(file) {
+  if (file.size > 64 * 1024 * 1024) { showErr('文件超过 64MB(当前 ' + Math.round(file.size / 1048576) + ' MB)'); return; }
+  $('fileIn').value = '';
+  /* 直传:端点由服务脸档案零轮次发现(老路要先问 agent 一轮拿地址) */
+  if (BOOKF) {
+    try {
+      showStatus('⬆️ 直传中(字节不经模型)…', 30000);
+      const res = await fetch(BOOKF.url + (BOOKF.meta.uploadPath || '/upload?filename=') + encodeURIComponent(file.name), { method: 'POST', body: file });
+      const j = await res.json();
+      if (!res.ok || !j || !j.path) throw new Error((j && j.error) || ('HTTP ' + res.status));
+      showStatus('📖 解析中(这一步归 agent:解析工具只有模型脸)…', 120000);
+      ask('书籍文件已由文件通道直传落盘(未经对话传输),工作区相对路径:uploads/' + file.name
+        + '。请解析这本书:提取正文、按标题自动分章节、把书籍元数据(标题/作者/章节数)与每章正文写入库(books/chapters 表已建好,勿改结构),最后:' + CONTRACT_BOOKS, 'books');
+      return;
+    } catch (e) { showErr('直传失败(' + String(e && e.message || e).slice(0, 120) + '),尝试回退…'); }
+  }
+  const url = await ensureUploadEndpoint();
+  if (url) {
+    try {
+      showStatus('⬆️ 直传中…', 30000);
+      const res = await fetch(url + encodeURIComponent(file.name), { method: 'POST', body: file });
+      const j = await res.json();
+      if (!res.ok || !j || !j.path) throw new Error((j && j.error) || ('HTTP ' + res.status));
+      ask('书籍文件已直传落盘,工作区相对路径:uploads/' + file.name + '。请解析这本书并写入书库,最后:' + CONTRACT_BOOKS, 'books');
+      return;
+    } catch (e) { showErr('直传失败(' + String(e && e.message || e).slice(0, 120) + ')'); }
+  }
+  if (file.size > 64 * 1024) { showErr('该 preset 无文件直传零件(book-intake),大文件无法可靠上传——请重新装配加入 book-intake。'); return; }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const b64 = String(reader.result).split(',')[1] || '';
+    ask('请把下面 base64 解码保存为文件「' + file.name + '」(用二进制写文件工具),然后解析这本书并写入书库,最后:' + CONTRACT_BOOKS
+      + '\nBASE64 内容:\n' + b64, 'books');
+  };
+  reader.onerror = () => showErr('读取文件失败');
+  reader.readAsDataURL(file);
+}
+
+/* ── 辅助 ── */
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+
+/* ══ 直连层(2026-08-25):把"每步问模型"改成"能直连的全直连" ══════════════
+ * 病史:本页原先八个动作(列书库/开书/读章节/翻译/存摘抄/列摘抄/删摘抄/取上传
+ * 地址)**全部是一轮 agent 会话**——读一章要等整章译文经模型吐成 json 围栏,
+ * 上传前还要先问一轮端点地址。实测用户评价:"完全不好用"。
+ * 现在:书库/章节/原文/摘抄/进度 → sqlite 服务脸直连(毫秒级);译文 → ai 服务脸
+ * 分批补全并落库缓存(再开即秒开);上传 → book 服务脸直传。**只有"解析新书"
+ * 仍走 agent**——epub/pdf 解析工具只有模型脸,那是它该干的活。
+ * 任一条件不满足(没挂服务脸/表结构不符)自动退回原来的会话路径,不硬崩。
+ * 本模板依赖的表:books / chapters / translations / excerpts / progress
+ * (装配时的装备 DDL 建;列名见下方 SQL)。 */
+let SQLF = null, AIF = null, BOOKF = null, DIRECT = false;
+
+async function initFaces() {
+  try {
+    const svc = await AssemblerSDK.discoverServices(CFG.presetId);
+    SQLF = AssemblerSDK.sqliteFace(svc);
+    AIF = AssemblerSDK.aiFace(svc);
+    BOOKF = AssemblerSDK.face(svc, 'book');
+    if (SQLF) {
+      const sch = await SQLF.schema();
+      const names = (sch.tables || []).map((t) => t.name);
+      DIRECT = ['books', 'chapters', 'excerpts'].every((t) => names.includes(t));
+    }
+  } catch (e) { DIRECT = false; }
+  showStatus(DIRECT ? '⚡ 直连已就绪(查询与摘抄不经模型)' : '会话模式(未发现服务脸)', 2500);
+}
+
+const splitParas = (text) => String(text || '').split(/\n\s*\n/).map((x) => x.trim()).filter((x) => x.length > 0);
+
+/* 书库:直连 */
+async function refreshBooksDirect() {
+  const r = await SQLF.sql(
+    "SELECT b.id, b.title, b.author, COALESCE(b.source_lang, 'en') AS language, b.file_name AS file,"
+    + " (SELECT COUNT(*) FROM chapters c WHERE c.book_id = b.id) AS chapters,"
+    + " COALESCE((SELECT p.chapter_idx FROM progress p WHERE p.book_id = b.id), 0) AS readIdx"
+    + " FROM books b ORDER BY b.id DESC");
+  books = (r.rows || []).map((b) => ({ ...b, progressPercent: b.chapters ? Math.round(((b.readIdx + 1) / b.chapters) * 100) : 0 }));
+  renderBooks();
+}
+
+/* 章节表:直连 */
+async function openBookDirect(b) {
+  const r = await SQLF.sql("SELECT idx AS chapterIdx, title FROM chapters WHERE book_id = ? ORDER BY idx", [b.id]);
+  (r.rows || []).forEach((x) => { x.index = x.chapterIdx; });
+  chapters = r.rows || [];
+  renderToc();
+}
+
+/* 章节正文 + 译文:原文直连;译文缺了就走 ai 面分批补,并落库缓存 */
+async function loadChapterDirect(i) {
+  const c = chapters[i]; if (!c || !curBook) return;
+  curChapter = c;
+  $('srcCol').innerHTML = '<div class="text-muted-foreground py-8 text-center">读取原文…</div>';
+  $('dstCol').innerHTML = '';
+  const idx = c.index ?? i;
+  const row = (await SQLF.sql(
+    "SELECT ch.id, ch.content, (SELECT t.content FROM translations t WHERE t.chapter_id = ch.id AND t.lang = 'zh') AS dst"
+    + " FROM chapters ch WHERE ch.book_id = ? AND ch.idx = ?", [curBook.id, idx])).rows?.[0];
+  if (!row) { showErr('这一章在库里没有正文'); return; }
+  const src = splitParas(row.content);
+  let dst = [];
+  if (row.dst) { try { const j = JSON.parse(row.dst); if (Array.isArray(j)) dst = j.map(String); } catch { dst = splitParas(row.dst); } }
+  renderParas(src.map((t, n) => ({ n: n + 1, src: t, dst: dst[n] || '' })), c.title);
+  SQLF.sql("INSERT INTO progress(book_id, chapter_idx) VALUES(?, ?) ON CONFLICT(book_id) DO UPDATE SET chapter_idx = excluded.chapter_idx, updated_at = datetime('now')", [curBook.id, idx]).catch(() => {});
+  if (dst.length >= src.length || !AIF) {
+    if (!AIF && dst.length < src.length) showStatus('未挂 AI 零件,本章暂无译文(重新装配时加入 ai-call 即可)', 5000);
+    return;
+  }
+  /* 译文缺:分批补全(每批 8 段),边补边渲染,补完落库——下次秒开 */
+  const sysP = '你是中英双语译者。把用户给出的编号段落逐段译成简体中文,只输出 JSON 数组(与输入等长,顺序一致),不要解释。';
+  for (let start = dst.length; start < src.length; start += 8) {
+    const batch = src.slice(start, start + 8);
+    showStatus('🈯 翻译中 ' + Math.min(start + batch.length, src.length) + '/' + src.length + '(直连,不开会话)', 20000);
+    try {
+      const out = await AIF.complete({ system: sysP, prompt: JSON.stringify(batch), maxTokens: 3000 });
+      const m = /\[[\s\S]*\]/.exec(out.text || '');
+      const arr = m ? JSON.parse(m[0]) : [];
+      for (let k = 0; k < batch.length; k++) dst[start + k] = String(arr[k] ?? '');
+    } catch (e) { showErr('翻译失败:' + String(e && e.message || e).slice(0, 100)); break; }
+    renderParas(src.map((t, n) => ({ n: n + 1, src: t, dst: dst[n] || '' })), c.title);
+  }
+  SQLF.sql("INSERT INTO translations(chapter_id, lang, content) VALUES(?, 'zh', ?) ON CONFLICT(chapter_id, lang) DO UPDATE SET content = excluded.content, updated_at = datetime('now')",
+    [row.id, JSON.stringify(dst)]).catch(() => {});
+  showStatus('✅ 本章译文已缓存,下次秒开', 3000);
+}
+
+/* 摘抄:直连读写 */
+async function refreshExcerptsDirect() {
+  const r = await SQLF.sql(
+    "SELECT e.id, COALESCE(b.title, '') AS book, COALESCE(ch.title, '第' || (e.chapter_idx + 1) || '章') AS chapter,"
+    + " e.source_text AS src, e.translation AS dst, e.created_at AS createdAt"
+    + " FROM excerpts e LEFT JOIN books b ON b.id = e.book_id"
+    + " LEFT JOIN chapters ch ON ch.book_id = e.book_id AND ch.idx = e.chapter_idx"
+    + " ORDER BY e.id DESC LIMIT 300");
+  renderExcerpts(r.rows || []);
+}
+
+/* ── 覆盖八个动作:能直连的直连,不能的退回会话 ── */
+const _refreshBooks = refreshBooks, _openBook = openBook, _loadChapter = loadChapter, _refreshExcerpts = refreshExcerpts, _deleteBook = deleteBook;
+refreshBooks = function () { if (!DIRECT) return _refreshBooks(); refreshBooksDirect().catch((e) => { console.error('[direct] books', e); showErr('直连读书库失败(已退回会话模式):' + e.message); _refreshBooks(); }); };
+openBook = function (b) {
+  curBook = b; curChapter = null;
+  $('bookTitle').textContent = b.title || b.file || '(未命名)';
+  $('bookMeta').textContent = (b.author ? b.author + ' · ' : '') + '共 ' + (b.chapters || 0) + ' 章';
+  switchView('read');
+  if (!DIRECT || !b.id) return _openBook(b);
+  openBookDirect(b).catch((e) => { console.error('[direct] chapters', e); showErr('直连读章节失败(已退回会话模式):' + e.message); _openBook(b); });
+};
+loadChapter = function (i) { if (!DIRECT) return _loadChapter(i); loadChapterDirect(i).catch((e) => { console.error('[direct] chapter', e); showErr('直连读正文失败(已退回会话模式):' + e.message); _loadChapter(i); }); };
+refreshExcerpts = function () { if (!DIRECT) return _refreshExcerpts(); refreshExcerptsDirect().catch((e) => { console.error('[direct] excerpts', e); showErr('直连读摘抄失败(已退回会话模式):' + e.message); _refreshExcerpts(); }); };
+deleteBook = function (b) {
+  if (!confirm('确定删除《' + (b.title || b.file) + '》及其章节、译文与摘抄吗?')) return;
+  if (!DIRECT || !b.id) return _deleteBook(b);
+  (async () => {
+    await SQLF.sql('DELETE FROM translations WHERE chapter_id IN (SELECT id FROM chapters WHERE book_id = ?)', [b.id]);
+    await SQLF.sql('DELETE FROM chapters WHERE book_id = ?', [b.id]);
+    await SQLF.sql('DELETE FROM excerpts WHERE book_id = ?', [b.id]);
+    await SQLF.sql('DELETE FROM progress WHERE book_id = ?', [b.id]);
+    await SQLF.sql('DELETE FROM books WHERE id = ?', [b.id]);
+    showToast('已删除');
+    refreshBooks();
+  })().catch((e) => showErr('删除失败:' + e.message));
+};
+$('excerptBtn').onclick = () => {
+  const sel = window._brSel || [];
+  if (!DIRECT || !curBook || !curBook.id) {
+    ask('把下面这段摘抄存入摘抄库(书:' + (curBook && (curBook.title || curBook.file)) + ';章:' + (sel && sel[2] || '') + '):\n'
+      + '原文:\n' + (sel && sel[0] || '') + '\n译文:\n' + (sel && sel[1] || '') + '\n保存后:' + CONTRACT_BOOKS, 'saved');
+    return;
+  }
+  SQLF.sql('INSERT INTO excerpts(book_id, chapter_idx, source_text, translation) VALUES(?, ?, ?, ?)',
+    [curBook.id, curChapter?.index ?? 0, sel[0] || '', sel[1] || ''])
+    .then(() => { showToast('✅ 已存入摘抄库(直连)'); })
+    .catch((e) => showErr('存摘抄失败:' + e.message));
+};
+
+/* 打开:先探服务脸,再刷书库 */
+window.addEventListener('load', () => setTimeout(() => { initFaces().then(() => refreshBooks()); }, 300));
+</script>
+</body>
+</html>

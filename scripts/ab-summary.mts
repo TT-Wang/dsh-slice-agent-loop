@@ -20,15 +20,18 @@ interface Ledger {
 
 // flash 谷时刊例 $/M(与 effort-ladder 同口径;pro ×3)
 const PRICE = { miss: 0.22, hit: 0.007, out: 0.66 }
-const ARMS = ['transcript', 'slice-noseal', 'slice-seal']
+const ARMS = ['transcript', 'slice-noseal', 'slice-seal', 'state']
 
-const dir = process.argv[2] ?? 'results/longturn'
+const dirs = process.argv.slice(2).filter((a) => !a.startsWith('--'))
+if (dirs.length === 0) dirs.push('results/longturn')
 const jsonOut = process.argv.includes('--json')
-const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
 const latest = new Map<string, Ledger>()
-for (const f of files) {
-  const l = JSON.parse(readFileSync(join(dir, f), 'utf8')) as Ledger
-  latest.set(`${l.scenario}|${l.arm}`, l) // sorted → 后者覆盖前者 = 最新
+for (const dir of dirs) {
+  const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
+  for (const f of files) {
+    const l = JSON.parse(readFileSync(join(dir, f), 'utf8')) as Ledger
+    latest.set(`${l.scenario}|${l.arm}`, l) // 目录顺序 + 文件名排序 → 后者覆盖前者
+  }
 }
 
 function rot(detail: string): { early: string; mid: string; late: string } | null {

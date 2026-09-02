@@ -75,6 +75,9 @@ if (!['transcript', 'slice-noseal', 'slice-seal', 'state'].includes(ARM)) {
 const num = (flag: string, dflt: number) => { const i = args.indexOf(flag); return i !== -1 ? Number(args[i + 1]) : dflt }
 const SEAL = { enabled: ARM === 'slice-seal', sealTokens: num('--seal-tokens', 40_000), batchSteps: num('--batch', 8), keepSteps: num('--keep', 4) }
 const LEDGER_DIR = (() => { const i = args.indexOf('--ledger-dir'); return i !== -1 ? args[i + 1]! : 'results/longturn' })()
+// state 臂的策略旋钮(成本下限实验):热窗步数、推送条数。
+const HOT = num('--hot', 3)
+const PUSH = num('--push', 3)
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
 const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number; max_steps_per_turn?: number }
@@ -120,7 +123,7 @@ if (ARM === 'transcript') {
     inTurnSeal: SEAL,
     // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
     maxStepsPerTurn: MAX_STEPS,
-    ...(ARM === 'state' ? { mode: 'state' as const } : {}),
+    ...(ARM === 'state' ? { mode: 'state' as const, state: { hotWindowSteps: HOT, pushHits: PUSH } } : {}),
   })
 }
 
@@ -223,7 +226,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, sessionId, workdir, turns: turnRows, totals, seals, bounces, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' ? { hotWindowSteps: HOT, pushHits: PUSH } : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

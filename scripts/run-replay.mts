@@ -25,7 +25,7 @@ import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpathSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, join, relative, resolve } from 'node:path'
 import apply from '../src/index.ts'
@@ -66,8 +66,15 @@ if (!CASE || !existsSync(join(CASE, 'meta.json'))) { console.error('usage: --cas
 if (!['transcript', 'slice-noseal', 'slice-seal', 'state'].includes(ARM)) { console.error('bad --arm'); process.exit(2) }
 if (!process.env.DEEPSEEK_API_KEY) { console.error('DEEPSEEK_API_KEY not in env'); process.exit(2) }
 
-const meta = JSON.parse(readFileSync(join(CASE, 'meta.json'), 'utf8')) as { repo: string; cwd: string; sha: string; touchedFiles: string[]; timestamp?: string }
-const prompt = readFileSync(join(CASE, 'prompt.txt'), 'utf8')
+const meta = JSON.parse(readFileSync(join(CASE, 'meta.json'), 'utf8')) as { repo: string; cwd: string; sha: string; touchedFiles: string[]; timestamp?: string; excludeFromOracle?: string[] }
+const promptBody = readFileSync(join(CASE, 'prompt.txt'), 'utf8')
+// 语料里的人类消息多是对上一轮提问的答复("一. 要吧 二. 好 …"),脱离前文无法执行——
+// 前置 context.txt(提取器保存的此前 4 次交流)作为背景。--no-context 关闭。
+const contextPath = join(CASE, 'context.txt')
+const withContext = !args.includes('--no-context') && existsSync(contextPath)
+const prompt = withContext
+  ? `以下是此前对话的背景(只读,供理解当前请求;不要重复其中已完成的动作):\n\n${readFileSync(contextPath, 'utf8').trim()}\n\n=== 当前请求 ===\n${promptBody}`
+  : promptBody
 const caseId = basename(resolve(CASE))
 
 // ── 起始态:临时 worktree @ sha;node_modules 从活仓库软链(bash 里的 npm/tsx 能跑)──
@@ -75,8 +82,34 @@ const wtRoot = resolve('results/replay-worktrees')
 mkdirSync(wtRoot, { recursive: true })
 const workdir = join(wtRoot, `${caseId}-${ARM}-${Date.now()}`)
 execFileSync('git', ['-C', meta.cwd, 'worktree', 'add', '--detach', workdir, meta.sha], { stdio: 'ignore' })
+// --peers <harness checkout>:仓库自己的测试要它那个年代的宿主 API。把活仓库
+// node_modules 逐项软链进 worktree,但 @deepseek-ai/* 重指到给定检出(替换
+// ~/.dsh/source/current 前缀),其余原样。不传则整个 node_modules 软链。
+const PEERS = opt('--peers')
 const liveNodeModules = join(meta.cwd, 'node_modules')
-if (existsSync(liveNodeModules) && !existsSync(join(workdir, 'node_modules'))) symlinkSync(liveNodeModules, join(workdir, 'node_modules'))
+if (existsSync(liveNodeModules) && !existsSync(join(workdir, 'node_modules'))) {
+  if (!PEERS) symlinkSync(liveNodeModules, join(workdir, 'node_modules'))
+  else {
+    const nm = join(workdir, 'node_modules'); mkdirSync(nm)
+    const currentRoot = join(homedir(), '.dsh', 'source', 'current')
+    const relink = (from: string, to: string) => {
+      for (const entry of readdirSync(from)) {
+        const src = join(from, entry); const dst = join(to, entry)
+        let target: string | undefined
+        try { target = readlinkSync(src) } catch { target = undefined }
+        if (entry === '@deepseek-ai' && statSync(src).isDirectory() && target === undefined) { mkdirSync(dst); relink(src, dst); continue }
+        if (target !== undefined) {
+          const abs = resolve(from, target)
+          const real = existsSync(abs) ? realpathSync(abs) : abs
+          const swapped = real.startsWith(realpathSync(currentRoot)) ? join(PEERS, relative(realpathSync(currentRoot), real)) : real
+          symlinkSync(swapped, dst)
+        } else symlinkSync(src, dst)
+      }
+    }
+    relink(liveNodeModules, nm)
+    console.log(`peers relinked → ${PEERS}`)
+  }
+}
 console.log(`case ${caseId} · repo ${basename(meta.cwd)} @ ${meta.sha.slice(0, 8)} · arm ${ARM} · effort ${EFFORT}\nworkdir ${workdir}`)
 
 // ── boot ────────────────────────────────────────────────────────────────────
@@ -183,9 +216,11 @@ const jaccard = union === 0 ? 1 : inter / union
 const perFile: Record<string, number> = {}
 const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : [p] })
 const oracleDir = join(CASE, 'oracle')
+const excluded = new Set(meta.excludeFromOracle ?? [])
 if (existsSync(oracleDir)) {
   for (const f of walk(oracleDir)) {
     const rel = relative(oracleDir, f)
+    if (excluded.has(rel)) continue // bash heredoc 改写的文件:oracle 不可靠,不计相似度
     const got = existsSync(join(workdir, rel)) ? readFileSync(join(workdir, rel), 'utf8') : ''
     perFile[rel] = Number(similarity(got, readFileSync(f, 'utf8')).toFixed(3))
   }
@@ -198,7 +233,7 @@ const ledger = {
   endKind, error: end.data?.reason?.error?.message,
   totals: { steps, input, cacheRead, output, reasoning, peakInput: peak },
   seals, bounces, toolHistogram: names,
-  verdict: { touchedJaccard: Number(jaccard.toFixed(3)), meanFileSimilarity: Number(meanSim.toFixed(3)), perFile, replayChanged: changedInReplay, oracleTouched: meta.touchedFiles },
+  verdict: { touchedJaccard: Number(jaccard.toFixed(3)), meanFileSimilarity: Number(meanSim.toFixed(3)), perFile, excludedFromOracle: [...excluded], replayChanged: changedInReplay, oracleTouched: meta.touchedFiles, withContext },
 }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const out = join(LEDGER_DIR, `${caseId}-${ARM}-${Date.now()}.json`)
