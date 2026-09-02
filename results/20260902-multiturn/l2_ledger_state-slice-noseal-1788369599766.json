@@ -1,0 +1,55 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "fs",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-l2_ledger_state-slice-noseal-low-1788369599766",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-0Kqcho",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 102,
+      "input": 30823,
+      "cacheRead": 2338176,
+      "output": 22930,
+      "reasoning": 7653,
+      "peakInput": 48577,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 30823,
+    "cacheRead": 2338176,
+    "output": 22930,
+    "reasoning": 7653,
+    "steps": 102,
+    "peakInput": 48577
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 1,
+    "charsBefore": 17558,
+    "charsAfter": 1204
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "read": 92,
+    "recall_search": 3,
+    "write": 46
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "ok=0/45; early=0/15 mid=0/15 late=0/15; violations: r01-tx-d8qq: missing, r02-tx-t8cd: missing, r03-tx-p393: missing, r04-tx-rk9x: missing, r05-tx-rpwy: missing, r06-tx-twnf: missing, r07-tx-7wux: missing, r08-tx-nhue: missing, r09-tx-ddt2: missing, r10-tx-jsg5: missing, r11-tx-7795: missing, r12-tx-fjdj: missing, r13-tx-63np: missing, r14-tx-c4h6: missing, r15-tx-hqks: missing, r16-tx-3nvs: missing, r17-tx-y2k5: missing, r18-tx-chd7: missing, r19-tx-wyca: missing, r20-tx-kx8p: missing, r21-tx-44e9: missing, r22-tx-r23p: missing, r23-tx-pujg: missing, r24-tx-g5f7: missing, r25-tx-6bd4: missing, r26-tx-g78g: missing, r27-tx-hjj9: missing, r28-tx-xd6t: missing, r29-tx-w9qu: missing, r30-tx-hvmc: missing, r31-tx-w8uw: missing, r32-tx-kx7b: missing, r33-tx-p6dt: missing, r34-tx-sjmg: missing, r35-tx-uj8v: missing, r36-tx-qhzh: missing, r37-tx-3apt: missing, r38-tx-4rb9: missing, r39-tx-8zk5: missing, r40-tx-acwz: missing, r41-tx-n3y3: missing, r42-tx-tmap: missing, r43-tx-s22j: missing, r44-tx-u28w: missing, r45-tx-gxwd: missing"
+  }
+}

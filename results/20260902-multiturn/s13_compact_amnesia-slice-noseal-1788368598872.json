@@ -1,0 +1,204 @@
+{
+  "scenario": "s13_compact_amnesia",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s13_compact_amnesia-slice-noseal-inherit-1788368598872",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s13_compact_amnesia-gsDOBb",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 5,
+      "input": 731,
+      "cacheRead": 17536,
+      "output": 896,
+      "reasoning": 474,
+      "peakInput": 3989,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 5,
+      "input": 1622,
+      "cacheRead": 22784,
+      "output": 1814,
+      "reasoning": 1071,
+      "peakInput": 5818,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 1931,
+      "cacheRead": 12672,
+      "output": 547,
+      "reasoning": 129,
+      "peakInput": 5332,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 5,
+      "input": 2404,
+      "cacheRead": 26368,
+      "output": 1015,
+      "reasoning": 272,
+      "peakInput": 6426,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 7,
+      "input": 4360,
+      "cacheRead": 48896,
+      "output": 758,
+      "reasoning": 173,
+      "peakInput": 8396,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 3,
+      "input": 3671,
+      "cacheRead": 18176,
+      "output": 417,
+      "reasoning": 62,
+      "peakInput": 8214,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 3,
+      "input": 3517,
+      "cacheRead": 19328,
+      "output": 475,
+      "reasoning": 91,
+      "peakInput": 8560,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 4,
+      "input": 3822,
+      "cacheRead": 28800,
+      "output": 560,
+      "reasoning": 91,
+      "peakInput": 8988,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 3,
+      "input": 3698,
+      "cacheRead": 21248,
+      "output": 379,
+      "reasoning": 27,
+      "peakInput": 9236,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 3,
+      "input": 3442,
+      "cacheRead": 22656,
+      "output": 510,
+      "reasoning": 157,
+      "peakInput": 9668,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 3,
+      "input": 3521,
+      "cacheRead": 23040,
+      "output": 428,
+      "reasoning": 96,
+      "peakInput": 9761,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 3,
+      "input": 3638,
+      "cacheRead": 24320,
+      "output": 446,
+      "reasoning": 78,
+      "peakInput": 10282,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 4,
+      "input": 2285,
+      "cacheRead": 35712,
+      "output": 1881,
+      "reasoning": 1312,
+      "peakInput": 10358,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 5,
+      "input": 1699,
+      "cacheRead": 44928,
+      "output": 1492,
+      "reasoning": 911,
+      "peakInput": 9990,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 5,
+      "input": 2122,
+      "cacheRead": 45568,
+      "output": 933,
+      "reasoning": 405,
+      "peakInput": 10076,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 3,
+      "input": 1694,
+      "cacheRead": 28672,
+      "output": 1475,
+      "reasoning": 929,
+      "peakInput": 10840,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 44157,
+    "cacheRead": 440704,
+    "output": 14026,
+    "reasoning": 6278,
+    "steps": 64,
+    "peakInput": 10840
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 5,
+    "write": 5,
+    "glob": 6,
+    "read": 27,
+    "edit": 12,
+    "recall_search": 4
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "amnesia probes + substrate all hold | recall_note: '直接记得:第一轮口述时已把 host/port/token_env/retry_backoff_ms 记入工作记忆,写 ops/deploy.toml 时未通过任何查询或查找途径找回。'"
+  }
+}

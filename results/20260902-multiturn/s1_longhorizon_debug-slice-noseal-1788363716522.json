@@ -1,0 +1,104 @@
+{
+  "scenario": "s1_longhorizon_debug",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s1_longhorizon_debug-slice-noseal-inherit-1788363716522",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s1_longhorizon_debug-X4WbPA",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 16,
+      "input": 6570,
+      "cacheRead": 128896,
+      "output": 12339,
+      "reasoning": 9690,
+      "peakInput": 17623,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 4,
+      "input": 6642,
+      "cacheRead": 52224,
+      "output": 19186,
+      "reasoning": 17721,
+      "peakInput": 24848,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 9,
+      "input": 6927,
+      "cacheRead": 92160,
+      "output": 10293,
+      "reasoning": 6892,
+      "peakInput": 17701,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 6,
+      "input": 8844,
+      "cacheRead": 96640,
+      "output": 12050,
+      "reasoning": 9225,
+      "peakInput": 24579,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 4,
+      "input": 10200,
+      "cacheRead": 63616,
+      "output": 15862,
+      "reasoning": 14417,
+      "peakInput": 24692,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 12,
+      "input": 12968,
+      "cacheRead": 223616,
+      "output": 6844,
+      "reasoning": 3345,
+      "peakInput": 25510,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 52151,
+    "cacheRead": 657152,
+    "output": 76574,
+    "reasoning": 61290,
+    "steps": 51,
+    "peakInput": 25510
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 10,
+    "glob": 10,
+    "grep": 1,
+    "read": 26,
+    "edit": 14,
+    "write": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all cumulative + regression checks passed"
+  }
+}

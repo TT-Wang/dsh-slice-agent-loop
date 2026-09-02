@@ -1,0 +1,28 @@
+[
+  {
+    "id": "Multi-SWE-Bench__c__maintenance__bugfix__0f94ce4d",
+    "fileRecall": 0.2,
+    "spanRecall": 0.6,
+    "filePrecision": 0.07692307692307693,
+    "filesRead": 13,
+    "goldFiles": 5,
+    "input": 21018,
+    "output": 24201,
+    "cacheRead": 1773568,
+    "reasoning": 17444,
+    "price": 0.033011596,
+    "steps": 56,
+    "wallMs": 262777,
+    "tools": {
+      "bash": 38,
+      "grep": 2,
+      "recall_step": 2,
+      "read": 8,
+      "web_search": 3,
+      "web_fetch": 3,
+      "job_output": 1
+    },
+    "edited": [],
+    "sessionId": "session-ea2f3a3d-4d7b-41e0-9f73-f32f2703e407"
+  }
+]
