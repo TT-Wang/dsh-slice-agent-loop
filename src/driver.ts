@@ -138,9 +138,10 @@ declare module '@deepseek-ai/dsh-session' {
     'slice/step-seal': { turn: number; step: number; sealedThrough: number; sealedSteps: number; entries: number; trajectoryCharsBefore: number; trajectoryCharsAfter: number }
     /** 世界状态循环审计。 */
     'slice/state-seed': { turn: number; step: number; seedDigest: string; files: number; facts: number; pinned: number; rules: number }
-    'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; error?: string }
+    'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; list?: string[]; error?: string }
     'slice/side-call': { turn: number; step: number; label: string; usage?: unknown }
     'slice/contract-bounce': { turn: number; step: number; path: string; violations: string[] }
+    'slice/contract-suspend': { turn: number; step: number; path: string; rules: string[] }
     'slice/digest': { turn: number; step: number; tool: string; charsBefore: number; charsAfter: number }
   }
   // dsh-session documents this map as a plugin extension point ("plugins extend
@@ -213,9 +214,11 @@ export interface StatePolicy {
   /** 旁路调用(规则提取)的 effort 档:提取是抄写型任务,默认关掉思考——首跑里
    *  一次提取思考了 8.9K token,占整轮成本 17%。'inherit' = 与主调用同档。 */
   sideEffort: ReasoningEffortDefault
+  /** 同一规则最多打回几次;再违反即该规则谓词停用、写入放行(见 enforceContract)。 */
+  contractBounceBudget: number
 }
 
-export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off' }
+export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
 const CONTRIBUTION_CAP_CHARS = 4000
@@ -287,6 +290,8 @@ export class SliceLoopAgent implements Agent {
   /** 契约执行的写前磁盘快照(每步重置)。 */
   private preWrite = new Map<string, { existed: boolean; body: string }>()
   private contractBounces = 0
+  /** 每条规则的打回次数(弹回预算)。 */
+  private readonly ruleBounces = new Map<string, number>()
   private currentSystemPrefix = ''
   /** 与 turnTrajectory 平行:每条消息所属的步号(封存按步切)。 */
   private turnTrajectorySteps: number[] = []
@@ -1465,7 +1470,7 @@ export class SliceLoopAgent implements Agent {
       try {
         const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
-        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length })
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`) })
       } catch (error: unknown) {
         this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
       }
@@ -1500,7 +1505,7 @@ export class SliceLoopAgent implements Agent {
         const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
         c.rules = parseRulesJson(raw)
         for (const r of c.rules) addFact(this.worldState, { kind: 'rule', text: `${r.id}: ${r.text}`, sourceDigest: 'host:rules', step })
-        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length })
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`) })
       } catch (error: unknown) {
         // 提取失败:规则只以原文(钉住文件)形态存在,契约不执行。落账,不打断。
         this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
@@ -1593,8 +1598,30 @@ export class SliceLoopAgent implements Agent {
     const cwd = this.sessionCwd()
     const disk = readDiskStatus(cwd, path)
     if (disk.kind !== 'ok') return result
-    const violations = checkPredicates(rules, path, disk.body)
-    if (violations.length === 0) return result
+    const all = checkPredicates(rules, path, disk.body)
+    if (all.length === 0) return result
+    // 弹回预算:谓词来自一次廉价的旁路提取,可能是错的。同一规则超出预算(默认:打回
+    // 一次)仍被违反,更可能是谓词错而不是模型错——该规则降级为纯文本(谓词移除),
+    // 本次写入放行并附宿主提示,由模型自己对照规则原文核实。没有预算,一条错谓词就
+    // 能把正确的写入无限打回(v3.1 首跑:9 步 4 次写入全部回滚,migrated/ 为空)。
+    const budget = this.statePolicy.contractBounceBudget
+    const violations: string[] = []
+    const suspended: string[] = []
+    for (const v of all) {
+      const id = v.split(': ')[0]!
+      const n = (this.ruleBounces.get(id) ?? 0) + 1
+      this.ruleBounces.set(id, n)
+      if (n > budget) {
+        suspended.push(id)
+        const r = rules.find((x) => x.id === id)
+        if (r) delete r.predicate
+      } else violations.push(v)
+    }
+    if (violations.length === 0) {
+      this.session.append('slice/contract-suspend', { turn, step, path, rules: suspended })
+      const note = `[host] rule check SUSPENDED for ${suspended.join(', ')}: the host predicate overruled you ${budget + 1} times on this path, so it is likely mis-extracted. The write above was KEPT. Verify the content against the rule text in the CONSTITUTION yourself.`
+      return { ...result, content: [...result.content, { type: 'text', text: note }] } as ToolExecutionResult
+    }
     const pre = this.preWrite.get(path)
     const abs = isAbsolute(path) ? path : resolvePath(cwd, path)
     try {
@@ -1604,7 +1631,7 @@ export class SliceLoopAgent implements Agent {
     this.contractBounces += 1
     this.session.append('slice/contract-bounce', { turn, step, path, violations })
     recordFile(this.worldState, { path, sha: pre?.existed ? _h(pre.body) : '-', action: 'reverted', step })
-    const text = `CONTRACT VIOLATION — the write to ${path} was REVERTED (file restored to its previous state). Violations:\n- ${violations.join('\n- ')}\nFix the content so it satisfies the CONSTITUTION rules, then write again.`
+    const text = `CONTRACT VIOLATION — the write to ${path} was REVERTED (file restored to its previous state). Violations:\n- ${violations.join('\n- ')}\nFix the content so it satisfies the CONSTITUTION rules, then write again. If you are certain the content already satisfies the rule as written, write it again unchanged: a rule that overrules you twice is suspended.`
     return { isError: true, error: { message: text }, content: [{ type: 'text', text }] }
   }
 

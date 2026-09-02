@@ -91,4 +91,40 @@ describe('stream mode', () => {
     expect(handle.agent.session.snapshotEvents().filter((e) => e.type === 'slice/digest')).toHaveLength(1)
     rmSync(root, { recursive: true, force: true })
   })
+
+  it('suspends a rule whose predicate overrules the model beyond the bounce budget, keeping the write', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'stream-budget-'))
+    writeFileSync(join(root, 'MANIFEST.txt'), 'Rules:\n1. tier must be one of p1, p3, p7\n')
+    // 提取错了:谓词只认 p1(规则原文允许 p3)。模型两次写 p3 → 第一次回滚,第二次放行 + 停用。
+    const WRONG = JSON.stringify([{ id: 'R1', text: 'tier ∈ {p1,p3,p7}', predicate: { kind: 'field-enum', glob: 'out/*.svc', field: 'tier', values: ['p1'] } }])
+    const adapter = new MockAdapter([
+      toolCallResponse('c1', 'read', { file_path: 'MANIFEST.txt' }),
+      textResponse(WRONG),
+      toolCallResponse('c2', 'write', { file_path: 'out/a.svc', content: 'tier = p3\n' }),   // 弹回(预算 1)
+      toolCallResponse('c3', 'write', { file_path: 'out/a.svc', content: 'tier = p3\n' }),   // 放行 + R1 停用
+      toolCallResponse('c4', 'write', { file_path: 'out/b.svc', content: 'tier = p3\n' }),   // 谓词已移除:直接通过
+      textResponse('done'),
+    ])
+    const ctx = new Context()
+    await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
+    await ctx.plugin(apply, { mode: 'stream', state: { pinSteps: 1, extractRules: true, pushHits: 0, contractBounceBudget: 1 } })
+    ctx.llm.registerAdapter(['mock'], adapter)
+    ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'r', parameters: { file_path: { type: 'string', required: true } }, execute: async ({ file_path }) => [{ type: 'text', text: readFileSync(join(root, file_path), 'utf8') }] }))
+    ctx.tools.register(defineContentToolFixture({ name: 'write', description: 'w', parameters: { file_path: { type: 'string', required: true }, content: { type: 'string', required: true } }, execute: async ({ file_path, content }) => { mkdirSync(dirname(join(root, file_path)), { recursive: true }); writeFileSync(join(root, file_path), content); return [{ type: 'text', text: `wrote ${file_path}` }] } }))
+    const handle = await ctx.agents.create({ sessionId: SessionId('stream-budget'), meta: { cwd: root }, agentOptions: { provider: 'mock', model: 'mock' } })
+    handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'migrate per MANIFEST.txt' }], source: { kind: 'user' } }))
+    await handle.agent.whenIdle()
+
+    const events = handle.agent.session.snapshotEvents()
+    expect(events.filter((e) => e.type === 'slice/contract-bounce')).toHaveLength(1)
+    expect(events.filter((e) => e.type === 'slice/contract-suspend')).toHaveLength(1)
+    expect(readFileSync(join(root, 'out/a.svc'), 'utf8')).toBe('tier = p3\n')
+    expect(readFileSync(join(root, 'out/b.svc'), 'utf8')).toBe('tier = p3\n')
+    // 放行的那次结果带宿主提示;第三次写入无任何提示(谓词已移除)。
+    const m4 = JSON.stringify(adapter.requests[4]!.messages)
+    expect(m4).toContain('rule check SUSPENDED for R1')
+    const m5 = JSON.stringify(adapter.requests[5]!.messages)
+    expect(m5.split('SUSPENDED').length).toBe(2)
+    rmSync(root, { recursive: true, force: true })
+  })
 })

@@ -216,6 +216,7 @@ for (const e of agent.session.snapshotEvents()) {
 const turnRows = [...rowsByTurn.values()].sort((a, b) => a.turn - b.turn)
 const seals = agent.session.snapshotEvents().filter((e) => e.type === 'slice/step-seal').length
 const bounces = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-bounce').length
+const suspends = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-suspend').map((e) => (e.data as { rules: string[] }).rules).flat()
 const digests = agent.session.snapshotEvents().filter((e) => e.type === 'slice/digest') as Array<{ data: { charsBefore: number; charsAfter: number } }>
 const digestStat = digests.length ? { count: digests.length, charsBefore: digests.reduce((a, e) => a + e.data.charsBefore, 0), charsAfter: digests.reduce((a, e) => a + e.data.charsAfter, 0) } : null
 const rulesEv = agent.session.snapshotEvents().find((e) => e.type === 'slice/state-rules') as { data?: { rules?: number; enforced?: number; error?: string } } | undefined
@@ -248,7 +249,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
