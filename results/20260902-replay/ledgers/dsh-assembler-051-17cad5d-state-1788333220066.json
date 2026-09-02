@@ -1,0 +1,68 @@
+{
+  "caseId": "dsh-assembler-051-17cad5d",
+  "repo": "dsh-assembler",
+  "sha": "17cad5ddfae6abdbe7997e8fc38002bf1025059a",
+  "arm": "state",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "sessionId": "replay-dsh-assembler-051-17cad5d-state-1788333194310",
+  "workdir": "/private/tmp/claude-501/-Users-tongtao-Desktop/6984c665-bf21-4387-81ac-9e23eb47bc85/scratchpad/dsh-wt/results/replay-worktrees/dsh-assembler-051-17cad5d-state-1788333193519",
+  "endKind": "completed",
+  "totals": {
+    "steps": 6,
+    "input": 7826,
+    "cacheRead": 34944,
+    "output": 2688,
+    "reasoning": 1262,
+    "peakInput": 7919
+  },
+  "seals": 0,
+  "bounces": 0,
+  "toolHistogram": {
+    "bash": 6,
+    "glob": 2,
+    "read": 1
+  },
+  "verdict": {
+    "touchedJaccard": 0,
+    "meanFileSimilarity": 0.806,
+    "perFile": {
+      "bench/run-generalization.mjs": 0.854,
+      "bench/run-proving.mjs": 0.898,
+      "bench/run-writer-seat.mjs": 0.806,
+      "docs/BACKLOG.md": 0.942,
+      "docs/research/dsh-alpha2-migration.md": 0.912,
+      "docs/research/gate-error-audit-2026-08-27.md": 0.928,
+      "frontends/_vendor/assembler-sdk.js": 0.802,
+      "scaffold/template/src/sdk/assembler-sdk.ts": 0.785,
+      "scripts/index-add.mjs": 0.987,
+      "src/verify.ts": 0.948,
+      "src/wire.ts": 0.005
+    },
+    "excludedFromOracle": [
+      "frontends/chat-console/index.html",
+      "frontends/bilingual-reader/index.html",
+      "frontends/reader-upload-web-ui/index.html",
+      "generated/cron-trigger/index.js"
+    ],
+    "replayChanged": [],
+    "oracleTouched": [
+      "src/wire.ts",
+      "src/verify.ts",
+      "bench/run-generalization.mjs",
+      "bench/run-proving.mjs",
+      "bench/run-writer-seat.mjs",
+      "scripts/index-add.mjs",
+      "frontends/_vendor/assembler-sdk.js",
+      "frontends/chat-console/index.html",
+      "frontends/bilingual-reader/index.html",
+      "frontends/reader-upload-web-ui/index.html",
+      "scaffold/template/src/sdk/assembler-sdk.ts",
+      "generated/cron-trigger/index.js",
+      "docs/research/gate-error-audit-2026-08-27.md",
+      "docs/BACKLOG.md",
+      "docs/research/dsh-alpha2-migration.md"
+    ],
+    "withContext": true
+  }
+}

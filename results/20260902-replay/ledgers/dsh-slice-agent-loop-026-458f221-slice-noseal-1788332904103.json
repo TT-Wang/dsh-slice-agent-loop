@@ -1,0 +1,57 @@
+{
+  "caseId": "dsh-slice-agent-loop-026-458f221",
+  "repo": "dsh-slice-agent-loop",
+  "sha": "458f2210389ce1b7a80bfad0a080f85a779d4276",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "sessionId": "replay-dsh-slice-agent-loop-026-458f221-slice-noseal-1788332764349",
+  "workdir": "/private/tmp/claude-501/-Users-tongtao-Desktop/6984c665-bf21-4387-81ac-9e23eb47bc85/scratchpad/dsh-wt/results/replay-worktrees/dsh-slice-agent-loop-026-458f221-slice-noseal-1788332764153",
+  "endKind": "completed",
+  "totals": {
+    "steps": 13,
+    "input": 50889,
+    "cacheRead": 356608,
+    "output": 14545,
+    "reasoning": 12242,
+    "peakInput": 64130
+  },
+  "seals": 0,
+  "bounces": 0,
+  "toolHistogram": {
+    "bash": 3,
+    "glob": 3,
+    "read": 12,
+    "recall_search": 1,
+    "grep": 2,
+    "edit": 2
+  },
+  "verdict": {
+    "touchedJaccard": 0.125,
+    "meanFileSimilarity": 0.488,
+    "perFile": {
+      "src/continuity.ts": 0.967,
+      "src/driver.ts": 0.977,
+      "src/slice/assemble.ts": 0.016,
+      "src/slice/index.ts": 0.419,
+      "tests/assemble.spec.ts": 0.022,
+      "tests/driver-contract.spec.ts": 0.999,
+      "tests/tape.spec.ts": 0.014
+    },
+    "excludedFromOracle": [],
+    "replayChanged": [
+      "src/continuity.ts",
+      "src/slice/tape.ts"
+    ],
+    "oracleTouched": [
+      "src/continuity.ts",
+      "src/driver.ts",
+      "tests/driver-contract.spec.ts",
+      "src/slice/assemble.ts",
+      "tests/assemble.spec.ts",
+      "tests/tape.spec.ts",
+      "src/slice/index.ts"
+    ],
+    "withContext": true
+  }
+}
