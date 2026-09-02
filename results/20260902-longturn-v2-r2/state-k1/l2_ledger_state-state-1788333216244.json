@@ -1,0 +1,56 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "state",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 1,
+    "pushHits": 0
+  },
+  "sessionId": "slice-val-l2_ledger_state-state-low-1788333216244",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-58737d",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 62,
+      "input": 450340,
+      "cacheRead": 659072,
+      "output": 45697,
+      "reasoning": 31324,
+      "peakInput": 23005,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 450340,
+    "cacheRead": 659072,
+    "output": 45697,
+    "reasoning": 31324,
+    "steps": 62,
+    "peakInput": 23005
+  },
+  "seals": 0,
+  "bounces": 4,
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 13,
+    "enforced": 2
+  },
+  "toolHistogram": {
+    "read": 57,
+    "write": 50,
+    "recall_search": 6,
+    "recall_turn": 2
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "ok=4/45; early=1/15 mid=0/15 late=3/15; violations: r02-tx-t8cd: journal, r03-tx-p393: journal, r04-tx-rk9x: journal, r05-tx-rpwy: journal, r06-tx-twnf: journal, r07-tx-7wux: journal, r08-tx-nhue: journal, r09-tx-ddt2: journal, r10-tx-jsg5: journal, r11-tx-7795: journal, r12-tx-fjdj: journal, r13-tx-63np: journal, r14-tx-c4h6: journal, r15-tx-hqks: journal, r16-tx-3nvs: journal, r17-tx-y2k5: journal, r18-tx-chd7: journal, r19-tx-wyca: journal, r20-tx-kx8p: journal, r21-tx-44e9: journal, r22-tx-r23p: journal, r23-tx-pujg: journal, r24-tx-g5f7: journal, r25-tx-6bd4: journal, r26-tx-g78g: journal, r27-tx-hjj9: journal, r28-tx-xd6t: journal, r29-tx-w9qu: journal, r30-tx-hvmc: journal, r31-tx-w8uw: journal, r32-tx-kx7b: journal, r33-tx-p6dt: journal, r34-tx-sjmg: journal, r35-tx-uj8v: journal, r36-tx-qhzh: journal, r37-tx-3apt: journal, r38-tx-4rb9: journal, r39-tx-8zk5: journal, r40-tx-acwz: journal, r41-tx-n3y3: journal, r42-tx-tmap: journal"
+  }
+}
