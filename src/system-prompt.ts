@@ -52,3 +52,17 @@ RECALL. Long content is truncated in the tape with an exact marker: \`…[+N cha
 Independent lookups (reads, greps, listings, checks with no data dependency) may ride as multiple tool calls in one response.
 </slice>`
 
+/**
+ * STREAM_SYSTEM_ADDENDUM — v3 追加流模式追加在 kernel 之后的一段(仅 mode: 'stream')。
+ *
+ * 告诉模型它所在 loop 的真实可供性,而不是行为约束:大结果在进入上下文时被宿主折叠
+ * (头/尾 + 结构行保留,其余以精确标记省略,全文一步可召回)。推论由模型自己得出——
+ * 整读一个文件比分页读便宜(分页每段一步),"写当前 + 读下一"可同响应流水。
+ * l2 首跑:模型不知道折叠存在,每条记录 head/tail 各读一次,92 步里 45 步是分页税。
+ */
+export const STREAM_SYSTEM_ADDENDUM = `<stream>
+Within a turn your context is an append-only stream: nothing already in it is rewritten or dropped. Large tool results are condensed by the host as they enter: the first and last lines and every structured line (key = value, key: value, headings, section markers) are kept verbatim; the rest is replaced by an exact marker \`…[N lines / M chars elided — recall_step(t, s) for the full text]…\`. The full result is durable and one call away: recall_step(t, s) returns it verbatim. So read a whole file in one call rather than paging it with offset/limit — a full read costs no more context than its condensed view, while every page costs a step. When a next action is already determined by what you have (the next file to read, the output for the record just read), issue it in the same response as the current one.
+
+A # CONSTITUTION block, appended once per turn, restates the request and the rules extracted from the files pinned at the start; rules marked [enforced] are checked by the host on every write, and a violating write is reverted and returned to you as an error.
+</stream>`
+

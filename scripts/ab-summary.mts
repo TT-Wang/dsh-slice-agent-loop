@@ -16,11 +16,21 @@ interface Ledger {
   seals: number
   verdict: { ok: boolean; detail: string }
   toolHistogram: Record<string, number>
+  state?: { extractRules?: boolean; sideEffort?: string } | null
 }
 
 // flash 谷时刊例 $/M(与 effort-ladder 同口径;pro ×3)
 const PRICE = { miss: 0.22, hit: 0.007, out: 0.66 }
-const ARMS = ['transcript', 'slice-noseal', 'slice-seal', 'state']
+// 固定顺序的基础臂;变体(stream 的 --no-rules / --side-effort、effort 非 low)按账本
+// 字段自动加后缀成独立行,附在基础臂之后。
+const BASE_ARMS = ['transcript', 'slice-noseal', 'slice-seal', 'state', 'stream']
+function armLabel(l: Ledger): string {
+  let label = l.arm
+  if (l.state?.extractRules === false) label += '/no-rules'
+  else if (l.state?.sideEffort !== undefined && l.state.sideEffort !== 'inherit') label += `/side-${l.state.sideEffort}`
+  if (l.effort !== 'low') label += `/effort-${l.effort}`
+  return label
+}
 
 const dirs = process.argv.slice(2).filter((a) => !a.startsWith('--'))
 if (dirs.length === 0) dirs.push('results/longturn')
@@ -30,9 +40,11 @@ for (const dir of dirs) {
   const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort()
   for (const f of files) {
     const l = JSON.parse(readFileSync(join(dir, f), 'utf8')) as Ledger
-    latest.set(`${l.scenario}|${l.arm}`, l) // 目录顺序 + 文件名排序 → 后者覆盖前者
+    latest.set(`${l.scenario}|${armLabel(l)}`, l) // 目录顺序 + 文件名排序 → 后者覆盖前者
   }
 }
+const seenArms = [...new Set([...latest.keys()].map((k) => k.split('|')[1]!))]
+const ARMS = [...BASE_ARMS.filter((a) => seenArms.includes(a)), ...seenArms.filter((a) => !BASE_ARMS.includes(a)).sort()]
 
 function rot(detail: string): { early: string; mid: string; late: string } | null {
   const m = detail.match(/early=(\d+\/\d+)\s+mid=(\d+\/\d+)\s+late=(\d+\/\d+)/)
