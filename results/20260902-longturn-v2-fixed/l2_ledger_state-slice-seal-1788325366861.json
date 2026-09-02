@@ -1,0 +1,43 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "slice-seal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": true,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "sessionId": "slice-val-l2_ledger_state-slice-seal-low-1788325366861",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-b6pXAr",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 66,
+      "input": 481231,
+      "cacheRead": 2880512,
+      "output": 65297,
+      "reasoning": 52598,
+      "peakInput": 83261,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 481231,
+    "cacheRead": 2880512,
+    "output": 65297,
+    "reasoning": 52598,
+    "steps": 66,
+    "peakInput": 83261
+  },
+  "seals": 7,
+  "toolHistogram": {
+    "read": 139,
+    "write": 47
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}
