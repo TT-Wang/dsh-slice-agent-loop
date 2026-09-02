@@ -88,7 +88,7 @@ import {
 import { InboxLedger } from './inbox-ledger.js'
 import { recordSeedEvent, recordCallEvent } from './call-ledger.js'
 import { applyEffortDefault, type ReasoningEffortDefault } from './effort-default.js'
-import { renderSealedStep, renderStepTape, stepsToSeal, type SealPolicy, type SealedCall } from './slice/step-tape.js'
+import { renderSealedStep, renderStepTape, sealSavesEnough, stepsToSeal, type SealPolicy, type SealedCall } from './slice/step-tape.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import type { SliceContributionFacts, SliceContributor } from './index.js'
@@ -247,6 +247,8 @@ export class SliceLoopAgent implements Agent {
   private stepTapeEntries: string[] = []
   private stepTapeMessage: UserMessage | undefined
   private sealedThrough = 0
+  /** 已「评估过是否封存」的最大步号:含实际封存 + 因体量守卫跳过的。 */
+  private sealConsideredThrough = 0
   private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
@@ -725,6 +727,7 @@ export class SliceLoopAgent implements Agent {
     this.stepTapeEntries = []
     this.stepTapeMessage = undefined
     this.sealedThrough = 0
+    this.sealConsideredThrough = 0
     let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
@@ -1349,7 +1352,7 @@ export class SliceLoopAgent implements Agent {
    */
   private maybeSealSteps(turn: number, step: number): void {
     const completed = step - 1
-    const unsealed = completed - this.sealedThrough
+    const unsealed = completed - this.sealConsideredThrough
     const before = trajectoryChars(this.turnTrajectory)
     const n = stepsToSeal(this.inTurnSeal, before, unsealed)
     if (n <= 0) return
@@ -1385,13 +1388,31 @@ export class SliceLoopAgent implements Agent {
         g.interjections.push(blockText(m as UserMessage))
       }
     }
-    for (const s of [...groups.keys()].sort((a, b) => a - b)) {
-      const g = groups.get(s)!
-      this.stepTapeEntries.push(renderSealedStep(turn, { step: s, assistantText: g.assistantText, calls: g.calls, interjections: g.interjections }))
+    const newEntries: string[] = []
+    for (const st of [...groups.keys()].sort((a, b) => a - b)) {
+      const g = groups.get(st)!
+      newEntries.push(renderSealedStep(turn, { step: st, assistantText: g.assistantText, calls: g.calls, interjections: g.interjections }))
     }
+    // 体量守卫:被移除原文的字节 vs 新封存条目的字节。折叠比这批原文省不下
+    // (1-ratio)就不划算——小结果折叠只多付一次缓存重建。跳过并把这批标为
+    // 「已评估」(consideredThrough),避免下一步重算同一批;它们留在轨迹里作原文。
+    const removedChars = keepMsgs.length < this.turnTrajectory.length
+      ? this.turnTrajectory.reduce((n, m, i) => n + (this.turnTrajectorySteps[i]! <= upTo ? JSON.stringify(m.content).length : 0), 0)
+      : 0
+    const sealedChars = newEntries.reduce((n, e) => n + e.length, 0)
+    if (!sealSavesEnough(removedChars, sealedChars)) {
+      this.sealConsideredThrough = upTo
+      this.session.append('slice/step-seal', {
+        turn, step, sealedThrough: this.sealedThrough, sealedSteps: 0,
+        entries: this.stepTapeEntries.length, trajectoryCharsBefore: before, trajectoryCharsAfter: before,
+      })
+      return
+    }
+    this.stepTapeEntries.push(...newEntries)
     this.turnTrajectory = keepMsgs
     this.turnTrajectorySteps = keepSteps
     this.sealedThrough = upTo
+    this.sealConsideredThrough = upTo
     this.stepTapeMessage = createUserMessage({
       content: [{ type: 'text' as const, text: renderStepTape(this.stepTapeEntries) }],
       source: { kind: 'user' },

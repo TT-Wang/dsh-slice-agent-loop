@@ -98,6 +98,15 @@ export interface SealPolicy {
 
 export const DEFAULT_SEAL_POLICY: SealPolicy = { enabled: false, sealTokens: 40_000, batchSteps: 8, keepSteps: 4 }
 
+/** 封存批次的渲染体量必须 ≤ 原文的这个比例才值得(否则折叠只多付一次缓存重建
+ *  而不省上下文——l1 长链病态:结果比 head+tail 保留窗还短)。 */
+export const SEAL_MIN_SAVE_RATIO = 0.6
+
+/** 这批封存是否划算:sealedChars 相对被移除的 rawChars 至少省下 (1-ratio)。 */
+export function sealSavesEnough(rawChars: number, sealedChars: number, ratio = SEAL_MIN_SAVE_RATIO): boolean {
+  return rawChars > 0 && sealedChars <= rawChars * ratio
+}
+
 /** 轨迹字符 → token 的保守估算(代码 + CJK 混合;归因实测 2.5–4.2)。 */
 export const SEAL_CHARS_PER_TOKEN = 3.2
 

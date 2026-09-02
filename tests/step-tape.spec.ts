@@ -71,3 +71,15 @@ describe('stepsToSeal', () => {
     expect(() => resolveSealPolicy({ batchSteps: 0 })).toThrow()
   })
 })
+
+describe('sealSavesEnough (l1 byte-light guard)', () => {
+  it('rejects a fold that does not meaningfully compress', async () => {
+    const { sealSavesEnough } = await import('../src/slice/step-tape.js')
+    // l1 病态:结果 137 字符 < head+tail 保留窗,折叠后反而更大 → 不划算。
+    expect(sealSavesEnough(400, 520)).toBe(false)  // 折叠反而更大
+    expect(sealSavesEnough(400, 280)).toBe(false)  // 只省 30% < 40% 门槛
+    expect(sealSavesEnough(400, 200)).toBe(true)   // 省 50%
+    expect(sealSavesEnough(0, 0)).toBe(false)      // 空批不封
+    expect(sealSavesEnough(100000, 8000)).toBe(true) // 真重轨迹:大幅压缩
+  })
+})
