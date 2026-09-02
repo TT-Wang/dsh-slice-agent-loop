@@ -216,9 +216,11 @@ export interface StatePolicy {
   sideEffort: ReasoningEffortDefault
   /** 同一规则最多打回几次;再违反即该规则谓词停用、写入放行(见 enforceContract)。 */
   contractBounceBudget: number
+  /** stream 模式:一轮走到这一步才提取规则、追加宪法(短轮不付提取与契约的税)。 */
+  extractAtStep: number
 }
 
-export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1 }
+export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1, extractAtStep: 8 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
 const CONTRIBUTION_CAP_CHARS = 4000
@@ -1464,7 +1466,11 @@ export class SliceLoopAgent implements Agent {
   ): Promise<void> {
     if (this.constitution === null) this.constitution = { request: requestText, pinned: [], rules: [] }
     const c = this.constitution
-    if (this.rulesExtracted || step <= this.statePolicy.pinSteps || c.pinned.length === 0) return
+    // 惰性提取:一轮走到 extractAtStep 才提取规则、追加宪法——短轮(交互式问答、一两次
+    // 编辑)永远不付这笔钱。n2 交叉验证:每轮都提取时 stream $0.018 vs slice $0.012,
+    // 多出的全是提取 + 错谓词弹回;长任务(l1/l2 50 步)晚几步拿到宪法无碍——钉住的规则
+    // 文件全文本来就在流里。
+    if (this.rulesExtracted || step < Math.max(this.statePolicy.pinSteps + 1, this.statePolicy.extractAtStep) || c.pinned.length === 0) return
     this.rulesExtracted = true
     if (this.statePolicy.extractRules) {
       try {
