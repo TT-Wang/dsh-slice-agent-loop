@@ -43,7 +43,7 @@ export interface DigestResult {
   keptLines: number
 }
 
-export function digestText(text: string, recallHint: string, policy: DigestPolicy = DEFAULT_DIGEST_POLICY): DigestResult {
+export function digestText(text: string, _recallHint: string, policy: DigestPolicy = DEFAULT_DIGEST_POLICY): DigestResult {
   if (text.length < policy.minChars) return { text, digested: false, totalLines: text.split('\n').length, keptLines: text.split('\n').length }
   const lines = text.split('\n')
   const n = lines.length
@@ -67,7 +67,9 @@ export function digestText(text: string, recallHint: string, policy: DigestPolic
     // 纯空白行的间隔不值一个省略标记(标记比空行还长):折成一个空行。
     if (run.every((l) => l.replace(LINE_NUMBER_PREFIX, '').trim() === '')) { out.push(run[0]!); i = j; continue }
     const elidedChars = run.reduce((a, l) => a + l.length + 1, 0)
-    out.push(`…[${j - i} lines / ${elidedChars} chars elided — ${recallHint} for the full text]…`)
+    // 精简标记:召回指针只在视图头行给一次(digestForTrajectory 的 `[read … · recall_step(t, s)
+    // returns the full text]`),每个标记不再重复——一个文件十几个标记时,标记曾占折后视图近半。
+    out.push(`…[+${j - i} lines / ${elidedChars} chars]…`)
     i = j
   }
   const rendered = out.join('\n')

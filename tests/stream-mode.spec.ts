@@ -28,7 +28,7 @@ describe('digestText', () => {
     expect(d.text).toContain('name = alpha')
     expect(d.text).toContain('next = beta.txt')
     expect(d.text).toContain('owner: ops-team')
-    expect(d.text).toMatch(/…\[\d+ lines \/ \d+ chars elided — recall_step\(1, 2\) for the full text\]…/)
+    expect(d.text).toMatch(/…\[\+\d+ lines \/ \d+ chars\]…/)
     expect(d.text.length).toBeLessThan(NODE.length * 0.55)
     expect(digestText('short', 'x').digested).toBe(false)
     // 全是结构行:折不省 → 原样
@@ -41,7 +41,7 @@ describe('digestText', () => {
     expect(dn.text).toMatch(/^1: name = alpha\n2: tier = gold\n3: next = beta.txt\n/)
     expect(dn.text).toContain('owner: ops-team')
     expect(dn.text).toContain('(End of file - total 250 lines)')
-    expect(dn.text).not.toMatch(/\[1 lines \/ 1 chars elided/)
+    expect(dn.text).not.toMatch(/\[\+1 lines \/ \d chars\]/)
     // 结构块上限:头部区外的连续结构行块只保留前 cap 行;头部区不受限。
     const block = Array.from({ length: 12 }, (_, i) => `  k${i}: v${i}`).join('\n')
     const withBlocks = `a = 1\nb = 2\n\n${NOISE}\n[appendix]\n${block}\n${NOISE}\nend = yes\n`
@@ -83,7 +83,8 @@ describe('stream mode', () => {
     expect(adapter.requests).toHaveLength(6)
     const msgs = (i: number) => JSON.stringify(adapter.requests[i]!.messages)
     // step 3 请求:alpha.txt 的结果已是摘要(噪音被省略,结构行保留),全文不在上下文里。
-    expect(msgs(3)).toContain('chars elided')
+    expect(msgs(3)).toMatch(/…\[\+\d+ lines \/ \d+ chars\]…/)
+    expect(msgs(3)).toContain('recall_step(1, 2) returns the full text')
     expect(msgs(3)).toContain('next = beta.txt')
     expect(msgs(3)).not.toContain('INFO 10050 alpha bravo')
     // 宪法作为追加消息出现,且含已提取规则。
