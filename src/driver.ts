@@ -210,9 +210,12 @@ export interface StatePolicy {
   pushHits: number
   /** 钉住文件后是否用一次旁路模型调用提取可执行规则(契约)。 */
   extractRules: boolean
+  /** 旁路调用(规则提取)的 effort 档:提取是抄写型任务,默认关掉思考——首跑里
+   *  一次提取思考了 8.9K token,占整轮成本 17%。'inherit' = 与主调用同档。 */
+  sideEffort: ReasoningEffortDefault
 }
 
-export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true }
+export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off' }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
 const CONTRIBUTION_CAP_CHARS = 4000
@@ -1537,12 +1540,21 @@ export class SliceLoopAgent implements Agent {
       sessionId: this.session.id,
       signal,
     }) as unknown as GenerateOptions
-    // PreparedLlmCall 是一次性句柄:不能借用主调用的——旁路调用自己 prepare 一次
-    // (同一份已解析 config),主调用的句柄留给主请求。
+    // PreparedLlmCall 是一次性句柄:不能借用主调用的——旁路调用自己 prepare 一次,
+    // 主调用的句柄留给主请求。旁路可以用自己的 effort 档(sideEffort):单独 prepare
+    // 一份注入后的 config,请求体与之一致即可;适配器不认该档就退回主调用的档。
     let own: PreparedLlmCall | undefined
-    try { own = await this.loopCtx.llm.prepareCall(config, signal) } catch { own = undefined }
+    let sideRequest = request
+    const injected = this.statePolicy.sideEffort === 'inherit' ? undefined : applyEffortDefault({ ...config, reasoningEffort: undefined }, this.statePolicy.sideEffort)
+    if (injected?.reasoningEffort !== undefined) {
+      try {
+        own = await this.loopCtx.llm.prepareCall(injected, signal)
+        sideRequest = deepFreeze({ ...request, ...own.config }) as unknown as GenerateOptions
+      } catch { own = undefined }
+    }
+    if (own === undefined) { try { own = await this.loopCtx.llm.prepareCall(config, signal) } catch { own = undefined } }
     const assembler = new BlockAssembler()
-    const stream = own?.stream(request) ?? this.loopCtx.llm.stream(request)
+    const stream = own?.stream(sideRequest) ?? this.loopCtx.llm.stream(sideRequest)
     for await (const chunk of stream) assembler.push(chunk)
     const finish = assembler.finish
     // 旁路调用不进对话轨迹,但必须进账:会话事件供 runner 汇总,sidecar 供归因。

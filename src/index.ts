@@ -35,7 +35,7 @@ export interface Config {
   mode?: 'slice' | 'state' | 'stream'
   /** v3 追加流的注入时摘要策略。 */
   digest?: { minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number }
-  state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean }
+  state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit' }
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
