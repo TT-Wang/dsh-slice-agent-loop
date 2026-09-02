@@ -1,0 +1,1 @@
+{"name": "s13_compact_amnesia", "turns": 16, "stressor": "planted user facts + per-arm native context-pressure event + post-pressure recall quizzes", "max_steps_per_turn": 12, "use_code_index": false}

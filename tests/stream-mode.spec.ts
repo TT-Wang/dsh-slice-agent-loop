@@ -14,7 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import apply from '../src/index.js'
-import { DEFAULT_DIGEST_POLICY, digestText } from '../src/slice/result-digest.js'
+import { DEFAULT_DIGEST_POLICY, digestText, looksLikeCode, looksLikeCodePath } from '../src/slice/result-digest.js'
 import { renderSealedStepPage } from '../src/recall-step.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
@@ -53,6 +53,12 @@ describe('digestText', () => {
     expect(capped.text).toContain('end = yes')
     const uncapped = digestText(withBlocks, 'x', { ...DEFAULT_DIGEST_POLICY, structuredBlockCap: Infinity })
     expect(uncapped.text).toContain('  k11: v11')
+    // 源代码识别:按路径或内容;日志/字段型文本不算代码。
+    expect(looksLikeCodePath('tinykv/store.py')).toBe(true)
+    expect(looksLikeCodePath('nodes/alpha.txt')).toBe(false)
+    const py = Array.from({ length: 30 }, (_, i) => `def f${i}(x):\n    y = x + ${i}\n    return y\n`).join('\n')
+    expect(looksLikeCode(py)).toBe(true)
+    expect(looksLikeCode(NODE)).toBe(false)
   })
 })
 

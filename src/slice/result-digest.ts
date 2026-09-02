@@ -38,6 +38,25 @@ function isStructured(line: string): boolean {
   return STRUCTURED.test(line.replace(LINE_NUMBER_PREFIX, ''))
 }
 
+/**
+ * 源代码不折:代码文件是混合文本(赋值行像结构行,逻辑行不像),折后视图会让模型对着
+ * 残缺的函数体编辑——s1 复验里 store.py 折了 3 次,模型把 delete 方法编没了。按扩展名
+ * 判 read 的路径;无路径的文本(bash 输出)按内容密度判:代码特征行占比 ≥ 15% 视为代码。
+ */
+const CODE_EXT = /\.(?:py|pyi|ts|tsx|js|jsx|mjs|cjs|go|rs|c|h|cc|cpp|hpp|cs|java|kt|scala|rb|php|swift|m|mm|sh|bash|zsh|fish|ps1|sql|lua|pl|r|jl|ex|exs|erl|hs|ml|clj|scm|lisp|el|vim|dart|zig|nim|v|sv|vhd|proto|thrift|tf|hcl|gradle|cmake|make|mk)$/i
+const CODE_LINE = /^\s*(?:def |class |function\b|func |fn |import |from .+ import |#include|package |return\b|if\b.*[:{]\s*$|for\b.*[:{]\s*$|while\b.*[:{]\s*$|else\b|try\b|except\b|catch\b|\}\s*$|\{\s*$|export |const |let |var |public |private |static |@\w+)/
+
+export function looksLikeCodePath(path: string | undefined): boolean {
+  return path !== undefined && CODE_EXT.test(path)
+}
+
+export function looksLikeCode(text: string): boolean {
+  const lines = text.split('\n').map((l) => l.replace(LINE_NUMBER_PREFIX, '')).filter((l) => l.trim() !== '')
+  if (lines.length < 8) return false
+  const hits = lines.reduce((a, l) => a + (CODE_LINE.test(l) ? 1 : 0), 0)
+  return hits >= lines.length * 0.15
+}
+
 export interface DigestResult {
   text: string
   digested: boolean

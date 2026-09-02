@@ -94,7 +94,7 @@ import {
   rulesExtractionPrompt, type Constitution, type StateLedger,
 } from './slice/state-ledger.js'
 import { searchSessionEvents } from './recall.js'
-import { digestText, type DigestPolicy } from './slice/result-digest.js'
+import { digestText, looksLikeCode, looksLikeCodePath, type DigestPolicy } from './slice/result-digest.js'
 import { writeFileSync as fsWriteFileSync, unlinkSync as fsUnlinkSync, mkdirSync as fsMkdirSync } from 'node:fs'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
@@ -1438,6 +1438,9 @@ export class SliceLoopAgent implements Agent {
     if (step <= this.statePolicy.pinSteps) return message
     const first = message.content[0] as { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> } | undefined
     if (!first || first.type !== 'tool-result' || first.isError || !first.content) return message
+    // 源代码不折(见 result-digest.ts looksLikeCodePath / looksLikeCode)。
+    const readPath = editedPath(block.name, parseArguments(block.arguments)) ?? (parseArguments(block.arguments) as { file_path?: string; path?: string } | null)?.file_path ?? (parseArguments(block.arguments) as { path?: string } | null)?.path
+    if (looksLikeCodePath(readPath)) return message
     let changed = false
     let before = 0
     let after = 0
@@ -1445,6 +1448,7 @@ export class SliceLoopAgent implements Agent {
     const content = first.content.map((b) => {
       if (b.type !== 'text' || typeof b.text !== 'string') return b
       before += b.text.length
+      if (looksLikeCode(b.text)) return b
       const d = digestText(b.text, hint, this.digestPolicy)
       after += d.text.length
       if (!d.digested) return b

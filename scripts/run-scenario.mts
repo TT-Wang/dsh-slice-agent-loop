@@ -46,6 +46,12 @@ const { DeepSeekAdapter, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_STR
   await import(join(HARNESS, 'packages', 'llm', 'llm-deepseek', 'src', 'adapter.ts'))
 const LocalFileSystem = (await import(join(HARNESS, 'packages', 'fs', 'fs-local', 'src', 'index.ts'))).default
 const ToolFs = await import(join(HARNESS, 'packages', 'fs', 'tool-fs', 'src', 'index.ts'))
+const hp = (...p: string[]) => import(join(HARNESS, 'packages', ...p, 'src', 'index.ts'))
+const ToolFsSearch = await hp('fs', 'tool-fs-search')
+const Subprocess = (await hp('subprocess', 'subprocess')).default
+const BashLocal = (await hp('shell', 'bash-local')).default
+const ShellEnv = await hp('shell', 'shell-env')
+const ToolBash = await hp('shell', 'tool-bash')
 const SessionProjections = (await import(join(HARNESS, 'packages', 'session', 'session-projection', 'src', 'index.ts'))).default
 const PUBLIC_BASE_URL = 'https://api.deepseek.com'
 
@@ -88,6 +94,8 @@ const STATE_OPTS = { hotWindowSteps: HOT, pushHits: PUSH, extractRules: !NO_RULE
 const CAP = num('--digest-block-cap', Infinity)
 // --no-fold:关掉轮内折叠(对照旧 slice)。
 const NO_FOLD = args.includes('--no-fold')
+// --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
+const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
@@ -121,6 +129,13 @@ await ctx.plugin(ToolRegistry)
 await ctx.plugin(AgentRegistry)
 await ctx.plugin(LocalFileSystem, { cwd: workdir })
 await ctx.plugin(ToolFs, {})
+if (FULL_TOOLS) {
+  await ctx.plugin(Subprocess)
+  await ctx.plugin(ToolFsSearch, { sampleOverCapGlobResults: false })
+  await ctx.plugin(BashLocal, { cwd: workdir })
+  await ctx.plugin(ShellEnv, {})
+  await ctx.plugin(ToolBash, { enableRunInBackground: false })
+}
 // effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
 // 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
 // 'default' = 不传配置,验证出厂默认的真实生效路径。
@@ -255,7 +270,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
