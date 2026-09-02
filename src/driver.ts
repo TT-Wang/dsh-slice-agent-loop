@@ -1354,9 +1354,11 @@ export class SliceLoopAgent implements Agent {
     const completed = step - 1
     const unsealed = completed - this.sealConsideredThrough
     const before = trajectoryChars(this.turnTrajectory)
-    const n = stepsToSeal(this.inTurnSeal, before, unsealed)
+    const n = stepsToSeal(this.inTurnSeal, before, unsealed, this.sealConsideredThrough)
     if (n <= 0) return
-    const upTo = this.sealedThrough + n
+    // 宪法保护:封存起点不早于 protectEarlySteps(前 N 步的规则/清单永不折叠)。
+    const sealFrom = Math.max(this.sealConsideredThrough, this.inTurnSeal.protectEarlySteps)
+    const upTo = sealFrom + n
 
     interface Group { assistantText: string; calls: SealedCall[]; byId: Map<string, SealedCall>; interjections: string[] }
     const groups = new Map<number, Group>()
@@ -1365,7 +1367,8 @@ export class SliceLoopAgent implements Agent {
     for (let i = 0; i < this.turnTrajectory.length; i += 1) {
       const m = this.turnTrajectory[i]!
       const s = this.turnTrajectorySteps[i] ?? completed
-      if (s > upTo) { keepMsgs.push(m); keepSteps.push(s); continue }
+      // 保护步(≤ protectEarlySteps)与窗口外步(> upTo)都留作原文。
+      if (s > upTo || s <= this.inTurnSeal.protectEarlySteps) { keepMsgs.push(m); keepSteps.push(s); continue }
       let g = groups.get(s)
       if (g === undefined) { g = { assistantText: '', calls: [], byId: new Map(), interjections: [] }; groups.set(s, g) }
       const role = (m as { role?: string }).role

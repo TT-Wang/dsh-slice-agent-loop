@@ -56,16 +56,24 @@ describe('renderSealedStep', () => {
 })
 
 describe('stepsToSeal', () => {
-  const policy = resolveSealPolicy({ enabled: true, sealTokens: 1_000, batchSteps: 4, keepSteps: 2 })
+  // protectEarlySteps:0 隔离批量机制;consideredThrough 传 10(已过保护区)。
+  const policy = resolveSealPolicy({ enabled: true, sealTokens: 1_000, batchSteps: 4, keepSteps: 2, protectEarlySteps: 0 })
   const over = 1_000 * SEAL_CHARS_PER_TOKEN + 1
   it('does nothing when disabled or below the token floor', () => {
-    expect(stepsToSeal({ ...policy, enabled: false }, over, 20)).toBe(0)
-    expect(stepsToSeal(policy, over - 2, 20)).toBe(0)
+    expect(stepsToSeal({ ...policy, enabled: false }, over, 20, 10)).toBe(0)
+    expect(stepsToSeal(policy, over - 2, 20, 10)).toBe(0)
   })
   it('waits until batch + keep unsealed steps exist, then seals one batch keeping the tail', () => {
-    expect(stepsToSeal(policy, over, 5)).toBe(0)
-    expect(stepsToSeal(policy, over, 6)).toBe(4)
-    expect(stepsToSeal(policy, over, 7)).toBe(4)
+    expect(stepsToSeal(policy, over, 5, 10)).toBe(0)
+    expect(stepsToSeal(policy, over, 6, 10)).toBe(4)
+    expect(stepsToSeal(policy, over, 7, 10)).toBe(4)
+  })
+  it('shrinks the seal window so it never invades the protected early steps', () => {
+    const prot = resolveSealPolicy({ enabled: true, sealTokens: 1_000, batchSteps: 4, keepSteps: 2, protectEarlySteps: 2 })
+    // consideredThrough=0:窗口 (0,4] 侵入前 2 步 → 右移 2 → 只封 2 步。
+    expect(stepsToSeal(prot, over, 6, 0)).toBe(2)
+    // consideredThrough=2:已过保护区,整批 4 步。
+    expect(stepsToSeal(prot, over, 8, 2)).toBe(4)
   })
   it('validates policy numbers', () => {
     expect(() => resolveSealPolicy({ batchSteps: 0 })).toThrow()

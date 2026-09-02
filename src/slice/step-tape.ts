@@ -94,9 +94,13 @@ export interface SealPolicy {
   batchSteps: number
   /** 始终保留原文的最近步数。 */
   keepSteps: number
+  /** 轮内「宪法」保护:前 N 步(规则确立/清单读取)永不折叠。跨轮 seed 永不
+   *  折叠的步内类比。v2 重载荷 A/B 实证:折叠 manifest 步 → 模型丢规则
+   *  (l1 42/45、l2 0/45),即使 recall_step 可用也补不回。 */
+  protectEarlySteps: number
 }
 
-export const DEFAULT_SEAL_POLICY: SealPolicy = { enabled: false, sealTokens: 40_000, batchSteps: 8, keepSteps: 4 }
+export const DEFAULT_SEAL_POLICY: SealPolicy = { enabled: false, sealTokens: 40_000, batchSteps: 8, keepSteps: 4, protectEarlySteps: 2 }
 
 /** 封存批次的渲染体量必须 ≤ 原文的这个比例才值得(否则折叠只多付一次缓存重建
  *  而不省上下文——l1 长链病态:结果比 head+tail 保留窗还短)。 */
@@ -115,11 +119,23 @@ export const SEAL_CHARS_PER_TOKEN = 3.2
  * 条件:启用 && 轨迹 ≥ 阈值 && 未封存的已完成步 ≥ batch + keep;
  * 封 batch 步,且封完仍保留 ≥ keep 步原文。
  */
-export function stepsToSeal(policy: SealPolicy, trajectoryChars: number, unsealedCompletedSteps: number): number {
+export function stepsToSeal(
+  policy: SealPolicy,
+  trajectoryChars: number,
+  unsealedCompletedSteps: number,
+  consideredThrough: number,
+): number {
   if (!policy.enabled) return 0
   if (trajectoryChars < policy.sealTokens * SEAL_CHARS_PER_TOKEN) return 0
   if (unsealedCompletedSteps < policy.batchSteps + policy.keepSteps) return 0
-  return Math.min(policy.batchSteps, unsealedCompletedSteps - policy.keepSteps)
+  const n = Math.min(policy.batchSteps, unsealedCompletedSteps - policy.keepSteps)
+  // 宪法保护:封存窗口 (consideredThrough, consideredThrough+n] 不得侵入前
+  // protectEarlySteps 步。窗口起点在保护区内则右移起点(减少可封步数)。
+  const windowStart = consideredThrough
+  const protectedUntil = policy.protectEarlySteps
+  if (windowStart >= protectedUntil) return n
+  const shrink = protectedUntil - windowStart
+  return Math.max(0, n - shrink)
 }
 
 export function resolveSealPolicy(input: Partial<SealPolicy> | undefined): SealPolicy {
@@ -127,5 +143,6 @@ export function resolveSealPolicy(input: Partial<SealPolicy> | undefined): SealP
   for (const key of ['sealTokens', 'batchSteps', 'keepSteps'] as const) {
     if (!Number.isInteger(p[key]) || p[key] < 1) throw new Error(`inTurnSeal.${key} must be a positive integer`)
   }
+  if (!Number.isInteger(p.protectEarlySteps) || p.protectEarlySteps < 0) throw new Error('inTurnSeal.protectEarlySteps must be a non-negative integer')
   return p
 }

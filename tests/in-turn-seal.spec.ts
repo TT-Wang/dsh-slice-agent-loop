@@ -35,7 +35,7 @@ describe('in-turn sealing', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(apply, { inTurnSeal: { enabled: true, sealTokens: 1, batchSteps: 2, keepSteps: 1 } })
+    await ctx.plugin(apply, { inTurnSeal: { enabled: true, sealTokens: 1, batchSteps: 2, keepSteps: 1, protectEarlySteps: 0 } })
     ctx.llm.registerAdapter(['mock'], adapter)
     ctx.tools.register(defineContentToolFixture({
       name: 'probe',
