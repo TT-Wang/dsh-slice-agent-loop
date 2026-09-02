@@ -62,14 +62,14 @@ describe('in-turn sealing', () => {
     expect(text(2)).toContain(`payload-1:${LONG}`)
     expect(text(2)).not.toContain('SEALED STEPS')
 
-    const seals = handle.agent.session.events.filter(e => e.type === 'slice/step-seal')
+    const seals = handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/step-seal')
     expect(seals).toHaveLength(1)
     expect((seals[0]!.data as { sealedThrough: number; sealedSteps: number }).sealedThrough).toBe(2)
-    const lastSlice = handle.agent.session.events.filter(e => e.type === 'slice/request-slice').at(-1)!
+    const lastSlice = handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/request-slice').at(-1)!
     expect((lastSlice.data as { sealedThrough?: number }).sealedThrough).toBe(2)
 
     // 召回:会话日志里 step 1 的完整结果逐字可得。
-    const page = renderSealedStepPage(handle.agent.session.events, 1, 1)
+    const page = renderSealedStepPage(handle.agent.session.snapshotEvents(), 1, 1)
     expect(page).not.toBeNull()
     expect(page).toContain(`payload-1:${LONG}`)
     expect(page).toContain('probe(')
@@ -100,6 +100,6 @@ describe('in-turn sealing', () => {
     handle.agent.followup(createUserMessage({ content: [{ type: 'text', text: 'run' }], source: { kind: 'user' } }))
     await handle.agent.whenIdle()
     expect(JSON.stringify(adapter.requests[3]!.messages)).not.toContain('SEALED STEPS')
-    expect(handle.agent.session.events.filter(e => e.type === 'slice/step-seal')).toHaveLength(0)
+    expect(handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/step-seal')).toHaveLength(0)
   })
 })

@@ -34,6 +34,8 @@ import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions 
 import type { Message, UserMessage } from '@deepseek-ai/dsh-llm';
 import type { Scope } from '@deepseek-ai/dsh-scope';
 import type { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { type ReasoningEffortDefault } from './effort-default.js';
+import { type SealPolicy } from './slice/step-tape.js';
 import type { SliceContributor } from './index.js';
 /**
  * The slice driver's plugin-owned durable events.
@@ -61,11 +63,23 @@ declare module '@deepseek-ai/dsh-session' {
             step: number;
             seedDigest: string;
             messageCount: number;
+            sealedThrough?: number;
+            stepTapeDigest?: string;
         };
         'slice/step-budget': {
             turn: number;
             step: number;
             budget: number;
+        };
+        /** 轮内封存审计(step-tape.ts):本步请求前折叠了哪些步、轨迹体量前后。 */
+        'slice/step-seal': {
+            turn: number;
+            step: number;
+            sealedThrough: number;
+            sealedSteps: number;
+            entries: number;
+            trajectoryCharsBefore: number;
+            trajectoryCharsAfter: number;
         };
     }
     interface TurnEndReasonMap {
@@ -86,6 +100,10 @@ export interface SliceLoopDriverConfig {
     maxStepsPerTurn: number;
     /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
     contributors: readonly SliceContributor[];
+    /** 无人显式选择时注入的 reasoningEffort 默认档；'inherit' 退出注入。 */
+    defaultReasoningEffort: ReasoningEffortDefault;
+    /** 轮内封存策略(step-tape.ts)。enabled=false 时轨迹行为与从前完全一致。 */
+    inTurnSeal: SealPolicy;
 }
 export declare class SliceLoopAgent implements Agent {
     readonly id: SessionId;
@@ -98,6 +116,16 @@ export declare class SliceLoopAgent implements Agent {
     private readonly ledger;
     private readonly maxParallelToolCalls;
     private readonly maxStepsPerTurn;
+    private readonly defaultReasoningEffort;
+    private readonly inTurnSeal;
+    /** 与 turnTrajectory 平行:每条消息所属的步号(封存按步切)。 */
+    private turnTrajectorySteps;
+    /** 本轮已封存的步条目(append-only)与其渲染消息;sealedThrough = 已封存的最大步号。 */
+    private stepTapeEntries;
+    private stepTapeMessage;
+    private sealedThrough;
+    /** 已「评估过是否封存」的最大步号:含实际封存 + 因体量守卫跳过的。 */
+    private sealConsideredThrough;
     private readonly contributors;
     private phase;
     private activityDone;
@@ -209,6 +237,12 @@ export declare class SliceLoopAgent implements Agent {
      * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
      */
     private openFilesIndex;
+    /**
+     * 轮内封存:请求组装前,若轨迹越过阈值,把最旧的一批已完成步折成封存条目
+     * (step-tape.ts),从轨迹里移除其原文,并重建封存块消息。条目 append-only;
+     * 封存点只前进。原文仍在会话日志,recall_step 可逐字取回。
+     */
+    private maybeSealSteps;
     /** Append a model-ordered result linked to its call event. */
     private appendToolResult;
     /** Append the durable call/result pair for a model call skipped after cancellation. */

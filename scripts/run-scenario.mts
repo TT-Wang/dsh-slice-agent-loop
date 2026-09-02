@@ -157,7 +157,7 @@ const agent: Agent = handle.agent
 // followup() 只入队,whenIdle() 在唤醒注册前采样会立即返回(首跑实测:11 轮
 // 0.0s 全部穿透)。以 turn/end 事件计数为准:每轮恰好落一条,带错误原因。
 const TURN_TIMEOUT_MS = 45 * 60_000
-const turnEnds = () => agent.session.events.filter((e) => e.type === 'turn/end')
+const turnEnds = () => agent.session.snapshotEvents().filter((e) => e.type === 'turn/end')
 let toolCallsSeen = 0
 for (let i = 0; i < prompts.length; i += 1) {
   const started = Date.now()
@@ -176,7 +176,7 @@ for (let i = 0; i < prompts.length; i += 1) {
     console.error(`turn ${i + 1}: ended in error — ${reason.error?.code}: ${reason.error?.message}`)
     process.exit(1)
   }
-  const calls = agent.session.events.filter((e) => e.type === 'tool/call').length
+  const calls = agent.session.snapshotEvents().filter((e) => e.type === 'tool/call').length
   const steps = calls - toolCallsSeen
   toolCallsSeen = calls
   console.log(`turn ${String(i + 1).padStart(2)}/${prompts.length} · ${((Date.now() - started) / 1000).toFixed(1)}s · tool calls +${steps} · end=${reason?.kind ?? '?'}`)
@@ -186,7 +186,7 @@ await agent.whenIdle()
 // ── 通用账本(臂无关):从 assistant/message 事件的 usage 汇总 ─────────────────
 interface TurnRow { turn: number; steps: number; input: number; cacheRead: number; output: number; reasoning: number; peakInput: number; wallMs: number }
 const rowsByTurn = new Map<number, TurnRow>()
-for (const e of agent.session.events) {
+for (const e of agent.session.snapshotEvents()) {
   if (e.type !== 'assistant/message') continue
   const d = e.data as { turn: number; step: number; usage?: unknown }
   const n = normalizeUsage(d.usage)
@@ -198,13 +198,13 @@ for (const e of agent.session.events) {
   rowsByTurn.set(d.turn, row)
 }
 const turnRows = [...rowsByTurn.values()].sort((a, b) => a.turn - b.turn)
-const seals = agent.session.events.filter((e) => e.type === 'slice/step-seal').length
+const seals = agent.session.snapshotEvents().filter((e) => e.type === 'slice/step-seal').length
 const totals = turnRows.reduce((t, r) => ({ input: t.input + r.input, cacheRead: t.cacheRead + r.cacheRead, output: t.output + r.output, reasoning: t.reasoning + r.reasoning, steps: t.steps + r.steps, peakInput: Math.max(t.peakInput, r.peakInput) }), { input: 0, cacheRead: 0, output: 0, reasoning: 0, steps: 0, peakInput: 0 })
 
 // ── verify.py ───────────────────────────────────────────────────────────────
 // 行为闸门数据(Q3-b):工具名直方图——n1 召回调用数 / n2 施工轮工具数由此判。
 const names: Record<string, number> = {}
-for (const e of agent.session.events) {
+for (const e of agent.session.snapshotEvents()) {
   if (e.type !== 'tool/call') continue
   const d = e.data as Record<string, unknown> | undefined
   const call = (d?.call ?? d) as Record<string, unknown> | undefined

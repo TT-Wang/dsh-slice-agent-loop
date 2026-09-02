@@ -355,7 +355,7 @@ export function recallSearchToolDefinition(): ToolDefinition {
       if (!query.trim()) throw new Error('recall_search needs {"query": "..."}')
       const kinds = Array.isArray(a.kinds) && a.kinds.length > 0 ? a.kinds as SearchKind[] : undefined
       const limit = typeof a.limit === 'number' ? a.limit : undefined
-      const hits = searchSessionEvents(agent.session.events, query, { ...(kinds ? { kinds } : {}), ...(limit ? { limit } : {}) })
+      const hits = searchSessionEvents(agent.session.snapshotEvents(), query, { ...(kinds ? { kinds } : {}), ...(limit ? { limit } : {}) })
       return renderSearchHits(query, hits, kinds ?? DEFAULT_SEARCH_KINDS)
     },
   })
@@ -395,9 +395,9 @@ export function recallToolDefinition(): ToolDefinition {
       if (turn === null) {
         throw new Error('recall_turn needs {"turn": "slice-turn-N"} (or just "N")')
       }
-      const page = renderSealedTurn(agent.session.events, turn)
+      const page = renderSealedTurn(agent.session.snapshotEvents(), turn)
       if (page === null) {
-        const known = sealedTurns(agent.session.events)
+        const known = sealedTurns(agent.session.snapshotEvents())
         throw new Error(
           `no recorded turn ${turn} in this session`
           + (known.length > 0 ? ` (sealed turns: ${known.slice(0, 20).join(', ')})` : ' (no sealed turns yet)'),

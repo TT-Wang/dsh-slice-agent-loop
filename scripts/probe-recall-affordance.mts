@@ -48,7 +48,7 @@ const handle = await ctx.agents.create({
   agentOptions: { provider: 'deepseek', model: 'deepseek-v4-flash' },
 })
 const agent = handle.agent
-const turnEnds = () => agent.session.events.filter((e: { type: string }) => e.type === 'turn/end')
+const turnEnds = () => agent.session.snapshotEvents().filter((e: { type: string }) => e.type === 'turn/end')
 async function runTurn(text: string): Promise<void> {
   const before = turnEnds().length
   const started = Date.now()
@@ -59,7 +59,7 @@ async function runTurn(text: string): Promise<void> {
   }
 }
 const lastReply = (): string => {
-  const es = agent.session.events.filter((e: { type: string }) => e.type === 'assistant/message')
+  const es = agent.session.snapshotEvents().filter((e: { type: string }) => e.type === 'assistant/message')
   const m = (es.at(-1)?.data as { message: { content: Array<{ type: string; text?: string }> } }).message
   return m.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
 }
@@ -79,9 +79,9 @@ const midOk = CODE !== '' && t1.length > 4000 && at > REPLY_HEAD_CHARS + 200 && 
 console.log(JSON.stringify({ phase: 'T1', effort: EFFORT, len: t1.length, codeAt: at, buriedInTruncatedBand: midOk }))
 if (!midOk) { console.log('PROBE-INVALID: code word not in truncated band'); process.exit(3) }
 
-const callsBefore = agent.session.events.filter((e: { type: string }) => e.type === 'tool/call').length
+const callsBefore = agent.session.snapshotEvents().filter((e: { type: string }) => e.type === 'tool/call').length
 await runTurn('Quote, verbatim and in full, the exact last sentence of fact 5 from your previous reply, including the specific code word you chose. Do not paraphrase.')
-const recallCalls = agent.session.events
+const recallCalls = agent.session.snapshotEvents()
   .filter((e: { type: string }) => e.type === 'tool/call').slice(callsBefore)
   .map((e: { data?: unknown }) => { const d = e.data as Record<string, unknown> | undefined; const c = (d?.call ?? d) as Record<string, unknown> | undefined; return String(c?.name ?? c?.tool ?? '?') })
 const correct = lastReply().includes(CODE)

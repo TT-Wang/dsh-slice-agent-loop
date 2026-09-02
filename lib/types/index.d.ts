@@ -13,6 +13,15 @@ import { Context, Service } from '@deepseek-ai/cordis';
 export interface Config {
     maxParallelToolCalls?: number;
     maxStepsPerTurn?: number;
+    /** reasoningEffort 插件默认档(无人显式选择时注入);'inherit' 退出。缺省 'low'。 */
+    defaultReasoningEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit';
+    /** 轮内封存(提案 2026-09-02)。缺省关闭;A/B 裁决后再定出厂值。 */
+    inTurnSeal?: {
+        enabled?: boolean;
+        sealTokens?: number;
+        batchSteps?: number;
+        keepSteps?: number;
+    };
 }
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
 export declare const DEFAULT_MAX_PARALLEL_TOOL_CALLS = 10;

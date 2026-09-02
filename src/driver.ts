@@ -76,7 +76,7 @@ import type {
   SurfaceEvent,
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
@@ -320,8 +320,8 @@ export class SliceLoopAgent implements Agent {
     this.restoreContinuity(session)
     // Resume: turn numbering continues from the seeded session's last turn.
     let lastTurn = 0
-    for (let index = session.events.length - 1; index >= 0; index -= 1) {
-      const event = session.events[index]!
+    for (let index = session.snapshotEvents().length - 1; index >= 0; index -= 1) {
+      const event = session.snapshotEvents()[index]!
       if (event.type === 'turn/start') {
         lastTurn = event.data.turn
         break
@@ -361,7 +361,7 @@ export class SliceLoopAgent implements Agent {
       recordUser(this.cont, text, openTurn ?? undefined)
       recordedThisTurn = true
     }
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       if (event.type === 'turn/start') {
         openTurn = event.data.turn
       } else if (event.type === 'step/start') {
@@ -1062,7 +1062,7 @@ export class SliceLoopAgent implements Agent {
       })) as GenerateOptions
 
       const assembler = new BlockAssembler()
-      const chunkSeqs: number[] = []
+      const chunkSeqs: SessionSeq[] = []
       const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request)
       signal.throwIfAborted()
       for await (const chunk of stream) {
@@ -1192,7 +1192,7 @@ export class SliceLoopAgent implements Agent {
     const scheduler = (this.loopCtx.tools as unknown as Record<symbol, unknown>)[schedulerKey] as import('@deepseek-ai/dsh-tools').ToolRuntimeScheduler
     const slots: Array<ToolSlot | undefined> = group.map(() => undefined)
     // Started slots retain their tool/call seq for result provenance.
-    const callSeqs: number[] = group.map(() => -1)
+    const callSeqs: SessionSeq[] = group.map(() => -1 as SessionSeq) // sentinel, overwritten before use
     let nextToStart = 0
     let committed = 0
     let started = 0
@@ -1306,7 +1306,7 @@ export class SliceLoopAgent implements Agent {
   }
 
   /** Append a started call and return its provenance sequence. */
-  private appendToolCall(turn: number, step: number, block: ToolCallBlock): number {
+  private appendToolCall(turn: number, step: number, block: ToolCallBlock): SessionSeq {
     const event = this.session.append('tool/call', {
       turn, step, callId: block.id, name: block.name, arguments: block.arguments,
     })
@@ -1433,7 +1433,7 @@ export class SliceLoopAgent implements Agent {
     step: number,
     block: ToolCallBlock,
     result: ToolExecutionResult,
-    callSeq: number,
+    callSeq: SessionSeq,
   ): void {
     const message = createToolResultMessage({
       callId: block.id,

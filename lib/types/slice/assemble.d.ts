@@ -36,6 +36,16 @@ export interface SliceInput {
         text: string;
     }[];
 }
+/**
+ * Zone header table, in body order. Exported for offline miss attribution
+ * (src/slice/miss-attribution.ts maps a byte-divergence offset back to the
+ * zone whose header precedes it). These are the SAME constants the assembly
+ * below joins — lockstep by construction, not by copy.
+ */
+export declare const ZONE_HEADERS: readonly {
+    readonly zone: string;
+    readonly header: string;
+}[];
 export interface AssembledSlice {
     /** 宿主拥有的字节稳定 system 前缀，原样透传。 */
     system: string;

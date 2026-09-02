@@ -90,7 +90,7 @@ export function recallStepToolDefinition(): ToolDefinition {
       const turn = parseInt1(a?.turn)
       const step = parseInt1(a?.step)
       if (turn === null || step === null) throw new Error('recall_step needs {"turn": "N", "step": "M"}')
-      const page = renderSealedStepPage(agent.session.events, turn, step)
+      const page = renderSealedStepPage(agent.session.snapshotEvents(), turn, step)
       if (page === null) throw new Error(`no recorded tool calls for turn ${turn} step ${step}`)
       return page
     },

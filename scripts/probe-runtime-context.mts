@@ -60,7 +60,7 @@ const handle = await ctx.agents.create({
 })
 const agent = handle.agent
 
-const turnEnds = () => agent.session.events.filter((e: { type: string }) => e.type === 'turn/end')
+const turnEnds = () => agent.session.snapshotEvents().filter((e: { type: string }) => e.type === 'turn/end')
 async function runTurn(i: number, text: string): Promise<void> {
   const before = turnEnds().length
   const started = Date.now()
