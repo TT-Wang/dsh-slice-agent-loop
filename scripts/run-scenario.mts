@@ -77,7 +77,8 @@ const SEAL = { enabled: ARM === 'slice-seal', sealTokens: num('--seal-tokens', 4
 const LEDGER_DIR = (() => { const i = args.indexOf('--ledger-dir'); return i !== -1 ? args[i + 1]! : 'results/longturn' })()
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
-const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number }
+const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number; max_steps_per_turn?: number }
+const MAX_STEPS = meta.max_steps_per_turn ?? 60
 if (!process.env.DEEPSEEK_API_KEY) {
   console.error('DEEPSEEK_API_KEY not in env')
   process.exit(2)
@@ -117,6 +118,8 @@ if (ARM === 'transcript') {
   await ctx.plugin(apply, {
     ...(EFFORT === 'default' ? {} : { defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max' }),
     inTurnSeal: SEAL,
+    // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
+    maxStepsPerTurn: MAX_STEPS,
   })
 }
 
@@ -153,7 +156,7 @@ const agent: Agent = handle.agent
 // ── turns ───────────────────────────────────────────────────────────────────
 // followup() 只入队,whenIdle() 在唤醒注册前采样会立即返回(首跑实测:11 轮
 // 0.0s 全部穿透)。以 turn/end 事件计数为准:每轮恰好落一条,带错误原因。
-const TURN_TIMEOUT_MS = 10 * 60_000
+const TURN_TIMEOUT_MS = 45 * 60_000
 const turnEnds = () => agent.session.events.filter((e) => e.type === 'turn/end')
 let toolCallsSeen = 0
 for (let i = 0; i < prompts.length; i += 1) {

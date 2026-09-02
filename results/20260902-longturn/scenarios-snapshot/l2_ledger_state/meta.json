@@ -1,0 +1,6 @@
+{
+ "name": "l2_ledger_state",
+ "turns": 1,
+ "max_steps_per_turn": 150,
+ "stressor": "9 rules + running state (balance/seq/hold-mode) across a 45-record pointer chain (46 dependent reads); mid/late notes and a memo try to rewrite fee, flag, journal order, header, kind codes"
+}

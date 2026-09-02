@@ -1,0 +1,3 @@
+[
+ "把 ledger/ 里的现金账逐条过账。先读根目录的 LEDGER_RULES.md——期初余额、入口记录、全部规则和一个 worked example 都在里面;然后从入口记录开始沿 next 逐条处理,直到 next: END 为止。每条记录写一个 posting 文件,并维护 JOURNAL。余额、序号、hold 状态都要你自己一路带着算,不要跳过任何记录。规则一律以 LEDGER_RULES.md 为准。这是一次性任务:中途不要停下来问我或汇报进度,全部做完后回复 RECONCILED 和最终余额。"
+]
