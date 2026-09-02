@@ -23,6 +23,12 @@ export const DEFAULT_DIGEST_POLICY: DigestPolicy = { minChars: 1500, headLines: 
 
 /** 结构行:`key = value`、`key: value`、markdown/注释标题、围栏。噪音正文极少长这样。 */
 const STRUCTURED = /^\s*(?:[A-Za-z_][\w.\-]*\s*[=:]\s*\S|#{1,6}\s|\[[^\]]+\]\s*$|```)/
+/** read 工具按 OpenCode 风格给每行加 `N: ` 前缀(grep 是 `N|`/`N:`);判结构前先剥掉。 */
+const LINE_NUMBER_PREFIX = /^\s*\d+[:|]\s?/
+
+function isStructured(line: string): boolean {
+  return STRUCTURED.test(line.replace(LINE_NUMBER_PREFIX, ''))
+}
 
 export interface DigestResult {
   text: string
@@ -38,7 +44,7 @@ export function digestText(text: string, recallHint: string, policy: DigestPolic
   const keep = new Set<number>()
   for (let i = 0; i < Math.min(policy.headLines, n); i += 1) keep.add(i)
   for (let i = Math.max(0, n - policy.tailLines); i < n; i += 1) keep.add(i)
-  for (let i = 0; i < n; i += 1) if (STRUCTURED.test(lines[i]!)) keep.add(i)
+  for (let i = 0; i < n; i += 1) if (isStructured(lines[i]!)) keep.add(i)
 
   const out: string[] = []
   let i = 0
@@ -46,7 +52,10 @@ export function digestText(text: string, recallHint: string, policy: DigestPolic
     if (keep.has(i)) { out.push(lines[i]!); i += 1; continue }
     let j = i
     while (j < n && !keep.has(j)) j += 1
-    const elidedChars = lines.slice(i, j).reduce((a, l) => a + l.length + 1, 0)
+    const run = lines.slice(i, j)
+    // 纯空白行的间隔不值一个省略标记(标记比空行还长):折成一个空行。
+    if (run.every((l) => l.replace(LINE_NUMBER_PREFIX, '').trim() === '')) { out.push(run[0]!); i = j; continue }
+    const elidedChars = run.reduce((a, l) => a + l.length + 1, 0)
     out.push(`…[${j - i} lines / ${elidedChars} chars elided — ${recallHint} for the full text]…`)
     i = j
   }

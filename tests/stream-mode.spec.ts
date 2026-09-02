@@ -34,6 +34,14 @@ describe('digestText', () => {
     // 全是结构行:折不省 → 原样
     const allKv = Array.from({ length: 200 }, (_, i) => `k${i} = v${i}`).join('\n')
     expect(digestText(allKv, 'x').digested).toBe(false)
+    // read 工具的 `N: ` 行号前缀不影响结构判定;行号原样保留;纯空行的间隔不出省略标记。
+    const numbered = NODE.split('\n').map((l, i) => `${i + 1}: ${l}`).join('\n') + '\n\n(End of file - total 250 lines)'
+    const dn = digestText(numbered, 'recall_step(1, 2)')
+    expect(dn.digested).toBe(true)
+    expect(dn.text).toMatch(/^1: name = alpha\n2: tier = gold\n3: next = beta.txt\n/)
+    expect(dn.text).toContain('owner: ops-team')
+    expect(dn.text).toContain('(End of file - total 250 lines)')
+    expect(dn.text).not.toMatch(/\[1 lines \/ 1 chars elided/)
   })
 })
 
