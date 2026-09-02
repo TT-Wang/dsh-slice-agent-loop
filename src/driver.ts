@@ -88,6 +88,7 @@ import {
 import { InboxLedger } from './inbox-ledger.js'
 import { recordSeedEvent, recordCallEvent } from './call-ledger.js'
 import { applyEffortDefault, type ReasoningEffortDefault } from './effort-default.js'
+import { renderSealedStep, renderStepTape, stepsToSeal, type SealPolicy, type SealedCall } from './slice/step-tape.js'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import type { SliceContributionFacts, SliceContributor } from './index.js'
@@ -124,8 +125,10 @@ import {
 declare module '@deepseek-ai/dsh-session' {
   interface SessionEventMap {
     'slice/file-anchor': { turn: number; path: string; body: string }
-    'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number }
+    'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number; sealedThrough?: number; stepTapeDigest?: string }
     'slice/step-budget': { turn: number; step: number; budget: number }
+    /** 轮内封存审计(step-tape.ts):本步请求前折叠了哪些步、轨迹体量前后。 */
+    'slice/step-seal': { turn: number; step: number; sealedThrough: number; sealedSteps: number; entries: number; trajectoryCharsBefore: number; trajectoryCharsAfter: number }
   }
   // dsh-session documents this map as a plugin extension point ("plugins extend
   // it by merging variants into the map"), so `step-budget` is a first-class
@@ -175,6 +178,8 @@ export interface SliceLoopDriverConfig {
   contributors: readonly SliceContributor[]
   /** 无人显式选择时注入的 reasoningEffort 默认档；'inherit' 退出注入。 */
   defaultReasoningEffort: ReasoningEffortDefault
+  /** 轮内封存策略(step-tape.ts)。enabled=false 时轨迹行为与从前完全一致。 */
+  inTurnSeal: SealPolicy
 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
@@ -235,6 +240,13 @@ export class SliceLoopAgent implements Agent {
   private readonly maxParallelToolCalls: number
   private readonly maxStepsPerTurn: number
   private readonly defaultReasoningEffort: ReasoningEffortDefault
+  private readonly inTurnSeal: SealPolicy
+  /** 与 turnTrajectory 平行:每条消息所属的步号(封存按步切)。 */
+  private turnTrajectorySteps: number[] = []
+  /** 本轮已封存的步条目(append-only)与其渲染消息;sealedThrough = 已封存的最大步号。 */
+  private stepTapeEntries: string[] = []
+  private stepTapeMessage: UserMessage | undefined
+  private sealedThrough = 0
   private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
@@ -262,6 +274,7 @@ export class SliceLoopAgent implements Agent {
     this.maxStepsPerTurn = config.maxStepsPerTurn
     this.contributors = config.contributors
     this.defaultReasoningEffort = config.defaultReasoningEffort
+    this.inTurnSeal = config.inTurnSeal
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -708,6 +721,10 @@ export class SliceLoopAgent implements Agent {
     phase.turn = turn
     this.turnSeedUser = undefined
     this.turnTrajectory = []
+    this.turnTrajectorySteps = []
+    this.stepTapeEntries = []
+    this.stepTapeMessage = undefined
+    this.sealedThrough = 0
     let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
@@ -912,20 +929,32 @@ export class SliceLoopAgent implements Agent {
       if (!proposed.provider || !proposed.model) {
         throw new Error(`agent "${this.id}" has no provider/model: set AgentOptions.provider and AgentOptions.model or supply both via the agent/request waterfall`)
       }
-      // Q4-b:无人显式选择 effort 时注入插件默认(low)。显式值(选项/恢复头/
-      // waterfall)已在 proposed 上定义,恒不覆盖;适配器默认在 requestProposal
-      // 剥离,落到这里恒 undefined。注入发生在 header 规范化之前,epoch header
-      // 如实记录生效值——logged ⟺ sent 审计不变式不破。
-      const effortResolved = applyEffortDefault(proposed, this.defaultReasoningEffort)
       let config: LlmCallConfig
       let preparedCall: PreparedLlmCall | undefined
       try {
-        preparedCall = await this.loopCtx.llm.prepareCall(effortResolved, signal)
+        preparedCall = await this.loopCtx.llm.prepareCall(proposed, signal)
         config = preparedCall.config
+        // Q4-b:effort 由适配器默认填充(adapterDefaults.reasoningEffort === true,
+        // 即无人显式选择)时,尝试注入插件默认档。显式值恒不覆盖。适配器不声明
+        // 该档(mock / 无 reasoning 能力的模型)→ UNSUPPORTED_REASONING_EFFORT →
+        // 保留适配器默认。注入经 prepareCall 重新解析,header 如实记录生效值——
+        // logged ⟺ sent 审计不变式不破。
+        if (preparedCall.adapterDefaults.reasoningEffort === true) {
+          const injected = applyEffortDefault({ ...proposed, reasoningEffort: undefined }, this.defaultReasoningEffort)
+          if (injected.reasoningEffort !== undefined) {
+            try {
+              const retried = await this.loopCtx.llm.prepareCall(injected, signal)
+              preparedCall = retried
+              config = retried.config
+            } catch (error: unknown) {
+              if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'UNSUPPORTED_REASONING_EFFORT') throw error
+            }
+          }
+        }
       } catch (error: unknown) {
         // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
         if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'NO_ADAPTER') throw error
-        config = effortResolved
+        config = proposed
       }
       signal.throwIfAborted()
 
@@ -995,8 +1024,18 @@ export class SliceLoopAgent implements Agent {
       } else {
         // 轮内到达的输入作为独立 user 消息接在轨迹末尾（时序与日志一致），
         // 并留在轨迹里供后续步复用——绝不篡夺种子的 CURRENT REQUEST 槽。
-        if (claimed.length > 0) this.turnTrajectory.push(...claimed)
-        messages = [this.turnSeedUser, ...this.turnTrajectory]
+        if (claimed.length > 0) {
+          this.turnTrajectory.push(...claimed)
+          this.turnTrajectorySteps.push(...claimed.map(() => step))
+        }
+        // 轮内封存(提案 2026-09-02):轨迹越过阈值时把最旧的一批已完成步折成
+        // 封存块,插在种子之后、剩余原文之前。默认关闭——行为由 A/B 裁决。
+        this.maybeSealSteps(turn, step)
+        messages = [
+          this.turnSeedUser,
+          ...(this.stepTapeMessage === undefined ? [] : [this.stepTapeMessage]),
+          ...this.turnTrajectory,
+        ]
       }
       // 审计记录（评审 D）：这个 loop 发的是重建切片而不是 deriveMessages()，
       // 所以 DSH 的 model-visible ⟺ logged 断言对它不成立。落一条摘要事件把
@@ -1006,6 +1045,9 @@ export class SliceLoopAgent implements Agent {
         turn, step,
         seedDigest: sliceDigest(seedTextOf(messages)),
         messageCount: messages.length,
+        ...(this.sealedThrough > 0
+          ? { sealedThrough: this.sealedThrough, stepTapeDigest: sliceDigest(renderStepTape(this.stepTapeEntries)) }
+          : {}),
       })
       const request = harnessUniverse().llm.markAgentLoopRequest(deepFreeze({
         ...header.config,
@@ -1065,6 +1107,7 @@ export class SliceLoopAgent implements Agent {
       })
       // 轮内轨迹 + 对话环助手侧（continuity.ts fillAssistant）。
       this.turnTrajectory.push(message)
+      this.turnTrajectorySteps.push(step)
       const assistantText = message.content
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
         .map((b) => b.text).join('')
@@ -1299,6 +1342,70 @@ export class SliceLoopAgent implements Agent {
     }).join('\n')
   }
 
+  /**
+   * 轮内封存:请求组装前,若轨迹越过阈值,把最旧的一批已完成步折成封存条目
+   * (step-tape.ts),从轨迹里移除其原文,并重建封存块消息。条目 append-only;
+   * 封存点只前进。原文仍在会话日志,recall_step 可逐字取回。
+   */
+  private maybeSealSteps(turn: number, step: number): void {
+    const completed = step - 1
+    const unsealed = completed - this.sealedThrough
+    const before = trajectoryChars(this.turnTrajectory)
+    const n = stepsToSeal(this.inTurnSeal, before, unsealed)
+    if (n <= 0) return
+    const upTo = this.sealedThrough + n
+
+    interface Group { assistantText: string; calls: SealedCall[]; byId: Map<string, SealedCall>; interjections: string[] }
+    const groups = new Map<number, Group>()
+    const keepMsgs: Message[] = []
+    const keepSteps: number[] = []
+    for (let i = 0; i < this.turnTrajectory.length; i += 1) {
+      const m = this.turnTrajectory[i]!
+      const s = this.turnTrajectorySteps[i] ?? completed
+      if (s > upTo) { keepMsgs.push(m); keepSteps.push(s); continue }
+      let g = groups.get(s)
+      if (g === undefined) { g = { assistantText: '', calls: [], byId: new Map(), interjections: [] }; groups.set(s, g) }
+      const role = (m as { role?: string }).role
+      if (role === 'assistant') {
+        for (const block of m.content as ReadonlyArray<{ type: string; text?: string; id?: string; name?: string; arguments?: string }>) {
+          if (block.type === 'text' && block.text) g.assistantText += block.text
+          else if (block.type === 'tool-call') {
+            const c: SealedCall = { name: block.name ?? '?', arguments: block.arguments ?? '', resultText: '', isError: false }
+            g.calls.push(c)
+            if (block.id) g.byId.set(block.id, c)
+          }
+        }
+      } else if ((m as UserMessage).source?.kind === 'tool') {
+        const block = m.content[0] as { type: string; toolCallId?: string; isError?: boolean } | undefined
+        const c = block?.toolCallId ? g.byId.get(block.toolCallId) : undefined
+        const text = toolResultText(m as unknown as { content: readonly { content?: readonly unknown[] }[] })
+        if (c !== undefined) { c.resultText = text; c.isError = block?.isError === true }
+        else g.calls.push({ name: '?', arguments: '', resultText: text, isError: block?.isError === true })
+      } else {
+        g.interjections.push(blockText(m as UserMessage))
+      }
+    }
+    for (const s of [...groups.keys()].sort((a, b) => a - b)) {
+      const g = groups.get(s)!
+      this.stepTapeEntries.push(renderSealedStep(turn, { step: s, assistantText: g.assistantText, calls: g.calls, interjections: g.interjections }))
+    }
+    this.turnTrajectory = keepMsgs
+    this.turnTrajectorySteps = keepSteps
+    this.sealedThrough = upTo
+    this.stepTapeMessage = createUserMessage({
+      content: [{ type: 'text' as const, text: renderStepTape(this.stepTapeEntries) }],
+      source: { kind: 'user' },
+    })
+    this.session.append('slice/step-seal', {
+      turn, step,
+      sealedThrough: upTo,
+      sealedSteps: n,
+      entries: this.stepTapeEntries.length,
+      trajectoryCharsBefore: before,
+      trajectoryCharsAfter: trajectoryChars(this.turnTrajectory),
+    })
+  }
+
   /** Append a model-ordered result linked to its call event. */
   private appendToolResult(
     turn: number,
@@ -1321,6 +1428,7 @@ export class SliceLoopAgent implements Agent {
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     trackToolOutcome(this.cont, result.isError === true, toolResultText(message))
     this.turnTrajectory.push(message)
+    this.turnTrajectorySteps.push(step)
     // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的
     // `block.name` 是模型看见的名字（呈现平面）；code 模式下它恒为 `run_code`，
     // 真实的 write/edit 是 run_code 程序里的子调用，顶层永远看不到。
@@ -1357,6 +1465,13 @@ function reasoningText(message: { content: readonly { type?: string; text?: stri
     .filter((b) => b.type === 'reasoning')
     .map((b) => b.text ?? '')
     .join('')
+}
+
+/** 轨迹的序列化体量(封存阈值用;近似请求字节)。 */
+function trajectoryChars(messages: readonly Message[]): number {
+  let n = 0
+  for (const m of messages) n += JSON.stringify(m.content).length
+  return n
 }
 
 function blockText(message: UserMessage): string {

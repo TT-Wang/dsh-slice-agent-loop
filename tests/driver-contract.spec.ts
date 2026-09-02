@@ -2565,9 +2565,9 @@ describe('SliceLoopAgent contract gates', () => {
     }).toEqual({
       // recall_turn is plugin-owned and rides every catalog (src/recall.ts).
       requestSystem: true,
-      requestTools: ['audit_echo', 'recall_search', 'recall_turn'],
+      requestTools: ['audit_echo', 'recall_search', 'recall_step', 'recall_turn'],
       headerSystem: true,
-      headerTools: ['audit_echo', 'recall_search', 'recall_turn'],
+      headerTools: ['audit_echo', 'recall_search', 'recall_step', 'recall_turn'],
     })
     await handle.dispose()
     await ctx.fiber.dispose()

@@ -24,10 +24,12 @@ import ToolRegistry from '@deepseek-ai/dsh-tools'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { homedir, tmpdir } from 'node:os'
 import { basename, join, resolve } from 'node:path'
 import apply from '../src/index.ts'
+import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
+import { normalizeUsage } from '../src/call-ledger.ts'
 
 function harnessRoot(): string {
   const candidates = [
@@ -44,6 +46,7 @@ const { DeepSeekAdapter, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_STR
   await import(join(HARNESS, 'packages', 'llm', 'llm-deepseek', 'src', 'adapter.ts'))
 const LocalFileSystem = (await import(join(HARNESS, 'packages', 'fs', 'fs-local', 'src', 'index.ts'))).default
 const ToolFs = await import(join(HARNESS, 'packages', 'fs', 'tool-fs', 'src', 'index.ts'))
+const SessionProjections = (await import(join(HARNESS, 'packages', 'session', 'session-projection', 'src', 'index.ts'))).default
 const PUBLIC_BASE_URL = 'https://api.deepseek.com'
 
 // ── args ────────────────────────────────────────────────────────────────────
@@ -61,6 +64,17 @@ if (!['off', 'low', 'high', 'max', 'default'].includes(EFFORT)) {
   console.error(`--effort must be off|low|high|max|default, got ${EFFORT}`)
   process.exit(2)
 }
+// 三臂 A/B(2026-09-02 轮内切片提案):transcript = DSH 原生 AgentLoop;
+// slice-noseal = 现状 slice;slice-seal = 轮内封存开启。同 effort、同工具、同种子。
+const armIdx = args.indexOf('--arm')
+const ARM = armIdx !== -1 ? args[armIdx + 1]! : 'slice-noseal'
+if (!['transcript', 'slice-noseal', 'slice-seal'].includes(ARM)) {
+  console.error(`--arm must be transcript|slice-noseal|slice-seal, got ${ARM}`)
+  process.exit(2)
+}
+const num = (flag: string, dflt: number) => { const i = args.indexOf(flag); return i !== -1 ? Number(args[i + 1]) : dflt }
+const SEAL = { enabled: ARM === 'slice-seal', sealTokens: num('--seal-tokens', 40_000), batchSteps: num('--batch', 8), keepSteps: num('--keep', 4) }
+const LEDGER_DIR = (() => { const i = args.indexOf('--ledger-dir'); return i !== -1 ? args[i + 1]! : 'results/longturn' })()
 const scenario = basename(resolve(scenarioDir))
 const prompts: string[] = JSON.parse(readFileSync(join(scenarioDir, 'prompts.json'), 'utf8'))
 const meta = JSON.parse(readFileSync(join(scenarioDir, 'meta.json'), 'utf8')) as { turns: number }
@@ -81,7 +95,7 @@ const py = (fn: string) =>
     fn,
   ].join('\n')], { encoding: 'utf8' })
 py(`import setup; setup.setup(${JSON.stringify(workdir)})`)
-console.log(`scenario ${scenario} · ${prompts.length} turns (meta says ${meta.turns}) · model ${MODEL} · effort ${EFFORT}\nworkdir ${workdir}`)
+console.log(`scenario ${scenario} · ${prompts.length} turns (meta says ${meta.turns}) · model ${MODEL} · effort ${EFFORT} · arm ${ARM}${SEAL.enabled ? ` (seal ${SEAL.sealTokens}t/${SEAL.batchSteps}/${SEAL.keepSteps})` : ''}\nworkdir ${workdir}`)
 
 // ── boot ────────────────────────────────────────────────────────────────────
 const ctx = new Context()
@@ -95,7 +109,16 @@ await ctx.plugin(ToolFs, {})
 // effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
 // 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
 // 'default' = 不传配置,验证出厂默认的真实生效路径。
-await ctx.plugin(apply, EFFORT === 'default' ? {} : { defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max' })
+if (ARM === 'transcript') {
+  // 原生 loop 需要 sessionProjections;effort 走 connection defaults(下面)。
+  await ctx.plugin(SessionProjections)
+  await ctx.plugin(StockAgentLoop, {})
+} else {
+  await ctx.plugin(apply, {
+    ...(EFFORT === 'default' ? {} : { defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max' }),
+    inTurnSeal: SEAL,
+  })
+}
 
 const connection = {
   baseURL: PUBLIC_BASE_URL,
@@ -103,7 +126,8 @@ const connection = {
   // effort 阶梯实验(20260901 共识 Q2):经 connection defaults 注入——四臂提示词
   // 字节完全相同,epoch header 自动带 adapterDefaults 标记。恒显式设置以保证
   // 四臂走同一条解析路径。
-  defaults: {},
+  // transcript 臂没有插件注入通道,effort 经适配器默认落地;slice 臂两条通道同值。
+  defaults: EFFORT === 'default' ? {} : { reasoningEffort: EFFORT },
   maxTokens: DEFAULT_MAX_TOKENS,
   defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
   models: [{ id: MODEL }],
@@ -119,7 +143,7 @@ ctx.llm.registerAdapter(['deepseek'], new DeepSeekAdapter({
   prepareExtensions: () => Promise.resolve({ fields: {}, accept: () => Promise.resolve() }),
 }))
 
-const sessionId = `slice-val-${scenario}-${EFFORT}-${Date.now()}`
+const sessionId = `slice-val-${scenario}-${ARM}-${EFFORT}-${Date.now()}`
 const handle = await ctx.agents.create({
   sessionId: SessionId(sessionId),
   agentOptions: { provider: 'deepseek', model: MODEL },
@@ -156,6 +180,24 @@ for (let i = 0; i < prompts.length; i += 1) {
 }
 await agent.whenIdle()
 
+// ── 通用账本(臂无关):从 assistant/message 事件的 usage 汇总 ─────────────────
+interface TurnRow { turn: number; steps: number; input: number; cacheRead: number; output: number; reasoning: number; peakInput: number; wallMs: number }
+const rowsByTurn = new Map<number, TurnRow>()
+for (const e of agent.session.events) {
+  if (e.type !== 'assistant/message') continue
+  const d = e.data as { turn: number; step: number; usage?: unknown }
+  const n = normalizeUsage(d.usage)
+  if (!n) continue
+  const row = rowsByTurn.get(d.turn) ?? { turn: d.turn, steps: 0, input: 0, cacheRead: 0, output: 0, reasoning: 0, peakInput: 0, wallMs: 0 }
+  row.steps = Math.max(row.steps, d.step)
+  row.input += n.input; row.cacheRead += n.cacheRead; row.output += n.output; row.reasoning += n.reasoning
+  row.peakInput = Math.max(row.peakInput, n.input + n.cacheRead)
+  rowsByTurn.set(d.turn, row)
+}
+const turnRows = [...rowsByTurn.values()].sort((a, b) => a.turn - b.turn)
+const seals = agent.session.events.filter((e) => e.type === 'slice/step-seal').length
+const totals = turnRows.reduce((t, r) => ({ input: t.input + r.input, cacheRead: t.cacheRead + r.cacheRead, output: t.output + r.output, reasoning: t.reasoning + r.reasoning, steps: t.steps + r.steps, peakInput: Math.max(t.peakInput, r.peakInput) }), { input: 0, cacheRead: 0, output: 0, reasoning: 0, steps: 0, peakInput: 0 })
+
 // ── verify.py ───────────────────────────────────────────────────────────────
 // 行为闸门数据(Q3-b):工具名直方图——n1 召回调用数 / n2 施工轮工具数由此判。
 const names: Record<string, number> = {}
@@ -172,6 +214,11 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-writeFileSync(join(workdir, 'verdict.json'), JSON.stringify({ scenario, sessionId, model: MODEL, effort: EFFORT, toolHistogram: names, ...verdict }, null, 2))
-console.log(`verdict: ${verdict.ok ? '✓' : '✗'} ${verdict.detail}\nsession ${sessionId}\nsidecar ${process.env.SLICE_CALL_LEDGER_DIR ?? '(unset)'}/${sessionId}.calls.jsonl`)
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, seal: SEAL, sessionId, workdir, turns: turnRows, totals, seals, toolHistogram: names, verdict }
+mkdirSync(LEDGER_DIR, { recursive: true })
+const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
+writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
+writeFileSync(join(workdir, 'verdict.json'), JSON.stringify(ledger, null, 2))
+console.log(`totals: steps=${totals.steps} miss=${totals.input} hit=${totals.cacheRead} out=${totals.output} (reasoning ${totals.reasoning}) peakPrompt=${totals.peakInput} seals=${seals}`)
+console.log(`verdict: ${verdict.ok ? '✓' : '✗'} ${verdict.detail}\nsession ${sessionId}\nledger ${ledgerPath}`)
 process.exit(0)

@@ -18,6 +18,8 @@ import { SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
+import { resolveSealPolicy } from './slice/step-tape.js'
+import { recallStepToolDefinition } from './recall-step.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
 
 export interface Config {
@@ -25,6 +27,8 @@ export interface Config {
   maxStepsPerTurn?: number
   /** reasoningEffort 插件默认档(无人显式选择时注入);'inherit' 退出。缺省 'low'。 */
   defaultReasoningEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'
+  /** 轮内封存(提案 2026-09-02)。缺省关闭;A/B 裁决后再定出厂值。 */
+  inTurnSeal?: { enabled?: boolean; sealTokens?: number; batchSteps?: number; keepSteps?: number }
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
@@ -200,6 +204,7 @@ export class SliceLoopPlugin extends Service {
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
     const defaultReasoningEffort = config.defaultReasoningEffort ?? DEFAULT_REASONING_EFFORT
+    const inTurnSeal = resolveSealPolicy(config.inTurnSeal)
     if (!REASONING_EFFORT_DEFAULTS.includes(defaultReasoningEffort)) {
       throw new Error(`defaultReasoningEffort must be one of ${REASONING_EFFORT_DEFAULTS.join('|')}`)
     }
@@ -258,6 +263,8 @@ export class SliceLoopPlugin extends Service {
     // hits name recall_turn follow-ups. Ordinary tool output excluded by
     // default (flood guard) — see DEFAULT_SEARCH_KINDS in src/recall.ts.
     ctx.effect(() => ctx.tools.register(recallSearchToolDefinition()), 'sliceLoop.recallSearch()')
+    // 轮内封存的召回(src/recall-step.ts):SEALED STEPS 块的切口指回这里。
+    ctx.effect(() => ctx.tools.register(recallStepToolDefinition()), 'sliceLoop.recallStep()')
     // 提示词变量所有权（架构文档：the loop supplies provider/model/cwd）——
     // stock agent-loop/index.ts:312-314 同构；缺了 persona 节的 {{cwd}} 解析不了。
     ctx.systemPrompt.variable('provider', (context) => context.agent?.options.provider)
@@ -266,7 +273,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
