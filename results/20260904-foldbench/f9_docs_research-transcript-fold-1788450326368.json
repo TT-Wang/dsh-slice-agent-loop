@@ -1,0 +1,86 @@
+{
+  "scenario": "f9_docs_research",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "fetch_page",
+      "db_query",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f9_docs_research-transcript-fold-low-1788450326368",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f9_docs_research-SOL6t6",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 7,
+      "input": 13800,
+      "cacheRead": 62080,
+      "output": 2504,
+      "reasoning": 1670,
+      "peakInput": 18776,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 4,
+      "input": 3931,
+      "cacheRead": 81152,
+      "output": 428,
+      "reasoning": 82,
+      "peakInput": 22944,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 17731,
+    "cacheRead": 143232,
+    "output": 2932,
+    "reasoning": 1752,
+    "steps": 11,
+    "peakInput": 22944
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 7,
+    "charsBefore": 80874,
+    "charsAfter": 32985
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "fetch_page": 9,
+    "expand_result": 3,
+    "write": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "8 answers + migration exact"
+  }
+}
