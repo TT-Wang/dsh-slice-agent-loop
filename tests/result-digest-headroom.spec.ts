@@ -79,3 +79,13 @@ describe('tables in documents', () => {
     expect(r.text.length).toBeLessThan(page.length * 0.55)
   })
 })
+
+describe('lists in documents', () => {
+  it('keeps short bullet lists (deprecations, field lists) while folding the prose around them', () => {
+    const prose = (i: number) => `The ${i}th paragraph explains the request lifecycle in great detail ${'and so on '.repeat(20)}`
+    const page = ['# Client', ...Array.from({ length: 25 }, (_, i) => prose(i)), '## Deprecations', '- Client.sync_all — deprecated in 3.4.0, use Client.sync(scope)', '- Client.legacy_auth — deprecated in 2.9.0', ...Array.from({ length: 25 }, (_, i) => prose(50 + i))].join('\n')
+    const r = digestToolResult(page, { tool: 'fetch_page', path: 'https://docs.example.com/api/client' })
+    expect(r.digested).toBe(true)
+    expect(r.text).toContain('deprecated in 3.4.0'); expect(r.text).toContain('deprecated in 2.9.0')
+  })
+})
