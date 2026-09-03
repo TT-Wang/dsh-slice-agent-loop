@@ -15,7 +15,7 @@
  *
  * 守卫:小结果不折;折后体量 ≥ 原文 × maxKeepRatio 也不折(折了不省就别折)。
  */
-export type ContentKind = 'code' | 'search' | 'log' | 'data';
+export type ContentKind = 'code' | 'search' | 'log' | 'data' | 'json' | 'diff';
 export interface DigestPolicy {
     /** 轮内折叠开关(slice / stream 模式默认开;state 模式不用)。 */
     enabled: boolean;
@@ -41,6 +41,18 @@ export interface DigestPolicy {
     /** 超长行保留的头部 / 尾部字符数。 */
     lineHeadChars: number;
     lineTailChars: number;
+    /** JSON 数组(Headroom SmartCrusher 的简化版):至少这么多元素才压;目标保留 K 个,首 30% 尾 15%,含错误的元素必留,内容相同的去重。 */
+    jsonMinItems: number;
+    jsonKeepItems: number;
+    /** 搜索结果(grep/glob 风格)超过这么多命中或字符才压;每文件最多留几条(首末必留),全局上限。 */
+    searchMinMatches: number;
+    searchMinChars: number;
+    searchMaxPerFile: number;
+    searchMaxTotal: number;
+    /** 统一 diff:至少这么多行才压;每处改动两侧留几行上下文;每文件最多留几个 hunk(首、末与最大的)。 */
+    diffMinLines: number;
+    diffContextLines: number;
+    diffMaxHunksPerFile: number;
 }
 export declare const DEFAULT_DIGEST_POLICY: DigestPolicy;
 export declare function looksLikeCodePath(path: string | undefined): boolean;
@@ -62,4 +74,27 @@ export declare function digestToolResult(text: string, source: {
     tool: string;
     path?: string;
 }, policy?: DigestPolicy): DigestResult;
+type JsonItems = {
+    kind: 'array';
+    items: unknown[];
+    wrap: null;
+} | {
+    kind: 'jsonl';
+    items: unknown[];
+    wrap: null;
+} | {
+    kind: 'object';
+    items: unknown[];
+    wrap: {
+        obj: Record<string, unknown>;
+        key: string;
+    };
+};
+/** 文本是 JSON 数组 / 含大数组字段的 JSON 对象 / JSONL 吗?是就给出元素列表。 */
+export declare function tryJsonItems(text: string): JsonItems | null;
+export declare function digestJson(text: string, json: JsonItems, policy?: DigestPolicy): DigestResult;
+export declare function digestSearch(text: string, policy?: DigestPolicy): DigestResult;
+export declare function looksLikeDiff(text: string): boolean;
+export declare function digestDiff(text: string, policy?: DigestPolicy): DigestResult;
 export declare function resolveDigestPolicy(input: Partial<DigestPolicy> | undefined): DigestPolicy;
+export {};
