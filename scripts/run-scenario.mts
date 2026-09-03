@@ -48,7 +48,9 @@ const LocalFileSystem = (await import(join(HARNESS, 'packages', 'fs', 'fs-local'
 const ToolFs = await import(join(HARNESS, 'packages', 'fs', 'tool-fs', 'src', 'index.ts'))
 const hp = (...p: string[]) => import(join(HARNESS, 'packages', ...p, 'src', 'index.ts'))
 const ToolFsSearch = await hp('fs', 'tool-fs-search')
-const Subprocess = (await hp('subprocess', 'subprocess')).default
+// subprocess/subprocess 是抽象基类(spawn 未实现),具体实现是 subprocess-local——挂错了 bash 就是
+// `this.ctx.subprocess.spawn is not a function`(2026-09-03 复盘:整批 s 系列 bash 实际不可用)。
+const Subprocess = (await hp('subprocess', 'subprocess-local')).default
 const BashLocal = (await hp('shell', 'bash-local')).default
 const ShellEnv = await hp('shell', 'shell-env')
 const ToolBash = await hp('shell', 'tool-bash')

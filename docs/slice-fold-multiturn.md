@@ -18,6 +18,12 @@
 
 ## 多轮 s 系列(slice+折叠 单次 vs 历史 default 均值)
 
+> **2026-09-03 03:00 勘误**:下面 s 系列的 slice+折叠 一列与 s4 的 transcript 补跑**作废**——in-process runner
+> 挂的是 `subprocess` 抽象基类而不是 `subprocess-local`,bash 工具在这些格子里实际不可用
+> (`this.ctx.subprocess.spawn is not a function`,8 个格子的轨迹里都有);s10 的"QUIZ-A 丢失"就是
+> 第 3 轮脚本根本没跑成,不是记忆问题。CB20 走 web profile 宿主,bash 正常,不受影响;l1/l2 不用 bash,
+> 不受影响。修好后重跑,数字以重跑为准(旧账本存 `results/20260902-multiturn/bash-broken/`)。
+
 | 场景 | default 历史 | $ | 步 | out | slice+折叠 | $ | 步 | out | Δ$ | 折叠 |
 |---|---|---|---|---|---|---|---|---|---|---|
 | s1 长程调试(6 轮) | ✓ n=2 | 0.0908 | 61 | 89K | ✓ | 0.0666 | 51 | 77K | **−27%** | 0 |

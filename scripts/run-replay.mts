@@ -47,7 +47,7 @@ const { DeepSeekAdapter, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_STR
 const LocalFileSystem = (await pkg('fs/fs-local')).default
 const ToolFs = await pkg('fs/tool-fs')
 const ToolFsSearch = await pkg('fs/tool-fs-search')
-const Subprocess = (await pkg('subprocess/subprocess')).default
+const Subprocess = (await pkg('subprocess/subprocess-local')).default // 具体实现;基类没有 spawn
 const BashLocal = (await pkg('shell/bash-local')).default
 const ShellEnv = await pkg('shell/shell-env')
 const ToolBash = await pkg('shell/tool-bash')
