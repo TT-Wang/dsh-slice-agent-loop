@@ -165,7 +165,8 @@ describe('pinned steps still fold huge results', () => {
 
 describe('pinned steps and medium documents', () => {
   it('a 10K document fetched at step 2 is condensed (pinMaxChars 8000), a 3K rules file is not', async () => {
-    const DOC = Array.from({ length: 60 }, (_, i) => (i % 12 === 0 ? `## Section ${i / 12}` : `paragraph ${i}: ${'lorem ipsum '.repeat(14)}`)).join('\n')
+    // 普通散文行(不能长得像 `key: value`,否则整页都是结构行、按规则原样保留)
+    const DOC = Array.from({ length: 60 }, (_, i) => (i % 12 === 0 ? `## Section ${i / 12}` : `The ${i}th paragraph goes on about ${'lorem ipsum '.repeat(14)}`)).join('\n')
     const RULES = Array.from({ length: 18 }, (_, i) => `R${i} rule ${i}: ${'must '.repeat(25)}`).join('\n')
     const adapter = new MockAdapter([toolCallResponse('c1', 'read', { file_path: 'RULES.md' }), toolCallResponse('c2', 'fetch_page', { url: 'https://d/x' }), textResponse('done')])
     const ctx = await harness(adapter, [{ name: 'read', text: RULES }, { name: 'fetch_page', text: DOC }], { pinSteps: 2, digest: { minChars: 1500 } })
