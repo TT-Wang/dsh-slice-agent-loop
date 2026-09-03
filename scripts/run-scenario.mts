@@ -30,6 +30,7 @@ import { basename, join, resolve } from 'node:path'
 import apply from '../src/index.ts'
 import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import FoldPlugin, { FOLD_STATS } from '../src/fold/index.ts'
+import { dbQueryTool, fetchPageTool } from '../src/bench/tools.ts'
 import { normalizeUsage } from '../src/call-ledger.ts'
 
 function harnessRoot(): string {
@@ -160,6 +161,9 @@ if (FULL_TOOLS) {
   await ctx.plugin(BashLocal, { cwd: workdir })
   await ctx.plugin(ShellEnv, {})
   await ctx.plugin(ToolBash, { enableRunInBackground: false })
+  // 评测用的整份返回工具(2026-09-04):网页抓取镜像 + SQLite 查询;场景没有 site/ 或 data/*.db 时调用会报错,不影响其他场景。
+  ctx.tools.register(fetchPageTool(workdir))
+  ctx.tools.register(dbQueryTool(workdir))
 }
 // effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
 // 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
