@@ -19,7 +19,7 @@ import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
 import { resolveSealPolicy } from './slice/step-tape.js'
-import { DEFAULT_STATE_POLICY } from './driver.js'
+import { DEFAULT_READ_BASES, DEFAULT_STATE_POLICY } from './driver.js'
 import { resolveDigestPolicy } from './slice/result-digest.js'
 import { recallStepToolDefinition } from './recall-step.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
@@ -35,6 +35,8 @@ export interface Config {
   mode?: 'slice' | 'state' | 'stream'
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
+  /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
+  tape?: { readBases?: boolean; readBaseMaxChars?: number }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -215,6 +217,8 @@ export class SliceLoopPlugin extends Service {
     const mode = config.mode ?? 'slice'
     if (mode !== 'slice' && mode !== 'state' && mode !== 'stream') throw new Error("mode must be 'slice', 'state' or 'stream'")
     const digest = resolveDigestPolicy(config.digest)
+    const readBases = { enabled: config.tape?.readBases ?? DEFAULT_READ_BASES.enabled, maxChars: config.tape?.readBaseMaxChars ?? DEFAULT_READ_BASES.maxChars }
+    if (!Number.isInteger(readBases.maxChars) || readBases.maxChars < 0) throw new Error('tape.readBaseMaxChars must be a non-negative integer')
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
       if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
@@ -288,7 +292,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

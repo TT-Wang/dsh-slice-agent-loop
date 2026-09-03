@@ -78,6 +78,8 @@ export interface Continuity {
   tapeFiles: Record<string, TapeFileState>
   /** 本轮编辑过的文件（成功 tool/result 边界快照后态，seal 时锚定后清空）。 */
   pendingEdits: Array<{ path: string; body: string }>
+  /** 本轮读过(未必改过)的文件盘态——轮末也锚定为 base(2026-09-03 重读税实验)。 */
+  pendingReads: Array<{ path: string; body: string }>
   /**
    * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
    * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
@@ -100,6 +102,7 @@ export function createContinuity(): Continuity {
     sessionTape: [],
     tapeFiles: {},
     pendingEdits: [],
+    pendingReads: [],
     pendingError: '',
     pendingReasoning: [],
     lastError: '',
@@ -225,7 +228,12 @@ export function sealTurn(
   // 一轮内对同一文件的多次成功编辑各自锚定，不塌缩为最终盘态。
   // anchored 返回给 driver 落 durable 事件，供重建恢复（tape 耐久性）。
   const anchored: Array<{ path: string; body: string }> = []
-  for (const { path, body } of c.pendingEdits) {
+  // 读过未改的文件也锚定(2026-09-03):多轮编码任务里 slice 每轮重读 2–3 个文件,transcript
+  // 却按命中价白带着。磁带字节在 1/30 的命中价下几乎免费;重读是一步 + 一次工具调用 +
+  // 未命中价。本轮编辑过的文件走同一循环的 base/patch 逻辑,这里只补只读的;同 hash 不重复。
+  const editedNow = new Set(c.pendingEdits.map((e) => e.path))
+  const toAnchor = [...c.pendingEdits, ...c.pendingReads.filter((r) => !editedNow.has(r.path))]
+  for (const { path, body } of toAnchor) {
     const state = files[path]
     const hash = sha256(body)
     if (state !== undefined && state.hash === hash) continue // 幂等编辑
@@ -245,6 +253,7 @@ export function sealTurn(
     anchored.push({ path, body })
   }
   c.pendingEdits = []
+  c.pendingReads = []
 
   // 轮末结算未解决的工具错误。本轮最后一个 tool/result 失败 ⇒ 下一轮的
   // CURRENT ERROR 段带上它；成功或本轮没有工具调用 ⇒ 清空。错误正文不进
@@ -271,6 +280,15 @@ export function sealTurn(
  */
 export function trackEdit(c: Continuity, path: string, body: string): void {
   if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }) })
+}
+
+/** 读取后态快照(driver 在成功的 read tool/result 边界调用):同一路径只留最后一次。 */
+export function trackRead(c: Continuity, path: string, body: string): void {
+  if (!path.trim()) return
+  const redacted = redactText(body, { codeFile: true })
+  const i = c.pendingReads.findIndex((r) => r.path === path)
+  if (i >= 0) c.pendingReads[i] = { path, body: redacted }
+  else c.pendingReads.push({ path, body: redacted })
 }
 
 /**

@@ -103,15 +103,16 @@ import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
 import { _h } from './slice/tape.js'
 import {
-  createContinuity,
-  recordUser,
-  fillAssistant,
-  sealTurn,
-  trackEdit,
-  trackToolOutcome,
-  trackReasoning,
   compactTurn,
   compactTurnSpan,
+  createContinuity,
+  fillAssistant,
+  recordUser,
+  sealTurn,
+  trackEdit,
+  trackRead,
+  trackReasoning,
+  trackToolOutcome,
   type Continuity,
 } from './continuity.js'
 
@@ -199,7 +200,17 @@ export interface SliceLoopDriverConfig {
   mode: 'slice' | 'state' | 'stream'
   state: StatePolicy
   digest: DigestPolicy
+  /** 读过未改的文件在轮末锚定为 base(见 continuity.ts sealTurn)。 */
+  readBases: ReadBasesPolicy
 }
+
+export interface ReadBasesPolicy {
+  enabled: boolean
+  /** 超过此字符数的文件不锚定(磁带体量守卫)。 */
+  maxChars: number
+}
+
+export const DEFAULT_READ_BASES: ReadBasesPolicy = { enabled: true, maxChars: 40_000 }
 
 /** 世界状态循环的策略(提案 2026-09-02)。 */
 export interface StatePolicy {
@@ -284,6 +295,7 @@ export class SliceLoopAgent implements Agent {
   private readonly defaultReasoningEffort: ReasoningEffortDefault
   private readonly inTurnSeal: SealPolicy
   private readonly mode: 'slice' | 'state' | 'stream'
+  private readonly readBases: ReadBasesPolicy
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -336,6 +348,7 @@ export class SliceLoopAgent implements Agent {
     this.mode = config.mode
     this.statePolicy = config.state
     this.digestPolicy = config.digest
+    this.readBases = config.readBases
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -362,9 +375,17 @@ export class SliceLoopAgent implements Agent {
     this.ctx.on('tools/result', (exec, result) => {
       if (result.isError) return
       const path = editedPath(exec.name, exec.arguments)
-      if (path === undefined) return
-      const disk = readDiskStatus(this.sessionCwd(), path)
-      if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
+      if (path !== undefined) {
+        const disk = readDiskStatus(this.sessionCwd(), path)
+        if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
+        return
+      }
+      // 读过的文件:盘态快照进 pendingReads,轮末锚定为 base(readBases 策略)。
+      const rp = readToolPath(exec.name, exec.arguments)
+      if (rp !== undefined && this.readBases.enabled && this.mode !== 'state') {
+        const disk = readDiskStatus(this.sessionCwd(), rp)
+        if (disk.kind === 'ok' && disk.body.length <= this.readBases.maxChars) trackRead(this.cont, rp, disk.body)
+      }
     })
     // The driver keeps its own incremental ordered surface fold: canonical
     // replacements compact their positional span the moment they commit —
@@ -1905,6 +1926,15 @@ const STR_REPLACE_MUTATIONS = new Set(['create', 'str_replace', 'insert'])
  * 参数来自 `ToolExecution.arguments`——registry 已解析好的值，不是 JSON 串。
  * 宽容处理 unknown：模型可以发任何东西，非对象一律当作"没有路径"。
  */
+/** read 工具的目标路径(tool-fs `read` / `read_file`)。 */
+export function readToolPath(name: string, args: unknown): string | undefined {
+  if (typeof args !== 'object' || args === null) return undefined
+  const bag = args as Record<string, unknown>
+  if (name === 'read' || name === 'read_file') return typeof bag.file_path === 'string' ? bag.file_path : typeof bag.path === 'string' ? bag.path : undefined
+  // str_replace_editor 的 view 保持不锚定(driver-contract 既有契约;本部署挂的是 tool-fs)。
+  return undefined
+}
+
 export function editedPath(name: string, args: unknown): string | undefined {
   if (!EDIT_TOOL_NAMES.has(name)) return undefined
   if (typeof args !== 'object' || args === null) return undefined
