@@ -77,6 +77,13 @@ export interface CompactInfo {
     epoch_folds: number;
 }
 /** Mutates `tape` in place (like the Python list), exactly as compact_tape does. */
+/**
+ * 封存时立刻清掉被新 base 取代的文件历史(2026-09-03「开轮更便宜」):种子里每个文件只剩一份现行
+ * 基线,模型开轮不必在多份副本里认哪份是当前的。删除会改写它之后的前缀(缓存未命中),所以只在
+ * "改写掉的字节 ≤ 该文件新 base 的字节"时做——单文件编码循环里旧 base 后面只有上一轮的回复,几乎
+ * 免费;多轮没碰过的文件留给 compactTape 的按预算 GC。返回删掉的条目数。
+ */
+export declare function gcSupersededFileHistory(tape: TapeEntry[]): number;
 export declare function compactTape(tape: TapeEntry[], files: Record<string, TapeFileState>, opts?: {
     budget?: number;
 }): CompactInfo;

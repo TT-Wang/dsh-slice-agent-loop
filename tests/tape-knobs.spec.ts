@@ -115,3 +115,30 @@ describe('baseMaxChars', () => {
     expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)      // 默认 60K 之内:完整基线
   })
 })
+
+describe('gcSupersededBases', () => {
+  const file = (v: number) => Array.from({ length: 40 }, (_, i) => (i === 3 ? `v = ${v}` : `line ${i} ${'-'.repeat(20)}`)).join('\n') + '\n'
+  it('drops a file\'s superseded base at seal when the rewrite it costs is no larger than the new base', () => {
+    const c = createContinuity()
+    trackEdit(c, 'm.py', file(1)); seal(c, 1, 'short reply', { anchorMode: 'base', gcSupersededBases: true })
+    trackEdit(c, 'm.py', file(2)); const r = seal(c, 2, 'short reply', { anchorMode: 'base', gcSupersededBases: true })
+    const bases = c.sessionTape.filter((e) => e.kind === 'base')
+    expect(bases).toHaveLength(1)
+    expect(bases[0]!.rendered).toContain('v = 2')
+    expect(r.gcRemoved).toBe(1)
+    expect(c.sessionTape.filter((e) => e.kind === 'digest')).toHaveLength(2)     // 摘要与回复不受影响
+    expect(c.sessionTape.filter((e) => e.kind === 'reply')).toHaveLength(2)
+  })
+  it('keeps the old base when too much tape would have to be rewritten', () => {
+    const c = createContinuity()
+    trackEdit(c, 'm.py', file(1)); seal(c, 1, 'x'.repeat(1900), { anchorMode: 'base', gcSupersededBases: true })
+    for (let t = 2; t <= 4; t += 1) seal(c, t, 'x'.repeat(1900), { anchorMode: 'base', gcSupersededBases: true }) // 三轮没碰文件
+    trackEdit(c, 'm.py', file(2)); seal(c, 5, 'x', { anchorMode: 'base', gcSupersededBases: true })
+    expect(c.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)      // 旧 base 后面 ~6K 字符 > 新 base ~1K:留给按预算 GC
+    // 默认关:总是两份
+    const d = createContinuity()
+    trackEdit(d, 'm.py', file(1)); seal(d, 1, 'r', { anchorMode: 'base' })
+    trackEdit(d, 'm.py', file(2)); seal(d, 2, 'r', { anchorMode: 'base' })
+    expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)
+  })
+})

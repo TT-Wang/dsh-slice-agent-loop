@@ -218,6 +218,7 @@ export interface SliceLoopDriverConfig {
   collapseEdits: boolean
   readBasesMinReads: number
   baseMaxChars: number
+  gcSupersededBases: boolean
 }
 
 export interface ReadBasesPolicy {
@@ -321,6 +322,7 @@ export class SliceLoopAgent implements Agent {
   private readonly collapseEdits: boolean
   private readonly readBasesMinReads: number
   private readonly baseMaxChars: number
+  private readonly gcSupersededBases: boolean
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -382,6 +384,7 @@ export class SliceLoopAgent implements Agent {
     this.collapseEdits = config.collapseEdits
     this.readBasesMinReads = config.readBasesMinReads
     this.baseMaxChars = config.baseMaxChars
+    this.gcSupersededBases = config.gcSupersededBases
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -545,7 +548,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases,
           })
         }
         pendingAnchors = []
@@ -967,7 +970,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })

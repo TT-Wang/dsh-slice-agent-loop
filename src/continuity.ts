@@ -26,6 +26,7 @@ import {
   REPLY_CAP_CHARS,
   DEFAULT_REPLY_CAPS,
   type ReplyCaps,
+  gcSupersededFileHistory,
 } from './slice/tape.js'
 import { pyStrip } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
@@ -226,6 +227,8 @@ export function sealTurn(
     /** anchor 'base' 的大文件保护:完整基线渲染超过这么多字符时,该文件退回 auto(patch/base 择短),
      *  免得一个 100K 的文件每轮都以未命中价重落一遍(默认 60_000)。 */
     baseMaxChars?: number
+    /** 封存时立刻清掉被新 base 取代的文件历史(改写代价 ≤ 新 base 字节时),种子里每文件只留一份现行基线。 */
+    gcSupersededBases?: boolean
     /** 只读文件要在至少这么多轮里被读到才锚定(默认 1 = 读一次就锚)。2026-09-03:s13/s14b 里只读一次的
      *  大文件被全部锚进磁带,封存 miss 从 17K 涨到 84–95K token,成本翻倍;跨轮重复读才值得占磁带。 */
     readBasesMinReads?: number
@@ -314,7 +317,9 @@ export function sealTurn(
   if (rep !== null) tape.push(rep)
   c.pendingCheck = undefined
 
+  const eager = opts.gcSupersededBases ? gcSupersededFileHistory(tape) : 0
   const info = compactTape(tape, files)
+  info.gc_removed += eager
   return { entries: tape.length, gcRemoved: info.gc_removed, epochFolds: info.epoch_folds, anchored }
 }
 

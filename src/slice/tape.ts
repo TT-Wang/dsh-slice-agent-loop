@@ -338,6 +338,33 @@ export interface CompactInfo {
 }
 
 /** Mutates `tape` in place (like the Python list), exactly as compact_tape does. */
+/**
+ * 封存时立刻清掉被新 base 取代的文件历史(2026-09-03「开轮更便宜」):种子里每个文件只剩一份现行
+ * 基线,模型开轮不必在多份副本里认哪份是当前的。删除会改写它之后的前缀(缓存未命中),所以只在
+ * "改写掉的字节 ≤ 该文件新 base 的字节"时做——单文件编码循环里旧 base 后面只有上一轮的回复,几乎
+ * 免费;多轮没碰过的文件留给 compactTape 的按预算 GC。返回删掉的条目数。
+ */
+export function gcSupersededFileHistory(tape: TapeEntry[]): number {
+  const latestBase = new Map<string, number>();
+  tape.forEach((e, i) => { if (e.kind === "base" && e.path) latestBase.set(e.path, i); });
+  const dead = new Set<number>();
+  for (const [path, latest] of latestBase) {
+    const idx: number[] = [];
+    tape.forEach((e, i) => { if (FILE_KINDS.has(e.kind) && e.path === path && i < latest) idx.push(i); });
+    if (idx.length === 0) continue;
+    const first = idx[0] as number;
+    let rewrite = 0;
+    for (let i = first + 1; i < latest; i += 1) if (!idx.includes(i)) rewrite += Array.from((tape[i] as TapeEntry).rendered).length;
+    const baseLen = Array.from((tape[latest] as TapeEntry).rendered).length;
+    if (rewrite <= baseLen) idx.forEach((i) => dead.add(i));
+  }
+  if (dead.size === 0) return 0;
+  const kept = tape.filter((_e, i) => !dead.has(i));
+  tape.length = 0;
+  tape.push(...kept);
+  return dead.size;
+}
+
 export function compactTape(
   tape: TapeEntry[],
   files: Record<string, TapeFileState>,

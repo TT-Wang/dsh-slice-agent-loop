@@ -175,6 +175,7 @@ export interface SliceLoopDriverConfig {
     collapseEdits: boolean;
     readBasesMinReads: number;
     baseMaxChars: number;
+    gcSupersededBases: boolean;
 }
 export interface ReadBasesPolicy {
     enabled: boolean;
@@ -227,6 +228,7 @@ export declare class SliceLoopAgent implements Agent {
     private readonly collapseEdits;
     private readonly readBasesMinReads;
     private readonly baseMaxChars;
+    private readonly gcSupersededBases;
     private readonly digestPolicy;
     private readonly statePolicy;
     /** 世界状态账本:跨轮持久(会话级),append-only。 */

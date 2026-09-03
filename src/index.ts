@@ -37,7 +37,7 @@ export interface Config {
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
-  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; baseMaxChars?: number }
+  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; baseMaxChars?: number; gcSupersededBases?: boolean }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -236,6 +236,7 @@ export class SliceLoopPlugin extends Service {
     const readBasesMinReads = config.tape?.readBasesMinReads ?? 2
     const baseMaxChars = config.tape?.baseMaxChars ?? 60_000
     if (!(baseMaxChars >= 0)) throw new Error('tape.baseMaxChars must be >= 0')
+    const gcSupersededBases = config.tape?.gcSupersededBases ?? false
     if (!Number.isInteger(readBasesMinReads) || readBasesMinReads < 1) throw new Error('tape.readBasesMinReads must be an integer >= 1')
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
@@ -310,7 +311,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads, baseMaxChars }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads, baseMaxChars, gcSupersededBases }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

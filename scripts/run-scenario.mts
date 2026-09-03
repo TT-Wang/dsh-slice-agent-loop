@@ -111,8 +111,9 @@ const REPLY_TAIL = num('--reply-tail', -1)
 const CHECK_DIGEST = args.includes('--check-digest')
 const COLLAPSE = args.includes('--collapse-edits') ? true : args.includes('--no-collapse-edits') ? false : undefined
 const RB_MIN = num('--read-bases-min', 1)
-const TAPE_OPTS = { ...(READ_BASES !== undefined ? { readBases: READ_BASES } : {}), ...(READ_POINTER !== undefined ? { readPointer: READ_POINTER } : {}), ...(ANCHOR !== undefined ? { anchor: ANCHOR } : {}), ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}), ...(COLLAPSE !== undefined ? { collapseEdits: COLLAPSE } : {}), ...(RB_MIN > 1 ? { readBasesMinReads: RB_MIN } : {}) }
-const TAPE_TOUCHED = READ_BASES !== undefined || READ_POINTER !== undefined || ANCHOR !== undefined || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST || COLLAPSE !== undefined || RB_MIN > 1
+const GC_SUPERSEDED = args.includes('--gc-superseded')
+const TAPE_OPTS = { ...(READ_BASES !== undefined ? { readBases: READ_BASES } : {}), ...(READ_POINTER !== undefined ? { readPointer: READ_POINTER } : {}), ...(ANCHOR !== undefined ? { anchor: ANCHOR } : {}), ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}), ...(COLLAPSE !== undefined ? { collapseEdits: COLLAPSE } : {}), ...(RB_MIN > 1 ? { readBasesMinReads: RB_MIN } : {}), ...(GC_SUPERSEDED ? { gcSupersededBases: true } : {}) }
+const TAPE_TOUCHED = READ_BASES !== undefined || READ_POINTER !== undefined || ANCHOR !== undefined || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST || COLLAPSE !== undefined || RB_MIN > 1 || GC_SUPERSEDED
 // --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
 const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }
@@ -301,7 +302,7 @@ for (const e of agent.session.snapshotEvents()) {
     const calls = d.message.content.filter((b) => b.type === 'tool-call').map((b) => `${b.name}(${(b.arguments ?? '').slice(0, 160)})`)
     const text = d.message.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').slice(0, 200)
     trace.push(JSON.stringify({ turn: d.turn, step: d.step, calls, text }))
-    full.push(JSON.stringify({ turn: d.turn, step: d.step, calls: d.message.content.filter((b) => b.type === 'tool-call').map((b) => ({ name: b.name, arguments: b.arguments ?? '' })), text: d.message.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('') }))
+    full.push(JSON.stringify({ turn: d.turn, step: d.step, calls: d.message.content.filter((b) => b.type === 'tool-call').map((b) => ({ name: b.name, arguments: b.arguments ?? '' })), text: d.message.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join(''), reasoning: d.message.content.filter((b) => b.type === 'reasoning').map((b) => b.text ?? '').join('') }))
   }
 }
 

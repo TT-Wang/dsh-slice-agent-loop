@@ -21,7 +21,7 @@ interface Ledger {
   readBases?: boolean | null
   readPointer?: boolean | null
   anchor?: string | null
-  tapeOpts?: { rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number } | null
+  tapeOpts?: { rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; gcSupersededBases?: boolean } | null
 }
 
 // flash 谷时刊例 $/M(与 effort-ladder 同口径;pro ×3)
@@ -42,6 +42,7 @@ function armLabel(l: Ledger): string {
   if (l.tapeOpts?.checkInDigest) label += '/check'
   if (l.tapeOpts?.collapseEdits) label += '/collapse'
   if (l.tapeOpts?.readBasesMinReads !== undefined) label += `/rbmin-${l.tapeOpts.readBasesMinReads}`
+  if (l.tapeOpts?.gcSupersededBases) label += '/gc'
   if (l.digestPolicy?.structuredBlockCap !== undefined) label += `/cap-${l.digestPolicy.structuredBlockCap}`
   if (l.effort !== 'low') label += `/effort-${l.effort}`
   return label

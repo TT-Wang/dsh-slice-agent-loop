@@ -50,6 +50,7 @@ export interface Config {
         collapseEdits?: boolean;
         readBasesMinReads?: number;
         baseMaxChars?: number;
+        gcSupersededBases?: boolean;
     };
     state?: {
         hotWindowSteps?: number;
