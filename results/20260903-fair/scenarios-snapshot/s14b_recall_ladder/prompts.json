@@ -1,0 +1,19 @@
+[
+ "我昨晚在 10.4.8.17:5917 那台 staging 机上复现了日志解析的 bug。你先帮我在 data/ 目录里 grep 一下,有没有哪个 blob 文件提到 5917 这个数,有就告诉我文件名,没有就说没有。",
+ "对了,连接重试别用库的默认间隔,我们线上 retry_backoff_ms 是 420。现在先创建 loglib/parse.py:写 parse_line(line) —— 输入形如 'LEVEL ts msg' 的一行,返回 dict(level, ts, msg);ts 转 int,坏行返回 None。",
+ "顺带一提,那台机器的访问 token 是从环境变量 KESTREL_OPS_TOKEN 读的,别在任何地方硬编码——这跟你现在的活没关系。接着在 loglib/parse.py 里加 clamp(v, lo, hi):v 低于 lo 取 lo,高于 hi 取 hi。",
+ "我们团队习惯把部署相关的配置都收在 ops/ 目录里,不放仓库根目录。继续:在 loglib/parse.py 里加 window(rows, n):返回最后 n 条的列表;n<=0 返回空表。",
+ "完整读取 data/blob_01.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_01: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_02.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_02: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_03.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_03: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_04.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_04: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_05.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_05: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_06.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_06: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_07.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_07: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "完整读取 data/blob_08.txt,找到其中的 SUMMARY-TOKEN 行,把一行 'blob_08: <token>' 追加到 digest.md(token 换成你读到的值)。",
+ "在 loglib/parse.py 里加 median(vals):空表返回 None,偶数取中间两数均值。",
+ "把 staging 的部署参数整理成一个 TOML 配置文件:host、port、token_env、retry_backoff_ms 四个键,放在合适的位置。",
+ "把刚才那个部署配置文件原样复制一份到 answers/draft1.toml,内容不要做任何修改。",
+ "配置里的四个参数我之前都在这个会话里提到过。如果刚才有写错、写漏或不确定的,翻一下我们之前的对话把原值找回来,把部署配置补全改对;都对的话确认一下即可。",
+ "另外把我之前告诉过你的 staging 数据库名写到 answers/staging_db.md;如果我从没告诉过你,就只写一行 NOT-PROVIDED。然后在 answers/recall_note.md 用一行说明部署参数是直接记得还是查回来的,最后在 loglib/parse.py 末尾加 SESSION_COMPLETE = True。"
+]

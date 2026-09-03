@@ -328,6 +328,57 @@ in 949s, R/span 1.00/1.00, $0.1222).
 
 ## Defects and directions
 
+### transcript vs slice, stated fairly
+
+Everything below is priced on the same sheet (flash off-peak: miss $0.22/M ·
+hit $0.007/M · output $0.66/M). Same-code, same-day comparisons exist for
+l1/l2, n1–n3 and one s4 cell; the multi-turn s-series and CB-20 transcript
+numbers are August sessions recomputed, on a slightly different host. Every
+cell is a single run and repeats of one configuration move ±30%, so anything
+inside 15% is a tie.
+
+| Task shape | transcript | slice | Reading |
+|---|---|---|---|
+| Single-turn heavy read (l1, ~300K tokens) | ✓ $0.135 | ✓ $0.024–0.031 | slice −80%; the in-turn fold is decisive |
+| Flood / memory (s10 · s13 · s14b) | ✗ $0.250 · ✓ $0.030 · ✓ $0.031 | ✓ $0.157 · ✓ $0.021 · ✓ $0.025 | slice −21% to −37%; only s10 separates the arms on correctness (compaction lost 3 planted facts) |
+| Multi-turn coding (s1 · s4) | ✓ $0.091 · ✓ $0.143 | ✓ $0.068 · ✓ $0.125 | slice −12% to −25% |
+| Multi-turn coding (s2 · s3) | ✓ $0.081 · ✓ $0.051 | ✓ $0.120 · ✓ $0.081 | **transcript 32–38% cheaper**: after every per-turn rebuild the model re-reasons and re-runs tests, 1.7–2× the output tokens; the August slice build showed the same, so this is the architecture, not the fold |
+| Small-file multi-turn (n2 · n3) | ✓ $0.012 · ✓ $0.020 | ✓ $0.012 · ✓ $0.019 | tie |
+| Rule document + running state (l2) | ✓ $0.124 | ✓/✗ $0.030 | slice drifted to the wrong output directory in 3 of 4 runs without a constitution; `mode: 'stream'` passes 3/3 at $0.0285 |
+| CB-20 retrieval (19 paired) | fileR 0.761 · $0.541 · 19/20 | fileR 0.749 · $0.482 · 20/20 | recall at parity (span 0.803 vs 0.772), slice −11%, per-instance F1 9:8 |
+
+Peak context: transcript reaches 59–96K on s13/s10 and 302–330K on l1/l2;
+slice stays at 11–33K on the multi-turn set and 42–52K on l1/l2 after the fold.
+A small peak does not save money by itself under a 1/30 cache discount — it
+buys no window limit, no compaction and no rot; in this suite rot never
+appeared and compaction loss appeared once (s10), but that once was real.
+
+The price sheet is the premise. With no cache discount (hit priced as miss),
+l1 becomes $1.81 vs $0.31, n2 $0.088 vs $0.025, n3 $0.174 vs $0.038 — slice
+3–6× cheaper across the board. DeepSeek's 1/30 discount is the whole reason
+transcript keeps up on short tasks.
+
+**Where transcript wins:** short interactive coding sessions under DeepSeek
+pricing (cheaper, equally correct); the fewest moving parts; nothing "present
+but unseen" inside the window; complete engineering coverage. If your sessions
+are tens of turns with small files, transcript shows no visible disadvantage.
+
+**Slice's inherent risks:** recall depends on the model reaching for it —
+proven under controlled pressure (s10, s14b), near zero on everyday loads; the
+fold changes what the model sees (CB-20 file recall 0.749 vs 0.816 on the
+August build, confounded with kernel changes); rule-document tasks need the
+constitution; more mechanism means more surface for failure, and the plugin
+is early.
+
+**Hard conclusions:** long sessions, floods, heavy reads and log-dense tasks
+belong to slice — correctness not worse, cost −21% to −80%, bounded peak;
+short multi-turn coding under DeepSeek pricing belongs to transcript; on any
+provider with a shallow cache discount slice wins broadly. **Soft conclusions**
+(need same-code reruns with three runs per cell): the +48–61% on s2/s3 and
+the 4–7pp CB-20 recall gap may be half noise and version drift.
+
+### Defects
+
 | Defect | What it is, measured | Direction |
 |---|---|---|
 | **1 · Coding tasks pay an output tax** | The slice is rebuilt every turn, so on coding loads the model re-reasons and re-runs tests after each rebuild: s2/s3 cost +48–61% against default with 1.7–2× the output tokens, while s1/s4 come in −12–25%. Input-side, the in-turn fold settled the cache question: an append-only stream that condenses each new result beats every rewrite-history design under a 1/30 cache discount (l1: −80%). | Carry the previous turn's conclusions more explicitly in the tape so the model does not re-derive them; measure with three runs per cell — single runs move ±30%. |

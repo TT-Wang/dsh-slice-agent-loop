@@ -1,0 +1,6 @@
+{
+ "name": "n2_intent_ledger",
+ "turns": 11,
+ "max_steps_per_turn": 12,
+ "stressor": "net-of-corrections intent state across flood; final task restates nothing"
+}
