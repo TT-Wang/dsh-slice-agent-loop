@@ -173,6 +173,7 @@ export interface SliceLoopDriverConfig {
     /** 本轮最后一次测试结果写进轮摘要。 */
     checkInDigest: boolean;
     collapseEdits: boolean;
+    readBasesMinReads: number;
 }
 export interface ReadBasesPolicy {
     enabled: boolean;
@@ -223,6 +224,7 @@ export declare class SliceLoopAgent implements Agent {
     private readonly replyCaps;
     private readonly checkInDigest;
     private readonly collapseEdits;
+    private readonly readBasesMinReads;
     private readonly digestPolicy;
     private readonly statePolicy;
     /** 世界状态账本:跨轮持久(会话级),append-only。 */

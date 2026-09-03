@@ -5,7 +5,7 @@
  *   rebaseAfterPatches —— auto 锚定下同一文件累积 N 个 patch 就重落完整基线。
  */
 import { describe, expect, it } from 'vitest'
-import { createContinuity, sealTurn, trackCheck, trackEdit } from '../src/continuity.js'
+import { createContinuity, sealTurn, trackCheck, trackEdit, trackRead } from '../src/continuity.js'
 
 const seal = (c: ReturnType<typeof createContinuity>, turn: number, reply: string, extra: Record<string, unknown> = {}) =>
   sealTurn(c, { turnId: `slice-turn-${turn}`, status: 'completed', userRequest: 'u', assistantReply: reply, sessionId: 's', ...extra })
@@ -78,5 +78,26 @@ describe('collapseEdits', () => {
     const rb = seal(b, 1, 'r', { anchorMode: 'base' })
     expect(rb.anchored).toHaveLength(3)
     expect(b.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(3)
+  })
+})
+
+describe('readBasesMinReads', () => {
+  it('anchors a read-only file only once it has been read in that many turns', () => {
+    const c = createContinuity()
+    trackRead(c, 'blob.txt', 'big blob\n'); trackRead(c, 'core.py', 'def f(): pass\n')
+    seal(c, 1, 'r', { readBasesMinReads: 2 })
+    expect(c.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(0)     // 首次读:不锚
+    trackRead(c, 'core.py', 'def f(): pass\n')
+    seal(c, 2, 'r', { readBasesMinReads: 2 })
+    const bases = c.sessionTape.filter((e) => e.kind === 'base')
+    expect(bases).toHaveLength(1)                                              // 第二轮再读:锚
+    expect(bases[0]!.rendered).toContain('[base core.py')
+    // 同轮既读又改的文件不受阈值影响(走编辑路径)
+    trackRead(c, 'new.py', 'x\n'); trackEdit(c, 'new.py', 'y\n')
+    seal(c, 3, 'r', { readBasesMinReads: 2 })
+    expect(c.tapeFiles['new.py']!.content).toBe('y\n')
+    // 默认阈值 1:读一次就锚
+    const d = createContinuity(); trackRead(d, 'blob.txt', 'big blob\n'); seal(d, 1, 'r')
+    expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(1)
   })
 })

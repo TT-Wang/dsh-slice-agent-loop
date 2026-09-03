@@ -48,6 +48,7 @@ export interface Config {
         replyTailChars?: number;
         checkInDigest?: boolean;
         collapseEdits?: boolean;
+        readBasesMinReads?: number;
     };
     state?: {
         hotWindowSteps?: number;

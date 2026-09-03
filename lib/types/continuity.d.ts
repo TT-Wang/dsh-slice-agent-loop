@@ -33,6 +33,8 @@ export interface Continuity {
         path: string;
         body: string;
     }>;
+    /** 各路径被读过的轮数(readBasesMinReads 用:只锚定跨轮重复读到的只读文件)。 */
+    readCount: Record<string, number>;
     /** 本轮最后一次测试/检查命令及其结果摘要(checkInDigest 用;seal 时写进轮摘要后清空)。 */
     pendingCheck?: {
         command: string;
@@ -95,6 +97,9 @@ export declare function sealTurn(c: Continuity, opts: {
     checkInDigest?: boolean;
     /** 同一轮内对同一文件的多次成功编辑只锚定末态(默认 false:每次编辑各落一条,保留"已执行的 patch"序列)。 */
     collapseEdits?: boolean;
+    /** 只读文件要在至少这么多轮里被读到才锚定(默认 1 = 读一次就锚)。2026-09-03:s13/s14b 里只读一次的
+     *  大文件被全部锚进磁带,封存 miss 从 17K 涨到 84–95K token,成本翻倍;跨轮重复读才值得占磁带。 */
+    readBasesMinReads?: number;
 }): {
     entries: number;
     gcRemoved: number;

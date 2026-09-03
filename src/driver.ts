@@ -216,6 +216,7 @@ export interface SliceLoopDriverConfig {
   /** 本轮最后一次测试结果写进轮摘要。 */
   checkInDigest: boolean
   collapseEdits: boolean
+  readBasesMinReads: number
 }
 
 export interface ReadBasesPolicy {
@@ -317,6 +318,7 @@ export class SliceLoopAgent implements Agent {
   private readonly replyCaps: ReplyCaps
   private readonly checkInDigest: boolean
   private readonly collapseEdits: boolean
+  private readonly readBasesMinReads: number
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -376,6 +378,7 @@ export class SliceLoopAgent implements Agent {
     this.replyCaps = config.replyCaps
     this.checkInDigest = config.checkInDigest
     this.collapseEdits = config.collapseEdits
+    this.readBasesMinReads = config.readBasesMinReads
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -539,7 +542,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads,
           })
         }
         pendingAnchors = []
@@ -961,7 +964,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })
