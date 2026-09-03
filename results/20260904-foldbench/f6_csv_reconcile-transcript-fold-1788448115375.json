@@ -1,0 +1,78 @@
+{
+  "scenario": "f6_csv_reconcile",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f6_csv_reconcile-transcript-fold-low-1788448115375",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f6_csv_reconcile-bX1zr3",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 9,
+      "input": 2062,
+      "cacheRead": 28544,
+      "output": 1520,
+      "reasoning": 422,
+      "peakInput": 4740,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 4,
+      "input": 359,
+      "cacheRead": 20224,
+      "output": 537,
+      "reasoning": 48,
+      "peakInput": 5449,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 2421,
+    "cacheRead": 48768,
+    "output": 2057,
+    "reasoning": 470,
+    "steps": 13,
+    "peakInput": 5449
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 11
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "totals + 286 mismatches + worst exact"
+  }
+}

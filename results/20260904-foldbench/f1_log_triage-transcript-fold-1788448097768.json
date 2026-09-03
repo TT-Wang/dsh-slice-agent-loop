@@ -1,0 +1,89 @@
+{
+  "scenario": "f1_log_triage",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f1_log_triage-transcript-fold-low-1788448097768",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f1_log_triage-wu52tA",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 9,
+      "input": 5630,
+      "cacheRead": 39680,
+      "output": 3574,
+      "reasoning": 2169,
+      "peakInput": 8659,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 6,
+      "input": 1563,
+      "cacheRead": 59648,
+      "output": 2056,
+      "reasoning": 1315,
+      "peakInput": 11781,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 2,
+      "input": 501,
+      "cacheRead": 23552,
+      "output": 300,
+      "reasoning": 69,
+      "peakInput": 12212,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 7694,
+    "cacheRead": 122880,
+    "output": 5930,
+    "reasoning": 3553,
+    "steps": 17,
+    "peakInput": 12212
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 12,
+    "write": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "triage ok; warns ok; summary ok"
+  }
+}

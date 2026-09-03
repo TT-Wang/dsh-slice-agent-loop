@@ -1,0 +1,79 @@
+{
+  "scenario": "f5_diff_review",
+  "arm": "transcript",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-f5_diff_review-transcript-low-1788448116207",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f5_diff_review-Qqboyk",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 7,
+      "input": 25993,
+      "cacheRead": 72320,
+      "output": 4148,
+      "reasoning": 3370,
+      "peakInput": 31405,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 3,
+      "input": 332,
+      "cacheRead": 94976,
+      "output": 494,
+      "reasoning": 185,
+      "peakInput": 32095,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 26325,
+    "cacheRead": 167296,
+    "output": 4642,
+    "reasoning": 3555,
+    "steps": 10,
+    "peakInput": 32095
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 5,
+    "read": 1,
+    "write": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "review exact (12 files, 21 signature changes, 27 todos) + biggest"
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "scenario": "f3_test_suite_fix",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f3_test_suite_fix-transcript-fold-low-1788448100734",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f3_test_suite_fix-aDSOZ6",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 8,
+      "input": 9197,
+      "cacheRead": 40448,
+      "output": 4413,
+      "reasoning": 2480,
+      "peakInput": 13261,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 2,
+      "input": 278,
+      "cacheRead": 26752,
+      "output": 315,
+      "reasoning": 104,
+      "peakInput": 13710,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 9475,
+    "cacheRead": 67200,
+    "output": 4728,
+    "reasoning": 2584,
+    "steps": 10,
+    "peakInput": 13710
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 1,
+    "charsBefore": 1122,
+    "charsAfter": 587
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 7,
+    "read": 2,
+    "edit": 5
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "suite green, tests untouched, failing list exact (10)"
+  }
+}

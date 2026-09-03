@@ -1,0 +1,81 @@
+{
+  "scenario": "f4_grep_rename",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f4_grep_rename-transcript-fold-low-1788448100730",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f4_grep_rename-KVD2EC",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 10,
+      "input": 13675,
+      "cacheRead": 106496,
+      "output": 2165,
+      "reasoning": 1253,
+      "peakInput": 15048,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 5,
+      "input": 1195,
+      "cacheRead": 82688,
+      "output": 2593,
+      "reasoning": 1959,
+      "peakInput": 18340,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 14870,
+    "cacheRead": 189184,
+    "output": 4758,
+    "reasoning": 3212,
+    "steps": 15,
+    "peakInput": 18340
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "grep": 1,
+    "bash": 10,
+    "read": 1,
+    "write": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "rename exact (299 in 82 files), decoys intact, suite green, counts right"
+  }
+}

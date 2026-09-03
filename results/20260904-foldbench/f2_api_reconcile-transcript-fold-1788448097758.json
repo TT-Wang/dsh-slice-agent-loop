@@ -1,0 +1,80 @@
+{
+  "scenario": "f2_api_reconcile",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f2_api_reconcile-transcript-fold-low-1788448097758",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f2_api_reconcile-ZaawhO",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 9,
+      "input": 6586,
+      "cacheRead": 40704,
+      "output": 2774,
+      "reasoning": 1018,
+      "peakInput": 8447,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 2,
+      "input": 196,
+      "cacheRead": 18048,
+      "output": 378,
+      "reasoning": 45,
+      "peakInput": 9326,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 6782,
+    "cacheRead": 58752,
+    "output": 3152,
+    "reasoning": 1063,
+    "steps": 11,
+    "peakInput": 9326
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 8,
+    "glob": 1,
+    "read": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "reconcile 49 ids + stats ok"
+  }
+}
