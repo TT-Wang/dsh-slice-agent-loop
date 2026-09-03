@@ -1,0 +1,227 @@
+{
+  "scenario": "s13_compact_amnesia",
+  "arm": "transcript-fold",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s13_compact_amnesia-transcript-fold-inherit-1788440869533",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s13_compact_amnesia-Jee8My",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 2,
+      "input": 146,
+      "cacheRead": 4608,
+      "output": 417,
+      "reasoning": 181,
+      "peakInput": 2540,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 5,
+      "input": 1738,
+      "cacheRead": 19968,
+      "output": 1816,
+      "reasoning": 979,
+      "peakInput": 5637,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 4,
+      "input": 679,
+      "cacheRead": 25088,
+      "output": 595,
+      "reasoning": 11,
+      "peakInput": 6816,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 4,
+      "input": 924,
+      "cacheRead": 29568,
+      "output": 699,
+      "reasoning": 32,
+      "peakInput": 8072,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 6,
+      "input": 2197,
+      "cacheRead": 72064,
+      "output": 4711,
+      "reasoning": 3949,
+      "peakInput": 14585,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 3,
+      "input": 1613,
+      "cacheRead": 46336,
+      "output": 617,
+      "reasoning": 83,
+      "peakInput": 16690,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 3,
+      "input": 1567,
+      "cacheRead": 52608,
+      "output": 592,
+      "reasoning": 21,
+      "peakInput": 18754,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 3,
+      "input": 1646,
+      "cacheRead": 58752,
+      "output": 614,
+      "reasoning": 8,
+      "peakInput": 20839,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 3,
+      "input": 1621,
+      "cacheRead": 65024,
+      "output": 638,
+      "reasoning": 0,
+      "peakInput": 22926,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 3,
+      "input": 1654,
+      "cacheRead": 71296,
+      "output": 666,
+      "reasoning": 0,
+      "peakInput": 25041,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 3,
+      "input": 1575,
+      "cacheRead": 77824,
+      "output": 710,
+      "reasoning": 0,
+      "peakInput": 27216,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 3,
+      "input": 1660,
+      "cacheRead": 84352,
+      "output": 775,
+      "reasoning": 8,
+      "peakInput": 29437,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 4,
+      "input": 810,
+      "cacheRead": 120832,
+      "output": 785,
+      "reasoning": 83,
+      "peakInput": 30885,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 5,
+      "input": 673,
+      "cacheRead": 159104,
+      "output": 1306,
+      "reasoning": 528,
+      "peakInput": 32477,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 2,
+      "input": 282,
+      "cacheRead": 65536,
+      "output": 362,
+      "reasoning": 186,
+      "peakInput": 33075,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 4,
+      "input": 1017,
+      "cacheRead": 135936,
+      "output": 767,
+      "reasoning": 203,
+      "peakInput": 34746,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 19802,
+    "cacheRead": 1088896,
+    "output": 16070,
+    "reasoning": 6272,
+    "steps": 57,
+    "peakInput": 34746
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 9,
+    "charsBefore": 43351,
+    "charsAfter": 20058
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 19,
+    "glob": 1,
+    "write": 4,
+    "read": 14,
+    "edit": 12,
+    "grep": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "amnesia probes + substrate all hold | recall_note: '直接记得——这组部署参数是对话最开始你口述、我记在工作记忆里的,写 ops/deploy.toml 时未查询任何文件或其他途径。'"
+  }
+}
