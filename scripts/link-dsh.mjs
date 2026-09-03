@@ -43,6 +43,8 @@ const PEERS = {
   // driver.ts 自 a4 迁移起用它(SessionSeq 等品牌类型工具)。
   '@deepseek-ai/dsh-util-values': 'packages/util/values',
   '@deepseek-ai/dsh-token-meter': 'packages/llm/token-meter',
+  // 原生 AgentLoop 的依赖:tool-result-fold 插件的契约测试要挂原生 loop。
+  '@deepseek-ai/dsh-session-projection': 'packages/session/session-projection',
 }
 
 /** Older harness snapshots that moved a package keep a fallback path here. */

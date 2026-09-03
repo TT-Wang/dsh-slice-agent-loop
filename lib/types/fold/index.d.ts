@@ -1,0 +1,48 @@
+/**
+ * tool-result-fold — 给 dsh 默认 transcript loop 加"轮内折叠"的独立插件(2026-09-04)。
+ *
+ * 机制:每步开始前(`agent/pre-step`),把上一步刚落盘的工具结果按内容路由折成紧凑视图,以
+ * **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,引用被遮蔽的 seq)——与 dsh 自带的
+ * compaction-tool-result-pruner 同一机制,会话不变量明确允许"引用被替换事件的内容改写"。
+ * 原文原样留在日志里,`expand_result` 逐字取回;模型看到的上下文只追加不改写,前缀缓存不受影响。
+ *
+ * 路由规则复用 slice 的 result-digest(Headroom 式):代码与 grep/glob 不折,日志错误优先,
+ * 文档/数据留头尾与结构行。默认 loop 不装 slice loop 也能用;两者不要同时挂(slice 自己折)。
+ */
+import { Context, Service } from '@deepseek-ai/cordis';
+import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
+import { type ToolDefinition } from '@deepseek-ai/dsh-tools';
+import { type DigestPolicy } from '../slice/result-digest.js';
+export declare const name = "tool-result-fold";
+export interface Config {
+    /** 关掉后插件只注册 expand_result,不折任何结果。 */
+    enabled?: boolean;
+    /** 折叠策略(阈值、头尾行数、日志上下文行数……),见 result-digest.ts。 */
+    digest?: Partial<DigestPolicy>;
+}
+export declare const EXPAND_TOOL_NAME = "expand_result";
+/** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
+export declare const FOLD_AFFORDANCE = "<fold>\nYour context is append-only: nothing already in it is rewritten or dropped. Large tool results are condensed by the host as they enter. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers `\u2026[+N lines / M chars]\u2026`, and the view's first line names the call that returns the full result: expand_result({\"turn\": t, \"step\": s, \"call\": n}), durable and one call away. So read a whole file in one call rather than paging it with offset/limit \u2014 a full read costs no more context than its condensed view, while every page costs a step.\n</fold>";
+/** 从日志取某步第 n 个追加态工具结果的原文(替换事件不算)。 */
+export declare function fullResultAt(events: readonly SessionEvent[], turn: number, step: number, call: number): {
+    name: string;
+    text: string;
+} | null;
+export declare function expandResultToolDefinition(): ToolDefinition;
+/** 供 runner/评测读取:某会话的折叠统计。 */
+export declare const FOLD_STATS: WeakMap<Session, {
+    folded: number;
+    charsBefore: number;
+    charsAfter: number;
+}>;
+/** cordis 插件本体:声明注入的服务(tools、systemPrompt),挂载即生效,卸载即回收(ctx.effect)。 */
+export declare class ToolResultFold extends Service {
+    static inject: string[];
+    constructor(ctx: Context, config?: Config);
+}
+declare module '@deepseek-ai/cordis' {
+    interface Context {
+        toolResultFold: ToolResultFold;
+    }
+}
+export default ToolResultFold;

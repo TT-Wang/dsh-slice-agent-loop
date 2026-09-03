@@ -15,7 +15,11 @@
       "default": "./lib/invariant.js"
     },
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./fold": {
+      "types": "./lib/types/fold/index.d.ts",
+      "default": "./lib/fold/index.js"
+    }
   },
   "files": [
     "lib/**/*",

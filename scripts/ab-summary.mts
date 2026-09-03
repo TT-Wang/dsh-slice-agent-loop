@@ -28,7 +28,7 @@ interface Ledger {
 const PRICE = { miss: 0.22, hit: 0.007, out: 0.66 }
 // 固定顺序的基础臂;变体(stream 的 --no-rules / --side-effort、effort 非 low)按账本
 // 字段自动加后缀成独立行,附在基础臂之后。
-const BASE_ARMS = ['transcript', 'slice-noseal', 'slice-seal', 'state', 'stream']
+const BASE_ARMS = ['transcript', 'transcript-fold', 'slice-noseal', 'slice-seal', 'state', 'stream']
 function armLabel(l: Ledger): string {
   let label = l.arm
   if (l.state?.extractRules === false) label += '/no-rules'
