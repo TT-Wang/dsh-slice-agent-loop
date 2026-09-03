@@ -22,7 +22,7 @@ import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
 const CODE = Array.from({ length: 80 }, (_, i) => `def f${i}(x):\n    return x + ${i}`).join('\n')
 
-async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: string; isError?: boolean }>): Promise<Context> {
+async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: string; isError?: boolean }>, config: { pinSteps?: number; digest?: Record<string, unknown> } = { pinSteps: 0, digest: { minChars: 1500 } }): Promise<Context> {
   const ctx = new Context()
   await ctx.plugin(LlmService)
   await ctx.plugin(SessionStore)
@@ -33,7 +33,7 @@ async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: 
   await ctx.plugin(agentLoopInvariant)
   await ctx.plugin(SessionProjections)      // 原生 loop 依赖会话投影服务
   await ctx.plugin(StockAgentLoop, {} as never)
-  await ctx.plugin(fold, {})
+  await ctx.plugin(fold, config as never)
   for (const t of tools) {
     ctx.tools.register(defineContentToolFixture({
       name: t.name,
@@ -105,5 +105,24 @@ describe('tool-result-fold on the stock loop', () => {
     expect(requestText(adapter, 2)).toContain('row 55 payload')   // 错误结果原样
     expect(handle.agent.session.snapshotEvents().filter((e) => e.type === 'tool/result' && isReplacementSurfaceEvent(e))).toHaveLength(0)
     expect(FOLD_STATS.get(handle.agent.session)?.folded ?? 0).toBe(0)
+  })
+})
+
+describe('pinned early steps', () => {
+  it('never folds results that land in the first pinSteps steps of a turn (spec and rules reads)', async () => {
+    const adapter = new MockAdapter([
+      toolCallResponse('c1', 'read', { file_path: 'RULES.md' }),   // step 1: pinned
+      toolCallResponse('c2', 'read', { file_path: 'data.txt' }),   // step 2: pinned
+      toolCallResponse('c3', 'read', { file_path: 'data2.txt' }),  // step 3: folded
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter, [{ name: 'read', text: BIG }], { pinSteps: 2, digest: { minChars: 1500 } })
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-pin'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'go')
+    await handle.agent.whenIdle()
+    expect(requestText(adapter, 1)).toContain('row 55 payload')        // step-1 result verbatim in step 2's request
+    expect(requestText(adapter, 2)).toContain('row 55 payload')        // step-2 result verbatim too
+    expect(requestText(adapter, 3)).toContain('\\"turn\\": 1, \\"step\\": 3')  // step-3 result folded
+    expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
   })
 })

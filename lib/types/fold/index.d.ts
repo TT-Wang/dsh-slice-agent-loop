@@ -22,6 +22,8 @@ export interface Config {
     enabled?: boolean;
     /** 折叠策略(阈值、头尾行数、日志上下文行数……),见 result-digest.ts。 */
     digest?: Partial<DigestPolicy>;
+    /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
+    pinSteps?: number;
 }
 export declare const EXPAND_TOOL_NAME = "expand_result";
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */

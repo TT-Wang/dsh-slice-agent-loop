@@ -34,3 +34,13 @@ describe('long lines in data results', () => {
     expect(r.digested).toBe(false)
   })
 })
+
+import { readFileSync } from 'node:fs'
+describe('rules documents survive', () => {
+  it('leaves the 3.7K l2 rules file untouched at the default threshold, and keeps R1–R9 as structured lines when forced', () => {
+    const rules = readFileSync(new URL('./fixtures/ledger-rules.md', import.meta.url), 'utf8')
+    expect(digestToolResult(rules, { tool: 'read', path: 'LEDGER_RULES.md' }).digested).toBe(false)
+    const forced = digestToolResult(rules, { tool: 'read', path: 'LEDGER_RULES.md' }, { ...DEFAULT_DIGEST_POLICY, minChars: 1000 })
+    for (const rule of ['R1 path:', 'R5 seq/continuity:', 'R9 journal:']) expect(forced.text).toContain(rule)
+  })
+})

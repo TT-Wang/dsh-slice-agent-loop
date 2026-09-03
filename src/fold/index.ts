@@ -27,6 +27,8 @@ export interface Config {
   enabled?: boolean
   /** 折叠策略(阈值、头尾行数、日志上下文行数……),见 result-digest.ts。 */
   digest?: Partial<DigestPolicy>
+  /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
+  pinSteps?: number
 }
 
 export const EXPAND_TOOL_NAME = 'expand_result'
@@ -58,7 +60,7 @@ class SessionFolder {
   private readonly calls = new Map<string, CallInfo>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
   readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0 }
-  constructor(private readonly session: Session, private readonly policy: DigestPolicy) {}
+  constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number) {}
 
   /** 把游标之后新落盘的、仍在 surface 上的追加态工具结果折掉。 */
   fold(): void {
@@ -80,6 +82,7 @@ class SessionFolder {
       const n = (ordinal.get(key) ?? this.countBefore(d.turn, d.step, i)) + 1
       ordinal.set(key, n)
       if (!onSurface.has(i)) continue
+      if (d.step <= this.pinSteps) continue
       this.foldOne(i as SessionSeq, event as SessionEvent<'tool/result'>, d, n)
     }
     this.cursor = end
@@ -184,6 +187,8 @@ export class ToolResultFold extends Service {
     super(ctx, 'toolResultFold')
     const policy = resolveDigestPolicy(config.digest)
     const enabled = config.enabled ?? true
+    const pinSteps = config.pinSteps ?? 2
+    if (!Number.isInteger(pinSteps) || pinSteps < 0) throw new Error('pinSteps must be a non-negative integer')
     ctx.effect(() => ctx.tools.register(expandResultToolDefinition()), 'toolResultFold.expandResult()')
     if (!enabled) return
     ctx.effect(
@@ -195,7 +200,7 @@ export class ToolResultFold extends Service {
       const session = (agent as Agent).session
       let folder = folders.get(session)
       if (folder === undefined) {
-        folder = new SessionFolder(session, policy)
+        folder = new SessionFolder(session, policy, pinSteps)
         folders.set(session, folder)
         FOLD_STATS.set(session, folder.stats)
       }
