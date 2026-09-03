@@ -1,0 +1,123 @@
+{
+  "scenario": "s1_longhorizon_debug",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": true,
+  "readPointer": true,
+  "readPointers": 1,
+  "anchor": "base",
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s1_longhorizon_debug-slice-noseal-inherit-1788433083537",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s1_longhorizon_debug-uez73l",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 10,
+      "input": 3049,
+      "cacheRead": 82176,
+      "output": 7089,
+      "reasoning": 3663,
+      "peakInput": 12669,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 6,
+      "input": 3437,
+      "cacheRead": 112000,
+      "output": 21518,
+      "reasoning": 17714,
+      "peakInput": 27036,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 4191,
+      "cacheRead": 31616,
+      "output": 8272,
+      "reasoning": 6012,
+      "peakInput": 15050,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 3,
+      "input": 4658,
+      "cacheRead": 31616,
+      "output": 5946,
+      "reasoning": 3629,
+      "peakInput": 14356,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 8,
+      "input": 6674,
+      "cacheRead": 145792,
+      "output": 12021,
+      "reasoning": 6343,
+      "peakInput": 23868,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 6,
+      "input": 5900,
+      "cacheRead": 98944,
+      "output": 6238,
+      "reasoning": 4185,
+      "peakInput": 19581,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 27909,
+    "cacheRead": 502144,
+    "output": 61084,
+    "reasoning": 41546,
+    "steps": 36,
+    "peakInput": 27036
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 20,
+    "glob": 2,
+    "read": 8,
+    "edit": 13
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all cumulative + regression checks passed"
+  }
+}

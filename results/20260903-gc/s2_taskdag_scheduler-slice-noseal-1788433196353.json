@@ -1,0 +1,167 @@
+{
+  "scenario": "s2_taskdag_scheduler",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": true,
+  "readPointer": true,
+  "readPointers": 0,
+  "anchor": "base",
+  "tapeOpts": {
+    "gcSupersededBases": true
+  },
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s2_taskdag_scheduler-slice-noseal-inherit-1788433196353",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s2_taskdag_scheduler-jIqJSh",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 12,
+      "input": 3982,
+      "cacheRead": 92160,
+      "output": 6578,
+      "reasoning": 2353,
+      "peakInput": 12550,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 14,
+      "input": 5662,
+      "cacheRead": 370560,
+      "output": 25703,
+      "reasoning": 20792,
+      "peakInput": 33439,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 8,
+      "input": 6599,
+      "cacheRead": 98432,
+      "output": 6217,
+      "reasoning": 3716,
+      "peakInput": 15087,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 7,
+      "input": 8877,
+      "cacheRead": 102400,
+      "output": 6821,
+      "reasoning": 3354,
+      "peakInput": 18226,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 4,
+      "input": 8821,
+      "cacheRead": 80256,
+      "output": 9622,
+      "reasoning": 6351,
+      "peakInput": 25098,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 12,
+      "input": 12300,
+      "cacheRead": 282880,
+      "output": 5725,
+      "reasoning": 2061,
+      "peakInput": 27423,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 10,
+      "input": 11939,
+      "cacheRead": 309376,
+      "output": 10120,
+      "reasoning": 6759,
+      "peakInput": 35290,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 14,
+      "input": 9526,
+      "cacheRead": 488576,
+      "output": 11220,
+      "reasoning": 5466,
+      "peakInput": 38766,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 5,
+      "input": 12644,
+      "cacheRead": 193792,
+      "output": 11010,
+      "reasoning": 8270,
+      "peakInput": 46120,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 8,
+      "input": 22585,
+      "cacheRead": 291584,
+      "output": 19188,
+      "reasoning": 14101,
+      "peakInput": 43758,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 102935,
+    "cacheRead": 2310016,
+    "output": 112204,
+    "reasoning": 73223,
+    "steps": 94,
+    "peakInput": 46120
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 58,
+    "glob": 2,
+    "read": 11,
+    "edit": 31,
+    "write": 9,
+    "grep": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all cumulative + regression checks passed"
+  }
+}
