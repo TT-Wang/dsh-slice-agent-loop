@@ -18,13 +18,18 @@ for scen, sids in PICK.items():
     rs = [r for r in h2h if r['scenario'] == scen and r['arm'] == 'default' and r['session'] in sids]
     if rs: old[scen] = dict(n=len(rs), cost=statistics.mean(r['cost'] for r in rs), steps=statistics.mean(r['steps'] for r in rs), out=statistics.mean(r['out'] for r in rs), reasoning=statistics.mean(r['reasoning'] for r in rs), miss=statistics.mean(r['miss'] for r in rs), hit=statistics.mean(r['hit'] for r in rs), verdict=VERDICT.get(scen, '?'))
 new = {}
+same_cond = {}
 for f in sorted(glob.glob(os.path.join(new_dir, '*.json'))):
     d = json.load(open(f)); t = d['totals']
+    if d.get('arm') == 'transcript':  # 同条件补跑的 transcript 基线(bash 修复后)
+        same_cond[d['scenario']] = dict(n=1, cost=(t['input']*P['miss']+t['cacheRead']*P['hit']+t['output']*P['out'])/1e6, steps=t['steps'], out=t['output'], reasoning=t['reasoning'], miss=t['input'], hit=t['cacheRead'], verdict=('✓' if d['verdict']['ok'] else '✗') + ' 同条件补跑')
+        continue
+    if d.get('arm') != 'slice-noseal': continue
     new[d['scenario']] = dict(ok=d['verdict']['ok'], detail=d['verdict']['detail'], cost=(t['input']*P['miss']+t['cacheRead']*P['hit']+t['output']*P['out'])/1e6, steps=t['steps'], out=t['output'], reasoning=t['reasoning'], miss=t['input'], hit=t['cacheRead'], digest=d.get('digest'))
 order = ['s1_longhorizon_debug','s2_taskdag_scheduler','s3_intervalset_algebra','s4_multifile_refactor','s5_standing_constraints','s6_revert_by_reference','s13_compact_amnesia','s14b_recall_ladder','s10_compactloss','l1_chain_migrate','l2_ledger_state']
 print(f"{'scenario':<24}{'default 历史':>14}{'$':>8}{'steps':>7}{'out':>8} | {'slice+fold':>10}{'$':>8}{'steps':>7}{'out':>8}{'Δ$':>7}  fold")
 for s in order:
-    o = old.get(s); n = new.get(s)
+    o = old.get(s) or same_cond.get(s); n = new.get(s)
     if not o and not n: continue
     oc = f"{o['cost']:.4f}" if o else '—'; ov = (o['verdict'] + f" n={o['n']}") if o else '无基线'
     nv = ('✓' if n['ok'] else '✗') if n else '—'; nc = f"{n['cost']:.4f}" if n else '—'
