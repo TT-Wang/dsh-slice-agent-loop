@@ -37,7 +37,7 @@ export interface Config {
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
-  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number }
+  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; baseMaxChars?: number }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -220,8 +220,10 @@ export class SliceLoopPlugin extends Service {
     const digest = resolveDigestPolicy(config.digest)
     const readBases = { enabled: config.tape?.readBases ?? DEFAULT_READ_BASES.enabled, maxChars: config.tape?.readBaseMaxChars ?? DEFAULT_READ_BASES.maxChars }
     if (!Number.isInteger(readBases.maxChars) || readBases.maxChars < 0) throw new Error('tape.readBaseMaxChars must be a non-negative integer')
-    const readPointer = config.tape?.readPointer ?? false
-    const anchorMode = config.tape?.anchor ?? 'auto'
+    // 2026-09-03 默认改为重读税实验的胜出配置(docs/slice-fold-multiturn.md「磁带内容与结构的第二轮」):
+    // 只读文件跨轮再读才锚定、现行文件整读返回指针、锚定存完整基线(大文件退回 patch)、同轮编辑塌缩。
+    const readPointer = config.tape?.readPointer ?? true
+    const anchorMode = config.tape?.anchor ?? 'base'
     if (anchorMode !== 'auto' && anchorMode !== 'base') throw new Error("tape.anchor must be 'auto' or 'base'")
     const rebaseAfterPatches = config.tape?.rebaseAfterPatches ?? Infinity
     if (!(rebaseAfterPatches >= 1)) throw new Error('tape.rebaseAfterPatches must be >= 1 (Infinity = never)')
@@ -230,8 +232,10 @@ export class SliceLoopPlugin extends Service {
     if (!Number.isInteger(replyHead) || replyHead < 0 || !Number.isInteger(replyTail) || replyTail < 0) throw new Error('tape.replyHeadChars/replyTailChars must be non-negative integers')
     const replyCaps = { cap: config.tape?.replyHeadChars !== undefined || config.tape?.replyTailChars !== undefined ? replyHead + replyTail + 100 : DEFAULT_REPLY_CAPS.cap, head: replyHead, tail: replyTail }
     const checkInDigest = config.tape?.checkInDigest ?? false
-    const collapseEdits = config.tape?.collapseEdits ?? false
-    const readBasesMinReads = config.tape?.readBasesMinReads ?? 1
+    const collapseEdits = config.tape?.collapseEdits ?? true
+    const readBasesMinReads = config.tape?.readBasesMinReads ?? 2
+    const baseMaxChars = config.tape?.baseMaxChars ?? 60_000
+    if (!(baseMaxChars >= 0)) throw new Error('tape.baseMaxChars must be >= 0')
     if (!Number.isInteger(readBasesMinReads) || readBasesMinReads < 1) throw new Error('tape.readBasesMinReads must be an integer >= 1')
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
@@ -306,7 +310,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads, baseMaxChars }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

@@ -101,3 +101,17 @@ describe('readBasesMinReads', () => {
     expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(1)
   })
 })
+
+describe('baseMaxChars', () => {
+  it("anchor 'base' falls back to the patch/base choice for files whose base exceeds the cap", () => {
+    const big = (v: number) => Array.from({ length: 400 }, (_, i) => (i === 7 ? `v = ${v}` : `line ${i} ${'#'.repeat(30)}`)).join('\n') + '\n'
+    const c = createContinuity()
+    trackEdit(c, 'big.py', big(1)); seal(c, 1, 'r', { anchorMode: 'base', baseMaxChars: 5000 })
+    trackEdit(c, 'big.py', big(2)); seal(c, 2, 'r', { anchorMode: 'base', baseMaxChars: 5000 })
+    expect(c.sessionTape.filter((e) => e.kind === 'base' || e.kind === 'patch').map((e) => e.kind)).toEqual(['base', 'patch'])
+    const d = createContinuity()
+    trackEdit(d, 'big.py', big(1)); seal(d, 1, 'r', { anchorMode: 'base' })
+    trackEdit(d, 'big.py', big(2)); seal(d, 2, 'r', { anchorMode: 'base' })
+    expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)      // 默认 60K 之内:完整基线
+  })
+})

@@ -2462,7 +2462,8 @@ describe('SliceLoopAgent contract gates', () => {
       textResponse('both writes complete'),
       textResponse('snapshots checked'),
     ])
-    const ctx = await harness(adapter)
+    // 2026-09-03 起默认 collapseEdits=true(同轮多次编辑只锚末态);这里显式关掉,守住"逐次快照"的可选形态。
+    const ctx = await harness(adapter, { tape: { collapseEdits: false } })
     ctx.tools.register(defineContentToolFixture({
       name: 'write_file',
       description: 'write a UTF-8 file',

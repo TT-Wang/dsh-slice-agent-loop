@@ -223,6 +223,9 @@ export function sealTurn(
     checkInDigest?: boolean
     /** 同一轮内对同一文件的多次成功编辑只锚定末态(默认 false:每次编辑各落一条,保留"已执行的 patch"序列)。 */
     collapseEdits?: boolean
+    /** anchor 'base' 的大文件保护:完整基线渲染超过这么多字符时,该文件退回 auto(patch/base 择短),
+     *  免得一个 100K 的文件每轮都以未命中价重落一遍(默认 60_000)。 */
+    baseMaxChars?: number
     /** 只读文件要在至少这么多轮里被读到才锚定(默认 1 = 读一次就锚)。2026-09-03:s13/s14b 里只读一次的
      *  大文件被全部锚进磁带,封存 miss 从 17K 涨到 84–95K token,成本翻倍;跨轮重复读才值得占磁带。 */
     readBasesMinReads?: number
@@ -281,7 +284,8 @@ export function sealTurn(
       // 2026-09-03 anchorMode 'base':s2 实测 patch 省的是命中价的输入字节,付的是每轮在脑中
       // 合成 base+patch 的推理(126K vs 76K);完整基线让模型面前永远是当前文件。
       const depth = state.patches ?? 0
-      const rebase = opts.anchorMode === 'base' || depth >= (opts.rebaseAfterPatches ?? Infinity)
+      const alwaysBase = opts.anchorMode === 'base' && base.rendered.length <= (opts.baseMaxChars ?? 60_000)
+      const rebase = alwaysBase || depth >= (opts.rebaseAfterPatches ?? Infinity)
       const patch = rebase ? undefined : patchEntry(path, state.content, body)
       const usePatch = patch !== undefined && patch.rendered.length < base.rendered.length * 0.9
       tape.push(usePatch ? patch : base)

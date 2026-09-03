@@ -49,6 +49,7 @@ export interface Config {
         checkInDigest?: boolean;
         collapseEdits?: boolean;
         readBasesMinReads?: number;
+        baseMaxChars?: number;
     };
     state?: {
         hotWindowSteps?: number;

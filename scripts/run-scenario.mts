@@ -97,19 +97,22 @@ const CAP = num('--digest-block-cap', Infinity)
 // --no-fold:关掉轮内折叠(对照旧 slice)。
 const NO_FOLD = args.includes('--no-fold')
 // 重读税实验旋钮(默认全关):--read-bases 读过未改的文件轮末锚定为 base;--read-pointer 磁带现行文件的整读换指针。
-const READ_BASES = args.includes('--read-bases')
-const READ_POINTER = args.includes('--read-pointer')
+// 2026-09-03 起产品默认 = readBases(minReads 2)+ readPointer + anchor base + collapseEdits;
+// --read-bases/--read-pointer/--collapse-edits 仍可显式打开,--no-read-bases/--no-read-pointer/
+// --no-collapse-edits/--anchor auto 关掉(回归旧形态)。账本 tapeOpts 只记显式给出的项。
+const READ_BASES = args.includes('--read-bases') ? true : args.includes('--no-read-bases') ? false : undefined
+const READ_POINTER = args.includes('--read-pointer') ? true : args.includes('--no-read-pointer') ? false : undefined
 // --anchor base:文件锚定永远存完整基线(不存 patch)。
-const ANCHOR = (args.includes('--anchor') ? args[args.indexOf('--anchor') + 1] : 'auto') as 'auto' | 'base'
+const ANCHOR = (args.includes('--anchor') ? args[args.indexOf('--anchor') + 1] : undefined) as 'auto' | 'base' | undefined
 // --rebase-after N / --reply-head N --reply-tail N / --check-digest:磁带内容实验旋钮。
 const REBASE_AFTER = num('--rebase-after', Infinity)
 const REPLY_HEAD = num('--reply-head', -1)
 const REPLY_TAIL = num('--reply-tail', -1)
 const CHECK_DIGEST = args.includes('--check-digest')
-const COLLAPSE = args.includes('--collapse-edits')
+const COLLAPSE = args.includes('--collapse-edits') ? true : args.includes('--no-collapse-edits') ? false : undefined
 const RB_MIN = num('--read-bases-min', 1)
-const TAPE_OPTS = { readBases: READ_BASES, readPointer: READ_POINTER, anchor: ANCHOR, ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}), ...(COLLAPSE ? { collapseEdits: true } : {}), ...(RB_MIN > 1 ? { readBasesMinReads: RB_MIN } : {}) }
-const TAPE_TOUCHED = READ_BASES || READ_POINTER || ANCHOR !== 'auto' || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST || COLLAPSE || RB_MIN > 1
+const TAPE_OPTS = { ...(READ_BASES !== undefined ? { readBases: READ_BASES } : {}), ...(READ_POINTER !== undefined ? { readPointer: READ_POINTER } : {}), ...(ANCHOR !== undefined ? { anchor: ANCHOR } : {}), ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}), ...(COLLAPSE !== undefined ? { collapseEdits: COLLAPSE } : {}), ...(RB_MIN > 1 ? { readBasesMinReads: RB_MIN } : {}) }
+const TAPE_TOUCHED = READ_BASES !== undefined || READ_POINTER !== undefined || ANCHOR !== undefined || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST || COLLAPSE !== undefined || RB_MIN > 1
 // --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
 const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }
@@ -306,7 +309,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? READ_BASES : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? READ_POINTER : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ANCHOR, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? (READ_BASES ?? true) : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? (READ_POINTER ?? true) : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ARM.startsWith('slice') || ARM === 'stream' ? (ANCHOR ?? 'base') : null, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

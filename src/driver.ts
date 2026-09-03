@@ -217,6 +217,7 @@ export interface SliceLoopDriverConfig {
   checkInDigest: boolean
   collapseEdits: boolean
   readBasesMinReads: number
+  baseMaxChars: number
 }
 
 export interface ReadBasesPolicy {
@@ -226,7 +227,7 @@ export interface ReadBasesPolicy {
 }
 
 /** 默认关:s2/s3 实测只在 anchor 'base' 下才划算(否则模型在脑中合成 patch,推理翻倍)。 */
-export const DEFAULT_READ_BASES: ReadBasesPolicy = { enabled: false, maxChars: 40_000 }
+export const DEFAULT_READ_BASES: ReadBasesPolicy = { enabled: true, maxChars: 40_000 }
 
 /** 世界状态循环的策略(提案 2026-09-02)。 */
 export interface StatePolicy {
@@ -319,6 +320,7 @@ export class SliceLoopAgent implements Agent {
   private readonly checkInDigest: boolean
   private readonly collapseEdits: boolean
   private readonly readBasesMinReads: number
+  private readonly baseMaxChars: number
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -379,6 +381,7 @@ export class SliceLoopAgent implements Agent {
     this.checkInDigest = config.checkInDigest
     this.collapseEdits = config.collapseEdits
     this.readBasesMinReads = config.readBasesMinReads
+    this.baseMaxChars = config.baseMaxChars
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -542,7 +545,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars,
           })
         }
         pendingAnchors = []
@@ -964,7 +967,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })
