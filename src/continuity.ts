@@ -82,11 +82,13 @@ export interface Continuity {
   sessionTape: TapeEntry[]
   tapeFiles: Record<string, TapeFileState>
   /** 本轮编辑过的文件（成功 tool/result 边界快照后态，seal 时锚定后清空）。 */
-  pendingEdits: Array<{ path: string; body: string }>
+  pendingEdits: Array<{ path: string; body: string; created?: boolean }>
   /** 本轮读过(未必改过)的文件盘态——轮末也锚定为 base(2026-09-03 重读税实验)。 */
   pendingReads: Array<{ path: string; body: string }>
   /** 各路径被读过的轮数(readBasesMinReads 用:只锚定跨轮重复读到的只读文件)。 */
   readCount: Record<string, number>
+  /** 本会话由 write 类工具新建、尚未锚定的文件 → 被碰过的轮数(newFileMinTouches 用)。 */
+  touchCount: Record<string, number>
   /** 本轮最后一次测试/检查命令及其结果摘要(checkInDigest 用;seal 时写进轮摘要后清空)。 */
   pendingCheck?: { command: string; summary: string }
   /**
@@ -113,6 +115,7 @@ export function createContinuity(): Continuity {
     pendingEdits: [],
     pendingReads: [],
     readCount: {},
+    touchCount: {},
     pendingError: '',
     pendingReasoning: [],
     lastError: '',
@@ -230,6 +233,9 @@ export function sealTurn(
     baseMaxChars?: number
     /** 封存时立刻清掉被新 base 取代的文件历史(改写代价 ≤ 新 base 字节时),种子里每文件只留一份现行基线。 */
     gcSupersededBases?: boolean
+    /** 本轮新建的文件(此前不在磁带上)要在至少这么多轮里被碰到才锚定(默认 1 = 建了就锚)。2026-09-03:
+     *  贵的 s2 跑批每轮 write 一个 3–9K 的 verify_*.py 探针脚本,之后再没碰过,却永久占磁带。 */
+    newFileMinTouches?: number
     /** 只读文件要在至少这么多轮里被读到才锚定(默认 1 = 读一次就锚)。2026-09-03:s13/s14b 里只读一次的
      *  大文件被全部锚进磁带,封存 miss 从 17K 涨到 84–95K token,成本翻倍;跨轮重复读才值得占磁带。 */
     readBasesMinReads?: number
@@ -267,11 +273,19 @@ export function sealTurn(
   // 未命中价。本轮编辑过的文件走同一循环的 base/patch 逻辑,这里只补只读的;同 hash 不重复。
   // collapseEdits(2026-09-03):base 模式下中间态是纯浪费——s2 第 7 轮磁带上 13 份 scheduler.py
   // 只有 1 份是当前版;封存本来就是一次性追加,塌缩不多付任何缓存未命中。
+  const createdNow = new Set(c.pendingEdits.filter((e) => e.created).map((e) => e.path))
   const edits = opts.collapseEdits ? [...new Map(c.pendingEdits.map((e) => [e.path, e] as const)).values()] : c.pendingEdits
   const editedNow = new Set(edits.map((e) => e.path))
   const minReads = opts.readBasesMinReads ?? 1
   for (const r of c.pendingReads) c.readCount[r.path] = (c.readCount[r.path] ?? 0) + 1
-  const toAnchor = [...edits, ...c.pendingReads.filter((r) => !editedNow.has(r.path) && (c.readCount[r.path] ?? 0) >= minReads)]
+  // 新建文件的 rent-or-buy:由 write 类工具创建、此前不在磁带上的文件,本轮计一次;不够阈值就不锚
+  // (之后任何一轮再编辑或再读到它就补锚)。首次被编辑的既有文件不算新建,照常锚定。
+  const minTouches = opts.newFileMinTouches ?? 1
+  for (const path of createdNow) if (files[path] === undefined && c.touchCount[path] === undefined) c.touchCount[path] = 0
+  const touchedNow = new Set([...edits.map((e) => e.path), ...c.pendingReads.map((r) => r.path)])
+  for (const path of touchedNow) if (files[path] === undefined && c.touchCount[path] !== undefined) c.touchCount[path] += 1
+  const newEnough = (path: string) => files[path] !== undefined || c.touchCount[path] === undefined || c.touchCount[path] >= minTouches
+  const toAnchor = [...edits.filter((e) => newEnough(e.path)), ...c.pendingReads.filter((r) => !editedNow.has(r.path) && (c.readCount[r.path] ?? 0) >= minReads && newEnough(r.path))]
   for (const { path, body } of toAnchor) {
     const state = files[path]
     const hash = sha256(body)
@@ -329,8 +343,8 @@ export function sealTurn(
  * codeFile 脱敏后留存——tape 永远只锚定脱敏字节，hash 也落在脱敏字节上
  * （seed.py HASH SEAM 同构），且一轮内多次成功编辑各自保留自己的后态。
  */
-export function trackEdit(c: Continuity, path: string, body: string): void {
-  if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }) })
+export function trackEdit(c: Continuity, path: string, body: string, opts: { created?: boolean } = {}): void {
+  if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }), ...(opts.created ? { created: true } : {}) })
 }
 
 /** 检查结果快照(driver 在测试类 bash 命令的 tool/result 边界调用):只留本轮最后一次。 */

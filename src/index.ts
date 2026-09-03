@@ -37,7 +37,7 @@ export interface Config {
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
-  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; baseMaxChars?: number; gcSupersededBases?: boolean }
+  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean; collapseEdits?: boolean; readBasesMinReads?: number; baseMaxChars?: number; gcSupersededBases?: boolean; newFileMinTouches?: number }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -237,6 +237,10 @@ export class SliceLoopPlugin extends Service {
     const baseMaxChars = config.tape?.baseMaxChars ?? 60_000
     if (!(baseMaxChars >= 0)) throw new Error('tape.baseMaxChars must be >= 0')
     const gcSupersededBases = config.tape?.gcSupersededBases ?? false
+    // 默认 2:历史 89 个会话里新建的 366 个文件只有 12% 在后续轮被再次碰到(按字节 0.2%),
+    // 探针/测试脚本写完即弃;真正的新模块下一轮编辑前多读一次即可。
+    const newFileMinTouches = config.tape?.newFileMinTouches ?? 2
+    if (!Number.isInteger(newFileMinTouches) || newFileMinTouches < 1) throw new Error('tape.newFileMinTouches must be an integer >= 1')
     if (!Number.isInteger(readBasesMinReads) || readBasesMinReads < 1) throw new Error('tape.readBasesMinReads must be an integer >= 1')
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
@@ -311,7 +315,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads, baseMaxChars, gcSupersededBases }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest, collapseEdits, readBasesMinReads, baseMaxChars, gcSupersededBases, newFileMinTouches }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

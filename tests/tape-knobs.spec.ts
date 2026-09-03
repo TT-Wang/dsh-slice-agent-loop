@@ -154,3 +154,26 @@ describe('tape header follows the tape content', () => {
     expect(tapeHeader([])).toContain('FULL content')
   })
 })
+
+describe('newFileMinTouches', () => {
+  it('does not anchor a freshly written file until it is touched in a later turn; tracked files always anchor', () => {
+    const c = createContinuity()
+    trackEdit(c, 'core.py', 'x = 1\n', { created: true })                 // 第 1 轮:core.py 由 write 新建
+    seal(c, 1, 'r', { newFileMinTouches: 2 })
+    expect(Object.keys(c.tapeFiles)).toEqual([])                          // 新建首轮不锚
+    trackEdit(c, 'core.py', 'x = 2\n'); trackEdit(c, 'verify_a.py', 'assert 1\n', { created: true })
+    seal(c, 2, 'r', { newFileMinTouches: 2 })
+    expect(Object.keys(c.tapeFiles)).toEqual(['core.py'])                 // 第二次碰到:锚;探针脚本不锚
+    expect(c.tapeFiles['core.py']!.content).toBe('x = 2\n')
+    trackEdit(c, 'core.py', 'x = 3\n')
+    seal(c, 3, 'r', { newFileMinTouches: 2 })
+    expect(c.tapeFiles['core.py']!.content).toBe('x = 3\n')              // 已在磁带上的文件每次都锚
+    expect(c.sessionTape.filter((e) => e.kind === 'base' && e.path === 'verify_a.py')).toHaveLength(0)
+    // 默认 1:建了就锚
+    const d = createContinuity(); trackEdit(d, 'verify_a.py', 'assert 1\n', { created: true }); seal(d, 1, 'r')
+    expect(Object.keys(d.tapeFiles)).toEqual(['verify_a.py'])
+    // 既有文件的首次编辑不算新建:阈值 2 下照常锚定
+    const e = createContinuity(); trackEdit(e, 'old.py', 'y = 1\n'); seal(e, 1, 'r', { newFileMinTouches: 2 })
+    expect(Object.keys(e.tapeFiles)).toEqual(['old.py'])
+  })
+})

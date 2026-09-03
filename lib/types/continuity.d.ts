@@ -27,6 +27,7 @@ export interface Continuity {
     pendingEdits: Array<{
         path: string;
         body: string;
+        created?: boolean;
     }>;
     /** 本轮读过(未必改过)的文件盘态——轮末也锚定为 base(2026-09-03 重读税实验)。 */
     pendingReads: Array<{
@@ -35,6 +36,8 @@ export interface Continuity {
     }>;
     /** 各路径被读过的轮数(readBasesMinReads 用:只锚定跨轮重复读到的只读文件)。 */
     readCount: Record<string, number>;
+    /** 本会话由 write 类工具新建、尚未锚定的文件 → 被碰过的轮数(newFileMinTouches 用)。 */
+    touchCount: Record<string, number>;
     /** 本轮最后一次测试/检查命令及其结果摘要(checkInDigest 用;seal 时写进轮摘要后清空)。 */
     pendingCheck?: {
         command: string;
@@ -102,6 +105,9 @@ export declare function sealTurn(c: Continuity, opts: {
     baseMaxChars?: number;
     /** 封存时立刻清掉被新 base 取代的文件历史(改写代价 ≤ 新 base 字节时),种子里每文件只留一份现行基线。 */
     gcSupersededBases?: boolean;
+    /** 本轮新建的文件(此前不在磁带上)要在至少这么多轮里被碰到才锚定(默认 1 = 建了就锚)。2026-09-03:
+     *  贵的 s2 跑批每轮 write 一个 3–9K 的 verify_*.py 探针脚本,之后再没碰过,却永久占磁带。 */
+    newFileMinTouches?: number;
     /** 只读文件要在至少这么多轮里被读到才锚定(默认 1 = 读一次就锚)。2026-09-03:s13/s14b 里只读一次的
      *  大文件被全部锚进磁带,封存 miss 从 17K 涨到 84–95K token,成本翻倍;跨轮重复读才值得占磁带。 */
     readBasesMinReads?: number;
@@ -119,7 +125,9 @@ export declare function sealTurn(c: Continuity, opts: {
  * codeFile 脱敏后留存——tape 永远只锚定脱敏字节，hash 也落在脱敏字节上
  * （seed.py HASH SEAM 同构），且一轮内多次成功编辑各自保留自己的后态。
  */
-export declare function trackEdit(c: Continuity, path: string, body: string): void;
+export declare function trackEdit(c: Continuity, path: string, body: string, opts?: {
+    created?: boolean;
+}): void;
 /** 检查结果快照(driver 在测试类 bash 命令的 tool/result 边界调用):只留本轮最后一次。 */
 export declare function trackCheck(c: Continuity, command: string, resultText: string): void;
 /** 读取后态快照(driver 在成功的 read tool/result 边界调用):同一路径只留最后一次。 */

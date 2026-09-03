@@ -24,7 +24,11 @@ import {
   toolCallResponse,
 } from './mock-adapter.js'
 
+// 契约测试在临时目录里用 write 类工具新建文件并期待当轮锚定;产品默认 newFileMinTouches=2
+// (新建文件第二次碰到才锚,见 tests/tape-knobs.spec.ts)会让这些用例失去观察对象,这里钉回 1。
+const CONTRACT_TAPE = { newFileMinTouches: 1 } as const
 async function harness(adapter: MockAdapter, config: Config = {}): Promise<Context> {
+  config = { ...config, tape: { ...CONTRACT_TAPE, ...(config.tape ?? {}) } }
   const ctx = new Context()
   await ctx.plugin(LlmService)
   await ctx.plugin(SessionStore)
@@ -2975,7 +2979,7 @@ describe('slice-loop own invariant (评审 D · C)', () => {
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(InvariantService)
-    await ctx.plugin(apply, {})
+    await ctx.plugin(apply, { tape: CONTRACT_TAPE, })
     await ctx.plugin(sliceInvariant)
     ctx.llm.registerAdapter(['mock'], adapter)
     return ctx
@@ -3055,7 +3059,7 @@ describe('Code Mode file anchoring (评审 · 执行平面)', () => {
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentRegistry)
     await ctx.plugin(FakeRuntime)
-    await ctx.plugin(apply, {})
+    await ctx.plugin(apply, { tape: CONTRACT_TAPE, })
     ctx.llm.registerAdapter(['mock'], adapter)
     // 真实的 write 工具（DSH tool-fs 的名字与参数键）。
     ctx.tools.register(defineContentToolFixture({

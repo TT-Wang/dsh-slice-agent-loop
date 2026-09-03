@@ -8,7 +8,7 @@ def label(l):
     to = l.get('tapeOpts') or {}
     return l['arm'] + ('/rb' if l.get('readBases') else '') + ('/rp' if l.get('readPointer') else '') + ('/base' if l.get('anchor') == 'base' else '') \
         + (f"/rebase-{to['rebaseAfterPatches']}" if 'rebaseAfterPatches' in to else '') + (f"/reply-{to['replyHeadChars']}+{to.get('replyTailChars', '')}" if 'replyHeadChars' in to else '') \
-        + ('/check' if to.get('checkInDigest') else '') + ('/collapse' if to.get('collapseEdits') else '') + (f"/rbmin-{to['readBasesMinReads']}" if 'readBasesMinReads' in to else '') + ('/gc' if to.get('gcSupersededBases') else '')
+        + ('/check' if to.get('checkInDigest') else '') + ('/collapse' if to.get('collapseEdits') else '') + (f"/rbmin-{to['readBasesMinReads']}" if 'readBasesMinReads' in to else '') + ('/gc' if to.get('gcSupersededBases') else '') + (f"/newmin-{to['newFileMinTouches']}" if 'newFileMinTouches' in to else '')
 print(f"{'scenario':<10}{'config':<44}{'ok':<3}{'$':>7}{'steps':>6}{'rd':>4}{'tst':>4}{'sealmiss':>9}{'turnmiss':>9}{'hit':>9}{'out':>7}{'reason':>7}{'seedmax':>8}")
 for path in sys.argv[1:]:
     l = json.load(open(path)); t = l['totals']

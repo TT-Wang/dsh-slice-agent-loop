@@ -219,6 +219,7 @@ export interface SliceLoopDriverConfig {
   readBasesMinReads: number
   baseMaxChars: number
   gcSupersededBases: boolean
+  newFileMinTouches: number
 }
 
 export interface ReadBasesPolicy {
@@ -323,6 +324,7 @@ export class SliceLoopAgent implements Agent {
   private readonly readBasesMinReads: number
   private readonly baseMaxChars: number
   private readonly gcSupersededBases: boolean
+  private readonly newFileMinTouches: number
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -385,6 +387,7 @@ export class SliceLoopAgent implements Agent {
     this.readBasesMinReads = config.readBasesMinReads
     this.baseMaxChars = config.baseMaxChars
     this.gcSupersededBases = config.gcSupersededBases
+    this.newFileMinTouches = config.newFileMinTouches
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -413,7 +416,9 @@ export class SliceLoopAgent implements Agent {
       const path = editedPath(exec.name, exec.arguments)
       if (path !== undefined) {
         const disk = readDiskStatus(this.sessionCwd(), path)
-        if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
+        // write 类工具落的是整份文件:此前不在磁带上 ⇒ 本会话新建(newFileMinTouches 的 rent-or-buy 对象)。
+        const created = exec.name === 'write' || exec.name === 'write_file' || (exec.name === 'str_replace_editor' && (exec.arguments as { command?: unknown } | null)?.command === 'create')
+        if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body, { created })
         return
       }
       // 测试类 bash 命令的结果:留本轮最后一次,轮末写进摘要(checkInDigest)。
@@ -548,7 +553,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases, newFileMinTouches: this.newFileMinTouches,
           })
         }
         pendingAnchors = []
@@ -970,7 +975,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases, newFileMinTouches: this.newFileMinTouches,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })
