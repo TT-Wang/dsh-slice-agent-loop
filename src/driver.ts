@@ -94,7 +94,7 @@ import {
   rulesExtractionPrompt, type Constitution, type StateLedger,
 } from './slice/state-ledger.js'
 import { searchSessionEvents } from './recall.js'
-import { digestText, looksLikeCode, looksLikeCodePath, type DigestPolicy } from './slice/result-digest.js'
+import { digestToolResult, type DigestPolicy } from './slice/result-digest.js'
 import { writeFileSync as fsWriteFileSync, unlinkSync as fsUnlinkSync, mkdirSync as fsMkdirSync } from 'node:fs'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
@@ -1440,7 +1440,6 @@ export class SliceLoopAgent implements Agent {
     if (!first || first.type !== 'tool-result' || first.isError || !first.content) return message
     // 源代码不折(见 result-digest.ts looksLikeCodePath / looksLikeCode)。
     const readPath = editedPath(block.name, parseArguments(block.arguments)) ?? (parseArguments(block.arguments) as { file_path?: string; path?: string } | null)?.file_path ?? (parseArguments(block.arguments) as { path?: string } | null)?.path
-    if (looksLikeCodePath(readPath)) return message
     let changed = false
     let before = 0
     let after = 0
@@ -1448,13 +1447,13 @@ export class SliceLoopAgent implements Agent {
     const content = first.content.map((b) => {
       if (b.type !== 'text' || typeof b.text !== 'string') return b
       before += b.text.length
-      if (looksLikeCode(b.text)) return b
-      const d = digestText(b.text, hint, this.digestPolicy)
+      // 按工具名与内容类型路由:code/search 不折,log 错误优先,data 头尾 + 结构行。
+      const d = digestToolResult(b.text, { tool: block.name, path: readPath }, this.digestPolicy)
       after += d.text.length
       if (!d.digested) return b
       changed = true
       const path = editedPath(block.name, parseArguments(block.arguments)) ?? (parseArguments(block.arguments) as { file_path?: string } | null)?.file_path
-      return { ...b, text: `[${block.name}${path ? ' ' + path : ''} · ${d.totalLines} lines, ${d.keptLines} kept · ${hint} returns the full text]\n${d.text}` }
+      return { ...b, text: `[${block.name}${path ? ' ' + path : ''} · ${d.kind} · ${d.totalLines} lines, ${d.keptLines} kept · ${hint} returns the full text]\n${d.text}` }
     })
     if (!changed) return message
     this.session.append('slice/digest', { turn, step, tool: block.name, charsBefore: before, charsAfter: after })

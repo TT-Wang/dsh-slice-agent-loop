@@ -14,7 +14,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import apply from '../src/index.js'
-import { DEFAULT_DIGEST_POLICY, digestText, looksLikeCode, looksLikeCodePath } from '../src/slice/result-digest.js'
+import { DEFAULT_DIGEST_POLICY, detectContentKind, digestLog, digestText, digestToolResult, looksLikeCode, looksLikeCodePath } from '../src/slice/result-digest.js'
 import { renderSealedStepPage } from '../src/recall-step.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
@@ -59,6 +59,42 @@ describe('digestText', () => {
     const py = Array.from({ length: 30 }, (_, i) => `def f${i}(x):\n    y = x + ${i}\n    return y\n`).join('\n')
     expect(looksLikeCode(py)).toBe(true)
     expect(looksLikeCode(NODE)).toBe(false)
+  })
+})
+
+describe('content routing (Headroom-style)', () => {
+  it('detects logs/search/data and folds logs error-first with context, stack frames and dedup', () => {
+    const noise = Array.from({ length: 300 }, (_, i) => `2026-09-03T10:${String(i % 60).padStart(2, '0')}:00Z INFO worker-${i % 7} processed batch ${i} ok`)
+    const log = [...noise.slice(0, 120), 'ERROR db-pool: connection refused (attempt 1)', '  File "app/db.py", line 42, in connect', '    raise ConnectionError(addr)', 'ConnectionError: 10.0.0.5:5432',
+      ...noise.slice(120, 200), 'ERROR db-pool: connection refused (attempt 2)', 'ERROR db-pool: connection refused (attempt 3)', ...noise.slice(200), 'FAILED tests/test_db.py::test_connect', '3 passed, 1 failed in 4.21s'].join('\n')
+    expect(detectContentKind(log)).toBe('log')
+    const d = digestLog(log)
+    expect(d.digested).toBe(true)
+    expect(d.text).toContain('ERROR db-pool: connection refused (attempt 1)')
+    expect(d.text).toContain('ConnectionError: 10.0.0.5:5432')          // 栈帧整段保留
+    expect(d.text).toContain('FAILED tests/test_db.py::test_connect')
+    expect(d.text).toContain('3 passed, 1 failed')                        // 摘要在尾部
+    expect(d.text).not.toContain('(attempt 3)')                            // 相似错误去重(前缀相同、数字归一)
+    expect(d.text.length).toBeLessThan(log.length * 0.3)
+    // 上下文:错误行前一行的 INFO 保留
+    expect(d.text).toContain('processed batch 119 ok')
+    const grep = Array.from({ length: 80 }, (_, i) => `src/a${i}.py:${i + 1}: needle here`).join('\n')
+    expect(detectContentKind(grep)).toBe('search')
+    expect(digestToolResult(grep, { tool: 'grep' }).digested).toBe(false)
+    expect(digestToolResult(grep, { tool: 'bash' }).digested).toBe(false)
+    expect(detectContentKind(NODE)).toBe('log')                       // 裸文本里的 INFO 行像日志……
+    expect(digestToolResult(NODE, { tool: 'read', path: 'nodes/alpha.txt' }).kind).toBe('data')
+    expect(digestToolResult(NODE, { tool: 'read', path: 'nodes/alpha.py' }).digested).toBe(false)
+  })
+
+  it('keeps a repeated appendix block only to its minimum after its keys were seen once', () => {
+    const block = (n: number) => `[profile-${n}]\n  cpu: ${n}00m\n  mem: ${n}Gi\n  replicas: ${n}\n  path: /x${n}\n  period: 10s\n  level: info`
+    const text = `a = 1\nb = 2\n\n${NOISE}\n${block(1)}\n${NOISE}\n${block(2)}\n${NOISE}\n${block(3)}\n${NOISE}\nend = yes\n`
+    const d = digestText(text, 'x')
+    expect(d.text).toContain('  level: info')            // 第一块全留(键都是新的)
+    expect(d.text).toContain('[profile-2]')
+    expect(d.text).not.toContain('  replicas: 3')        // 第三块只留最少行数
+    expect((d.text.match(/period: 10s/g) ?? []).length).toBe(1)
   })
 })
 
