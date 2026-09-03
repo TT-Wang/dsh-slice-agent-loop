@@ -135,6 +135,24 @@ peak grow with every turn, a slice's do not. Two long-horizon scenarios
   per-request viewer (`build-request-viewer.mjs`) that renders exactly what
   each arm sent the model, turn by turn.
 
+### Results update — 2026-09-01 (header dedup refuted)
+
+The composition rule (tape composition == OPEN FILES hash ⇒ edit directly)
+is stated three times per turn: kernel (cached) + FILES_HDR + NOW footer
+(both per-turn paid text). An A/B deduplicated the two paid restatements
+(−21% paid fixed text, ~80 tok/turn) against four pre-declared behavior
+gates on s10 (76 turns) + n1, dual runs each arm. Result: **rejected**.
+Cross-turn composition trust held in both arms (kernel's single teaching
+site is sufficient for the rule itself: 0–2 cross-turn re-reads everywhere)
+— but the restatements turn out to damp **same-turn post-edit verification
+re-reads**: control 10/10 redundant re-reads across two runs, dedup 25/15.
+The paid repetition is not teaching the rule; it is suppressing re-read
+paranoia, worth more than the ~80 tok/turn it costs. Cost delta was −7–9%
+in dedup's favor and did not override the behavior gate. Decision recorded
+in `docs/adr/0001-keep-header-restatements.md`; ledgers in
+`results/20260901-header-dedup/`; branch `feature/header-dedup` left
+unmerged as the artifact.
+
 ### ② Amnesia re-enactment · both arms · eviction-verified
 
 24 benchmark numbers produced by the agent's own script run, existing only in

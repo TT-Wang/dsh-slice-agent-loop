@@ -1,0 +1,70 @@
+{
+  "contract": "grilled 2026-09-01: behavior-layout refactor, cost bookkeeping only; gates = success>=, redundant re-reads<=, recall parity, closeout; single-task diffs adjudicated by ONE rerun",
+  "arms": {
+    "ctl": "main (1aa9a2a lineage)",
+    "slim": "feature/header-dedup ddd2503 (-21% paid fixed text)"
+  },
+  "s10_compactloss": {
+    "verdict": {
+      "ctl": [
+        "PASS",
+        "PASS"
+      ],
+      "slim": [
+        "PASS",
+        "PASS"
+      ]
+    },
+    "reads_after_own_edit": {
+      "ctl": [
+        10,
+        10
+      ],
+      "slim": [
+        25,
+        15
+      ]
+    },
+    "same_turn_vs_cross_turn": {
+      "ctl_r1": [
+        9,
+        1
+      ],
+      "ctl_r2": [
+        8,
+        2
+      ],
+      "slim_r1": [
+        25,
+        0
+      ]
+    },
+    "closeout": "76/76 all four runs",
+    "price_usd": {
+      "ctl": [
+        0.1827,
+        0.1667
+      ],
+      "slim": [
+        0.1704,
+        0.166
+      ]
+    }
+  },
+  "n1_verbatim_restore": {
+    "verdict": {
+      "ctl": "PASS",
+      "slim": "PASS"
+    },
+    "recall_calls": {
+      "ctl": 1,
+      "slim": 1
+    },
+    "closeout": "12/12 both",
+    "price_usd": {
+      "ctl": 0.0221,
+      "slim": 0.0203
+    }
+  },
+  "decision": "REJECTED \u2014 redundant-re-read gate failed and reproduced on adjudication rerun (slim min 15 > ctl max 10); attribution: restatements damp same-turn post-edit verification reads; cross-turn composition trust intact on kernel alone. ADR-0001."
+}
