@@ -1,0 +1,242 @@
+{
+  "scenario": "s14b_recall_ladder",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": true,
+  "readPointer": true,
+  "readPointers": 0,
+  "anchor": "base",
+  "tapeOpts": {
+    "readBases": true,
+    "readPointer": true,
+    "anchor": "base",
+    "collapseEdits": true,
+    "readBasesMinReads": 2
+  },
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s14b_recall_ladder-slice-noseal-inherit-1788431591539",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s14b_recall_ladder-0JxazY",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 2,
+      "input": 324,
+      "cacheRead": 6528,
+      "output": 304,
+      "reasoning": 119,
+      "peakInput": 3651,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 5,
+      "input": 1360,
+      "cacheRead": 27904,
+      "output": 3484,
+      "reasoning": 2252,
+      "peakInput": 7342,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 1494,
+      "cacheRead": 15488,
+      "output": 2154,
+      "reasoning": 1513,
+      "peakInput": 6445,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 3,
+      "input": 2166,
+      "cacheRead": 15616,
+      "output": 1460,
+      "reasoning": 693,
+      "peakInput": 6510,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 5,
+      "input": 4648,
+      "cacheRead": 36096,
+      "output": 645,
+      "reasoning": 226,
+      "peakInput": 8971,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 3,
+      "input": 3960,
+      "cacheRead": 20096,
+      "output": 637,
+      "reasoning": 348,
+      "peakInput": 8976,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 3,
+      "input": 3383,
+      "cacheRead": 21248,
+      "output": 400,
+      "reasoning": 99,
+      "peakInput": 9119,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 3,
+      "input": 3230,
+      "cacheRead": 22528,
+      "output": 526,
+      "reasoning": 168,
+      "peakInput": 9569,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 3,
+      "input": 3416,
+      "cacheRead": 23296,
+      "output": 512,
+      "reasoning": 119,
+      "peakInput": 9862,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 3,
+      "input": 3547,
+      "cacheRead": 24192,
+      "output": 448,
+      "reasoning": 103,
+      "peakInput": 10157,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 3,
+      "input": 3477,
+      "cacheRead": 25600,
+      "output": 520,
+      "reasoning": 190,
+      "peakInput": 10648,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 3,
+      "input": 3470,
+      "cacheRead": 26624,
+      "output": 531,
+      "reasoning": 201,
+      "peakInput": 11031,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 3,
+      "input": 1195,
+      "cacheRead": 29184,
+      "output": 2254,
+      "reasoning": 1576,
+      "peakInput": 10916,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 4,
+      "input": 2403,
+      "cacheRead": 39936,
+      "output": 1377,
+      "reasoning": 668,
+      "peakInput": 11210,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 3,
+      "input": 2401,
+      "cacheRead": 29952,
+      "output": 583,
+      "reasoning": 270,
+      "peakInput": 11083,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 1434,
+      "cacheRead": 20992,
+      "output": 1263,
+      "reasoning": 892,
+      "peakInput": 11672,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 4,
+      "input": 2183,
+      "cacheRead": 51968,
+      "output": 3222,
+      "reasoning": 2403,
+      "peakInput": 14792,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 44091,
+    "cacheRead": 437248,
+    "output": 20320,
+    "reasoning": 11840,
+    "steps": 55,
+    "peakInput": 14792
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 11,
+    "grep": 1,
+    "glob": 6,
+    "write": 5,
+    "edit": 12,
+    "read": 11,
+    "recall_search": 3
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "prompted recall + substrate all hold | tier1[host=exact,port=exact,token_env=exact,retry_backoff=exact] | recall_note: '部署参数不是凭记忆直接写下的,是回到本会话早前对话记录逐项查回核对后确认的。'"
+  }
+}

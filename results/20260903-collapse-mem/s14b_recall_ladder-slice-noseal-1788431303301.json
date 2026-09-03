@@ -1,0 +1,241 @@
+{
+  "scenario": "s14b_recall_ladder",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": true,
+  "readPointer": true,
+  "readPointers": 0,
+  "anchor": "base",
+  "tapeOpts": {
+    "readBases": true,
+    "readPointer": true,
+    "anchor": "base",
+    "collapseEdits": true
+  },
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s14b_recall_ladder-slice-noseal-inherit-1788431303301",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s14b_recall_ladder-AkSvFg",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 2,
+      "input": 446,
+      "cacheRead": 6144,
+      "output": 331,
+      "reasoning": 123,
+      "peakInput": 3389,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 7,
+      "input": 1574,
+      "cacheRead": 37376,
+      "output": 3527,
+      "reasoning": 1617,
+      "peakInput": 7338,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 1528,
+      "cacheRead": 14080,
+      "output": 1556,
+      "reasoning": 883,
+      "peakInput": 5792,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 4,
+      "input": 2138,
+      "cacheRead": 20096,
+      "output": 1142,
+      "reasoning": 265,
+      "peakInput": 6118,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 5,
+      "input": 4512,
+      "cacheRead": 36480,
+      "output": 1238,
+      "reasoning": 710,
+      "peakInput": 9314,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 3,
+      "input": 8336,
+      "cacheRead": 29568,
+      "output": 1185,
+      "reasoning": 820,
+      "peakInput": 13971,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 4,
+      "input": 12942,
+      "cacheRead": 57344,
+      "output": 548,
+      "reasoning": 170,
+      "peakInput": 18403,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 3,
+      "input": 12755,
+      "cacheRead": 54400,
+      "output": 597,
+      "reasoning": 219,
+      "peakInput": 23361,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 3,
+      "input": 12827,
+      "cacheRead": 69888,
+      "output": 965,
+      "reasoning": 521,
+      "peakInput": 28782,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 4,
+      "input": 13278,
+      "cacheRead": 118144,
+      "output": 610,
+      "reasoning": 228,
+      "peakInput": 33758,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 4,
+      "input": 13397,
+      "cacheRead": 137856,
+      "output": 473,
+      "reasoning": 93,
+      "peakInput": 38667,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 4,
+      "input": 10914,
+      "cacheRead": 162048,
+      "output": 1073,
+      "reasoning": 677,
+      "peakInput": 44310,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 3,
+      "input": 10923,
+      "cacheRead": 130304,
+      "output": 1924,
+      "reasoning": 1102,
+      "peakInput": 47789,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 6,
+      "input": 7777,
+      "cacheRead": 283904,
+      "output": 2216,
+      "reasoning": 1105,
+      "peakInput": 49576,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 3,
+      "input": 2457,
+      "cacheRead": 140928,
+      "output": 617,
+      "reasoning": 243,
+      "peakInput": 48098,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 1,
+      "input": 1606,
+      "cacheRead": 46208,
+      "output": 1128,
+      "reasoning": 754,
+      "peakInput": 47814,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 4,
+      "input": 2659,
+      "cacheRead": 197376,
+      "output": 2357,
+      "reasoning": 1493,
+      "peakInput": 51210,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 120069,
+    "cacheRead": 1542144,
+    "output": 21487,
+    "reasoning": 11023,
+    "steps": 63,
+    "peakInput": 51210
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "grep": 3,
+    "glob": 4,
+    "bash": 15,
+    "write": 5,
+    "edit": 12,
+    "read": 17,
+    "recall_search": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "prompted recall + substrate all hold | tier1[host=exact,port=exact,token_env=exact,retry_backoff=exact] | recall_note: 'Deployment parameters (host, port, token_env, retry_backoff_ms) were verified by looking them back u'"
+  }
+}
