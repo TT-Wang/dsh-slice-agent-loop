@@ -1,0 +1,7 @@
+{"turn":1,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/\"})"],"text":""}
+{"turn":1,"step":2,"calls":["fetch_page({\"url\": \"https://docs.example.com/api/client\"})","fetch_page({\"url\": \"https://docs.example.com/api/rate-limits\"})","fetch_page({\"url\": \"https://docs.example.com/api/orders\"})","fetch_page({\"url\": \"https://docs.example.com/api/webhooks\"})","fetch_page({\"url\": \"https://docs.example.com/api/errors\"})","fetch_page({\"url\": \"https://docs.example.com/api/batches\"})"],"text":""}
+{"turn":1,"step":3,"calls":["write({\"file_path\": \"answers.json\", \"content\": \"{\\n  \\\"connect_timeout_default\\\": 45,\\n  \\\"max_batch_size\\\": 250,\\n  \\\"retry_backoff_default_ms\\\": 800,\\n  \\\"deprecate)"],"text":"All data gathered from the docs. Let me write the answers."}
+{"turn":1,"step":4,"calls":[],"text":"DONE"}
+{"turn":2,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/guides/migration-3x\"})","fetch_page({\"url\": \"https://docs.example.com/guides/migration-2x\"})"],"text":""}
+{"turn":2,"step":2,"calls":["write({\"content\": \"In 3.x the client resumes the batch from the last acknowledged checkpoint after reconnecting, so already-accepted items are not sent twice. | https)"],"text":"The migration-3x guide describes the change. Let me write the file."}
+{"turn":2,"step":3,"calls":[],"text":"Done."}

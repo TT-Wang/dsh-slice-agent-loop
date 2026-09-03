@@ -1,0 +1,11 @@
+{"turn":1,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/\"})"],"text":""}
+{"turn":1,"step":2,"calls":["fetch_page({\"url\": \"https://docs.example.com/api/client\"})","fetch_page({\"url\": \"https://docs.example.com/api/orders\"})","fetch_page({\"url\": \"https://docs.example.com/api/rate-limits\"})","fetch_page({\"url\": \"https://docs.example.com/api/webhooks\"})","fetch_page({\"url\": \"https://docs.example.com/api/errors\"})"],"text":""}
+{"turn":1,"step":3,"calls":["expand_result({\"turn\": 1, \"step\": 2, \"call\": 1})"],"text":""}
+{"turn":1,"step":4,"calls":["expand_result({\"call\": 2, \"step\": 2, \"turn\": 1})"],"text":""}
+{"turn":1,"step":5,"calls":["expand_result({\"call\": 3, \"step\": 2, \"turn\": 1})","expand_result({\"call\": 4, \"step\": 2, \"turn\": 1})","expand_result({\"call\": 5, \"step\": 2, \"turn\": 1})"],"text":""}
+{"turn":1,"step":6,"calls":["fetch_page({\"url\": \"https://docs.example.com/api/batches\"})"],"text":""}
+{"turn":1,"step":7,"calls":["write({\"file_path\": \"answers.json\", \"content\": \"{\\n  \\\"connect_timeout_default\\\": 45,\\n  \\\"max_batch_size\\\": 250,\\n  \\\"retry_backoff_default_ms\\\": 800,\\n  \\\"deprecate)"],"text":"All values gathered. Let me write the answers file."}
+{"turn":1,"step":8,"calls":[],"text":"DONE"}
+{"turn":2,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/guides/migration-2x\"})","fetch_page({\"url\": \"https://docs.example.com/guides/migration-3x\"})"],"text":""}
+{"turn":2,"step":2,"calls":["write({\"file_path\": \"migration.txt\", \"content\": \"In 3.x the client resumes the batch from the last acknowledged checkpoint after reconnecting, so already-accepted ite)"],"text":""}
+{"turn":2,"step":3,"calls":[],"text":"DONE"}

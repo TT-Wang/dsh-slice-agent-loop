@@ -1,0 +1,82 @@
+{
+  "scenario": "f10_db_investigation",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "fetch_page",
+      "db_query",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f10_db_investigation-transcript-fold-low-1788449810054",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f10_db_investigation-xlcJwe",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 10,
+      "input": 7242,
+      "cacheRead": 58624,
+      "output": 3167,
+      "reasoning": 1841,
+      "peakInput": 10695,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 4,
+      "input": 534,
+      "cacheRead": 43904,
+      "output": 435,
+      "reasoning": 103,
+      "peakInput": 11420,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 7776,
+    "cacheRead": 102528,
+    "output": 3602,
+    "reasoning": 1944,
+    "steps": 14,
+    "peakInput": 11420
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 1,
+    "db_query": 17,
+    "write": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "region, total, top-3 with reasons, extras all exact"
+  }
+}
