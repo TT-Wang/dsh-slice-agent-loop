@@ -1,0 +1,68 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "fs",
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 150,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-l2_ledger_state-slice-noseal-low-1788418546295",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-mhYZtg",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 56,
+      "input": 37590,
+      "cacheRead": 1346688,
+      "output": 18156,
+      "reasoning": 6514,
+      "peakInput": 52328,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 37590,
+    "cacheRead": 1346688,
+    "output": 18156,
+    "reasoning": 6514,
+    "steps": 56,
+    "peakInput": 52328
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 45,
+    "charsBefore": 813366,
+    "charsAfter": 59220
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "read": 50,
+    "recall_search": 2,
+    "write": 46
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

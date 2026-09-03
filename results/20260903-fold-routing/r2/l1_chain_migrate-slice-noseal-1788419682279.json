@@ -1,0 +1,67 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "fs",
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 150,
+    "resolvedEffort": "low",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-l1_chain_migrate-slice-noseal-low-1788419682279",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-mb3zqt",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 54,
+      "input": 42488,
+      "cacheRead": 1360512,
+      "output": 14939,
+      "reasoning": 6737,
+      "peakInput": 51241,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 42488,
+    "cacheRead": 1360512,
+    "output": 14939,
+    "reasoning": 6737,
+    "steps": 54,
+    "peakInput": 51241
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 51495
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "read": 51,
+    "write": 46
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}
