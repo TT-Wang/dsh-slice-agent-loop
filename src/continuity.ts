@@ -159,7 +159,8 @@ export function renderTurnDigest(opts: {
   check?: string
 }): string {
   const aid = opts.artifactId || 'unknown'
-  const head = `[turn ${aid} · task ${opts.taskId || 'unknown'} · ${opts.status || 'unknown'}]`
+  // 没有 taskId 时不打印"task unknown"——那是一个从未有人产出的字段,模型只会把它当成缺失信号。
+  const head = `[turn ${aid}${opts.taskId ? ` · task ${opts.taskId}` : ''} · ${opts.status || 'unknown'}]`
   const raw = opts.userRequest.trim()
   const ask = raw.length > ASK_CAP_CHARS
     ? `${raw.slice(0, ASK_HEAD_CHARS)} …[+${raw.length - ASK_HEAD_CHARS - ASK_TAIL_CHARS} chars in sealed turn]… ${raw.slice(-ASK_TAIL_CHARS)}`
