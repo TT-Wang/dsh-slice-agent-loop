@@ -38,7 +38,7 @@ async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: 
     ctx.tools.register(defineContentToolFixture({
       name: t.name,
       description: t.name,
-      parameters: { file_path: { type: 'string', required: true } },
+      parameters: { file_path: { type: 'string' }, url: { type: 'string' } },   // 夹具:接受 read 类与 fetch 类两种参数
       execute: async () => [{ type: 'text', text: t.text }],
     }))
   }
