@@ -24,6 +24,9 @@ export interface Config {
     digest?: Partial<DigestPolicy>;
     /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
     pinSteps?: number;
+    /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
+     *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
+    backoffAfterExpansions?: number;
 }
 export declare const EXPAND_TOOL_NAME = "expand_result";
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
@@ -39,6 +42,8 @@ export declare const FOLD_STATS: WeakMap<Session, {
     folded: number;
     charsBefore: number;
     charsAfter: number;
+    expanded: number;
+    backedOff: string[];
 }>;
 /** cordis 插件本体:声明注入的服务(tools、systemPrompt),挂载即生效,卸载即回收(ctx.effect)。 */
 export declare class ToolResultFold extends Service {

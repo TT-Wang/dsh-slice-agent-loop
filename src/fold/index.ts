@@ -29,6 +29,9 @@ export interface Config {
   digest?: Partial<DigestPolicy>
   /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
   pinSteps?: number
+  /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
+   *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
+  backoffAfterExpansions?: number
 }
 
 export const EXPAND_TOOL_NAME = 'expand_result'
@@ -59,8 +62,11 @@ class SessionFolder {
   private cursor = 0
   private readonly calls = new Map<string, CallInfo>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
-  readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0 }
-  constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number) {}
+  readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[] }
+  /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
+  private readonly foldedAt = new Map<string, string>()
+  private readonly perTool = new Map<string, { folded: number; expanded: number }>()
+  constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number, private readonly backoffAfter: number) {}
 
   /** 把游标之后新落盘的、仍在 surface 上的追加态工具结果折掉。 */
   fold(): void {
@@ -74,6 +80,7 @@ class SessionFolder {
       if (event.type === 'tool/call') {
         const d = event.data as { callId: string; name: string; arguments?: unknown }
         this.calls.set(d.callId, { name: d.name, path: callPath(parseArgs(d.arguments)) })
+        if (d.name === EXPAND_TOOL_NAME) this.noteExpansion(parseArgs(d.arguments))
         continue
       }
       if (event.type !== 'tool/result' || !isAppendSurfaceEvent(event)) continue
@@ -86,6 +93,19 @@ class SessionFolder {
       this.foldOne(i as SessionSeq, event as SessionEvent<'tool/result'>, d, n)
     }
     this.cursor = end
+  }
+
+  /** expand_result 被调用:记到被折结果的工具名上;达到退避阈值就把该工具列入不折名单。 */
+  private noteExpansion(args: unknown): void {
+    const a = (typeof args === 'object' && args !== null ? args : {}) as { turn?: unknown; step?: unknown; call?: unknown }
+    const key = `${Number(a.turn)}:${Number(a.step)}:${a.call === undefined ? 1 : Number(a.call)}`
+    const tool = this.foldedAt.get(key)
+    if (tool === undefined) return
+    this.stats.expanded += 1
+    const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
+    t.expanded += 1
+    this.perTool.set(tool, t)
+    if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(tool)) this.stats.backedOff.push(tool)
   }
 
   /** 同一步里游标之前已有几个追加态结果(游标跨步时序号要接上)。 */
@@ -106,6 +126,7 @@ class SessionFolder {
     if (!first || first.type !== 'tool-result' || first.isError || !first.content) return
     const info = this.calls.get(String(first.toolCallId ?? d.message.source?.callId ?? '')) ?? { name: 'tool' }
     if (info.name === EXPAND_TOOL_NAME) return
+    if (this.stats.backedOff.includes(info.name)) return
     let changed = false
     let before = 0
     let after = 0
@@ -128,6 +149,10 @@ class SessionFolder {
     this.stats.folded += 1
     this.stats.charsBefore += before
     this.stats.charsAfter += after
+    this.foldedAt.set(`${d.turn}:${d.step}:${n}`, info.name)
+    const t = this.perTool.get(info.name) ?? { folded: 0, expanded: 0 }
+    t.folded += 1
+    this.perTool.set(info.name, t)
   }
 }
 
@@ -189,6 +214,8 @@ export class ToolResultFold extends Service {
     const enabled = config.enabled ?? true
     const pinSteps = config.pinSteps ?? 2
     if (!Number.isInteger(pinSteps) || pinSteps < 0) throw new Error('pinSteps must be a non-negative integer')
+    const backoffAfter = config.backoffAfterExpansions ?? 2
+    if (!Number.isInteger(backoffAfter) || backoffAfter < 1) throw new Error('backoffAfterExpansions must be an integer >= 1')
     ctx.effect(() => ctx.tools.register(expandResultToolDefinition()), 'toolResultFold.expandResult()')
     if (!enabled) return
     ctx.effect(
@@ -200,7 +227,7 @@ export class ToolResultFold extends Service {
       const session = (agent as Agent).session
       let folder = folders.get(session)
       if (folder === undefined) {
-        folder = new SessionFolder(session, policy, pinSteps)
+        folder = new SessionFolder(session, policy, pinSteps, backoffAfter)
         folders.set(session, folder)
         FOLD_STATS.set(session, folder.stats)
       }

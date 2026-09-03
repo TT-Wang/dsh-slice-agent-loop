@@ -126,3 +126,26 @@ describe('pinned early steps', () => {
     expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
   })
 })
+
+describe('expansion back-off', () => {
+  it('stops folding a tool\'s results once the model has expanded them twice', async () => {
+    const adapter = new MockAdapter([
+      toolCallResponse('c1', 'read', { file_path: 'a.txt' }),                       // step 1: folded
+      toolCallResponse('c2', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }),      // step 2: expand #1
+      toolCallResponse('c3', 'read', { file_path: 'b.txt' }),                       // step 3: folded
+      toolCallResponse('c4', EXPAND_TOOL_NAME, { turn: 1, step: 3, call: 1 }),      // step 4: expand #2 → back off `read`
+      toolCallResponse('c5', 'read', { file_path: 'c.txt' }),                       // step 5: NOT folded
+      textResponse('done'),
+    ])
+    const ctx = await harness(adapter, [{ name: 'read', text: BIG }], { pinSteps: 0, digest: { minChars: 1500 } })
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-backoff'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'go')
+    await handle.agent.whenIdle()
+    const stats = FOLD_STATS.get(handle.agent.session)!
+    expect(stats.folded).toBe(2)
+    expect(stats.expanded).toBe(2)
+    expect(stats.backedOff).toEqual(['read'])
+    expect(requestText(adapter, 5)).toContain('row 55 payload')                    // 第 5 步的结果原样进了第 6 个请求
+    expect(requestText(adapter, 5)).not.toContain('"step\\": 5')
+  })
+})
