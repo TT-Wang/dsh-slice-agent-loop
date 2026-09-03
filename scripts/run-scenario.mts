@@ -99,6 +99,8 @@ const NO_FOLD = args.includes('--no-fold')
 // --no-read-bases:关掉"读过未改的文件轮末锚定为 base"(对照重读税实验)。
 const NO_READ_BASES = args.includes('--no-read-bases')
 const NO_READ_POINTER = args.includes('--no-read-pointer')
+// --anchor base:文件锚定永远存完整基线(不存 patch)。
+const ANCHOR = (args.includes('--anchor') ? args[args.indexOf('--anchor') + 1] : 'auto') as 'auto' | 'base'
 // --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
 const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }
@@ -159,7 +161,7 @@ if (ARM === 'transcript') {
     ...(ARM === 'state' ? { mode: 'state' as const, state: STATE_OPTS } : {}),
     ...(ARM === 'stream' ? { state: STATE_OPTS, digest: DIGEST_OPTS } : {}),
     ...(ARM === 'slice-noseal' || ARM === 'slice-seal' ? { digest: DIGEST_OPTS } : {}),
-    ...(NO_READ_BASES || NO_READ_POINTER ? { tape: { readBases: !NO_READ_BASES, readPointer: !NO_READ_POINTER } } : {}),
+    ...(NO_READ_BASES || NO_READ_POINTER || ANCHOR !== 'auto' ? { tape: { readBases: !NO_READ_BASES, readPointer: !NO_READ_POINTER, anchor: ANCHOR } } : {}),
     ...(ARM === 'stream' ? { mode: 'stream' as const } : {}),
   })
 }
@@ -291,7 +293,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? !NO_READ_BASES : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? !NO_READ_POINTER : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? !NO_READ_BASES : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? !NO_READ_POINTER : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ANCHOR, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

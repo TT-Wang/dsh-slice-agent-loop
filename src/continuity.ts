@@ -200,6 +200,8 @@ export function sealTurn(
     userRequest: string
     assistantReply: string
     sessionId: string
+    /** 'auto'(现状:patch/base 取渲染更短者)或 'base'(永远完整基线——模型不必在脑中合成 patch)。 */
+    anchorMode?: 'auto' | 'base'
   },
 ): { entries: number; gcRemoved: number; epochFolds: number; anchored: Array<{ path: string; body: string }> } {
   const tape = c.sessionTape
@@ -246,8 +248,10 @@ export function sealTurn(
       // 必须省出实质空间才值得。0.9 在真实会话里不改变任何选择(有价值的
       // patch 远小于 base 的 10%),只铲掉 |patch−base| 落在标记字节量级内时
       // 的抖动:曾因 end 标记 +26B 把选型翻成 patch 流,折叠 4 次 → 39 次。
-      const patch = patchEntry(path, state.content, body)
-      tape.push(patch.rendered.length < base.rendered.length * 0.9 ? patch : base)
+      // 2026-09-03 anchorMode 'base':s2 实测 patch 省的是命中价的输入字节,付的是每轮在脑中
+      // 合成 base+patch 的推理(126K vs 76K);完整基线让模型面前永远是当前文件。
+      const patch = opts.anchorMode === 'base' ? undefined : patchEntry(path, state.content, body)
+      tape.push(patch !== undefined && patch.rendered.length < base.rendered.length * 0.9 ? patch : base)
     }
     files[path] = { hash, content: body }
     anchored.push({ path, body })

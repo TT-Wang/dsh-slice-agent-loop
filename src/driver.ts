@@ -205,6 +205,8 @@ export interface SliceLoopDriverConfig {
   readBases: ReadBasesPolicy
   /** 磁带现行文件的整读 → 指回磁带的指针(默认开)。 */
   readPointer: boolean
+  /** 文件锚定方式:'auto' = patch/base 取短;'base' = 永远完整基线。 */
+  anchorMode: 'auto' | 'base'
 }
 
 export interface ReadBasesPolicy {
@@ -300,6 +302,7 @@ export class SliceLoopAgent implements Agent {
   private readonly mode: 'slice' | 'state' | 'stream'
   private readonly readBases: ReadBasesPolicy
   private readonly readPointer: boolean
+  private readonly anchorMode: 'auto' | 'base'
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -354,6 +357,7 @@ export class SliceLoopAgent implements Agent {
     this.digestPolicy = config.digest
     this.readBases = config.readBases
     this.readPointer = config.readPointer
+    this.anchorMode = config.anchorMode
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -507,6 +511,7 @@ export class SliceLoopAgent implements Agent {
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
+            anchorMode: this.anchorMode,
           })
         }
         pendingAnchors = []
@@ -925,6 +930,7 @@ export class SliceLoopAgent implements Agent {
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
+            anchorMode: this.anchorMode,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })

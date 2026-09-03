@@ -36,7 +36,7 @@ export interface Config {
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
-  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean }
+  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base' }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -220,6 +220,8 @@ export class SliceLoopPlugin extends Service {
     const readBases = { enabled: config.tape?.readBases ?? DEFAULT_READ_BASES.enabled, maxChars: config.tape?.readBaseMaxChars ?? DEFAULT_READ_BASES.maxChars }
     if (!Number.isInteger(readBases.maxChars) || readBases.maxChars < 0) throw new Error('tape.readBaseMaxChars must be a non-negative integer')
     const readPointer = config.tape?.readPointer ?? true
+    const anchorMode = config.tape?.anchor ?? 'auto'
+    if (anchorMode !== 'auto' && anchorMode !== 'base') throw new Error("tape.anchor must be 'auto' or 'base'")
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
       if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
@@ -293,7 +295,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
