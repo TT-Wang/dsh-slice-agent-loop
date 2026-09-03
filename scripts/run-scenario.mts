@@ -101,6 +101,13 @@ const READ_BASES = args.includes('--read-bases')
 const READ_POINTER = args.includes('--read-pointer')
 // --anchor base:文件锚定永远存完整基线(不存 patch)。
 const ANCHOR = (args.includes('--anchor') ? args[args.indexOf('--anchor') + 1] : 'auto') as 'auto' | 'base'
+// --rebase-after N / --reply-head N --reply-tail N / --check-digest:磁带内容实验旋钮。
+const REBASE_AFTER = num('--rebase-after', Infinity)
+const REPLY_HEAD = num('--reply-head', -1)
+const REPLY_TAIL = num('--reply-tail', -1)
+const CHECK_DIGEST = args.includes('--check-digest')
+const TAPE_OPTS = { readBases: READ_BASES, readPointer: READ_POINTER, anchor: ANCHOR, ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}) }
+const TAPE_TOUCHED = READ_BASES || READ_POINTER || ANCHOR !== 'auto' || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST
 // --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
 const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }
@@ -161,7 +168,7 @@ if (ARM === 'transcript') {
     ...(ARM === 'state' ? { mode: 'state' as const, state: STATE_OPTS } : {}),
     ...(ARM === 'stream' ? { state: STATE_OPTS, digest: DIGEST_OPTS } : {}),
     ...(ARM === 'slice-noseal' || ARM === 'slice-seal' ? { digest: DIGEST_OPTS } : {}),
-    ...(READ_BASES || READ_POINTER || ANCHOR !== 'auto' ? { tape: { readBases: READ_BASES, readPointer: READ_POINTER, anchor: ANCHOR } } : {}),
+    ...(TAPE_TOUCHED ? { tape: TAPE_OPTS } : {}),
     ...(ARM === 'stream' ? { mode: 'stream' as const } : {}),
   })
 }
@@ -293,7 +300,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? READ_BASES : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? READ_POINTER : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ANCHOR, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? READ_BASES : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? READ_POINTER : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ANCHOR, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

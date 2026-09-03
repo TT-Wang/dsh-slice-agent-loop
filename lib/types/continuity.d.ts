@@ -1,4 +1,4 @@
-import { TapeEntry } from './slice/tape.js';
+import { TapeEntry, type ReplyCaps } from './slice/tape.js';
 export interface ConversationRow {
     user: string;
     assistant: string;
@@ -8,6 +8,8 @@ export interface ConversationRow {
 export interface TapeFileState {
     hash: string;
     content: string;
+    /** 自上一次完整基线以来累积的 patch 数(rebaseAfterPatches 用)。 */
+    patches?: number;
 }
 export interface Continuity {
     /** 首条 prompt 即话题 goal（system 侧渲染，跨轮不变直到换题）。 */
@@ -31,6 +33,11 @@ export interface Continuity {
         path: string;
         body: string;
     }>;
+    /** 本轮最后一次测试/检查命令及其结果摘要(checkInDigest 用;seal 时写进轮摘要后清空)。 */
+    pendingCheck?: {
+        command: string;
+        summary: string;
+    };
     /**
      * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
      * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
@@ -63,6 +70,8 @@ export declare function renderTurnDigest(opts: {
     files?: readonly string[];
     /** The sealed reply exceeded REPLY_CAP_CHARS — sealTurn computes it with the tape's own predicate. */
     replyTruncated?: boolean;
+    /** 本轮最后一次检查(测试命令 → 结果摘要),写成 `check:` 行。 */
+    check?: string;
 }): string;
 /**
  * tape_seal_update 的 MVP 子集（tape.py:426 起）：digest + 文件锚定（patch/base
@@ -78,6 +87,12 @@ export declare function sealTurn(c: Continuity, opts: {
     sessionId: string;
     /** 'auto'(现状:patch/base 取渲染更短者)或 'base'(永远完整基线——模型不必在脑中合成 patch)。 */
     anchorMode?: 'auto' | 'base';
+    /** auto 模式下,同一文件累积到这么多 patch 就重落一份完整基线(默认 Infinity)。 */
+    rebaseAfterPatches?: number;
+    /** 回复截断上限(默认 cap 2000 / head 1400 / tail 500)。 */
+    replyCaps?: ReplyCaps;
+    /** 把本轮最后一次检查写进轮摘要。 */
+    checkInDigest?: boolean;
 }): {
     entries: number;
     gcRemoved: number;
@@ -93,6 +108,8 @@ export declare function sealTurn(c: Continuity, opts: {
  * （seed.py HASH SEAM 同构），且一轮内多次成功编辑各自保留自己的后态。
  */
 export declare function trackEdit(c: Continuity, path: string, body: string): void;
+/** 检查结果快照(driver 在测试类 bash 命令的 tool/result 边界调用):只留本轮最后一次。 */
+export declare function trackCheck(c: Continuity, command: string, resultText: string): void;
 /** 读取后态快照(driver 在成功的 read tool/result 边界调用):同一路径只留最后一次。 */
 export declare function trackRead(c: Continuity, path: string, body: string): void;
 /**

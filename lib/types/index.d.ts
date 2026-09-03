@@ -43,6 +43,10 @@ export interface Config {
         readBaseMaxChars?: number;
         readPointer?: boolean;
         anchor?: 'auto' | 'base';
+        rebaseAfterPatches?: number;
+        replyHeadChars?: number;
+        replyTailChars?: number;
+        checkInDigest?: boolean;
     };
     state?: {
         hotWindowSteps?: number;

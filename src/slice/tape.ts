@@ -231,21 +231,24 @@ export const REPLY_CAP_CHARS = 2000;
 export const REPLY_HEAD_CHARS = 1400;
 export const REPLY_TAIL_CHARS = 500;
 
-export function renderTapeReply(artifactId: string, text: string): string {
+export interface ReplyCaps { cap: number; head: number; tail: number }
+export const DEFAULT_REPLY_CAPS: ReplyCaps = { cap: REPLY_CAP_CHARS, head: REPLY_HEAD_CHARS, tail: REPLY_TAIL_CHARS };
+
+export function renderTapeReply(artifactId: string, text: string, caps: ReplyCaps = DEFAULT_REPLY_CAPS): string {
   let body = pyStrip(String(text ?? ""));
   const chars = Array.from(body);
-  if (chars.length > REPLY_CAP_CHARS) {
-    body = chars.slice(0, REPLY_HEAD_CHARS).join("")
-      + ` …[+${chars.length - REPLY_HEAD_CHARS - REPLY_TAIL_CHARS} chars in sealed turn]… `
-      + chars.slice(-REPLY_TAIL_CHARS).join("");
+  if (chars.length > caps.cap) {
+    body = chars.slice(0, caps.head).join("")
+      + ` …[+${chars.length - caps.head - caps.tail} chars in sealed turn]… `
+      + chars.slice(-caps.tail).join("");
   }
   if (!body) return "";
   const h = _h(body);
   return `[reply ${artifactId} @sha256:${h}]\n${body}\n[end reply @sha256:${h}]\n`;
 }
 
-export function replyEntry(artifactId: string, text: string): TapeEntry | null {
-  const rendered = renderTapeReply(artifactId, text);
+export function replyEntry(artifactId: string, text: string, caps: ReplyCaps = DEFAULT_REPLY_CAPS): TapeEntry | null {
+  const rendered = renderTapeReply(artifactId, text, caps);
   return rendered ? new TapeEntry({ kind: "reply", rendered, ref: String(artifactId) }) : null;
 }
 
@@ -325,6 +328,8 @@ const FOLD_TARGET = 0.7;
 export interface TapeFileState {
   hash: string;
   content: string;
+  /** 自上一次完整基线以来累积的 patch 数(rebaseAfterPatches 用)。 */
+  patches?: number;
 }
 
 export interface CompactInfo {

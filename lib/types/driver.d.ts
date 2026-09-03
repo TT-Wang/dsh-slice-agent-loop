@@ -38,6 +38,7 @@ import { type ReasoningEffortDefault } from './effort-default.js';
 import { type SealPolicy } from './slice/step-tape.js';
 import { type DigestPolicy } from './slice/result-digest.js';
 import type { SliceContributor } from './index.js';
+import type { ReplyCaps } from './slice/tape.js';
 /**
  * The slice driver's plugin-owned durable events.
  *
@@ -165,6 +166,12 @@ export interface SliceLoopDriverConfig {
     readPointer: boolean;
     /** 文件锚定方式:'auto' = patch/base 取短;'base' = 永远完整基线。 */
     anchorMode: 'auto' | 'base';
+    /** auto 模式下同一文件累积到这么多 patch 就重落完整基线。 */
+    rebaseAfterPatches: number;
+    /** 回复截断上限。 */
+    replyCaps: ReplyCaps;
+    /** 本轮最后一次测试结果写进轮摘要。 */
+    checkInDigest: boolean;
 }
 export interface ReadBasesPolicy {
     enabled: boolean;
@@ -211,6 +218,9 @@ export declare class SliceLoopAgent implements Agent {
     private readonly readBases;
     private readonly readPointer;
     private readonly anchorMode;
+    private readonly rebaseAfterPatches;
+    private readonly replyCaps;
+    private readonly checkInDigest;
     private readonly digestPolicy;
     private readonly statePolicy;
     /** 世界状态账本:跨轮持久(会话级),append-only。 */

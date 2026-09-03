@@ -24,6 +24,8 @@ import {
   compactTape,
   tapeChars,
   REPLY_CAP_CHARS,
+  DEFAULT_REPLY_CAPS,
+  type ReplyCaps,
 } from './slice/tape.js'
 import { pyStrip } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
@@ -62,6 +64,8 @@ export interface ConversationRow {
 export interface TapeFileState {
   hash: string
   content: string
+  /** 自上一次完整基线以来累积的 patch 数(rebaseAfterPatches 用)。 */
+  patches?: number
 }
 
 export interface Continuity {
@@ -80,6 +84,8 @@ export interface Continuity {
   pendingEdits: Array<{ path: string; body: string }>
   /** 本轮读过(未必改过)的文件盘态——轮末也锚定为 base(2026-09-03 重读税实验)。 */
   pendingReads: Array<{ path: string; body: string }>
+  /** 本轮最后一次测试/检查命令及其结果摘要(checkInDigest 用;seal 时写进轮摘要后清空)。 */
+  pendingCheck?: { command: string; summary: string }
   /**
    * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
    * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
@@ -145,6 +151,8 @@ export function renderTurnDigest(opts: {
   files?: readonly string[]
   /** The sealed reply exceeded REPLY_CAP_CHARS — sealTurn computes it with the tape's own predicate. */
   replyTruncated?: boolean
+  /** 本轮最后一次检查(测试命令 → 结果摘要),写成 `check:` 行。 */
+  check?: string
 }): string {
   const aid = opts.artifactId || 'unknown'
   const head = `[turn ${aid} · task ${opts.taskId || 'unknown'} · ${opts.status || 'unknown'}]`
@@ -160,6 +168,8 @@ export function renderTurnDigest(opts: {
     const shown = fs.slice(0, 8).join(', ')
     lines.push(`files: ${shown}${fs.length > 8 ? ` (+${fs.length - 8} more)` : ''}`)
   }
+  // 上一轮最后一次检查的结论:让下一轮不必为了"现在是绿的吗"再跑一遍测试(s2 实测 22 次对 13 次)。
+  if (opts.check) lines.push(`check: ${opts.check.replace(/\n/g, '\n  ')}`)
   // The recall line renders ONLY when something was actually cut — the ask at
   // ASK_CAP_CHARS or the reply at REPLY_CAP_CHARS. An uncut turn advertises
   // nothing: the tool's own catalog description covers discovery, and a
@@ -202,6 +212,12 @@ export function sealTurn(
     sessionId: string
     /** 'auto'(现状:patch/base 取渲染更短者)或 'base'(永远完整基线——模型不必在脑中合成 patch)。 */
     anchorMode?: 'auto' | 'base'
+    /** auto 模式下,同一文件累积到这么多 patch 就重落一份完整基线(默认 Infinity)。 */
+    rebaseAfterPatches?: number
+    /** 回复截断上限(默认 cap 2000 / head 1400 / tail 500)。 */
+    replyCaps?: ReplyCaps
+    /** 把本轮最后一次检查写进轮摘要。 */
+    checkInDigest?: boolean
   },
 ): { entries: number; gcRemoved: number; epochFolds: number; anchored: Array<{ path: string; body: string }> } {
   const tape = c.sessionTape
@@ -218,7 +234,8 @@ export function sealTurn(
     // cut happened. Computed here because both the live seal and the
     // restoreContinuity replay route through sealTurn with the ring's full
     // reply — the rebuilt digest is byte-identical by construction.
-    replyTruncated: Array.from(pyStrip(opts.assistantReply)).length > REPLY_CAP_CHARS,
+    replyTruncated: Array.from(pyStrip(opts.assistantReply)).length > (opts.replyCaps ?? DEFAULT_REPLY_CAPS).cap,
+    check: opts.checkInDigest && opts.status === 'completed' && c.pendingCheck ? `${c.pendingCheck.command} → ${c.pendingCheck.summary}` : undefined,
   }), opts.turnId))
   c.sealMeta[opts.turnId] = {
     status: opts.status,
@@ -250,10 +267,16 @@ export function sealTurn(
       // 的抖动:曾因 end 标记 +26B 把选型翻成 patch 流,折叠 4 次 → 39 次。
       // 2026-09-03 anchorMode 'base':s2 实测 patch 省的是命中价的输入字节,付的是每轮在脑中
       // 合成 base+patch 的推理(126K vs 76K);完整基线让模型面前永远是当前文件。
-      const patch = opts.anchorMode === 'base' ? undefined : patchEntry(path, state.content, body)
-      tape.push(patch !== undefined && patch.rendered.length < base.rendered.length * 0.9 ? patch : base)
+      const depth = state.patches ?? 0
+      const rebase = opts.anchorMode === 'base' || depth >= (opts.rebaseAfterPatches ?? Infinity)
+      const patch = rebase ? undefined : patchEntry(path, state.content, body)
+      const usePatch = patch !== undefined && patch.rendered.length < base.rendered.length * 0.9
+      tape.push(usePatch ? patch : base)
+      files[path] = { hash, content: body, patches: usePatch ? depth + 1 : 0 }
+      anchored.push({ path, body })
+      continue
     }
-    files[path] = { hash, content: body }
+    files[path] = { hash, content: body, patches: 0 }
     anchored.push({ path, body })
   }
   c.pendingEdits = []
@@ -270,8 +293,9 @@ export function sealTurn(
   if (rsn !== null) tape.push(rsn)
   c.pendingReasoning = []
 
-  const rep = replyEntry(opts.turnId, opts.assistantReply)
+  const rep = replyEntry(opts.turnId, opts.assistantReply, opts.replyCaps ?? DEFAULT_REPLY_CAPS)
   if (rep !== null) tape.push(rep)
+  c.pendingCheck = undefined
 
   const info = compactTape(tape, files)
   return { entries: tape.length, gcRemoved: info.gc_removed, epochFolds: info.epoch_folds, anchored }
@@ -284,6 +308,13 @@ export function sealTurn(
  */
 export function trackEdit(c: Continuity, path: string, body: string): void {
   if (path.trim()) c.pendingEdits.push({ path, body: redactText(body, { codeFile: true }) })
+}
+
+/** 检查结果快照(driver 在测试类 bash 命令的 tool/result 边界调用):只留本轮最后一次。 */
+export function trackCheck(c: Continuity, command: string, resultText: string): void {
+  const lines = resultText.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '')
+  const summary = redactText(lines.slice(-3).join('\n')).slice(0, 300)
+  c.pendingCheck = { command: command.slice(0, 120), summary }
 }
 
 /** 读取后态快照(driver 在成功的 read tool/result 边界调用):同一路径只留最后一次。 */

@@ -42,8 +42,14 @@ export declare const REPLY_CAP_CHARS = 2000;
 /** 与 ask 同理:长答复的结论/判定常在结尾,头+尾同预算严格多信息。 */
 export declare const REPLY_HEAD_CHARS = 1400;
 export declare const REPLY_TAIL_CHARS = 500;
-export declare function renderTapeReply(artifactId: string, text: string): string;
-export declare function replyEntry(artifactId: string, text: string): TapeEntry | null;
+export interface ReplyCaps {
+    cap: number;
+    head: number;
+    tail: number;
+}
+export declare const DEFAULT_REPLY_CAPS: ReplyCaps;
+export declare function renderTapeReply(artifactId: string, text: string, caps?: ReplyCaps): string;
+export declare function replyEntry(artifactId: string, text: string, caps?: ReplyCaps): TapeEntry | null;
 export declare const REASONING_CAP_CHARS = 4000;
 export declare function reasoningEntry(artifactId: string, text: string): TapeEntry | null;
 /** THE identity of a finding/knowledge payload: redacted, stripped. */
@@ -63,6 +69,8 @@ export declare const TAPE_BUDGET_CHARS = 120000;
 export interface TapeFileState {
     hash: string;
     content: string;
+    /** 自上一次完整基线以来累积的 patch 数(rebaseAfterPatches 用)。 */
+    patches?: number;
 }
 export interface CompactInfo {
     gc_removed: number;

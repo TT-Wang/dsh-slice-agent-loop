@@ -101,6 +101,7 @@ import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import type { SliceContributionFacts, SliceContributor } from './index.js'
 import { pySplitlines } from './slice/internal/pytext.js'
 import { redactText } from './slice/internal/safety.js'
+import type { ReplyCaps } from './slice/tape.js'
 import { _h } from './slice/tape.js'
 import {
   compactTurn,
@@ -109,6 +110,7 @@ import {
   fillAssistant,
   recordUser,
   sealTurn,
+  trackCheck,
   trackEdit,
   trackRead,
   trackReasoning,
@@ -207,6 +209,12 @@ export interface SliceLoopDriverConfig {
   readPointer: boolean
   /** 文件锚定方式:'auto' = patch/base 取短;'base' = 永远完整基线。 */
   anchorMode: 'auto' | 'base'
+  /** auto 模式下同一文件累积到这么多 patch 就重落完整基线。 */
+  rebaseAfterPatches: number
+  /** 回复截断上限。 */
+  replyCaps: ReplyCaps
+  /** 本轮最后一次测试结果写进轮摘要。 */
+  checkInDigest: boolean
 }
 
 export interface ReadBasesPolicy {
@@ -304,6 +312,9 @@ export class SliceLoopAgent implements Agent {
   private readonly readBases: ReadBasesPolicy
   private readonly readPointer: boolean
   private readonly anchorMode: 'auto' | 'base'
+  private readonly rebaseAfterPatches: number
+  private readonly replyCaps: ReplyCaps
+  private readonly checkInDigest: boolean
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -359,6 +370,9 @@ export class SliceLoopAgent implements Agent {
     this.readBases = config.readBases
     this.readPointer = config.readPointer
     this.anchorMode = config.anchorMode
+    this.rebaseAfterPatches = config.rebaseAfterPatches
+    this.replyCaps = config.replyCaps
+    this.checkInDigest = config.checkInDigest
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -389,6 +403,13 @@ export class SliceLoopAgent implements Agent {
         const disk = readDiskStatus(this.sessionCwd(), path)
         if (disk.kind === 'ok') trackEdit(this.cont, path, disk.body)
         return
+      }
+      // 测试类 bash 命令的结果:留本轮最后一次,轮末写进摘要(checkInDigest)。
+      if (this.checkInDigest && exec.name === 'bash') {
+        const cmd = (exec.arguments as { command?: unknown } | null)?.command
+        if (typeof cmd === 'string' && /pytest|python -m|unittest|npm test|npm run test|cargo test|go test|vitest|jest|python3? [\w./-]+\.py/.test(cmd)) {
+          trackCheck(this.cont, cmd, toolResultText({ content: [{ content: result.content as readonly unknown[] }] }))
+        }
       }
       // 读过的文件:盘态快照进 pendingReads,轮末锚定为 base(readBases 策略)。
       const rp = readToolPath(exec.name, exec.arguments)
@@ -513,6 +534,9 @@ export class SliceLoopAgent implements Agent {
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
             anchorMode: this.anchorMode,
+            rebaseAfterPatches: this.rebaseAfterPatches,
+            replyCaps: this.replyCaps,
+            checkInDigest: this.checkInDigest,
           })
         }
         pendingAnchors = []
@@ -932,6 +956,9 @@ export class SliceLoopAgent implements Agent {
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
             anchorMode: this.anchorMode,
+            rebaseAfterPatches: this.rebaseAfterPatches,
+            replyCaps: this.replyCaps,
+            checkInDigest: this.checkInDigest,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })

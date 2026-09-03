@@ -20,6 +20,7 @@ import { SliceLoopAgent } from './driver.js'
 import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
 import { resolveSealPolicy } from './slice/step-tape.js'
 import { DEFAULT_READ_BASES, DEFAULT_STATE_POLICY } from './driver.js'
+import { DEFAULT_REPLY_CAPS } from './slice/tape.js'
 import { resolveDigestPolicy } from './slice/result-digest.js'
 import { recallStepToolDefinition } from './recall-step.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
@@ -36,7 +37,7 @@ export interface Config {
   /** v3 追加流的注入时摘要策略。 */
   digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
-  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base' }
+  tape?: { readBases?: boolean; readBaseMaxChars?: number; readPointer?: boolean; anchor?: 'auto' | 'base'; rebaseAfterPatches?: number; replyHeadChars?: number; replyTailChars?: number; checkInDigest?: boolean }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
@@ -222,6 +223,13 @@ export class SliceLoopPlugin extends Service {
     const readPointer = config.tape?.readPointer ?? false
     const anchorMode = config.tape?.anchor ?? 'auto'
     if (anchorMode !== 'auto' && anchorMode !== 'base') throw new Error("tape.anchor must be 'auto' or 'base'")
+    const rebaseAfterPatches = config.tape?.rebaseAfterPatches ?? Infinity
+    if (!(rebaseAfterPatches >= 1)) throw new Error('tape.rebaseAfterPatches must be >= 1 (Infinity = never)')
+    const replyHead = config.tape?.replyHeadChars ?? DEFAULT_REPLY_CAPS.head
+    const replyTail = config.tape?.replyTailChars ?? DEFAULT_REPLY_CAPS.tail
+    if (!Number.isInteger(replyHead) || replyHead < 0 || !Number.isInteger(replyTail) || replyTail < 0) throw new Error('tape.replyHeadChars/replyTailChars must be non-negative integers')
+    const replyCaps = { cap: config.tape?.replyHeadChars !== undefined || config.tape?.replyTailChars !== undefined ? replyHead + replyTail + 100 : DEFAULT_REPLY_CAPS.cap, head: replyHead, tail: replyTail }
+    const checkInDigest = config.tape?.checkInDigest ?? false
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
     for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
       if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
@@ -295,7 +303,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest, readBases, readPointer, anchorMode, rebaseAfterPatches, replyCaps, checkInDigest }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')
