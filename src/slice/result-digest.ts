@@ -71,7 +71,8 @@ export const DEFAULT_DIGEST_POLICY: DigestPolicy = {
 
 /** 结构行:`key = value`、`key: value`、markdown/注释标题、围栏。噪音正文极少长这样。 */
 // 键允许一个内部空格(`R1 path:`、`Opening balance:`):规则/说明文档的条目通常长这样。
-const STRUCTURED = /^\s*(?:[A-Za-z_][\w.\-/]*(?: [\w.\-/]+)?\s*[=:]\s*\S|#{1,6}\s|\[[^\]]+\]\s*$|```)/
+// 表格行(markdown `| a | b |`,或 HTML 转文本后的 ` | a | b | `)也是结构行:文档里信息密度最高的部分,f9 实测折掉参数表后模型逐页取回。
+const STRUCTURED = /^\s*(?:[A-Za-z_][\w.\-/]*(?: [\w.\-/]+)?\s*[=:]\s*\S|#{1,6}\s|\[[^\]]+\]\s*$|```|\|.*\|)/
 /** read 工具按 OpenCode 风格给每行加 `N: ` 前缀(grep 是 `N|`/`N:`);判结构前先剥掉。 */
 const LINE_NUMBER_PREFIX = /^\s*\d+[:|]\s?/
 const strip = (line: string): string => line.replace(LINE_NUMBER_PREFIX, '')

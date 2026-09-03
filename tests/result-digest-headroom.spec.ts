@@ -66,3 +66,16 @@ describe('log omission marker', () => {
     expect(r.text).toMatch(/\[\d+ lines omitted: \d+ more error lines, \d+ more warning\/summary lines\]/)
   })
 })
+
+describe('tables in documents', () => {
+  it('keeps every table row of a fetched documentation page while folding the prose', () => {
+    const prose = (i: number) => `The ${i}th paragraph explains the request lifecycle in great detail ${'and so on '.repeat(20)}`
+    const rows = Array.from({ length: 12 }, (_, i) => ` | param_${i} | integer | ${i * 10} | what it does |`)
+    const page = ['# https://docs.example.com/api/client', '', '# Client', ...Array.from({ length: 30 }, (_, i) => prose(i)), '## Configuration', ' | name | type | default | description |', ...rows, '## Retry policy', ...Array.from({ length: 30 }, (_, i) => prose(100 + i))].join('\n')
+    const r = digestToolResult(page, { tool: 'fetch_page', path: 'https://docs.example.com/api/client' })
+    expect(r.digested).toBe(true)
+    for (const row of rows) expect(r.text).toContain(row.trim())
+    expect(r.text).toContain('## Configuration'); expect(r.text).toContain('## Retry policy')
+    expect(r.text.length).toBeLessThan(page.length * 0.55)
+  })
+})
