@@ -79,3 +79,40 @@ workflow 引擎、`agent/request`、`schedule`。
 - 遮蔽优先的压缩(Complexity Trap):前缀缓存下中途遮蔽同样要改写前缀;dsh-cache-aware-compaction 已在冷热判断上做了有测量的工作。
 - 紧凑编辑工具(patch/hashline):已有两个雏形;在 effort low 下编辑载荷只占输出的一部分,推理仍是大头。
 - 按步降档/路由:已有成熟插件,且按步降档不改变上下文结构,不是这条线的事。
+
+## 不限成本管理时的重排(同日第二轮扫描)
+
+补扫了验收闸门、提示注入防护、文件回滚、精确分词器、密钥脱敏、评测框架、MCP 资源桥接、第二模型评审、从会话提炼技能九类:
+注入防护(dsh-injection-guard ★3、taintguard、sentinel、security-guard)、文件回滚(dsh-recover-context、dsh-file-review)、
+脱敏(dsh-redact ★1)、MCP 资源(dsh-mcp-bridge ★0)已有;验收闸门、评测框架、精确分词器、第二模型评审、技能提炼在精选与搜索里都没有。
+
+按价值重排的三个:
+
+### 1. 验收闸门(definition-of-done gate)
+- 缺口:agent 说 DONE 的时候没有任何东西核对它。我们自己的跑批里就有:f6 的原生臂一个文件没写就回 DONE;l2 第一次 45 个 posting
+  全写错目录也回 DONE。dsh 的 `agent/turn-stopping` 是 serial 事件,hooks-claude-code 桥就是在这里用 `agent.steer()` 强制续跑,
+  缝早就有,但没有产品化的插件:精选零命中,GitHub 零命中。
+- 做什么:轮要结束时自动跑项目检查(按仓库探测 pytest / npm test / tsc / cargo test / go test,或 AGENTS.md 里声明的命令),
+  失败就把结果折叠成错误优先的视图 steer 回去,带重试预算;通过后把证据(跑了什么、多少通过)附在最终回复上;可选升级:
+  机械检查不覆盖的部分交给 pro 做一次评审。
+- 价值:直接打在 agent 最贵的失败模式上(自称完成)。成本是每轮多一次测试运行,输出侧几乎不增。
+- A/B:s2/s3/f3/f7/f8 这类有测试的任务,比"首次回 DONE 时判卷通过率"与总价。
+
+### 2. 评测框架(dsh-bench)
+- 缺口:生态里上千个插件,"省 30%""省 62%"都是各说各话,没有一个公共的场景集、判卷器、成本账本、配对 A/B 报表。dsh 有
+  llm-replay、session-snapshot、loader-smoke 这些底子,没有面向插件作者的评测框架;精选与搜索零命中。
+- 做什么:把我们这三天做的东西打包:场景格式(meta/prompts/setup/verify/oracle 自检)、runner(任意插件组合成臂)、账本
+  (按 DeepSeek 峰谷价、缓存命中拆分)、配对报表、逐步全量日志;附现成的 20 个场景。
+- 价值:让"值不值"变成可测的问题,生态级收益;对我们自己也是零成本,代码都在。
+- A/B:它本身就是做 A/B 的工具。
+
+### 3. 精确分词器替换 token-meter 的估算
+- 缺口:token-meter 用固定 4 字符/token,维护者自己写明"低估 CJK 与 JSON";DeepSeek 官方比率是英文 1 字符 ≈ 0.3 token(3.3 字符/token)、
+  **中文 1 字符 ≈ 0.6 token(1.7 字符/token)**——中文内容被低估约 2.4 倍。compaction-basic 只靠 `tokenMeter.measure` 决定何时压缩,
+  低估意味着中文会话压缩触发得太晚,直接撞上下文上限走 overflow 恢复;成本计量类插件也都在错的基数上。精选与搜索零命中。
+- 做什么:用 DeepSeek 公开的分词器(官方给了 zip 包)做一个同名 `tokenMeter` 服务(cordis 同名替换)或装饰器,`measure/estimateMessage`
+  接口不变;用 usage 返回校准。
+- 价值:中文用户是 dsh 的主场,压缩时机与所有计量的准确性一起修好;实现边界清楚。
+- A/B:中文长会话下 overflow 错误次数、压缩触发时机、估算与 usage 的偏差。
+
+候补:workflow 的日志化与续跑(维护者 deferred,长自主运行需要,但接近核心改动)。
