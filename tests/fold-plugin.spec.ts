@@ -162,3 +162,18 @@ describe('pinned steps still fold huge results', () => {
     expect(requestText(adapter, 1)).not.toContain('tick 300 ')
   })
 })
+
+describe('pinned steps and medium documents', () => {
+  it('a 10K document fetched at step 2 is condensed (pinMaxChars 8000), a 3K rules file is not', async () => {
+    const DOC = Array.from({ length: 60 }, (_, i) => (i % 12 === 0 ? `## Section ${i / 12}` : `paragraph ${i}: ${'lorem ipsum '.repeat(14)}`)).join('\n')
+    const RULES = Array.from({ length: 18 }, (_, i) => `R${i} rule ${i}: ${'must '.repeat(25)}`).join('\n')
+    const adapter = new MockAdapter([toolCallResponse('c1', 'read', { file_path: 'RULES.md' }), toolCallResponse('c2', 'fetch_page', { url: 'https://d/x' }), textResponse('done')])
+    const ctx = await harness(adapter, [{ name: 'read', text: RULES }, { name: 'fetch_page', text: DOC }], { pinSteps: 2, digest: { minChars: 1500 } })
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-pin-medium'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'go')
+    await handle.agent.whenIdle()
+    expect(DOC.length).toBeGreaterThan(8000); expect(RULES.length).toBeLessThan(8000)
+    expect(requestText(adapter, 1)).toContain('R17 rule 17')                     // 规则文件钉住,原样
+    expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)                  // 第 2 步的整页文档折了
+  })
+})

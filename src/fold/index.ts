@@ -29,7 +29,8 @@ export interface Config {
   digest?: Partial<DigestPolicy>
   /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
   pinSteps?: number
-  /** 钉住步里仍然要折的体量(默认 20000 字符):规则/说明文档只有几 K,而开头一步跑出来的 170K 测试输出不是规则。 */
+  /** 钉住步里仍然要折的体量(默认 8000 字符):规则/说明文档只有几 K(l1 的 MANIFEST 3K、l2 的规则 3.7K),而开头两步
+   *  整页抓回来的 10–14K 文档、170K 的测试输出不是规则;f9 实测模型把 6 页都放在第 2 步抓,20000 的阈值让它们全被钉住。 */
   pinMaxChars?: number
   /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
    *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
@@ -221,7 +222,7 @@ export class ToolResultFold extends Service {
     const enabled = config.enabled ?? true
     const pinSteps = config.pinSteps ?? 2
     if (!Number.isInteger(pinSteps) || pinSteps < 0) throw new Error('pinSteps must be a non-negative integer')
-    const pinMaxChars = config.pinMaxChars ?? 20_000
+    const pinMaxChars = config.pinMaxChars ?? 8_000
     if (!(pinMaxChars >= 0)) throw new Error('pinMaxChars must be >= 0')
     const backoffAfter = config.backoffAfterExpansions ?? 2
     if (!Number.isInteger(backoffAfter) || backoffAfter < 1) throw new Error('backoffAfterExpansions must be an integer >= 1')
