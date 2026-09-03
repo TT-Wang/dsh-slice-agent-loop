@@ -1,4 +1,4 @@
-node_modules/
+node_modules
 
 # lib/ IS committed: `dsh plugin add github:...` installs from the git source,
 # which does not run a build. Rebuild with `npm run build` before pushing.

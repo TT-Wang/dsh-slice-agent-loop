@@ -40,6 +40,8 @@ const PEERS = {
   '@deepseek-ai/dsh-agent-loop': 'packages/core/agent-loop',
   // Test-only: the Code Mode anchoring gate needs a CodeRuntime to mount run_code.
   '@deepseek-ai/dsh-code-runtime': 'packages/code-runtime/code-runtime',
+  // driver.ts 自 a4 迁移起用它(SessionSeq 等品牌类型工具)。
+  '@deepseek-ai/dsh-util-values': 'packages/util/values',
   '@deepseek-ai/dsh-token-meter': 'packages/llm/token-meter',
 }
 

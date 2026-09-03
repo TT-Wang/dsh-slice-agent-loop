@@ -2,37 +2,58 @@
  * result-digest.ts — 注入时摘要(insertion-time digest)。
  *
  * v3「追加流」模式的核心杠杆:成本由每步**新增字节**决定(严格前缀缓存下命中价是
- * 未命中的 1/30),所以大工具结果在进入上下文之前就折成紧凑视图——头/尾若干行 +
- * 全部结构行(`key = value` / `key: value` / 标题行)+ 精确省略标记与召回指针。
- * 全文原样留在会话日志(recall_step 逐字取回);上下文里从此只有紧凑视图,且永不
- * 重写——append-only,缓存完美。
+ * 未命中的 1/30),所以大工具结果在进入上下文之前就折成紧凑视图;全文原样留在会话
+ * 日志(recall_step 逐字取回);上下文里从此只有紧凑视图,且永不重写——append-only。
+ *
+ * 2026-09-03 按内容类型分路由(抄自 Headroom 的 ContentRouter / LogCompressor 思路):
+ *   code   → 不折(代码是混合文本,残缺函数体会让模型编错;Headroom 同样把 Read/Edit 排除在外)
+ *   search → 不折(grep/glob 的每一行都是命中,头尾视图会藏掉匹配)
+ *   log    → 错误优先:ERROR/FAIL/WARN 行 + 前后 contextLines 行 + 紧随的栈帧 + 摘要行,
+ *            相似行去重(保留消息前缀,归一化数字/十六进制/路径),头 3 尾 6;512 字节起折
+ *   data   → 头/尾 + 结构行(`key = value` / `key: value` / 标题 / 段标记);头部区外的
+ *            结构块按"键的新颖性"自适应保留(同形附录块只留前几行),1500 字符起折
  *
  * 守卫:小结果不折;折后体量 ≥ 原文 × maxKeepRatio 也不折(折了不省就别折)。
  */
+export type ContentKind = 'code' | 'search' | 'log' | 'data';
 export interface DigestPolicy {
     /** 轮内折叠开关(slice / stream 模式默认开;state 模式不用)。 */
     enabled: boolean;
-    /** 低于此字符数不折。 */
+    /** data 类低于此字符数不折。 */
     minChars: number;
     headLines: number;
     tailLines: number;
     /** 折后 ≥ 原文的这个比例就放弃(不值一次省略)。 */
     maxKeepRatio: number;
-    /**
-     * 头部区之外,每个连续结构行块最多保留几行(其余并入省略)。Infinity = 不限。
-     * 依据:字段型文件的"正文字段"在头部;深处成块出现的 key: value 多是附录表
-     * (l2 记录里的 [prior-reconciliation] 块占了折后视图的一半),需要时一步可召回。
-     */
+    /** 头部区之外,每个连续结构行块最多保留几行(自适应保留的上限)。Infinity = 不限。 */
     structuredBlockCap: number;
+    /** 每个结构块至少保留几行(自适应保留的下限)。 */
+    structuredBlockMin: number;
+    /** log 类低于此字符数不折(Headroom:512 B)。 */
+    logMinChars: number;
+    /** log 类最多保留多少条错误/失败行(首条与末条必留)。 */
+    logMaxErrors: number;
+    /** log 类每条保留行前后带的上下文行数。 */
+    logContextLines: number;
 }
 export declare const DEFAULT_DIGEST_POLICY: DigestPolicy;
 export declare function looksLikeCodePath(path: string | undefined): boolean;
 export declare function looksLikeCode(text: string): boolean;
+export declare function detectContentKind(text: string, path?: string): ContentKind;
 export interface DigestResult {
     text: string;
     digested: boolean;
     totalLines: number;
     keptLines: number;
+    kind: ContentKind;
 }
+export declare function digestData(text: string, policy?: DigestPolicy): DigestResult;
+export declare function digestLog(text: string, policy?: DigestPolicy): DigestResult;
+/** 兼容入口:按 data 规则折(旧调用方与测试)。 */
 export declare function digestText(text: string, _recallHint: string, policy?: DigestPolicy): DigestResult;
+/** 工具结果入口:按工具名与内容类型路由。 */
+export declare function digestToolResult(text: string, source: {
+    tool: string;
+    path?: string;
+}, policy?: DigestPolicy): DigestResult;
 export declare function resolveDigestPolicy(input: Partial<DigestPolicy> | undefined): DigestPolicy;
