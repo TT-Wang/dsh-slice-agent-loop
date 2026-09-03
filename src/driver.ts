@@ -141,6 +141,7 @@ declare module '@deepseek-ai/dsh-session' {
     'slice/state-seed': { turn: number; step: number; seedDigest: string; files: number; facts: number; pinned: number; rules: number }
     'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; list?: string[]; raw?: string; error?: string }
     'slice/side-call': { turn: number; step: number; label: string; usage?: unknown }
+    'slice/read-pointer': { turn: number; step: number; path: string }
     'slice/contract-bounce': { turn: number; step: number; path: string; violations: string[] }
     'slice/contract-suspend': { turn: number; step: number; path: string; rules: string[] }
     'slice/digest': { turn: number; step: number; tool: string; charsBefore: number; charsAfter: number }
@@ -202,6 +203,8 @@ export interface SliceLoopDriverConfig {
   digest: DigestPolicy
   /** 读过未改的文件在轮末锚定为 base(见 continuity.ts sealTurn)。 */
   readBases: ReadBasesPolicy
+  /** 磁带现行文件的整读 → 指回磁带的指针(默认开)。 */
+  readPointer: boolean
 }
 
 export interface ReadBasesPolicy {
@@ -296,6 +299,7 @@ export class SliceLoopAgent implements Agent {
   private readonly inTurnSeal: SealPolicy
   private readonly mode: 'slice' | 'state' | 'stream'
   private readonly readBases: ReadBasesPolicy
+  private readonly readPointer: boolean
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -349,6 +353,7 @@ export class SliceLoopAgent implements Agent {
     this.statePolicy = config.state
     this.digestPolicy = config.digest
     this.readBases = config.readBases
+    this.readPointer = config.readPointer
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -1446,11 +1451,43 @@ export class SliceLoopAgent implements Agent {
       // {name, description, parameters} with no capability tag, category, or
       // well-known name to match on. The model can already see its own tool
       // schemas; it only needs to be told WHICH file to re-read.
-      return `### ${p} — ${pySplitlines(body).length} lines · sha256:${_h(body)} · (edited this session)`
+      // 结论直接写在索引上:模型不会自己去对哈希(s2 实测每轮开头照样重读 tape 里已有的文件)。
+      const hash = _h(body)
+      // tapeFiles 里存的是完整 sha256(continuity.sealTurn),索引展示的是短哈希——按完整值比。
+      const full = createHash('sha256').update(body, 'utf8').digest('hex')
+      const verdict = this.cont.tapeFiles[p]?.hash === full ? 'current in tape — edit from the tape, do not read it again' : 'changed on disk — read before editing'
+      return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · ${verdict}`
     }).join('\n')
   }
 
   // ------------------------------------------------------------ stream mode (v3)
+
+  /** 工具结果进轨迹前的整形:磁带现行文件的整读 → 指针;然后(若开)注入时摘要。 */
+  private shapeForTrajectory(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage {
+    const pointed = this.readPointer ? this.pointerForTapeCurrentRead(turn, step, block, message) : undefined
+    if (pointed !== undefined) return pointed
+    return this.digestPolicy.enabled ? this.digestForTrajectory(turn, step, block, message) : message
+  }
+
+  /**
+   * 读取指针(2026-09-03):整读一个"磁带里已有且与盘态同 hash"的文件时,结果换成一句指回
+   * 磁带的话——全文本来就在上下文里,重发它只是付一次未命中价加一步输出。全文仍进会话
+   * 日志(recall_step 可取)。带 offset/limit 的部分读、不在磁带里或已变化的文件原样返回。
+   */
+  private pointerForTapeCurrentRead(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage | undefined {
+    const first = message.content[0] as { type: string; toolCallId?: string; isError?: boolean } | undefined
+    if (!first || first.type !== 'tool-result' || first.isError) return undefined
+    const args = parseArguments(block.arguments) as Record<string, unknown> | null
+    const rp = readToolPath(block.name, args)
+    if (rp === undefined || args?.offset !== undefined || args?.limit !== undefined) return undefined
+    const state = this.cont.tapeFiles[rp]
+    if (state === undefined) return undefined
+    const disk = readDiskStatus(this.sessionCwd(), rp)
+    if (disk.kind !== 'ok' || createHash('sha256').update(redactText(disk.body, { codeFile: true }), 'utf8').digest('hex') !== state.hash) return undefined
+    this.session.append('slice/read-pointer', { turn, step, path: rp })
+    const text = `[read ${rp} · unchanged: the current content is already in your SESSION TAPE above (latest [base ${rp} …] plus its patches, sha256:${state.hash.slice(0, 12)}) — edit from the tape instead of re-reading; recall_step(${turn}, ${step}) returns this read verbatim]`
+    return createToolResultMessage({ callId: first.toolCallId as never, content: [{ type: 'text', text }] as never, isError: false })
+  }
 
   /** 注入时摘要:工具结果的文本块折成紧凑视图;不折的原样返回同一消息对象。 */
   private digestForTrajectory(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage {
@@ -1818,7 +1855,7 @@ export class SliceLoopAgent implements Agent {
     trackToolOutcome(this.cont, result.isError === true, toolResultText(message))
     // v3 追加流:大结果进上下文前折成紧凑视图(全文已落日志,recall_step 取回)。
     // 轮内折叠:slice 与 stream 共用(默认开);state 模式保持自己的热窗设计。
-    this.turnTrajectory.push(this.digestPolicy.enabled && this.mode !== 'state' ? this.digestForTrajectory(turn, step, block, message) : message)
+    this.turnTrajectory.push(this.mode !== 'state' ? this.shapeForTrajectory(turn, step, block, message) : message)
     this.turnTrajectorySteps.push(step)
     if (this.mode === 'state' || this.mode === 'stream') this.observeToolForState(turn, step, block, result, callSeq)
     // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的
