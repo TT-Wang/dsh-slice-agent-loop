@@ -1,0 +1,268 @@
+# Context: the 4 human/assistant exchange(s) that preceded this turn in the same session.
+# prompt.txt is the turn's own message; this file is additive background (the prompt may answer
+# questions the assistant asked here).  Tool calls of those turns are summarised, not replayed.
+
+## [-4] human  (2026-08-24T11:23:08.239Z, 0 tool calls in that turn)
+好 searchindex如何插入这个方案
+
+## [-4] assistant
+它插在 `related_code` 那个槽——**第二批的那一条**。新 schema 让这件事比之前简单了，但也让我之前给你的一条建议作废了。
+
+## 先作废一条
+
+我之前说「roadmap 挂 DIGEST 档，别占 full 槽」。**现在没有档了。** 区只有一个 `render`，没有 alternative、没有 Fidelity。所以 roadmap 就是这个区的全部内容，没有位置之争。
+
+## 接入面：三处改动
+
+```ts
+// 1. SliceCtx 加一个字段
+interface SliceCtx { …; discovery: string }
+
+// 2. 区表加一条
+{ name: 'related_code', zone: 35, render: (c) => c.discovery }
+
+// 3. driver 加一行
+sliceCtx.discovery = this.discovery?.roadmap(request, openFiles) ?? ''
+```
+
+空串 → 区消失（`if (!content) return`）→ 行为和今天一模一样。**没装生产者就等于没改。**
+
+## zone 位置
+
+```
+10  SESSION TAPE
+20  PRIOR TASK OBJECTIVE
+30  OPEN FILES
+35  RELATED CODE        ← 参考材料，比 error 不急
+40  CURRENT ERROR
+```
+
+顺带建议：**zone 用稀疏编号**（10/20/30…）。功能上无差别，但插一个区不用重编所有号。
+
+## 生产者：三个候选，一个诚实结论
+
+| 生产者 | 怎么产 | 成本 | 什么时候有 |
+|---|---|---|---|
+| `ImportGraphDiscovery` | 从 `openFiles` 出发，ripgrep import 语句抓一跳邻居 | 0 | 总是（冷启动也能用） |
+| `TapeDiscovery` | 从 tape 的 patch hunk 头 `@@ -199,3` 反推行号，列本任务动过哪些文件的哪些段 | 0 | 第 2 轮起 |
+| `SourceIndexFileDiscovery` | 读 `.sourceindex/sourceindex-output.txt` | 0 | 用户装了才有，**且没人按你的任务刷新它** |
+
+**SourceIndex 本体接不上。** 它没有公开的 per-task CLI，roadmap 是靠它在 Claude Code 里注册的子 agent 被主 agent 调用才生成的——DSH 触发不了。那个 txt 文件会存在，但内容是上次别人跑的，跟你这一轮的任务无关。第三行写着当彩蛋可以，别让它上路径。
+
+**能抄的是形态**：`path · L区间 · 函数名 · 一句话`，以及"把 imports 块单独标出来"这个细节。抄不走的是它的内核——「给定任务判断哪些函数相关」，那是 LLM 排序，在他们服务器上烧 token。
+
+## 门控放 driver，不放 render
+
+按轮开关（冷启动发、改了三轮就不发）**必须在 driver 侧**：
+
+```
+openFiles 为空（冷启动）        → 产
+request 提到 tape 上没有的东西   → 产
+文件都在带上了                   → 不产，discovery = ''
+```
+
+放 render 里也能实现，但那样 driver 每轮都得先把 roadmap 造出来再让 render 丢掉——**造它才是贵的那一步**（要扫仓库）。S5 说 render 是纯函数、不做 I/O，正好也堵死了这条路。
+
+## 成本
+
+`related_code` 在 tape 之后 ⇒ 每轮必然 cache miss：
+
+```
+不门控：500 token × $0.66/M × 76 轮 = $0.025   ≈ s10 那轮的 4%
+门控后：只发前 3 轮                = $0.001
+```
+
+**这是 slice 比 SourceIndex 多的一手**：它只能在任务开头交一次那张纸，你每轮重建，可以只在需要的轮次发。
+
+---
+
+要我现在把 `related_code` 这条按上面的形态写进 [plan/SEAMS.md](plan/SEAMS.md) S6 的第二批，连生产者候选和门控规则一起钉住？
+
+## [-3] human  (2026-08-24T11:24:44.148Z, 3 tool calls in that turn)
+给我一个更新后的schema
+
+## [-3] assistant
+`include: ["src"]`，所以 `plan/*.ts` 不进编译。写成可读的真代码：
+
+写在 [plan/schema.ts](plan/schema.ts)（`include: ["src"]`，不进编译）。整个 schema **约 150 行，含注释和沿用的 header 常量**。
+
+## 两处和我口头描述的不一样
+
+**`openFiles` 改成结构化数据，不是预渲染字符串。**
+
+```ts
+type OpenFile =
+  | { path: string; state: 'ok'; lines: number; hash: string }
+  | { path: string; state: 'missing' }
+  | { path: string; state: 'unreadable'; reason: string }
+```
+
+现在 `driver.openFilesIndex()` 返回拼好的字符串，区只加个 header。但 S5 说 render 是纯函数、I/O 在 driver —— 那 driver 该交**数据**，渲染归区。三个状态是现有 `readDiskStatus` 已有的分支，不是新概念。
+
+**`request` 进了 `SliceCtx`。** `task_objective` 需要它来判断"总目标 == 本轮请求"时不渲染，装配器也从同一处读。少一个参数通道。
+
+## 写的时候撞出两个悬空 header
+
+这两个我之前没看见，是把 header 常量搬过来时才发现的：
+
+**一、OPEN FILES 的 header 承诺了一个不存在的列。**
+
+```
+# OPEN FILES (index — path · lines · CURRENT on-disk sha256 · read call. …
+                                                    ^^^^^^^^^
+```
+
+而 `openFilesIndex` 早就不发 read call 了——[driver.ts:1216](src/driver.ts:1216) 的注释写明了原因（DSH 把读取工具注册为 `read` 且收 `{file_path}`，硬编码会随 host 改名而腐烂）。**header 没跟着改。** 已在提案里删掉该从句。
+
+**二、`task_objective` 的 header 引用了我们要删的区。**
+
+```
+… (A newer retained user correction supersedes any conflicting detail)
+```
+
+指的是 `corrections` 区。而且原实现还有第二个分支（`objectiveStatus === 'provisionally_satisfied'` → `# PRIOR TASK BACKGROUND`），依赖一个无生产者的字段。两个都删，header 收成一句：
+
+```
+# STABLE TASK OBJECTIVE (original user objective; keep it active across follow-ups)
+```
+
+## 文件里留的口子
+
+- `NOW_FOOTER` 我写了占位符——原文在 [regions.ts:391](src/slice/regions.ts:391)，原样搬即可，它引用的 SESSION TAPE / OPEN FILES / read_file 全都还在，不用改。
+- 第二批两条以注释形式留在 `SliceCtx` 和区表里（`zone 35` 的位置空着）。
+
+---
+
+下一步有三条路，你挑：
+
+1. **把这份 schema 钉进 [plan/SEAMS.md](plan/SEAMS.md) S6**，把区表名单从 OPEN 收掉
+2. **先做那两件不依赖决策的**：接 `error`、删 `repoMap`/`conversation`/`activeFiles`
+3. **开始写行为测试** —— goldens 退役前得先有替代品
+
+## [-2] human  (2026-08-24T11:27:46.859Z, 4 tool calls in that turn)
+我对于schema还是不是很认同 我觉得太复杂了 你上网搜一下pi创始人的设计哲学 它说bash is all you need 我们不需要这么复杂的schema
+
+## [-2] assistant
+搜到了，而且这个反驳比你想的更有意思——**它一部分支持你，一部分反对你，而支持你的那部分和你说的理由不一样。**
+
+## pi 到底在说什么
+
+pi（[@badlogicgames](https://jprokay.com/post/018-pi-coding-agent) 做的）只有 4 个工具，刻意不做 subagent、不做 plan mode、连权限系统都没有（作者原话是默认"living dangerously"）。核心是 CLI-first：一切先做成命令行工具，扩展只负责渲染它的输出。
+
+**但注意它省的是什么：工具面。** "bash is all you need" 是在说别给模型 50 个专用工具，给它 bash 让它自己组合。
+
+**它不是关于上下文装配的。** pi 对"每轮给模型看什么"的答案是——**transcript**。这恰恰是你整个项目要替换的东西。所以拿 pi 论证"不需要 context schema"，等于论证回到 transcript。
+
+## Vercel 自己做的验证很值得看
+
+[Testing if "bash is all you need"](https://vercel.com/blog/testing-if-bash-is-all-you-need) 拿 GitHub issues 数据集比了三种：
+
+| | SQL | Bash | Filesystem |
+|---|---|---|---|
+| 准确率 | **100%** | 52.7% | 63.0% |
+| token | 155K | 1,062K | 1,276K |
+| 成本 | $0.51 | $3.34 | $3.89 |
+
+bash 臂 **7 倍 token、6.5 倍成本、9 倍耗时，准确率一半**。而他们点名的首要失败原因是：**"lacked schema context about JSON file structure"** —— 缺 schema。
+
+结论是"对结构化数据，SQL 仍是最直接的路"。
+
+所以这条哲学有它的边界：**工具面越薄越好，但结构化的东西给模型一个 schema 是赚的。** tape 的 hash 信任规则、OPEN FILES 的盘态索引，正是结构化的东西。
+
+## 但你还是对的，理由不一样
+
+不是"schema 本身多余"，是**我那个 `Region` 表不承重**。
+
+私有模块、固定 4 个区、不动态注册、除了渲染没有第二种遍历。那 `Region` 接口 + `zone` 字段 + 排序 + 表，全部可以塌成**四个函数调用，按顺序**：
+
+```ts
+interface SliceCtx {
+  request: string
+  goal: string
+  tape: readonly TapeEntry[]
+  openFiles: string      // driver 现渲染（I/O + hash 都在它那边）
+  lastError: string
+}
+
+export function assemble(ctx: SliceCtx, systemPrefix: string, hints = ''): [string, string] {
+  const body = [
+    ctx.tape.length ? TAPE_HDR + ctx.tape.map(e => e.rendered).join('') + '\n' : '',
+    ctx.goal.trim() && ctx.goal.trim() !== ctx.request.trim() ? OBJ_HDR + ctx.goal + '\n\n' : '',
+    ctx.openFiles ? FILES_HDR + ctx.openFiles + '\n\n' : '',
+    ctx.lastError.trim() ? ERR_HDR + ctx.lastError + '\n\n' : '',
+  ].filter(Boolean).join('\n')
+
+  return [systemPrefix,
+    (body ? `<context>\n${body}\n</context>\n\n` : '')
+    + (ctx.request.trim() ? REQ_HDR + ctx.request + '\n\n' : '')
+    + NOW_FOOTER + (hints ? `\n${hints}` : '')]
+}
+```
+
+**这就是全部。** 一个接口、一个函数、五个 header 常量。
+
+- `zone` → 数组顺序
+- `name` → 就是那一行在读什么
+- 区表 → 数组字面量
+- 加一个区 → 加一行
+
+一样都没少。而且我上一版还把 `openFiles` 从字符串改成了结构化 union —— 那是我把它**改复杂了**，改回字符串，driver 本来就是这么产的，零迁移。
+
+## 我不会砍的
+
+**tape 和 OPEN FILES 的 header 文字。** 那不是 schema，是 prompt。SESSION_TAPE_HEADER 那 600 字符讲的是 hash 信任规则——"你的组合 hash 等于盘态 hash 就可以直接编辑"。这条规则模型不会自己懂，而它正是 Vercel 那个测试里 bash 臂缺的那种东西。
+
+砍结构，不砍规则。
+
+要我按这个重写 [plan/schema.ts](plan/schema.ts) 吗？
+
+## [-1] human  (2026-08-24T11:30:57.297Z, 4 tool calls in that turn)
+重写 更新plan 然后和我说还需要讨论什么
+
+## [-1] assistant
+三个 plan 文件已同步（[SEAMS.md](plan/SEAMS.md)、[MAP.md](plan/MAP.md)、[SOURCING.md](plan/SOURCING.md)），形状在 [plan/schema.ts](plan/schema.ts)：**一个接口 + 一个函数，结构约 25 行**，其余全是原样搬过来的 header 文本。
+
+## 还需要讨论的，按该不该现在决定排
+
+### 一、`lastError` 到底要不要——我对自己这一条没底
+
+它是名单里唯一我没论证过必要性的。想清楚之后我倾向**存疑**：
+
+- **轮内**：失败的工具结果本来就在本轮轨迹里（跟在切片后面），模型看得见，不需要段
+- **跨轮**：tape digest 只有 `ask` / `files` / reply，确实没有工具错误
+
+所以它买的只是"跨轮携带未解决的错误"。而一个轮次要以未解决错误结束，意味着模型主动放弃或轮次被取消——那是个窄场景。
+
+如果砍掉，名单变成 **3 段**（tape / goal / openFiles），schema 更小。**但代价是**：用户说"继续"时，模型不知道上一轮卡在哪。
+
+我没有数据支持任一边。这条该你定，或者先接上跑一轮看看它渲染出来的东西有没有用。
+
+### 二、行为测试覆盖到什么程度才敢切（S6，卡住迁移）
+
+我的建议是**五条，不多**：
+
+1. tape 恒为第一段（缓存不变量，最重要的一条）
+2. 空 ctx → body 为空，但 CURRENT REQUEST + NOW 仍在
+3. `goal === request` → 目标段不渲染
+4. 每段空/非空的边界
+5. 一个完整输出的 snapshot（字节级，防无意改动）
+
+第 1 条是唯一真正在保护架构的，其余是防手滑。
+
+### 三、`kernel: 'ported'` 分支要不要留
+
+约 9000 字符源码 + 一个 config 分支。CB50 已经量出它更差（spanRecall −0.13），而且名单收到 3–4 段之后它教的悬空结构更多。
+
+**留着的唯一理由是复现 CB50 对照组。** 你还需要吗？
+
+### 四、`ASK_CAP_CHARS` / `REPLY_CAP_CHARS`（600 / 1200）——被忽略了
+
+这两个数以前不显眼，因为还有 findings / progress / 对话环分担。**砍到 3–4 段之后，tape 是往轮信息的唯一载体**——用户说过什么、你答过什么，全靠这两个上限决定留多少。
+
+600 字符的 `ask` 对多轮追问够不够，我没有依据。超了有 `recall_turn` 兜底，但那是一次工具往返。这个值得单独看一眼真实的会话，不是拍脑袋调。
+
+---
+
+**不用现在讨论的**：`discovery` / `findings`（第二批，一行的事，等生产者）、窗口化 base（等 `epochFolds` 数据，而且本次不动 `tape.ts`）、`focus`/`world` 那几个移交项（kernel prompt 已经不引用它们，直接删不留洞）。
+
+先说哪个？

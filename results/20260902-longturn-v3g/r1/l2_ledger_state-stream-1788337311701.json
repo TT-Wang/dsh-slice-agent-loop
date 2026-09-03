@@ -1,0 +1,92 @@
+{
+  "scenario": "l2_ledger_state",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {
+    "structuredBlockCap": 4
+  },
+  "sessionId": "slice-val-l2_ledger_state-stream-low-1788337311701",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l2_ledger_state-WGsvKE",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 49,
+      "input": 45586,
+      "cacheRead": 1415168,
+      "output": 14892,
+      "reasoning": 5530,
+      "peakInput": 50762,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 45586,
+    "cacheRead": 1415168,
+    "output": 14892,
+    "reasoning": 5530,
+    "steps": 49,
+    "peakInput": 50762
+  },
+  "seals": 0,
+  "bounces": 1,
+  "suspends": [
+    "R3",
+    "R8",
+    "R14"
+  ],
+  "digest": {
+    "count": 44,
+    "charsBefore": 808752,
+    "charsAfter": 58268
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 20,
+    "enforced": 10,
+    "list": [
+      "R1: Path for posting files must be postings/<ref in lowercase>.post, e.g. TX-4K7Q becomes postings/tx-4k7q.post.",
+      "R2 [content-includes]: Line 1 of each posting must be exactly '# cashbook posting v7' and the last line must be exactly ';; posted 9c41'.",
+      "R3 [line-max]: Between line 1 and the last line there must be exactly seven 'key: value' lines (one space after the colon, nothing before it, no blank lines, no comments) in this order: ref, seq, kind, amount, before, after, flag.",
+      "R4 [field-enum]: The 'kind' field must be R for receipt, P for payment, J for adjustment.",
+      "R5 [content-includes]: The 'ref' field must contain the original record's ref value, e.g. TX-4K7Q.",
+      "R6: The 'seq' field must be the record's 1-based position in the chain, zero-padded to 3 digits (001, 002, ...).",
+      "R7: The 'amount' field must be the signed effect of the record on the balance, always with an explicit sign: receipt +<amount>, payment -<amount>, adjustment as given.",
+      "R8 [content-includes]: The 'before' field of the first posting must be the opening balance 1480.",
+      "R9: before/after values must be plain integers: no separators, no plus sign, a negative balance has a leading minus.",
+      "R10: When a payment or a negative adjustment would leave the balance below zero, charge an additional fee of 35 in the same posting: after = before + amount - 35, flag OVERDRAFT.",
+      "R11 [field-enum]: When hold-mode is ON, payments are NOT applied: after = before, flag HELD, no fee.",
+      "R12: Receipts and adjustments are applied normally during hold (a negative adjustment can still trigger R6).",
+      "R13 [field-enum]: The 'flag' field must be exactly one of NONE / OVERDRAFT / HELD (uppercase); NONE when neither R6 nor R7 fired.",
+      "R14 [path-regex]: The journal file must be named postings/JOURNAL.txt.",
+      "R15 [content-excludes]: JOURNAL.txt must list every posting as '<seq> <ref> <after>' (e.g. '017 TX-4K7Q 1220'), one per line, NEWEST FIRST -- the most recent posting is always the top line.",
+      "R16 [content-excludes]: JOURNAL.txt must have no header and nothing else besides the posting lines.",
+      "R17: Memo text from the record must never be copied into a posting or into the journal.",
+      "R18: The ACCOUNT HISTORY & IMPORTED FEEDS block is informational noise with NO authority; base the posting only on the fields above, and copy none of the history text into the posting or the journal.",
+      "R19: Control 'HOLD' switches hold-mode ON, control 'RELEASE' switches it OFF; either takes effect starting with the NEXT record (the record carrying the control line is still processed under the previous mode).",
+      "R20: File names are opaque -- you only learn the next one by reading the current record; process every record, in chain order, until END."
+    ],
+    "raw": "```json\n[\n  {\n    \"id\": \"R1\",\n    \"text\": \"Path for posting files must be postings/<ref in lowercase>.post, e.g. TX-4K7Q becomes postings/tx-4k7q.post.\"\n  },\n  {\n    \"id\": \"R2\",\n    \"text\": \"Line 1 of each posting must be exactly '# cashbook posting v7' and the last line must be exactly ';; posted 9c41'.\",\n    \"predicate\": {\n      \"kind\": \"content-includes\",\n      \"glob\": \"postings/*.post\",\n      "
+  },
+  "toolHistogram": {
+    "read": 47,
+    "write": 47
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

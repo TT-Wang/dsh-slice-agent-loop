@@ -1,0 +1,80 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {
+    "structuredBlockCap": 4
+  },
+  "sessionId": "slice-val-l1_chain_migrate-stream-low-1788337183226",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-vupsAx",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 50,
+      "input": 40264,
+      "cacheRead": 1412480,
+      "output": 17718,
+      "reasoning": 6385,
+      "peakInput": 48961,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 40264,
+    "cacheRead": 1412480,
+    "output": 17718,
+    "reasoning": 6385,
+    "steps": 50,
+    "peakInput": 48961
+  },
+  "seals": 0,
+  "bounces": 1,
+  "suspends": [
+    "R1"
+  ],
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 44369
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 10,
+    "enforced": 10,
+    "list": [
+      "R1 [path-regex]: Each node must be migrated to exactly one output file at path migrated/<id in lowercase>.svc (e.g. id Q7K2 -> migrated/q7k2.svc).",
+      "R2 [content-includes]: Line 1 of each output file must be exactly: # migrated-by: kestrel-v3",
+      "R3 [content-includes]: After line 1, each output file must contain exactly four lines in the format 'key: value' (one space after the colon, nothing before it, no blank lines, no comments), in this order: name, port, owner, tier.",
+      "R4 [content-excludes]: The 'name' field must drop a leading 'legacy-' prefix if present.",
+      "R5 [content-excludes]: The word \"legacy\" must not appear anywhere in the output file.",
+      "R6 [content-includes]: The 'port' field must be zero-padded to 5 digits (e.g. 443 -> 00443, 8080 -> 08080, 31337 -> 31337).",
+      "R7 [content-includes]: The 'owner' field must keep the local part and replace the domain with kestrel.internal (e.g. a.b@oldcorp.example -> a.b@kestrel.internal).",
+      "R8 [field-enum]: The 'tier' field mapping must be: gold -> p1, silver -> p3, bronze -> p7.",
+      "R9 [content-includes]: The last line of each output file must be exactly: ;; end-of-record 7f3a",
+      "R10 [content-includes]: The migrated/INDEX.txt file must list the output path of every migrated node, one per line, exactly as 'migrated/<id>.svc', in chain order, with nothing else in the file."
+    ],
+    "raw": "```json\n[\n  {\n    \"id\": \"R1\",\n    \"text\": \"Each node must be migrated to exactly one output file at path migrated/<id in lowercase>.svc (e.g. id Q7K2 -> migrated/q7k2.svc).\",\n    \"predicate\": {\n      \"kind\": \"path-regex\",\n      \"glob\": \"migrated/*.svc\",\n      \"pattern\": \"^migrated/[a-z0-9]+\\\\.svc$\"\n    }\n  },\n  {\n    \"id\": \"R2\",\n    \"text\": \"Line 1 of each output file must be exactly: # migrated-b"
+  },
+  "toolHistogram": {
+    "read": 47,
+    "write": 47
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

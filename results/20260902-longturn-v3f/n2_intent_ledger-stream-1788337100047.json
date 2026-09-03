@@ -1,0 +1,168 @@
+{
+  "scenario": "n2_intent_ledger",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {},
+  "sessionId": "slice-val-n2_intent_ledger-stream-low-1788337100047",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-n2_intent_ledger-cDgai1",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 2,
+      "input": 239,
+      "cacheRead": 4480,
+      "output": 310,
+      "reasoning": 6,
+      "peakInput": 2496,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 5969,
+      "cacheRead": 2176,
+      "output": 249,
+      "reasoning": 243,
+      "peakInput": 8145,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 2,
+      "input": 1235,
+      "cacheRead": 5760,
+      "output": 458,
+      "reasoning": 92,
+      "peakInput": 3765,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 1,
+      "input": 6524,
+      "cacheRead": 2432,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 8956,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 3,
+      "input": 2276,
+      "cacheRead": 13056,
+      "output": 1774,
+      "reasoning": 761,
+      "peakInput": 5709,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 1,
+      "input": 7202,
+      "cacheRead": 3328,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10530,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 1,
+      "input": 7223,
+      "cacheRead": 3712,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10935,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 2,
+      "input": 1420,
+      "cacheRead": 9856,
+      "output": 359,
+      "reasoning": 69,
+      "peakInput": 5832,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 1,
+      "input": 6869,
+      "cacheRead": 4736,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 11605,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 1,
+      "input": 6907,
+      "cacheRead": 5120,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 12027,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 2,
+      "input": 1443,
+      "cacheRead": 12800,
+      "output": 1184,
+      "reasoning": 465,
+      "peakInput": 7679,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 47307,
+    "cacheRead": 67456,
+    "output": 4364,
+    "reasoning": 1636,
+    "steps": 17,
+    "peakInput": 12027
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": {
+    "turn": 5,
+    "step": 3,
+    "rules": 5,
+    "enforced": 3,
+    "list": [
+      "R1: Add a new public function st_scan(prefix) that returns the list of keys matching the given prefix.",
+      "R2 [content-includes]: The docstring first line of every public function must start with 'API:' — this applies to the new st_scan and must be added to existing public functions too.",
+      "R3 [line-regex]: Public functions use the kv_ prefix.",
+      "R4 [line-max]: Every line stays within 79 characters.",
+      "R5: The st_scan function should be defined with the signature st_scan(prefix)."
+    ],
+    "raw": "```json\n[\n  {\n    \"id\": \"R1\",\n    \"text\": \"Add a new public function st_scan(prefix) that returns the list of keys matching the given prefix.\"\n  },\n  {\n    \"id\": \"R2\",\n    \"text\": \"The docstring first line of every public function must start with 'API:' — this applies to the new st_scan and must be added to existing public functions too.\",\n    \"predicate\": {\n      \"kind\": \"content-includes\",\n     "
+  },
+  "toolHistogram": {
+    "write": 3,
+    "edit": 7,
+    "read": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all current rules honored"
+  }
+}

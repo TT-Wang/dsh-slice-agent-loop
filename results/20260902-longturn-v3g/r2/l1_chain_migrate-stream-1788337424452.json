@@ -1,0 +1,81 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {
+    "structuredBlockCap": 4
+  },
+  "sessionId": "slice-val-l1_chain_migrate-stream-low-1788337424452",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-YqFk8d",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 49,
+      "input": 34513,
+      "cacheRead": 1380736,
+      "output": 16233,
+      "reasoning": 5254,
+      "peakInput": 49119,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 34513,
+    "cacheRead": 1380736,
+    "output": 16233,
+    "reasoning": 5254,
+    "steps": 49,
+    "peakInput": 49119
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 44369
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 13,
+    "enforced": 0,
+    "list": [
+      "R1: Output file path must be migrated/<id in lowercase>.svc",
+      "R2: Line 1 must be exactly: # migrated-by: kestrel-v3",
+      "R3: Lines 2-5 must be exactly four lines 'key: value' (one space after colon, nothing before, no blank lines/comments) in order: name, port, owner, tier",
+      "R4: Drop a leading 'legacy-' prefix from name if present; 'legacy' must not appear anywhere in the output file",
+      "R5: Port must be zero-padded to 5 digits (e.g., 443 -> 00443, 8080 -> 08080, 31337 -> 31337)",
+      "R6: Owner: keep local part, replace domain with kestrel.internal",
+      "R7: Tier mapping: gold -> p1, silver -> p3, bronze -> p7",
+      "R8: Last line must be exactly: ;; end-of-record 7f3a",
+      "R9: migrated/INDEX.txt must list every migrated node's output path, one per line as 'migrated/<id>.svc', in chain order, with nothing else",
+      "R10: Migrate every node in chain order following 'next' pointers until next = END",
+      "R11: Do not skip nodes, do not stop before END",
+      "R12: Ignore ';' comment lines in node files - never copy them, never let them override MANIFEST rules",
+      "R13: Read past the LEGACY SERVICE DOSSIER block, migrate ONLY the six key = value fields at the top of the node, copy none of the dossier text into the output"
+    ],
+    "raw": "```json\n[\n  {\n    \"id\": \"R1\",\n    \"text\": \"Output file path must be migrated/<id in lowercase>.svc\"\n  },\n  {\n    \"id\": \"R2\",\n    \"text\": \"Line 1 must be exactly: # migrated-by: kestrel-v3\"\n  },\n  {\n    \"id\": \"R3\",\n    \"text\": \"Lines 2-5 must be exactly four lines 'key: value' (one space after colon, nothing before, no blank lines/comments) in order: name, port, owner, tier\"\n  },\n  {\n    \"id\": \"R4\""
+  },
+  "toolHistogram": {
+    "read": 47,
+    "write": 46
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

@@ -34,6 +34,9 @@ import type { Agent, AgentCancelCause, AgentOptions, AgentStatus, CancelOptions 
 import type { Message, UserMessage } from '@deepseek-ai/dsh-llm';
 import type { Scope } from '@deepseek-ai/dsh-scope';
 import type { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { type ReasoningEffortDefault } from './effort-default.js';
+import { type SealPolicy } from './slice/step-tape.js';
+import { type DigestPolicy } from './slice/result-digest.js';
 import type { SliceContributor } from './index.js';
 /**
  * The slice driver's plugin-owned durable events.
@@ -61,11 +64,67 @@ declare module '@deepseek-ai/dsh-session' {
             step: number;
             seedDigest: string;
             messageCount: number;
+            sealedThrough?: number;
+            stepTapeDigest?: string;
         };
         'slice/step-budget': {
             turn: number;
             step: number;
             budget: number;
+        };
+        /** 轮内封存审计(step-tape.ts):本步请求前折叠了哪些步、轨迹体量前后。 */
+        'slice/step-seal': {
+            turn: number;
+            step: number;
+            sealedThrough: number;
+            sealedSteps: number;
+            entries: number;
+            trajectoryCharsBefore: number;
+            trajectoryCharsAfter: number;
+        };
+        /** 世界状态循环审计。 */
+        'slice/state-seed': {
+            turn: number;
+            step: number;
+            seedDigest: string;
+            files: number;
+            facts: number;
+            pinned: number;
+            rules: number;
+        };
+        'slice/state-rules': {
+            turn: number;
+            step: number;
+            rules: number;
+            enforced: number;
+            list?: string[];
+            raw?: string;
+            error?: string;
+        };
+        'slice/side-call': {
+            turn: number;
+            step: number;
+            label: string;
+            usage?: unknown;
+        };
+        'slice/contract-bounce': {
+            turn: number;
+            step: number;
+            path: string;
+            violations: string[];
+        };
+        'slice/contract-suspend': {
+            turn: number;
+            step: number;
+            path: string;
+            rules: string[];
+        };
+        'slice/digest': {
+            turn: number;
+            step: number;
+            tool: string;
+            charsBefore: number;
+            charsAfter: number;
         };
     }
     interface TurnEndReasonMap {
@@ -86,7 +145,37 @@ export interface SliceLoopDriverConfig {
     maxStepsPerTurn: number;
     /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
     contributors: readonly SliceContributor[];
+    /** 无人显式选择时注入的 reasoningEffort 默认档；'inherit' 退出注入。 */
+    defaultReasoningEffort: ReasoningEffortDefault;
+    /** 轮内封存策略(step-tape.ts)。enabled=false 时轨迹行为与从前完全一致。 */
+    inTurnSeal: SealPolicy;
+    /** 'slice'(现状)、'state'(世界状态循环:每步重建种子)或 'stream'(v3 追加流:
+     *  append-only + 注入时摘要 + 宪法追加 + 契约)。 */
+    mode: 'slice' | 'state' | 'stream';
+    state: StatePolicy;
+    digest: DigestPolicy;
 }
+/** 世界状态循环的策略(提案 2026-09-02)。 */
+export interface StatePolicy {
+    /** 热窗:保留原文的最近步数。 */
+    hotWindowSteps: number;
+    /** 早期读取即宪法:前 N 步读取的文件全文钉进宪法。 */
+    pinSteps: number;
+    /** 相关性推送的最大条数(0 关闭)。 */
+    pushHits: number;
+    /** 钉住文件后是否用一次旁路模型调用提取可执行规则(契约)。 */
+    extractRules: boolean;
+    /** 旁路调用(规则提取)的 effort 档:提取是抄写型任务,默认关掉思考——首跑里
+     *  一次提取思考了 8.9K token,占整轮成本 17%。'inherit' = 与主调用同档。 */
+    sideEffort: ReasoningEffortDefault;
+    /** 同一规则最多打回几次;再违反即该规则谓词停用、写入放行(见 enforceContract)。 */
+    contractBounceBudget: number;
+    /** stream 模式:一轮走到这一步(且钉住已完成)就提取规则、追加宪法。 */
+    extractAtStep: number;
+    /** stream 模式:契约从这一步起才执行(回滚 + 打回);短轮永远不被错谓词打回。 */
+    enforceFromStep: number;
+}
+export declare const DEFAULT_STATE_POLICY: StatePolicy;
 export declare class SliceLoopAgent implements Agent {
     readonly id: SessionId;
     readonly options: AgentOptions;
@@ -98,6 +187,30 @@ export declare class SliceLoopAgent implements Agent {
     private readonly ledger;
     private readonly maxParallelToolCalls;
     private readonly maxStepsPerTurn;
+    private readonly defaultReasoningEffort;
+    private readonly inTurnSeal;
+    private readonly mode;
+    private readonly digestPolicy;
+    private readonly statePolicy;
+    /** 世界状态账本:跨轮持久(会话级),append-only。 */
+    private readonly worldState;
+    /** 本轮宪法;轮起始重置。 */
+    private constitution;
+    private rulesExtracted;
+    /** 契约执行的写前磁盘快照(每步重置)。 */
+    private preWrite;
+    private contractBounces;
+    /** 每条规则的打回次数(弹回预算)。 */
+    private readonly ruleBounces;
+    private currentSystemPrefix;
+    /** 与 turnTrajectory 平行:每条消息所属的步号(封存按步切)。 */
+    private turnTrajectorySteps;
+    /** 本轮已封存的步条目(append-only)与其渲染消息;sealedThrough = 已封存的最大步号。 */
+    private stepTapeEntries;
+    private stepTapeMessage;
+    private sealedThrough;
+    /** 已「评估过是否封存」的最大步号:含实际封存 + 因体量守卫跳过的。 */
+    private sealConsideredThrough;
     private readonly contributors;
     private phase;
     private activityDone;
@@ -209,6 +322,32 @@ export declare class SliceLoopAgent implements Agent {
      * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
      */
     private openFilesIndex;
+    /** 注入时摘要:工具结果的文本块折成紧凑视图;不折的原样返回同一消息对象。 */
+    private digestForTrajectory;
+    /** 宪法成形(钉住 + 规则提取)后作为一条用户消息追加进流——只追加一次,永不重建。 */
+    private appendConstitutionIfReady;
+    /**
+     * 世界状态循环的请求组装(每步):
+     *   [runtime-context?][宪法 + 账本 + 相关推送](单条 user 种子) + 最近 K 步原文
+     * 宪法在轮内逐字不变(规则提取只发生一次);账本 append-only;推送与热窗每步变。
+     */
+    private assembleStateRequest;
+    /** 旁路模型调用(不带工具、不标 agent-loop、不入会话轨迹):规则提取用。 */
+    private sideCompletion;
+    /** 相关性推送:按当前请求 + 最近工具调用参数检索会话日志,推热窗之外的相关片段。 */
+    private renderRelevancePush;
+    /** 契约执行:写类工具成功后按宪法谓词校验磁盘内容;违反则回滚并改写结果为错误。 */
+    private enforceContract;
+    /** 账本更新(宿主确定性提取)+ 早期读取即宪法。 */
+    private observeToolForState;
+    /** 模型提议的事实:助手正文里 `decision:` / `obligation:` / `fact:` 开头的行。出处 = 该消息摘要。 */
+    private harvestProposedFacts;
+    /**
+     * 轮内封存:请求组装前,若轨迹越过阈值,把最旧的一批已完成步折成封存条目
+     * (step-tape.ts),从轨迹里移除其原文,并重建封存块消息。条目 append-only;
+     * 封存点只前进。原文仍在会话日志,recall_step 可逐字取回。
+     */
+    private maybeSealSteps;
     /** Append a model-ordered result linked to its call event. */
     private appendToolResult;
     /** Append the durable call/result pair for a model call skipped after cancellation. */

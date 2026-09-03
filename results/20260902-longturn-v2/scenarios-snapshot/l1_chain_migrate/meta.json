@@ -1,0 +1,6 @@
+{
+ "name": "l1_chain_migrate",
+ "turns": 1,
+ "max_steps_per_turn": 150,
+ "stressor": "9 manifest rules read at step 1 must survive a 45-node pointer chain (46 dependent reads) where every node also carries a ~13-19.5K-char reference dossier; walking the chain accumulates ~180K tokens of read-context. Mid/late nodes carry contradicting notes and point at a wrong-style example"
+}

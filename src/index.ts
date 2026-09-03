@@ -14,14 +14,28 @@ import { Context, Service } from '@deepseek-ai/cordis'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import { ensureHarnessUniverse, type HarnessUniverse } from './universe.js'
-import { SLICE_SYSTEM_PROMPT } from './system-prompt.js'
+import { CONSTITUTION_SYSTEM_ADDENDUM, FOLD_SYSTEM_ADDENDUM, SLICE_SYSTEM_PROMPT } from './system-prompt.js'
 import { SliceAgentLifecycle, type LifecycleAgent } from './lifecycle.js'
 import { SliceLoopAgent } from './driver.js'
+import { DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS } from './effort-default.js'
+import { resolveSealPolicy } from './slice/step-tape.js'
+import { DEFAULT_STATE_POLICY } from './driver.js'
+import { resolveDigestPolicy } from './slice/result-digest.js'
+import { recallStepToolDefinition } from './recall-step.js'
 import { recallSearchToolDefinition, recallToolDefinition } from './recall.js'
 
 export interface Config {
   maxParallelToolCalls?: number
   maxStepsPerTurn?: number
+  /** reasoningEffort 插件默认档(无人显式选择时注入);'inherit' 退出。缺省 'low'。 */
+  defaultReasoningEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'
+  /** 轮内封存(提案 2026-09-02)。缺省关闭;A/B 裁决后再定出厂值。 */
+  inTurnSeal?: { enabled?: boolean; sealTokens?: number; batchSteps?: number; keepSteps?: number }
+  /** 'slice'(缺省)或 'state':世界状态循环(提案 2026-09-02)。 */
+  mode?: 'slice' | 'state' | 'stream'
+  /** v3 追加流的注入时摘要策略。 */
+  digest?: { minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number }
+  state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 
 /** Default maximum in-flight parallel-safe tool calls per agent step. */
@@ -196,6 +210,18 @@ export class SliceLoopPlugin extends Service {
     super(ctx, 'sliceAgentLoop')
     const maxParallelToolCalls = resolveMaxParallelToolCalls(config.maxParallelToolCalls)
     const maxStepsPerTurn = resolveMaxStepsPerTurn(config.maxStepsPerTurn)
+    const defaultReasoningEffort = config.defaultReasoningEffort ?? DEFAULT_REASONING_EFFORT
+    const inTurnSeal = resolveSealPolicy(config.inTurnSeal)
+    const mode = config.mode ?? 'slice'
+    if (mode !== 'slice' && mode !== 'state' && mode !== 'stream') throw new Error("mode must be 'slice', 'state' or 'stream'")
+    const digest = resolveDigestPolicy(config.digest)
+    const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
+    for (const key of ['hotWindowSteps', 'pinSteps', 'pushHits', 'contractBounceBudget', 'extractAtStep', 'enforceFromStep'] as const) {
+      if (!Number.isInteger(state[key]) || state[key] < 0) throw new Error(`state.${key} must be a non-negative integer`)
+    }
+    if (!REASONING_EFFORT_DEFAULTS.includes(defaultReasoningEffort)) {
+      throw new Error(`defaultReasoningEffort must be one of ${REASONING_EFFORT_DEFAULTS.join('|')}`)
+    }
     guardStockLoopInvariant(ctx)
     // 贡献登记簿。provide 挂在本插件的 fiber 上，插件卸载即服务消失，
     // 依赖它的贡献插件随之休眠 —— 无需任何清理代码。
@@ -237,7 +263,8 @@ export class SliceLoopPlugin extends Service {
         // rc8 把 HARNESS_IDENTITY 排到 -1000,与本 kernel 同序竞位——kernel 必须
         // 是模型读到的第一个字(缓存前缀与身份宣告都系于此),再前移一档。
         order: -1200,
-        text: SLICE_SYSTEM_PROMPT,
+        // 折叠开启(slice/stream 默认)追加 <fold> 可供性说明;stream 再追加宪法说明;state 模式字节不变。
+        text: [SLICE_SYSTEM_PROMPT, ...(digest.enabled && mode !== 'state' ? [FOLD_SYSTEM_ADDENDUM] : []), ...(mode === 'stream' ? [CONSTITUTION_SYSTEM_ADDENDUM] : [])].join('\n\n'),
       }),
       'sliceLoop.kernelSection()',
     )
@@ -251,6 +278,8 @@ export class SliceLoopPlugin extends Service {
     // hits name recall_turn follow-ups. Ordinary tool output excluded by
     // default (flood guard) — see DEFAULT_SEARCH_KINDS in src/recall.ts.
     ctx.effect(() => ctx.tools.register(recallSearchToolDefinition()), 'sliceLoop.recallSearch()')
+    // 轮内封存的召回(src/recall-step.ts):SEALED STEPS 块的切口指回这里。
+    ctx.effect(() => ctx.tools.register(recallStepToolDefinition()), 'sliceLoop.recallStep()')
     // 提示词变量所有权（架构文档：the loop supplies provider/model/cwd）——
     // stock agent-loop/index.ts:312-314 同构；缺了 persona 节的 {{cwd}} 解析不了。
     ctx.systemPrompt.variable('provider', (context) => context.agent?.options.provider)
@@ -259,7 +288,7 @@ export class SliceLoopPlugin extends Service {
     const lifecycle = new SliceAgentLifecycle(
       ctx,
       (loopCtx: Context, id: SessionId, options: AgentOptions, session: Session): LifecycleAgent =>
-        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors }),
+        new SliceLoopAgent(loopCtx, id, options, session, { maxParallelToolCalls, maxStepsPerTurn, contributors, defaultReasoningEffort, inTurnSeal, mode, state, digest }),
       universeReady,
     )
     ctx.effect(() => ctx.agents.setFactory(lifecycle), 'sliceLoop.setFactory()')

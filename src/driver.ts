@@ -33,7 +33,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { isAbsolute, resolve as resolvePath } from 'node:path'
+import { isAbsolute, resolve as resolvePath, dirname } from 'node:path'
 import { harnessUniverse } from './universe.js'
 import type {
   Agent,
@@ -76,7 +76,7 @@ import type {
   SurfaceEvent,
   TurnEndReason,
 } from '@deepseek-ai/dsh-session'
-import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { canonicalHeader, headerEquals, isReplacementSurfaceEvent, isSurfaceEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderPrompt, joinContextSections, renderContextSections, type PromptAssembly } from '@deepseek-ai/dsh-system-prompt'
 import {
   TOOL_ABORTED_BEFORE_DISPATCH,
@@ -86,6 +86,16 @@ import {
   type ToolRunContext,
 } from '@deepseek-ai/dsh-tools'
 import { InboxLedger } from './inbox-ledger.js'
+import { recordSeedEvent, recordCallEvent } from './call-ledger.js'
+import { applyEffortDefault, type ReasoningEffortDefault } from './effort-default.js'
+import { renderSealedStep, renderStepTape, sealSavesEnough, stepsToSeal, type SealPolicy, type SealedCall } from './slice/step-tape.js'
+import {
+  addFact, checkPredicates, createLedger, parseRulesJson, recordFile, renderConstitution, renderLedger,
+  rulesExtractionPrompt, type Constitution, type StateLedger,
+} from './slice/state-ledger.js'
+import { searchSessionEvents } from './recall.js'
+import { digestToolResult, type DigestPolicy } from './slice/result-digest.js'
+import { writeFileSync as fsWriteFileSync, unlinkSync as fsUnlinkSync, mkdirSync as fsMkdirSync } from 'node:fs'
 import { RuntimeContextProjection, isRuntimeContextMessage } from './runtime-context.js'
 import { assembleSlice, type AssembledSlice } from './slice/assemble.js'
 import type { SliceContributionFacts, SliceContributor } from './index.js'
@@ -122,8 +132,17 @@ import {
 declare module '@deepseek-ai/dsh-session' {
   interface SessionEventMap {
     'slice/file-anchor': { turn: number; path: string; body: string }
-    'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number }
+    'slice/request-slice': { turn: number; step: number; seedDigest: string; messageCount: number; sealedThrough?: number; stepTapeDigest?: string }
     'slice/step-budget': { turn: number; step: number; budget: number }
+    /** 轮内封存审计(step-tape.ts):本步请求前折叠了哪些步、轨迹体量前后。 */
+    'slice/step-seal': { turn: number; step: number; sealedThrough: number; sealedSteps: number; entries: number; trajectoryCharsBefore: number; trajectoryCharsAfter: number }
+    /** 世界状态循环审计。 */
+    'slice/state-seed': { turn: number; step: number; seedDigest: string; files: number; facts: number; pinned: number; rules: number }
+    'slice/state-rules': { turn: number; step: number; rules: number; enforced: number; list?: string[]; raw?: string; error?: string }
+    'slice/side-call': { turn: number; step: number; label: string; usage?: unknown }
+    'slice/contract-bounce': { turn: number; step: number; path: string; violations: string[] }
+    'slice/contract-suspend': { turn: number; step: number; path: string; rules: string[] }
+    'slice/digest': { turn: number; step: number; tool: string; charsBefore: number; charsAfter: number }
   }
   // dsh-session documents this map as a plugin extension point ("plugins extend
   // it by merging variants into the map"), so `step-budget` is a first-class
@@ -171,7 +190,39 @@ export interface SliceLoopDriverConfig {
   maxStepsPerTurn: number
   /** 贡献登记簿（index.ts 持有同一个数组的引用，插件随时登记/注销）。 */
   contributors: readonly SliceContributor[]
+  /** 无人显式选择时注入的 reasoningEffort 默认档；'inherit' 退出注入。 */
+  defaultReasoningEffort: ReasoningEffortDefault
+  /** 轮内封存策略(step-tape.ts)。enabled=false 时轨迹行为与从前完全一致。 */
+  inTurnSeal: SealPolicy
+  /** 'slice'(现状)、'state'(世界状态循环:每步重建种子)或 'stream'(v3 追加流:
+   *  append-only + 注入时摘要 + 宪法追加 + 契约)。 */
+  mode: 'slice' | 'state' | 'stream'
+  state: StatePolicy
+  digest: DigestPolicy
 }
+
+/** 世界状态循环的策略(提案 2026-09-02)。 */
+export interface StatePolicy {
+  /** 热窗:保留原文的最近步数。 */
+  hotWindowSteps: number
+  /** 早期读取即宪法:前 N 步读取的文件全文钉进宪法。 */
+  pinSteps: number
+  /** 相关性推送的最大条数(0 关闭)。 */
+  pushHits: number
+  /** 钉住文件后是否用一次旁路模型调用提取可执行规则(契约)。 */
+  extractRules: boolean
+  /** 旁路调用(规则提取)的 effort 档:提取是抄写型任务,默认关掉思考——首跑里
+   *  一次提取思考了 8.9K token,占整轮成本 17%。'inherit' = 与主调用同档。 */
+  sideEffort: ReasoningEffortDefault
+  /** 同一规则最多打回几次;再违反即该规则谓词停用、写入放行(见 enforceContract)。 */
+  contractBounceBudget: number
+  /** stream 模式:一轮走到这一步(且钉住已完成)就提取规则、追加宪法。 */
+  extractAtStep: number
+  /** stream 模式:契约从这一步起才执行(回滚 + 打回);短轮永远不被错谓词打回。 */
+  enforceFromStep: number
+}
+
+export const DEFAULT_STATE_POLICY: StatePolicy = { hotWindowSteps: 3, pinSteps: 2, pushHits: 3, extractRules: true, sideEffort: 'off', contractBounceBudget: 1, extractAtStep: 3, enforceFromStep: 8 }
 
 /** 单条插件贡献的字符上限。超出即截断并留标记 —— 与 tape 截 ask/reply 同一哲学。 */
 const CONTRIBUTION_CAP_CHARS = 4000
@@ -230,6 +281,30 @@ export class SliceLoopAgent implements Agent {
   private readonly ledger: InboxLedger
   private readonly maxParallelToolCalls: number
   private readonly maxStepsPerTurn: number
+  private readonly defaultReasoningEffort: ReasoningEffortDefault
+  private readonly inTurnSeal: SealPolicy
+  private readonly mode: 'slice' | 'state' | 'stream'
+  private readonly digestPolicy: DigestPolicy
+  private readonly statePolicy: StatePolicy
+  /** 世界状态账本:跨轮持久(会话级),append-only。 */
+  private readonly worldState: StateLedger = createLedger()
+  /** 本轮宪法;轮起始重置。 */
+  private constitution: Constitution | null = null
+  private rulesExtracted = false
+  /** 契约执行的写前磁盘快照(每步重置)。 */
+  private preWrite = new Map<string, { existed: boolean; body: string }>()
+  private contractBounces = 0
+  /** 每条规则的打回次数(弹回预算)。 */
+  private readonly ruleBounces = new Map<string, number>()
+  private currentSystemPrefix = ''
+  /** 与 turnTrajectory 平行:每条消息所属的步号(封存按步切)。 */
+  private turnTrajectorySteps: number[] = []
+  /** 本轮已封存的步条目(append-only)与其渲染消息;sealedThrough = 已封存的最大步号。 */
+  private stepTapeEntries: string[] = []
+  private stepTapeMessage: UserMessage | undefined
+  private sealedThrough = 0
+  /** 已「评估过是否封存」的最大步号:含实际封存 + 因体量守卫跳过的。 */
+  private sealConsideredThrough = 0
   private readonly contributors: readonly SliceContributor[]
   private phase: Phase
   private activityDone: Promise<void> = Promise.resolve()
@@ -256,6 +331,11 @@ export class SliceLoopAgent implements Agent {
     this.maxParallelToolCalls = config.maxParallelToolCalls
     this.maxStepsPerTurn = config.maxStepsPerTurn
     this.contributors = config.contributors
+    this.defaultReasoningEffort = config.defaultReasoningEffort
+    this.inTurnSeal = config.inTurnSeal
+    this.mode = config.mode
+    this.statePolicy = config.state
+    this.digestPolicy = config.digest
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -299,8 +379,8 @@ export class SliceLoopAgent implements Agent {
     this.restoreContinuity(session)
     // Resume: turn numbering continues from the seeded session's last turn.
     let lastTurn = 0
-    for (let index = session.events.length - 1; index >= 0; index -= 1) {
-      const event = session.events[index]!
+    for (let index = session.snapshotEvents().length - 1; index >= 0; index -= 1) {
+      const event = session.snapshotEvents()[index]!
       if (event.type === 'turn/start') {
         lastTurn = event.data.turn
         break
@@ -340,7 +420,7 @@ export class SliceLoopAgent implements Agent {
       recordUser(this.cont, text, openTurn ?? undefined)
       recordedThisTurn = true
     }
-    for (const event of session.events) {
+    for (const event of session.snapshotEvents()) {
       if (event.type === 'turn/start') {
         openTurn = event.data.turn
       } else if (event.type === 'step/start') {
@@ -702,6 +782,13 @@ export class SliceLoopAgent implements Agent {
     phase.turn = turn
     this.turnSeedUser = undefined
     this.turnTrajectory = []
+    this.turnTrajectorySteps = []
+    this.stepTapeEntries = []
+    this.stepTapeMessage = undefined
+    this.sealedThrough = 0
+    this.sealConsideredThrough = 0
+    this.constitution = null
+    this.rulesExtracted = false
     let recordedThisTurn = false
     let turnEnds: TurnEndReason | null = null
     let target: InboxTarget = 'next-turn'
@@ -867,6 +954,7 @@ export class SliceLoopAgent implements Agent {
     // assembly restores it as the sole prompt. A driver-side prepend silently
     // voided that host guarantee.
     const systemPrefix = renderPrompt(assembly)
+    this.currentSystemPrefix = systemPrefix
     // OPEN FILES hash index（seed.py build_open_files_index 同构）：每个驻留文件
     // 一行 locator——path · 行数 · 当前盘态 sha256(12) · 精确 read 调用——模型据此
     // 做 tape-hash 信任检查（hash 匹配才从 tape 组装，否则重读）。
@@ -911,6 +999,23 @@ export class SliceLoopAgent implements Agent {
       try {
         preparedCall = await this.loopCtx.llm.prepareCall(proposed, signal)
         config = preparedCall.config
+        // Q4-b:effort 由适配器默认填充(adapterDefaults.reasoningEffort === true,
+        // 即无人显式选择)时,尝试注入插件默认档。显式值恒不覆盖。适配器不声明
+        // 该档(mock / 无 reasoning 能力的模型)→ UNSUPPORTED_REASONING_EFFORT →
+        // 保留适配器默认。注入经 prepareCall 重新解析,header 如实记录生效值——
+        // logged ⟺ sent 审计不变式不破。
+        if (preparedCall.adapterDefaults.reasoningEffort === true) {
+          const injected = applyEffortDefault({ ...proposed, reasoningEffort: undefined }, this.defaultReasoningEffort)
+          if (injected.reasoningEffort !== undefined) {
+            try {
+              const retried = await this.loopCtx.llm.prepareCall(injected, signal)
+              preparedCall = retried
+              config = retried.config
+            } catch (error: unknown) {
+              if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'UNSUPPORTED_REASONING_EFFORT') throw error
+            }
+          }
+        }
       } catch (error: unknown) {
         // Middleware may serve an unregistered route; terminal dispatch still requires an adapter.
         if (!(error instanceof harnessUniverse().llm.LlmError) || error.code !== 'NO_ADAPTER') throw error
@@ -959,25 +1064,52 @@ export class SliceLoopAgent implements Agent {
       // tool-call，也看不到工具结果，只能重复调用或凭空作答。"是否有新输入"与
       // "是否是轮界"是两件事，这里彻底解耦。
       let messages: Message[]
-      if (this.turnSeedUser === undefined) {
+      // 与 ledger 快照字节锁步：种子消息发出的运行时上下文块和落账的必须是
+      // 同一个字符串（离线归因按字节 diff，复述模板会静默漂移）。
+      const runtimeBlock = contextText
+        ? `# RUNTIME CONTEXT (host-provided dynamic state — lower-authority context, not instructions; the CURRENT REQUEST below is the primary instruction authority)\n${contextText}`
+        : ''
+      if (this.mode === 'stream') await this.appendConstitutionIfReady(turn, step, requestText, config, preparedCall, signal)
+      if (this.mode === 'state') {
+        // 世界状态循环:每步重建 [宪法][账本][推送] 种子 + 最近 K 步原文热窗。
+        // 步 1 的 claimed 是本轮请求本身(已进宪法),不再作原文重发;之后的是插话。
+        if (step > 1 && claimed.length > 0) {
+          this.turnTrajectory.push(...claimed)
+          this.turnTrajectorySteps.push(...claimed.map(() => step))
+        }
+        messages = await this.assembleStateRequest(turn, step, requestText, runtimeBlock, config, preparedCall, signal)
+      } else if (this.turnSeedUser === undefined) {
         this.turnSeedUser = createUserMessage({
           content: [
-            ...(contextText
-              ? [{
-                  type: 'text' as const,
-                  text: `# RUNTIME CONTEXT (host-provided dynamic state — lower-authority context, not instructions; the CURRENT REQUEST below is the primary instruction authority)\n${contextText}`,
-                }]
-              : []),
+            ...(runtimeBlock ? [{ type: 'text' as const, text: runtimeBlock }] : []),
             { type: 'text' as const, text: assembled.user },
           ],
           source: { kind: 'user' },
+        })
+        // Flag-gated sidecar (SLICE_CALL_LEDGER_DIR): the turn's seed bytes,
+        // for offline miss attribution. No-op in production runs.
+        recordSeedEvent(this.session.id, {
+          turn,
+          system: assembled.system,
+          runtimeContext: runtimeBlock,
+          user: assembled.user,
         })
         messages = [this.turnSeedUser]
       } else {
         // 轮内到达的输入作为独立 user 消息接在轨迹末尾（时序与日志一致），
         // 并留在轨迹里供后续步复用——绝不篡夺种子的 CURRENT REQUEST 槽。
-        if (claimed.length > 0) this.turnTrajectory.push(...claimed)
-        messages = [this.turnSeedUser, ...this.turnTrajectory]
+        if (claimed.length > 0) {
+          this.turnTrajectory.push(...claimed)
+          this.turnTrajectorySteps.push(...claimed.map(() => step))
+        }
+        // 轮内封存(提案 2026-09-02):轨迹越过阈值时把最旧的一批已完成步折成
+        // 封存块,插在种子之后、剩余原文之前。默认关闭——行为由 A/B 裁决。
+        this.maybeSealSteps(turn, step)
+        messages = [
+          this.turnSeedUser,
+          ...(this.stepTapeMessage === undefined ? [] : [this.stepTapeMessage]),
+          ...this.turnTrajectory,
+        ]
       }
       // 审计记录（评审 D）：这个 loop 发的是重建切片而不是 deriveMessages()，
       // 所以 DSH 的 model-visible ⟺ logged 断言对它不成立。落一条摘要事件把
@@ -987,6 +1119,9 @@ export class SliceLoopAgent implements Agent {
         turn, step,
         seedDigest: sliceDigest(seedTextOf(messages)),
         messageCount: messages.length,
+        ...(this.sealedThrough > 0
+          ? { sealedThrough: this.sealedThrough, stepTapeDigest: sliceDigest(renderStepTape(this.stepTapeEntries)) }
+          : {}),
       })
       const request = harnessUniverse().llm.markAgentLoopRequest(deepFreeze({
         ...header.config,
@@ -998,7 +1133,7 @@ export class SliceLoopAgent implements Agent {
       })) as GenerateOptions
 
       const assembler = new BlockAssembler()
-      const chunkSeqs: number[] = []
+      const chunkSeqs: SessionSeq[] = []
       const stream = preparedCall?.stream(request) ?? this.loopCtx.llm.stream(request)
       signal.throwIfAborted()
       for await (const chunk of stream) {
@@ -1035,12 +1170,24 @@ export class SliceLoopAgent implements Agent {
         { turn, step, message, ...(assembler.usage === undefined ? {} : { usage: assembler.usage }) },
         { surfaceOp: 'append', sourceEventSeqs: chunkSeqs },
       )
+      // Sidecar mirror of this call's usage (raw + normalized) — pairs with the
+      // seed record above so attribution can compare expected vs actual miss.
+      recordCallEvent(this.session.id, {
+        turn,
+        step,
+        provider: requestContext.provider,
+        model: requestContext.model,
+        usage: assembler.usage,
+        tools: message.content.filter((b): b is ToolCallBlock => (b as { type: string }).type === 'tool-call').map((b) => b.name),
+      })
       // 轮内轨迹 + 对话环助手侧（continuity.ts fillAssistant）。
       this.turnTrajectory.push(message)
+      this.turnTrajectorySteps.push(step)
       const assistantText = message.content
         .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
         .map((b) => b.text).join('')
       fillAssistant(this.cont, assistantText)
+      if (this.mode === 'state') this.harvestProposedFacts(step, assistantText)
       // 推理链上带:默认关。两侧实验同判(2026-08-31,archives 20260831-reasoning-ab):
       // slice 塞入旧推理 → 生成 +42%;default 剪掉原生回传 → 生成 −25%——
       // 旧推理在上下文里是纯成本,default 的省思考来自轻信叙事,与召回无关。
@@ -1086,6 +1233,17 @@ export class SliceLoopAgent implements Agent {
       },
     }))
 
+    if (this.mode === 'state' || this.mode === 'stream') {
+      // 契约执行的写前快照:该步每个写类调用的目标文件当前磁盘态。
+      this.preWrite.clear()
+      for (const p of planned) {
+        const path = editedPath(p.block.name, p.exec.arguments)
+        if (path === undefined) continue
+        const d = readDiskStatus(this.sessionCwd(), path)
+        this.preWrite.set(path, d.kind === 'ok' ? { existed: true, body: d.body } : { existed: false, body: '' })
+      }
+    }
+
     let next = 0
     let concluded = false
     while (next < planned.length) {
@@ -1118,7 +1276,7 @@ export class SliceLoopAgent implements Agent {
     const scheduler = (this.loopCtx.tools as unknown as Record<symbol, unknown>)[schedulerKey] as import('@deepseek-ai/dsh-tools').ToolRuntimeScheduler
     const slots: Array<ToolSlot | undefined> = group.map(() => undefined)
     // Started slots retain their tool/call seq for result provenance.
-    const callSeqs: number[] = group.map(() => -1)
+    const callSeqs: SessionSeq[] = group.map(() => -1 as SessionSeq) // sentinel, overwritten before use
     let nextToStart = 0
     let committed = 0
     let started = 0
@@ -1232,7 +1390,7 @@ export class SliceLoopAgent implements Agent {
   }
 
   /** Append a started call and return its provenance sequence. */
-  private appendToolCall(turn: number, step: number, block: ToolCallBlock): number {
+  private appendToolCall(turn: number, step: number, block: ToolCallBlock): SessionSeq {
     const event = this.session.append('tool/call', {
       turn, step, callId: block.id, name: block.name, arguments: block.arguments,
     })
@@ -1271,14 +1429,359 @@ export class SliceLoopAgent implements Agent {
     }).join('\n')
   }
 
+  // ------------------------------------------------------------ stream mode (v3)
+
+  /** 注入时摘要:工具结果的文本块折成紧凑视图;不折的原样返回同一消息对象。 */
+  private digestForTrajectory(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage {
+    // 钉住步(前 pinSteps 步)的读取是本轮的规则来源:stream 模式不在宪法里重发全文,
+    // 所以这里必须原样进流——折了规则,模型就只剩旁路提取的摘要版规则。
+    if (step <= this.statePolicy.pinSteps) return message
+    const first = message.content[0] as { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> } | undefined
+    if (!first || first.type !== 'tool-result' || first.isError || !first.content) return message
+    // 源代码不折(见 result-digest.ts looksLikeCodePath / looksLikeCode)。
+    const readPath = editedPath(block.name, parseArguments(block.arguments)) ?? (parseArguments(block.arguments) as { file_path?: string; path?: string } | null)?.file_path ?? (parseArguments(block.arguments) as { path?: string } | null)?.path
+    let changed = false
+    let before = 0
+    let after = 0
+    const hint = `recall_step(${turn}, ${step})`
+    const content = first.content.map((b) => {
+      if (b.type !== 'text' || typeof b.text !== 'string') return b
+      before += b.text.length
+      // 按工具名与内容类型路由:code/search 不折,log 错误优先,data 头尾 + 结构行。
+      const d = digestToolResult(b.text, { tool: block.name, path: readPath }, this.digestPolicy)
+      after += d.text.length
+      if (!d.digested) return b
+      changed = true
+      const path = editedPath(block.name, parseArguments(block.arguments)) ?? (parseArguments(block.arguments) as { file_path?: string } | null)?.file_path
+      return { ...b, text: `[${block.name}${path ? ' ' + path : ''} · ${d.kind} · ${d.totalLines} lines, ${d.keptLines} kept · ${hint} returns the full text]\n${d.text}` }
+    })
+    if (!changed) return message
+    this.session.append('slice/digest', { turn, step, tool: block.name, charsBefore: before, charsAfter: after })
+    return createToolResultMessage({ callId: first.toolCallId as never, content: content as never, isError: false })
+  }
+
+  /** 宪法成形(钉住 + 规则提取)后作为一条用户消息追加进流——只追加一次,永不重建。 */
+  private async appendConstitutionIfReady(
+    turn: number,
+    step: number,
+    requestText: string,
+    config: LlmCallConfig,
+    preparedCall: PreparedLlmCall | undefined,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (this.constitution === null) this.constitution = { request: requestText, pinned: [], rules: [] }
+    const c = this.constitution
+    // 提取时机 extractAtStep(默认 3 = 钉住后立刻):l2 三次运行里唯一成功的是宪法在第 3 步
+    // 就位的那次——路径决定发生在第 3 步,推迟到第 8 步(惰性提取试验)模型把 ledger/ 当根,
+    // 45 个 posting 全写错目录。宪法文本便宜(旁路 effort off ≈ 700 out),短轮的税不在
+    // 这里,而在错谓词弹回——那由 enforceFromStep 管。
+    if (this.rulesExtracted || step < Math.max(this.statePolicy.pinSteps + 1, this.statePolicy.extractAtStep) || c.pinned.length === 0) return
+    this.rulesExtracted = true
+    if (this.statePolicy.extractRules) {
+      try {
+        const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
+        c.rules = parseRulesJson(raw)
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`), raw: raw.slice(0, 400) })
+      } catch (error: unknown) {
+        this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    // 只追加规则与钉住清单(钉住文件全文已在轨迹里的原始读取结果中——stream 模式不重复发)。
+    const text = renderConstitution({ request: c.request, pinned: c.pinned.map((p) => ({ path: p.path, text: '(read above; pinned as the rule source for this turn)' })), rules: c.rules })
+    this.turnTrajectory.push(createUserMessage({ content: [{ type: 'text' as const, text }], source: { kind: 'user' } }))
+    this.turnTrajectorySteps.push(step)
+  }
+
+  // ------------------------------------------------------------ world-state mode
+
+  /**
+   * 世界状态循环的请求组装(每步):
+   *   [runtime-context?][宪法 + 账本 + 相关推送](单条 user 种子) + 最近 K 步原文
+   * 宪法在轮内逐字不变(规则提取只发生一次);账本 append-only;推送与热窗每步变。
+   */
+  private async assembleStateRequest(
+    turn: number,
+    step: number,
+    requestText: string,
+    runtimeBlock: string,
+    config: LlmCallConfig,
+    preparedCall: PreparedLlmCall | undefined,
+    signal: AbortSignal,
+  ): Promise<Message[]> {
+    if (this.constitution === null) this.constitution = { request: requestText, pinned: [], rules: [] }
+    const c = this.constitution
+    if (!this.rulesExtracted && step > this.statePolicy.pinSteps && this.statePolicy.extractRules && c.pinned.length > 0) {
+      this.rulesExtracted = true
+      try {
+        const raw = await this.sideCompletion(turn, step, 'rules', rulesExtractionPrompt(c), config, preparedCall, signal)
+        c.rules = parseRulesJson(raw)
+        for (const r of c.rules) addFact(this.worldState, { kind: 'rule', text: `${r.id}: ${r.text}`, sourceDigest: 'host:rules', step })
+        this.session.append('slice/state-rules', { turn, step, rules: c.rules.length, enforced: c.rules.filter((r) => r.predicate !== undefined).length, list: c.rules.map((r) => `${r.id}${r.predicate ? ` [${r.predicate.kind}]` : ''}: ${r.text}`), raw: raw.slice(0, 400) })
+      } catch (error: unknown) {
+        // 提取失败:规则只以原文(钉住文件)形态存在,契约不执行。落账,不打断。
+        this.session.append('slice/state-rules', { turn, step, rules: 0, enforced: 0, error: error instanceof Error ? error.message : String(error) })
+      }
+    }
+    const push = this.statePolicy.pushHits > 0 ? this.renderRelevancePush(turn, step, requestText) : ''
+    const seedText = renderConstitution(c) + '\n' + renderLedger(this.worldState) + (push ? '\n' + push : '')
+    const seed = createUserMessage({
+      content: [
+        ...(runtimeBlock ? [{ type: 'text' as const, text: runtimeBlock }] : []),
+        { type: 'text' as const, text: seedText },
+      ],
+      source: { kind: 'user' },
+    })
+    if (step === 1) recordSeedEvent(this.session.id, { turn, system: this.currentSystemPrefix, runtimeContext: runtimeBlock, user: seedText })
+    this.session.append('slice/state-seed', { turn, step, seedDigest: sliceDigest(seedText), files: this.worldState.fileLog.length, facts: this.worldState.facts.length, pinned: c.pinned.length, rules: c.rules.length })
+    const K = this.statePolicy.hotWindowSteps
+    const hot = this.turnTrajectory.filter((_, i) => (this.turnTrajectorySteps[i] ?? step) >= step - K)
+    return [seed, ...hot]
+  }
+
+  /** 旁路模型调用(不带工具、不标 agent-loop、不入会话轨迹):规则提取用。 */
+  private async sideCompletion(
+    turn: number,
+    step: number,
+    label: string,
+    prompt: string,
+    config: LlmCallConfig,
+    _preparedCall: PreparedLlmCall | undefined,
+    signal: AbortSignal,
+  ): Promise<string> {
+    // 配置必须与 prepareCall 解析出的完全一致(prepared 句柄校验"config changed
+    // before dispatch"),所以不改 maxTokens/effort——提取输出本身就短。
+    const request = deepFreeze({
+      ...config,
+      messages: [createUserMessage({ content: [{ type: 'text' as const, text: prompt }], source: { kind: 'user' } })],
+      sessionId: this.session.id,
+      signal,
+    }) as unknown as GenerateOptions
+    // PreparedLlmCall 是一次性句柄:不能借用主调用的——旁路调用自己 prepare 一次,
+    // 主调用的句柄留给主请求。旁路可以用自己的 effort 档(sideEffort):单独 prepare
+    // 一份注入后的 config,请求体与之一致即可;适配器不认该档就退回主调用的档。
+    let own: PreparedLlmCall | undefined
+    let sideRequest = request
+    const injected = this.statePolicy.sideEffort === 'inherit' ? undefined : applyEffortDefault({ ...config, reasoningEffort: undefined }, this.statePolicy.sideEffort)
+    if (injected?.reasoningEffort !== undefined) {
+      try {
+        own = await this.loopCtx.llm.prepareCall(injected, signal)
+        sideRequest = deepFreeze({ ...request, ...own.config }) as unknown as GenerateOptions
+      } catch { own = undefined }
+    }
+    if (own === undefined) { try { own = await this.loopCtx.llm.prepareCall(config, signal) } catch { own = undefined } }
+    const assembler = new BlockAssembler()
+    const stream = own?.stream(sideRequest) ?? this.loopCtx.llm.stream(sideRequest)
+    for await (const chunk of stream) assembler.push(chunk)
+    const finish = assembler.finish
+    // 旁路调用不进对话轨迹,但必须进账:会话事件供 runner 汇总,sidecar 供归因。
+    this.session.append('slice/side-call', { turn, step, label, ...(assembler.usage === undefined ? {} : { usage: assembler.usage }) })
+    recordCallEvent(this.session.id, { turn, step, side: label, provider: config.provider, model: config.model, usage: assembler.usage })
+    if (finish.kind === 'error' || finish.kind === 'aborted') throw new Error(`rules extraction ${finish.kind}`)
+    return assembler.blocks()
+      .filter((b): b is { type: 'text'; text: string } => (b as { type: string }).type === 'text')
+      .map((b) => b.text).join('')
+  }
+
+  /** 相关性推送:按当前请求 + 最近工具调用参数检索会话日志,推热窗之外的相关片段。 */
+  private renderRelevancePush(turn: number, step: number, requestText: string): string {
+    const lastAssistant = [...this.turnTrajectory].reverse().find((m) => (m as { role?: string }).role === 'assistant')
+    const argText = lastAssistant
+      ? (lastAssistant.content as ReadonlyArray<{ type: string; arguments?: string }>).filter((b) => b.type === 'tool-call').map((b) => b.arguments ?? '').join(' ')
+      : ''
+    const query = `${argText} ${requestText}`.trim()
+    if (!query) return ''
+    const K = this.statePolicy.hotWindowSteps
+    const hits = searchSessionEvents(this.session.snapshotEvents(), query, { kinds: ['tool_output', 'assistant', 'user'], limit: this.statePolicy.pushHits + 6 })
+      .filter((h) => h.turn < turn || (h.step ?? 0) < step - K)
+      .slice(0, this.statePolicy.pushHits)
+    if (hits.length === 0) return ''
+    const lines = ['# RELEVANT FROM LOG (host-retrieved for this step; historical, verify before relying; recall_step(turn, step) for full text)']
+    for (const h of hits) lines.push(`- [turn ${h.turn}${h.step !== undefined ? ` step ${h.step}` : ''} · ${h.kind}] ${h.snippet.replace(/\s+/g, ' ').slice(0, 300)}`)
+    return lines.join('\n') + '\n'
+  }
+
+  /** 契约执行:写类工具成功后按宪法谓词校验磁盘内容;违反则回滚并改写结果为错误。 */
+  private enforceContract(turn: number, step: number, block: ToolCallBlock, result: ToolExecutionResult): ToolExecutionResult {
+    const rules = this.constitution?.rules ?? []
+    if (result.isError || !rules.some((r) => r.predicate !== undefined)) return result
+    // stream 模式:短轮不执行契约——n2 交叉验证里一条错谓词在第 3 轮第 3 步打回了正确的
+    // edit(+8 步、+4.6K out);长任务的早期写入本来就有钉住原文与宪法兜着。
+    if (this.mode === 'stream' && step < this.statePolicy.enforceFromStep) return result
+    const path = editedPath(block.name, parseArguments(block.arguments))
+    if (path === undefined) return result
+    const cwd = this.sessionCwd()
+    const disk = readDiskStatus(cwd, path)
+    if (disk.kind !== 'ok') return result
+    const all = checkPredicates(rules, path, disk.body)
+    if (all.length === 0) return result
+    // 弹回预算:谓词来自一次廉价的旁路提取,可能是错的。同一规则超出预算(默认:打回
+    // 一次)仍被违反,更可能是谓词错而不是模型错——该规则降级为纯文本(谓词移除),
+    // 本次写入放行并附宿主提示,由模型自己对照规则原文核实。没有预算,一条错谓词就
+    // 能把正确的写入无限打回(v3.1 首跑:9 步 4 次写入全部回滚,migrated/ 为空)。
+    const budget = this.statePolicy.contractBounceBudget
+    const violations: string[] = []
+    const suspended: string[] = []
+    for (const v of all) {
+      const id = v.split(': ')[0]!
+      const n = (this.ruleBounces.get(id) ?? 0) + 1
+      this.ruleBounces.set(id, n)
+      if (n > budget) {
+        suspended.push(id)
+        const r = rules.find((x) => x.id === id)
+        if (r) delete r.predicate
+      } else violations.push(v)
+    }
+    if (violations.length === 0) {
+      this.session.append('slice/contract-suspend', { turn, step, path, rules: suspended })
+      const note = `[host] rule check SUSPENDED for ${suspended.join(', ')}: the host predicate overruled you ${budget + 1} times on this path, so it is likely mis-extracted. The write above was KEPT. Verify the content against the rule text in the CONSTITUTION yourself.`
+      return { ...result, content: [...result.content, { type: 'text', text: note }] } as ToolExecutionResult
+    }
+    const pre = this.preWrite.get(path)
+    const abs = isAbsolute(path) ? path : resolvePath(cwd, path)
+    try {
+      if (pre === undefined || !pre.existed) fsUnlinkSync(abs)
+      else { fsMkdirSync(dirname(abs), { recursive: true }); fsWriteFileSync(abs, pre.body, 'utf8') }
+    } catch { /* 回滚失败也要打回模型;账本记 reverted 让它知道状态可疑 */ }
+    this.contractBounces += 1
+    this.session.append('slice/contract-bounce', { turn, step, path, violations })
+    recordFile(this.worldState, { path, sha: pre?.existed ? _h(pre.body) : '-', action: 'reverted', step })
+    const text = `CONTRACT VIOLATION — the write to ${path} was REVERTED (file restored to its previous state). Violations:\n- ${violations.join('\n- ')}\nFix the content so it satisfies the CONSTITUTION rules, then write again. If you are certain the content already satisfies the rule as written, write it again unchanged: a rule that overrules you twice is suspended.`
+    return { isError: true, error: { message: text }, content: [{ type: 'text', text }] }
+  }
+
+  /** 账本更新(宿主确定性提取)+ 早期读取即宪法。 */
+  private observeToolForState(turn: number, step: number, block: ToolCallBlock, result: ToolExecutionResult, callSeq: SessionSeq): void {
+    const args = parseArguments(block.arguments) as Record<string, unknown> | null
+    const cwd = this.sessionCwd()
+    const readPath = block.name === 'read' || block.name === 'read_file' || block.name === 'read_section'
+      ? String((args?.file_path ?? args?.path) ?? '')
+      : ''
+    if (readPath && !result.isError) {
+      const disk = readDiskStatus(cwd, readPath)
+      recordFile(this.worldState, { path: readPath, sha: disk.kind === 'ok' ? _h(disk.body) : '-', action: 'read', step })
+      const c = this.constitution
+      if (c && step <= this.statePolicy.pinSteps && disk.kind === 'ok' && disk.body.length <= 60_000 && !c.pinned.some((p) => p.path === readPath)) {
+        c.pinned.push({ path: readPath, text: disk.body })
+      }
+      return
+    }
+    const edited = editedPath(block.name, args)
+    if (edited !== undefined && !result.isError) {
+      const disk = readDiskStatus(cwd, edited)
+      recordFile(this.worldState, { path: edited, sha: disk.kind === 'ok' ? _h(disk.body) : '-', action: block.name === 'write' || block.name === 'write_file' ? 'write' : 'edit', step })
+      return
+    }
+    if (result.isError) {
+      const head = toolResultText({ content: [{ content: result.content as readonly unknown[] }] }).replace(/\s+/g, ' ').slice(0, 160)
+      addFact(this.worldState, { kind: 'fact', text: `tool ${block.name} failed: ${head}`, sourceDigest: `host:${callSeq}`, step })
+    }
+  }
+
+  /** 模型提议的事实:助手正文里 `decision:` / `obligation:` / `fact:` 开头的行。出处 = 该消息摘要。 */
+  private harvestProposedFacts(step: number, assistantText: string): void {
+    const digest = sliceDigest(assistantText).slice(0, 12)
+    for (const line of assistantText.split('\n')) {
+      const m = line.match(/^\s*(decision|obligation|fact)\s*:\s*(.{4,400})$/i)
+      if (!m) continue
+      addFact(this.worldState, { kind: m[1]!.toLowerCase() as 'decision' | 'obligation' | 'fact', text: m[2]!.trim(), sourceDigest: `asst:${digest}`, step })
+    }
+  }
+
+  /**
+   * 轮内封存:请求组装前,若轨迹越过阈值,把最旧的一批已完成步折成封存条目
+   * (step-tape.ts),从轨迹里移除其原文,并重建封存块消息。条目 append-only;
+   * 封存点只前进。原文仍在会话日志,recall_step 可逐字取回。
+   */
+  private maybeSealSteps(turn: number, step: number): void {
+    const completed = step - 1
+    const unsealed = completed - this.sealConsideredThrough
+    const before = trajectoryChars(this.turnTrajectory)
+    const n = stepsToSeal(this.inTurnSeal, before, unsealed, this.sealConsideredThrough)
+    if (n <= 0) return
+    // 宪法保护:封存起点不早于 protectEarlySteps(前 N 步的规则/清单永不折叠)。
+    const sealFrom = Math.max(this.sealConsideredThrough, this.inTurnSeal.protectEarlySteps)
+    const upTo = sealFrom + n
+
+    interface Group { assistantText: string; calls: SealedCall[]; byId: Map<string, SealedCall>; interjections: string[] }
+    const groups = new Map<number, Group>()
+    const keepMsgs: Message[] = []
+    const keepSteps: number[] = []
+    for (let i = 0; i < this.turnTrajectory.length; i += 1) {
+      const m = this.turnTrajectory[i]!
+      const s = this.turnTrajectorySteps[i] ?? completed
+      // 保护步(≤ protectEarlySteps)与窗口外步(> upTo)都留作原文。
+      if (s > upTo || s <= this.inTurnSeal.protectEarlySteps) { keepMsgs.push(m); keepSteps.push(s); continue }
+      let g = groups.get(s)
+      if (g === undefined) { g = { assistantText: '', calls: [], byId: new Map(), interjections: [] }; groups.set(s, g) }
+      const role = (m as { role?: string }).role
+      if (role === 'assistant') {
+        for (const block of m.content as ReadonlyArray<{ type: string; text?: string; id?: string; name?: string; arguments?: string }>) {
+          if (block.type === 'text' && block.text) g.assistantText += block.text
+          else if (block.type === 'tool-call') {
+            const c: SealedCall = { name: block.name ?? '?', arguments: block.arguments ?? '', resultText: '', isError: false }
+            g.calls.push(c)
+            if (block.id) g.byId.set(block.id, c)
+          }
+        }
+      } else if ((m as UserMessage).source?.kind === 'tool') {
+        const block = m.content[0] as { type: string; toolCallId?: string; isError?: boolean } | undefined
+        const c = block?.toolCallId ? g.byId.get(block.toolCallId) : undefined
+        const text = toolResultText(m as unknown as { content: readonly { content?: readonly unknown[] }[] })
+        if (c !== undefined) { c.resultText = text; c.isError = block?.isError === true }
+        else g.calls.push({ name: '?', arguments: '', resultText: text, isError: block?.isError === true })
+      } else {
+        g.interjections.push(blockText(m as UserMessage))
+      }
+    }
+    const newEntries: string[] = []
+    for (const st of [...groups.keys()].sort((a, b) => a - b)) {
+      const g = groups.get(st)!
+      newEntries.push(renderSealedStep(turn, { step: st, assistantText: g.assistantText, calls: g.calls, interjections: g.interjections }))
+    }
+    // 体量守卫:被移除原文的字节 vs 新封存条目的字节。折叠比这批原文省不下
+    // (1-ratio)就不划算——小结果折叠只多付一次缓存重建。跳过并把这批标为
+    // 「已评估」(consideredThrough),避免下一步重算同一批;它们留在轨迹里作原文。
+    const removedChars = keepMsgs.length < this.turnTrajectory.length
+      ? this.turnTrajectory.reduce((n, m, i) => n + (this.turnTrajectorySteps[i]! <= upTo ? JSON.stringify(m.content).length : 0), 0)
+      : 0
+    const sealedChars = newEntries.reduce((n, e) => n + e.length, 0)
+    if (!sealSavesEnough(removedChars, sealedChars)) {
+      this.sealConsideredThrough = upTo
+      this.session.append('slice/step-seal', {
+        turn, step, sealedThrough: this.sealedThrough, sealedSteps: 0,
+        entries: this.stepTapeEntries.length, trajectoryCharsBefore: before, trajectoryCharsAfter: before,
+      })
+      return
+    }
+    this.stepTapeEntries.push(...newEntries)
+    this.turnTrajectory = keepMsgs
+    this.turnTrajectorySteps = keepSteps
+    this.sealedThrough = upTo
+    this.sealConsideredThrough = upTo
+    this.stepTapeMessage = createUserMessage({
+      content: [{ type: 'text' as const, text: renderStepTape(this.stepTapeEntries) }],
+      source: { kind: 'user' },
+    })
+    this.session.append('slice/step-seal', {
+      turn, step,
+      sealedThrough: upTo,
+      sealedSteps: n,
+      entries: this.stepTapeEntries.length,
+      trajectoryCharsBefore: before,
+      trajectoryCharsAfter: trajectoryChars(this.turnTrajectory),
+    })
+  }
+
   /** Append a model-ordered result linked to its call event. */
   private appendToolResult(
     turn: number,
     step: number,
     block: ToolCallBlock,
-    result: ToolExecutionResult,
-    callSeq: number,
+    resultIn: ToolExecutionResult,
+    callSeq: SessionSeq,
   ): void {
+    // 世界状态:契约执行——写后校验,违反即回滚磁盘并把结果改成错误打回模型。
+    const result = this.mode === 'state' || this.mode === 'stream' ? this.enforceContract(turn, step, block, resultIn) : resultIn
     const message = createToolResultMessage({
       callId: block.id,
       content: result.content,
@@ -1292,7 +1795,11 @@ export class SliceLoopAgent implements Agent {
       ...result.meta !== undefined ? { meta: result.meta } : {},
     }, { surfaceOp: 'append', sourceEventSeqs: [callSeq] })
     trackToolOutcome(this.cont, result.isError === true, toolResultText(message))
-    this.turnTrajectory.push(message)
+    // v3 追加流:大结果进上下文前折成紧凑视图(全文已落日志,recall_step 取回)。
+    // 轮内折叠:slice 与 stream 共用(默认开);state 模式保持自己的热窗设计。
+    this.turnTrajectory.push(this.digestPolicy.enabled && this.mode !== 'state' ? this.digestForTrajectory(turn, step, block, message) : message)
+    this.turnTrajectorySteps.push(step)
+    if (this.mode === 'state' || this.mode === 'stream') this.observeToolForState(turn, step, block, result, callSeq)
     // 文件锚定不在这里——它挂在 `tools/result` 上（见构造函数）。这里的
     // `block.name` 是模型看见的名字（呈现平面）；code 模式下它恒为 `run_code`，
     // 真实的 write/edit 是 run_code 程序里的子调用，顶层永远看不到。
@@ -1329,6 +1836,13 @@ function reasoningText(message: { content: readonly { type?: string; text?: stri
     .filter((b) => b.type === 'reasoning')
     .map((b) => b.text ?? '')
     .join('')
+}
+
+/** 轨迹的序列化体量(封存阈值用;近似请求字节)。 */
+function trajectoryChars(messages: readonly Message[]): number {
+  let n = 0
+  for (const m of messages) n += JSON.stringify(m.content).length
+  return n
 }
 
 function blockText(message: UserMessage): string {

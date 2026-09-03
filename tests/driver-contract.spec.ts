@@ -62,7 +62,7 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(1)
-    const types = handle.agent.session.events.map(event => event.type)
+    const types = handle.agent.session.snapshotEvents().map(event => event.type)
     expect(types.filter(type => type === 'turn/start' || type === 'step/start'
       || type === 'step/end' || type === 'turn/end'))
       .toEqual(['turn/start', 'step/start', 'step/end', 'turn/end'])
@@ -70,8 +70,8 @@ describe('SliceLoopAgent contract gates', () => {
     expect(types).toContain('request/header')
     expect(types).toContain('request/context')
     expect(types).toContain('assistant/message')
-    const chunks = handle.agent.session.events.filter(event => event.type === 'assistant/chunk')
-    const assistant = handle.agent.session.events.find(event => event.type === 'assistant/message')
+    const chunks = handle.agent.session.snapshotEvents().filter(event => event.type === 'assistant/chunk')
+    const assistant = handle.agent.session.snapshotEvents().find(event => event.type === 'assistant/message')
     expect(assistant?.sourceEventSeqs).toEqual(chunks.map(event => event.seq))
     expect(handle.agent.session.deriveMessages().map(message => message.role)).toEqual(['user', 'assistant'])
     await handle.dispose()
@@ -91,8 +91,8 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(0)
-    expect(handle.agent.session.events.some(event => event.type === 'step/start')).toBe(false)
-    expect([...handle.agent.session.events].reverse()
+    expect(handle.agent.session.snapshotEvents().some(event => event.type === 'step/start')).toBe(false)
+    expect([...handle.agent.session.snapshotEvents()].reverse()
       .find(event => event.type === 'turn/end')?.data.reason).toEqual({ kind: 'blocked' })
     await handle.dispose()
     await ctx.fiber.dispose()
@@ -114,7 +114,7 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(reported === failure).toBe(true)
-    expect([...handle.agent.session.events].reverse()
+    expect([...handle.agent.session.snapshotEvents()].reverse()
       .find(event => event.type === 'turn/end')?.data.reason)
       .toEqual({ kind: 'error', error: { message: 'pre-step exploded', code: 'UNKNOWN' } })
     await handle.dispose()
@@ -142,7 +142,7 @@ describe('SliceLoopAgent contract gates', () => {
 
     expect(failures).toEqual([{ message: 'provider busy', code: 'SERVER' }])
     expect(adapter.requests).toHaveLength(2)
-    expect(handle.agent.session.events.filter(event => event.type === 'assistant/message')).toHaveLength(1)
+    expect(handle.agent.session.snapshotEvents().filter(event => event.type === 'assistant/message')).toHaveLength(1)
     await handle.dispose()
     await ctx.fiber.dispose()
   })
@@ -171,7 +171,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect({
       frozen,
       requestTemperatures: adapter.requests.map(item => item.temperature),
-      headerTemperatures: handle.agent.session.events.flatMap(event =>
+      headerTemperatures: handle.agent.session.snapshotEvents().flatMap(event =>
         event.type === 'request/header' ? [event.data.header.config.temperature] : []),
     }).toEqual({
       frozen: [true, true],
@@ -216,7 +216,7 @@ describe('SliceLoopAgent contract gates', () => {
     })
     send(first.agent, 'remember this across recreation')
     await first.agent.whenIdle()
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
     await first.dispose()
 
     const resumed = await ctx.agents.create({
@@ -246,7 +246,7 @@ describe('SliceLoopAgent contract gates', () => {
     })
     send(first.agent, 'seal one turn')
     await first.agent.whenIdle()
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live sealed identity')
     await first.agent.whenIdle()
@@ -294,7 +294,7 @@ describe('SliceLoopAgent contract gates', () => {
       surfaceOp: { op: 'replace', start: nodes[0]!, end: nodes[1]! },
       sourceEventSeqs: [nodes[0]!, nodes[1]!],
     })
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live compacted continuity')
     await first.agent.whenIdle()
@@ -345,11 +345,11 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, shadowedUser)
     await first.agent.whenIdle()
 
-    const retainedUserEvent = first.agent.session.events.find(event =>
+    const retainedUserEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(retainedUser))
-    const shadowedUserEvent = first.agent.session.events.find(event =>
+    const shadowedUserEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(shadowedUser))
-    const shadowedAssistantEvent = first.agent.session.events.find(event =>
+    const shadowedAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 2)
     if (retainedUserEvent?.type !== 'user/message'
       || shadowedUserEvent?.type !== 'user/message'
@@ -369,7 +369,7 @@ describe('SliceLoopAgent contract gates', () => {
       // surface span that the replacement actually shadows.
       sourceEventSeqs: [retainedUserEvent.seq, shadowedUserEvent.seq, shadowedAssistantEvent.seq],
     })
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live replacement span')
     await first.agent.whenIdle()
@@ -443,7 +443,7 @@ describe('SliceLoopAgent contract gates', () => {
     const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
     expect(canonicalSurface).toContain(finalSummary)
     expect(canonicalSurface).not.toContain(firstSummary)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live nested replacement')
     await first.agent.whenIdle()
@@ -500,13 +500,13 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, secondUser)
     await first.agent.whenIdle()
 
-    const firstUserEvent = first.agent.session.events.find(event =>
+    const firstUserEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(firstUser))
-    const firstAssistantEvent = first.agent.session.events.find(event =>
+    const firstAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1)
-    const secondUserEvent = first.agent.session.events.find(event =>
+    const secondUserEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(secondUser))
-    const secondAssistantEvent = first.agent.session.events.find(event =>
+    const secondAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 2)
     if (firstUserEvent?.type !== 'user/message'
       || firstAssistantEvent?.type !== 'assistant/message'
@@ -543,7 +543,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(canonicalSurface).toContain(finalSummary)
     expect(canonicalSurface).not.toContain(firstSummary)
     expect(canonicalSurface).not.toContain(secondUser)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live descending-sequence replacement span')
     await first.agent.whenIdle()
@@ -598,7 +598,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const originalUserEvent = first.agent.session.events.find(event =>
+    const originalUserEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(originalUser))
     if (originalUserEvent?.type !== 'user/message') {
       throw new Error('missing partial-user fixture event')
@@ -618,7 +618,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(canonicalSurface).toContain(replacementUser)
     expect(canonicalSurface).toContain(originalAssistant)
     expect(canonicalSurface).not.toContain(originalUser)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live partial-user replacement')
     await first.agent.whenIdle()
@@ -667,7 +667,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const originalAssistantEvent = first.agent.session.events.find(event =>
+    const originalAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1)
     if (originalAssistantEvent?.type !== 'assistant/message') {
       throw new Error('missing partial-assistant fixture event')
@@ -690,7 +690,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(canonicalSurface).toContain(originalUser)
     expect(canonicalSurface).toContain(replacementAssistant)
     expect(canonicalSurface).not.toContain(originalAssistant)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live partial-assistant replacement')
     await first.agent.whenIdle()
@@ -745,7 +745,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const contextEvent = first.agent.session.events.find(event =>
+    const contextEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message'
       && event.data.source.kind === 'plugin'
       && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
@@ -759,7 +759,7 @@ describe('SliceLoopAgent contract gates', () => {
       surfaceOp: { op: 'replace', start: contextEvent.seq, end: contextEvent.seq },
       sourceEventSeqs: [contextEvent.seq],
     })
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live runtime-context replacement owner')
     await first.agent.whenIdle()
@@ -819,7 +819,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const steeringEvent = first.agent.session.events.find(event =>
+    const steeringEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message' && JSON.stringify(event.data.content).includes(steering))
     if (steeringEvent?.type !== 'user/message') {
       throw new Error('missing steering-owner fixture event')
@@ -831,7 +831,7 @@ describe('SliceLoopAgent contract gates', () => {
       surfaceOp: { op: 'replace', start: steeringEvent.seq, end: steeringEvent.seq },
       sourceEventSeqs: [steeringEvent.seq],
     })
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live steering replacement owner')
     await first.agent.whenIdle()
@@ -879,7 +879,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const originalAssistantEvent = first.agent.session.events.find(event =>
+    const originalAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1)
     if (originalAssistantEvent?.type !== 'assistant/message') {
       throw new Error('missing empty-assistant replacement fixture event')
@@ -903,7 +903,7 @@ describe('SliceLoopAgent contract gates', () => {
     const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
     expect(canonicalSurface).toContain(originalUser)
     expect(canonicalSurface).not.toContain(originalAssistant)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live empty-assistant replacement')
     await first.agent.whenIdle()
@@ -949,7 +949,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const emptyAssistantEvent = first.agent.session.events.find(event =>
+    const emptyAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1)
     if (emptyAssistantEvent?.type !== 'assistant/message'
       || emptyAssistantEvent.data.message.content.length !== 0) {
@@ -972,7 +972,7 @@ describe('SliceLoopAgent contract gates', () => {
     const canonicalSurface = JSON.stringify(first.agent.session.deriveMessages())
     expect(canonicalSurface).toContain(originalUser)
     expect(canonicalSurface).toContain(replacementAssistant)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live empty-assistant insertion')
     await first.agent.whenIdle()
@@ -1028,9 +1028,9 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, originalUser)
     await first.agent.whenIdle()
 
-    const firstAssistantEvent = first.agent.session.events.find(event =>
+    const firstAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1 && event.data.step === 1)
-    const latestAssistantEvent = first.agent.session.events.find(event =>
+    const latestAssistantEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'assistant/message' && event.data.turn === 1 && event.data.step === 2)
     if (firstAssistantEvent?.type !== 'assistant/message'
       || latestAssistantEvent?.type !== 'assistant/message') {
@@ -1070,7 +1070,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(canonicalSurface).not.toContain(firstAssistant)
     expect(canonicalSurface).not.toContain(latestAssistant)
     expect(first.agent.session.surface.nodes).toContain(stale.seq)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live latest-assistant owner')
     await first.agent.whenIdle()
@@ -1124,7 +1124,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(first.agent, secondContribution)
     await first.agent.whenIdle()
 
-    const firstContributionEvent = first.agent.session.events.find(event =>
+    const firstContributionEvent = first.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message'
       && JSON.stringify(event.data.content).includes(firstContribution))
     if (firstContributionEvent?.type !== 'user/message') {
@@ -1146,7 +1146,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(canonicalSurface).toContain(secondContribution)
     expect(canonicalSurface).toContain(assistant)
     expect(canonicalSurface).not.toContain(firstContribution)
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'inspect the live merged first-step replacement')
     await first.agent.whenIdle()
@@ -1205,7 +1205,7 @@ describe('SliceLoopAgent contract gates', () => {
 
     send(first.agent, 'one logical turn')
     await first.agent.whenIdle()
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
 
     send(first.agent, 'continuity probe')
     await first.agent.whenIdle()
@@ -1250,7 +1250,7 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(2)
-    const boundaries = handle.agent.session.events.filter(event =>
+    const boundaries = handle.agent.session.snapshotEvents().filter(event =>
       event.type === 'turn/start' || event.type === 'turn/end'
       || event.type === 'step/start' || event.type === 'step/end')
     expect(boundaries.map(event => event.type)).toEqual([
@@ -1274,7 +1274,7 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(adapter.requests).toHaveLength(2)
-    expect(handle.agent.session.events.filter(event =>
+    expect(handle.agent.session.snapshotEvents().filter(event =>
       event.type === 'turn/start' || event.type === 'turn/end').map(event => event.type))
       .toEqual(['turn/start', 'turn/end', 'turn/start', 'turn/end'])
     await handle.dispose()
@@ -1386,7 +1386,7 @@ describe('SliceLoopAgent contract gates', () => {
     expect(adapter.requests).toHaveLength(0)
     expect(handle.agent.inbox.nextTurn.map(message => message.content[0]))
       .toEqual([{ type: 'text', text: 'preserved' }])
-    expect([...handle.agent.session.events].reverse()
+    expect([...handle.agent.session.snapshotEvents()].reverse()
       .find(event => event.type === 'turn/end')?.data.reason)
       .toEqual({ kind: 'aborted', reason: { kind: 'user' } })
     await handle.dispose()
@@ -1461,7 +1461,7 @@ describe('SliceLoopAgent contract gates', () => {
       await handle.agent.whenIdle()
 
       // latch 已武装但队列被撤空：绝不能凭空开一个空的 durable turn。
-      const turnStarts = handle.agent.session.events.filter(e => e.type === 'turn/start')
+      const turnStarts = handle.agent.session.snapshotEvents().filter(e => e.type === 'turn/start')
       expect(turnStarts).toHaveLength(1)
       expect(adapter.requests).toHaveLength(0)
     } finally {
@@ -1492,7 +1492,7 @@ describe('SliceLoopAgent contract gates', () => {
         await handle.agent.whenIdle()
       }
       expect(adapter.requests).toHaveLength(4)
-      expect(handle.agent.session.events
+      expect(handle.agent.session.snapshotEvents()
         .filter(event => event.type === 'turn/end')
         .map(event => event.data.reason.kind))
         .toEqual(['completed', 'completed', 'completed', 'completed'])
@@ -1528,8 +1528,8 @@ describe('SliceLoopAgent contract gates', () => {
 
     expect(executions).toEqual(['hello'])
     expect(adapter.requests).toHaveLength(2)
-    expect(handle.agent.session.events.filter(event => event.type === 'tool/call')).toHaveLength(1)
-    expect(handle.agent.session.events.filter(event => event.type === 'tool/result')).toHaveLength(1)
+    expect(handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/call')).toHaveLength(1)
+    expect(handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/result')).toHaveLength(1)
     await handle.dispose()
     await ctx.fiber.dispose()
   })
@@ -1700,7 +1700,7 @@ describe('SliceLoopAgent contract gates', () => {
       send(handle.agent, 'ok'); await handle.agent.whenIdle()
       send(handle.agent, 'what was that threshold again?'); await handle.agent.whenIdle()
 
-      const results = handle.agent.session.events
+      const results = handle.agent.session.snapshotEvents()
         .filter(e => e.type === 'tool/result').map(e => JSON.stringify(e.data))
       expect({
         searchNamedTheTurn: results.some(r => r.includes('slice-turn-1') && r.includes('recall_search')),
@@ -1777,7 +1777,7 @@ describe('SliceLoopAgent contract gates', () => {
       const seed = JSON.stringify(adapter.requests[1]?.messages)
       // turn 2 step 2 的轨迹:工具结果必须把被截掉的尾部带回模型面。
       const trajectory = JSON.stringify(adapter.requests[2]?.messages)
-      const result = handle.agent.session.events.find(
+      const result = handle.agent.session.snapshotEvents().find(
         event => event.type === 'tool/result'
           && !JSON.stringify(event.data).includes('"isError":true'),
       )
@@ -1845,7 +1845,7 @@ describe('SliceLoopAgent contract gates', () => {
       send(handle.agent, 'recall something absent')
       await handle.agent.whenIdle()
       // isError 位于 tool-result 内容块上,不在 message 顶层。
-      const errorResult = handle.agent.session.events.find(
+      const errorResult = handle.agent.session.snapshotEvents().find(
         event => event.type === 'tool/result'
           && JSON.stringify(event.data).includes('"isError":true'),
       )
@@ -1887,10 +1887,10 @@ describe('SliceLoopAgent contract gates', () => {
       send(handle.agent, 'never converge')
       await handle.agent.whenIdle()
 
-      const budgets = handle.agent.session.events
+      const budgets = handle.agent.session.snapshotEvents()
         .filter(event => event.type === 'slice/step-budget')
         .map(event => ({ step: event.data.step, budget: event.data.budget }))
-      const ends = handle.agent.session.events
+      const ends = handle.agent.session.snapshotEvents()
         .filter(event => event.type === 'turn/end')
         .map(event => event.data.reason.kind)
 
@@ -1927,8 +1927,8 @@ describe('SliceLoopAgent contract gates', () => {
       await handle.agent.whenIdle()
 
       expect({
-        budgets: handle.agent.session.events.filter(e => e.type === 'slice/step-budget').length,
-        ends: handle.agent.session.events
+        budgets: handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/step-budget').length,
+        ends: handle.agent.session.snapshotEvents()
           .filter(e => e.type === 'turn/end')
           .map(e => e.data.reason.kind),
       }).toEqual({ budgets: 0, ends: ['completed'] })
@@ -2060,7 +2060,7 @@ describe('SliceLoopAgent contract gates', () => {
       send(handle.agent, 'edit the file')
       await handle.agent.whenIdle()
       // 锚点必须落成 durable 事件（重建的唯一依据），且内容进入下一轮切片。
-      expect(handle.agent.session.events.filter(e => e.type === 'slice/file-anchor')).toHaveLength(1)
+      expect(handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/file-anchor')).toHaveLength(1)
       send(handle.agent, 'recall the edited file')
       await handle.agent.whenIdle()
       expect(JSON.stringify(adapter.requests[2]?.messages)).toContain(marker)
@@ -2161,7 +2161,7 @@ describe('SliceLoopAgent contract gates', () => {
       send(handle.agent, 'view the file')
       await handle.agent.whenIdle()
       // view 是只读：绝不进 tape（否则只读文件也会被当成本轮编辑锚定）。
-      expect(handle.agent.session.events.filter(e => e.type === 'slice/file-anchor')).toHaveLength(0)
+      expect(handle.agent.session.snapshotEvents().filter(e => e.type === 'slice/file-anchor')).toHaveLength(0)
     } finally {
       await handle.dispose()
       await ctx.fiber.dispose()
@@ -2199,7 +2199,7 @@ describe('SliceLoopAgent contract gates', () => {
     try {
       send(first.agent, 'write the durable file')
       await first.agent.whenIdle()
-      const seed = structuredClone(first.agent.session.events)
+      const seed = structuredClone(first.agent.session.snapshotEvents())
       await first.dispose()
 
       const resumed = await ctx.agents.create({
@@ -2252,7 +2252,7 @@ describe('SliceLoopAgent contract gates', () => {
     try {
       send(first.agent, 'write the file whose anchor turn will be corrupted')
       await first.agent.whenIdle()
-      const seed = structuredClone(first.agent.session.events)
+      const seed = structuredClone(first.agent.session.snapshotEvents())
       const anchor = seed.find(event => event.type === 'slice/file-anchor')
       if (anchor?.type !== 'slice/file-anchor') throw new Error('missing file-anchor fixture event')
       anchor.data.turn += 1
@@ -2297,7 +2297,7 @@ describe('SliceLoopAgent contract gates', () => {
     first.agent.session.append('slice/file-anchor', { turn: 2, path, body: marker })
     send(first.agent, 'complete the second turn')
     await first.agent.whenIdle()
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
     await first.dispose()
 
     const resumed = await ctx.agents.create({
@@ -2555,7 +2555,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(handle.agent, 'discover the registered tool')
     await handle.agent.whenIdle()
 
-    const header = handle.agent.session.events.find(event => event.type === 'request/header')
+    const header = handle.agent.session.snapshotEvents().find(event => event.type === 'request/header')
     const persisted = header?.type === 'request/header' ? header.data.header : undefined
     expect({
       requestSystem: adapter.requests[0]?.system?.includes('AUDIT SYSTEM MARKER') ?? false,
@@ -2565,9 +2565,9 @@ describe('SliceLoopAgent contract gates', () => {
     }).toEqual({
       // recall_turn is plugin-owned and rides every catalog (src/recall.ts).
       requestSystem: true,
-      requestTools: ['audit_echo', 'recall_search', 'recall_turn'],
+      requestTools: ['audit_echo', 'recall_search', 'recall_step', 'recall_turn'],
       headerSystem: true,
-      headerTools: ['audit_echo', 'recall_search', 'recall_turn'],
+      headerTools: ['audit_echo', 'recall_search', 'recall_step', 'recall_turn'],
     })
     await handle.dispose()
     await ctx.fiber.dispose()
@@ -2584,7 +2584,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(handle.agent, 'inspect the default instruction prefix')
     await handle.agent.whenIdle()
 
-    const header = handle.agent.session.events.find(event => event.type === 'request/header')
+    const header = handle.agent.session.snapshotEvents().find(event => event.type === 'request/header')
     const persisted = header?.type === 'request/header' ? header.data.header.system : undefined
     expect({
       request: adapter.requests[0]?.system?.startsWith('You are sliceagent') ?? false,
@@ -2641,7 +2641,7 @@ describe('SliceLoopAgent contract gates', () => {
     send(handle.agent, 'read the runtime context')
     await handle.agent.whenIdle()
 
-    const durableContext = handle.agent.session.events.find(event =>
+    const durableContext = handle.agent.session.snapshotEvents().find(event =>
       event.type === 'user/message'
       && event.data.source.kind === 'plugin'
       && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
@@ -2710,8 +2710,8 @@ describe('SliceLoopAgent contract gates', () => {
 
     expect(adapter.requests).toHaveLength(2)
     expect({
-      headers: handle.agent.session.events.filter(event => event.type === 'request/header').length,
-      contexts: handle.agent.session.events.filter(event => event.type === 'request/context').length,
+      headers: handle.agent.session.snapshotEvents().filter(event => event.type === 'request/header').length,
+      contexts: handle.agent.session.snapshotEvents().filter(event => event.type === 'request/context').length,
     }).toEqual({ headers: 1, contexts: 1 })
     await handle.dispose()
     await ctx.fiber.dispose()
@@ -2726,7 +2726,7 @@ describe('SliceLoopAgent contract gates', () => {
     })
     send(first.agent, 'first turn')
     await first.agent.whenIdle()
-    const seed = structuredClone(first.agent.session.events)
+    const seed = structuredClone(first.agent.session.snapshotEvents())
     await first.dispose()
 
     const resumed = await ctx.agents.create({
@@ -2739,9 +2739,9 @@ describe('SliceLoopAgent contract gates', () => {
 
     expect(adapter.requests).toHaveLength(2)
     expect({
-      starts: resumed.agent.session.events.filter(event => event.type === 'turn/start')
+      starts: resumed.agent.session.snapshotEvents().filter(event => event.type === 'turn/start')
         .map(event => event.data.turn),
-      ends: resumed.agent.session.events.filter(event => event.type === 'turn/end')
+      ends: resumed.agent.session.snapshotEvents().filter(event => event.type === 'turn/end')
         .map(event => event.data.turn),
     }).toEqual({ starts: [1, 2], ends: [1, 2] })
     await resumed.dispose()
@@ -2804,7 +2804,7 @@ describe('SliceLoopAgent contract gates', () => {
     await handle.agent.whenIdle()
 
     expect(maxActive).toBe(2)
-    expect(handle.agent.session.events.filter(event => event.type === 'tool/result'))
+    expect(handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/result'))
       .toHaveLength(2)
     await handle.dispose()
     await ctx.fiber.dispose()
@@ -2845,7 +2845,7 @@ describe('SliceLoopAgent contract gates', () => {
       await handle.agent.whenIdle()
       return {
         maxActive,
-        results: handle.agent.session.events.filter(event => event.type === 'tool/result').length,
+        results: handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/result').length,
       }
     } finally {
       await handle.dispose()
@@ -2908,8 +2908,8 @@ describe('SliceLoopAgent contract gates', () => {
       handle.agent.cancel({ kind: 'user' })
       await handle.agent.whenIdle()
 
-      const calls = handle.agent.session.events.filter(event => event.type === 'tool/call')
-      const results = handle.agent.session.events.filter(event => event.type === 'tool/result')
+      const calls = handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/call')
+      const results = handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/result')
       // 模型发起了 3 个调用 ⇒ 日志里必须有 3 个调用和 3 个配对结果。
       expect(calls).toHaveLength(3)
       expect(results).toHaveLength(3)
@@ -2926,7 +2926,7 @@ describe('SliceLoopAgent contract gates', () => {
       const resultIds = blocks.filter(block => block.type === 'tool-result').map(block => block.toolCallId!)
       expect(callIds).toHaveLength(3)
       expect(new Set(resultIds)).toEqual(new Set(callIds))
-      expect([...handle.agent.session.events].reverse()
+      expect([...handle.agent.session.snapshotEvents()].reverse()
         .find(event => event.type === 'turn/end')?.data.reason.kind).toBe('aborted')
     } finally {
       await handle.dispose()
@@ -2994,7 +2994,7 @@ describe('slice-loop own invariant (评审 D · C)', () => {
       await handle.agent.whenIdle()
 
       expect(adapter.requests).toHaveLength(2)
-      expect(handle.agent.session.events
+      expect(handle.agent.session.snapshotEvents()
         .filter(event => event.type === 'turn/end')
         .map(event => event.data.reason.kind)).toEqual(['completed', 'completed'])
     } finally {
@@ -3014,7 +3014,7 @@ describe('slice-loop own invariant (评审 D · C)', () => {
       send(handle.agent, 'audit me')
       await handle.agent.whenIdle()
 
-      const audits = handle.agent.session.events.filter(event => event.type === 'slice/request-slice')
+      const audits = handle.agent.session.snapshotEvents().filter(event => event.type === 'slice/request-slice')
       expect(audits).toHaveLength(1)
       // 摘要必须真的对应发出去的种子——这条链断了审计就是空的。
       const dispatched = sliceDigest(seedTextOf(adapter.requests[0]!.messages))
@@ -3093,10 +3093,10 @@ describe('Code Mode file anchoring (评审 · 执行平面)', () => {
       await handle.agent.whenIdle()
 
       // 模型只发了一个 run_code —— 顶层看不到 write。
-      const calls = handle.agent.session.events.filter(event => event.type === 'tool/call')
+      const calls = handle.agent.session.snapshotEvents().filter(event => event.type === 'tool/call')
       expect(calls.map(event => event.data.name)).toEqual(['run_code'])
       // 但锚定挂在执行平面，所以子调用写的文件仍然进 tape。
-      expect(handle.agent.session.events.filter(event => event.type === 'slice/file-anchor'))
+      expect(handle.agent.session.snapshotEvents().filter(event => event.type === 'slice/file-anchor'))
         .toHaveLength(1)
 
       send(handle.agent, 'recall the edited file')

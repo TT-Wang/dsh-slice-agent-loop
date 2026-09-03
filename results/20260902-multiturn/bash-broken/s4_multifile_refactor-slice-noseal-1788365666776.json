@@ -1,0 +1,129 @@
+{
+  "scenario": "s4_multifile_refactor",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s4_multifile_refactor-slice-noseal-inherit-1788365666776",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s4_multifile_refactor-Db8yCn",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 27,
+      "input": 6918,
+      "cacheRead": 246528,
+      "output": 13459,
+      "reasoning": 8593,
+      "peakInput": 21144,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 8,
+      "input": 7127,
+      "cacheRead": 201216,
+      "output": 27644,
+      "reasoning": 24103,
+      "peakInput": 34593,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 9,
+      "input": 8277,
+      "cacheRead": 101760,
+      "output": 6504,
+      "reasoning": 4781,
+      "peakInput": 16727,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 12,
+      "input": 11782,
+      "cacheRead": 542592,
+      "output": 46479,
+      "reasoning": 41368,
+      "peakInput": 61634,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 10,
+      "input": 10559,
+      "cacheRead": 271232,
+      "output": 17672,
+      "reasoning": 14249,
+      "peakInput": 33889,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 7,
+      "input": 12402,
+      "cacheRead": 192512,
+      "output": 16712,
+      "reasoning": 13116,
+      "peakInput": 36323,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 5,
+      "input": 8085,
+      "cacheRead": 152320,
+      "output": 22029,
+      "reasoning": 20122,
+      "peakInput": 37991,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 13,
+      "input": 40282,
+      "cacheRead": 587904,
+      "output": 42960,
+      "reasoning": 36309,
+      "peakInput": 75850,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 105432,
+    "cacheRead": 2296064,
+    "output": 193459,
+    "reasoning": 162641,
+    "steps": 91,
+    "peakInput": 75850
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 8,
+    "charsBefore": 13719,
+    "charsAfter": 4269
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "glob": 13,
+    "bash": 18,
+    "read": 99,
+    "grep": 6,
+    "write": 21,
+    "edit": 29,
+    "recall_step": 2
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "probe failed:\nFAILS:t4_flat_module_deleted"
+  }
+}

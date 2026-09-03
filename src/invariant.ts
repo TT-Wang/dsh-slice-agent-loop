@@ -49,7 +49,7 @@ const install = (ctx: Context, fail: (message: string) => never): void => {
     const session = ctx.sessions.get(options.sessionId)
     if (session === undefined) return next()
 
-    const recorded = [...session.events].reverse()
+    const recorded = [...session.snapshotEvents()].reverse()
       .find(event => event.type === 'slice/request-slice')
     if (recorded === undefined) {
       return fail(`dispatched a marked request for session "${String(options.sessionId)}" with no slice/request-slice audit record`)

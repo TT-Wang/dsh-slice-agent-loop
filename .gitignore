@@ -18,3 +18,4 @@ PORT-REPORT.md
 # 系统噪音
 .DS_Store
 *.log
+results/replay-worktrees/

@@ -1,0 +1,58 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "state",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 1,
+    "pushHits": 0
+  },
+  "sessionId": "slice-val-l1_chain_migrate-state-low-1788332507796",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-NCgndr",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 99,
+      "input": 450461,
+      "cacheRead": 953600,
+      "output": 65782,
+      "reasoning": 52056,
+      "peakInput": 20473,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 450461,
+    "cacheRead": 953600,
+    "output": 65782,
+    "reasoning": 52056,
+    "steps": 99,
+    "peakInput": 20473
+  },
+  "seals": 0,
+  "bounces": 0,
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 12,
+    "enforced": 6
+  },
+  "toolHistogram": {
+    "read": 94,
+    "write": 45,
+    "recall_turn": 2,
+    "edit": 1,
+    "recall_search": 7,
+    "recall_step": 7
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "ok=44/45; early=15/15 mid=14/15 late=15/15; violations: n28-4y4b: missing"
+  }
+}

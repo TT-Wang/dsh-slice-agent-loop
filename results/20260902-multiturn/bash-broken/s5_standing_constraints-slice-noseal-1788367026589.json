@@ -1,0 +1,133 @@
+{
+  "scenario": "s5_standing_constraints",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s5_standing_constraints-slice-noseal-inherit-1788367026589",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s5_standing_constraints-912eOn",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 13,
+      "input": 5432,
+      "cacheRead": 106624,
+      "output": 15279,
+      "reasoning": 12617,
+      "peakInput": 21397,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 4,
+      "input": 7342,
+      "cacheRead": 46720,
+      "output": 9738,
+      "reasoning": 7087,
+      "peakInput": 18153,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 5,
+      "input": 9987,
+      "cacheRead": 75264,
+      "output": 15761,
+      "reasoning": 13364,
+      "peakInput": 27551,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 5,
+      "input": 9389,
+      "cacheRead": 72064,
+      "output": 9096,
+      "reasoning": 7025,
+      "peakInput": 22095,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 8,
+      "input": 7549,
+      "cacheRead": 135936,
+      "output": 8488,
+      "reasoning": 6563,
+      "peakInput": 21379,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 8,
+      "input": 10965,
+      "cacheRead": 215040,
+      "output": 19764,
+      "reasoning": 17331,
+      "peakInput": 37633,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 4,
+      "input": 8048,
+      "cacheRead": 70784,
+      "output": 8075,
+      "reasoning": 6219,
+      "peakInput": 23762,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 4,
+      "input": 9495,
+      "cacheRead": 69760,
+      "output": 4862,
+      "reasoning": 3249,
+      "peakInput": 23852,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 6,
+      "input": 8912,
+      "cacheRead": 134784,
+      "output": 8937,
+      "reasoning": 7218,
+      "peakInput": 28332,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 77119,
+    "cacheRead": 926976,
+    "output": 100000,
+    "reasoning": 80673,
+    "steps": 57,
+    "peakInput": 37633
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 14,
+    "glob": 6,
+    "grep": 2,
+    "read": 46,
+    "edit": 38
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all cumulative + standing-rule + invariant checks passed"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "transcript",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "sessionId": "slice-val-l1_chain_migrate-transcript-low-1788321433271",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-0hhxTo",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 49,
+      "input": 14666,
+      "cacheRead": 608896,
+      "output": 12367,
+      "reasoning": 4833,
+      "peakInput": 24688,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 14666,
+    "cacheRead": 608896,
+    "output": 12367,
+    "reasoning": 4833,
+    "steps": 49,
+    "peakInput": 24688
+  },
+  "seals": 0,
+  "toolHistogram": {
+    "read": 47,
+    "write": 46
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

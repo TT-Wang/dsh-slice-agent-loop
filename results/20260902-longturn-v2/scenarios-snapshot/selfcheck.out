@@ -1,0 +1,29 @@
+====================================================================================================
+[l1_chain_migrate] 1) untouched workdir
+   ok=False
+   ok=0/45; early=0/15 mid=0/15 late=0/15; violations: n01-4t3v: missing, n02-we38: missing, n03-7rnp: missing, n04-pach: missing, n05-zweg: missing, n06-mge6: missing, n07-suwe: missing, n08-szsh: missing, n09-6jb4: missing, n10-rdw8: missing, n11-32dy: missing, n12-kq2k: missing, n13-mfcx: missing, n ...
+[l1_chain_migrate] 2) reference solver (follows the manifest literally, walks the chain)
+   items=45, dependent reads on the critical path (manifest + chain)=46, minimal tool calls=92
+   ok=True
+   ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none
+[l1_chain_migrate] 3) simulated late-chain rot (reference solution, last third rewritten in decoy style)
+   ok=False
+   ok=30/45; early=15/15 mid=15/15 late=0/15; violations: n31-vquw: header+footer+owner, n32-u23z: header+footer+owner, n33-gu9w: header+footer+owner, n34-3b2t: header+footer+owner, n35-cfsh: header+footer+owner, n36-u9gd: header+footer+owner, n37-fw2n: header+footer+owner, n38-5ddw: header+footer+owner, n39-76uq: header+footer+owner, n40-nx9j: header+footer+owner, n41-srxg: header+footer+owner, n42-snn8: header+footer+owner, n43-3tph: header+footer+owner, n44-4yy7: header+footer+owner, n45-mv8e: header+footer+owner
+====================================================================================================
+[l2_ledger_state] 1) untouched workdir
+   ok=False
+   ok=0/45; early=0/15 mid=0/15 late=0/15; violations: r01-tx-d8qq: missing, r02-tx-t8cd: missing, r03-tx-p393: missing, r04-tx-rk9x: missing, r05-tx-rpwy: missing, r06-tx-twnf: missing, r07-tx-7wux: missing, r08-tx-nhue: missing, r09-tx-ddt2: missing, r10-tx-jsg5: missing, r11-tx-7795: missing, r12-tx ...
+[l2_ledger_state] 2) reference solver (follows the manifest literally, walks the chain)
+   items=45, dependent reads on the critical path (manifest + chain)=46, minimal tool calls=92
+   final balance = -762
+   ok=True
+   ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none
+[l2_ledger_state] 3) simulated late-chain rot (reference solution, last third rewritten in decoy style)
+   ok=False
+   ok=30/45; early=15/15 mid=15/15 late=0/15; violations: r31-tx-w8uw: footer, r32-tx-kx7b: footer+kind, r33-tx-p6dt: footer+kind+flag, r34-tx-sjmg: footer+kind+flag, r35-tx-uj8v: footer+kind+flag, r36-tx-qhzh: footer+kind+flag, r37-tx-3apt: footer+kind+flag, r38-tx-4rb9: footer+kind+flag, r39-tx-8zk5: footer+kind+flag, r40-tx-acwz: footer+kind, r41-tx-n3y3: footer+kind, r42-tx-tmap: footer, r43-tx-s22j: footer+kind, r44-tx-u28w: footer+kind, r45-tx-gxwd: footer+kind
+====================================================================================================
+[l2_ledger_state] 4) single arithmetic slip at record 20, wrong balance carried forward by the 'agent'
+   ok=False
+   ok=44/45; early=15/15 mid=14/15 late=15/15; violations: r20-tx-kx8p: after
+====================================================================================================
+SELFCHECK PASSED

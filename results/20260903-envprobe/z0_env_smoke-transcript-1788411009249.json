@@ -1,0 +1,65 @@
+{
+  "scenario": "z0_env_smoke",
+  "arm": "transcript",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash"
+    ],
+    "maxStepsPerTurn": 250
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-z0_env_smoke-transcript-inherit-1788411009249",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-z0_env_smoke-CjxNqP",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 4,
+      "input": 3324,
+      "cacheRead": 11520,
+      "output": 2042,
+      "reasoning": 1046,
+      "peakInput": 4845,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 3324,
+    "cacheRead": 11520,
+    "output": 2042,
+    "reasoning": 1046,
+    "steps": 4,
+    "peakInput": 4845
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 2,
+    "grep": 1,
+    "glob": 1,
+    "read": 2,
+    "write": 4,
+    "edit": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "env probe ok"
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "scenario": "s1_longhorizon_debug",
+  "arm": "slice-noseal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s1_longhorizon_debug-slice-noseal-low-1788361785553",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s1_longhorizon_debug-UORj9Q",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 12,
+      "input": 2108,
+      "cacheRead": 48896,
+      "output": 4320,
+      "reasoning": 3182,
+      "peakInput": 8647,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 8,
+      "input": 4021,
+      "cacheRead": 75520,
+      "output": 25379,
+      "reasoning": 23849,
+      "peakInput": 25152,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 4,
+      "input": 3521,
+      "cacheRead": 22016,
+      "output": 1670,
+      "reasoning": 328,
+      "peakInput": 7174,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 4,
+      "input": 3611,
+      "cacheRead": 26624,
+      "output": 1774,
+      "reasoning": 296,
+      "peakInput": 8503,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 3,
+      "input": 3992,
+      "cacheRead": 21632,
+      "output": 3404,
+      "reasoning": 2151,
+      "peakInput": 9855,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 4,
+      "input": 3875,
+      "cacheRead": 33280,
+      "output": 1399,
+      "reasoning": 150,
+      "peakInput": 10190,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 21128,
+    "cacheRead": 227968,
+    "output": 37946,
+    "reasoning": 29956,
+    "steps": 35,
+    "peakInput": 25152
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 14,
+    "glob": 4,
+    "grep": 1,
+    "read": 9,
+    "edit": 5
+  },
+  "verdict": {
+    "ok": false,
+    "detail": "probe failed:\nFAILS:t3_keys_nested,t3_items_nested,x_keys_with_revive"
+  }
+}

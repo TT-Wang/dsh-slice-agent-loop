@@ -1,0 +1,214 @@
+{
+  "scenario": "n3_rot_checkpoints",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "digestPolicy": {},
+  "sessionId": "slice-val-n3_rot_checkpoints-stream-low-1788337145085",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-n3_rot_checkpoints-uVPwSw",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 1,
+      "input": 70,
+      "cacheRead": 2176,
+      "output": 40,
+      "reasoning": 37,
+      "peakInput": 2246,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 57,
+      "cacheRead": 7168,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 7225,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 1,
+      "input": 110,
+      "cacheRead": 7552,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 7662,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 3,
+      "input": 350,
+      "cacheRead": 10112,
+      "output": 183,
+      "reasoning": 37,
+      "peakInput": 3635,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 1,
+      "input": 5800,
+      "cacheRead": 3072,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 8872,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 1,
+      "input": 6103,
+      "cacheRead": 3072,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 9175,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 1,
+      "input": 6370,
+      "cacheRead": 3200,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 9570,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 2,
+      "input": 1242,
+      "cacheRead": 8320,
+      "output": 100,
+      "reasoning": 0,
+      "peakInput": 4858,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 1,
+      "input": 6758,
+      "cacheRead": 3968,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10726,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 1,
+      "input": 6871,
+      "cacheRead": 4352,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 11223,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 1,
+      "input": 7112,
+      "cacheRead": 4480,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 11592,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 2,
+      "input": 1366,
+      "cacheRead": 11008,
+      "output": 123,
+      "reasoning": 0,
+      "peakInput": 6274,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 1,
+      "input": 7350,
+      "cacheRead": 5376,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 12726,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 1,
+      "input": 7353,
+      "cacheRead": 5760,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 13113,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 1,
+      "input": 7585,
+      "cacheRead": 5888,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 13473,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 1319,
+      "cacheRead": 13696,
+      "output": 105,
+      "reasoning": 0,
+      "peakInput": 7587,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 2,
+      "input": 1311,
+      "cacheRead": 14464,
+      "output": 377,
+      "reasoning": 78,
+      "peakInput": 8140,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 67127,
+    "cacheRead": 113664,
+    "output": 994,
+    "reasoning": 152,
+    "steps": 23,
+    "peakInput": 13473
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "read": 1,
+    "write": 7
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all checkpoints exact + trap honest | ck1=Y,ck2=Y,ck3=Y,ck4=Y,ck5=Y,ck6=Y"
+  }
+}

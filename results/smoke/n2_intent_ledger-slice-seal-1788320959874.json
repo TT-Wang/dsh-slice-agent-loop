@@ -1,0 +1,144 @@
+{
+  "scenario": "n2_intent_ledger",
+  "arm": "slice-seal",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": true,
+    "sealTokens": 1500,
+    "batchSteps": 2,
+    "keepSteps": 1
+  },
+  "sessionId": "slice-val-n2_intent_ledger-slice-seal-low-1788320959874",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-n2_intent_ledger-XK8ctu",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 2,
+      "input": 1672,
+      "cacheRead": 2560,
+      "output": 331,
+      "reasoning": 52,
+      "peakInput": 2253,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 6430,
+      "cacheRead": 1280,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 7710,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 1549,
+      "cacheRead": 7808,
+      "output": 408,
+      "reasoning": 27,
+      "peakInput": 3484,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 1,
+      "input": 6254,
+      "cacheRead": 2048,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 8302,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 3,
+      "input": 1323,
+      "cacheRead": 9856,
+      "output": 629,
+      "reasoning": 191,
+      "peakInput": 4140,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 1,
+      "input": 6802,
+      "cacheRead": 2688,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 9490,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 1,
+      "input": 6823,
+      "cacheRead": 3072,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 9895,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 3,
+      "input": 1525,
+      "cacheRead": 12544,
+      "output": 350,
+      "reasoning": 44,
+      "peakInput": 4939,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 1,
+      "input": 6767,
+      "cacheRead": 3712,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10479,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 1,
+      "input": 6805,
+      "cacheRead": 4096,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 10901,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 3,
+      "input": 1618,
+      "cacheRead": 16000,
+      "output": 727,
+      "reasoning": 156,
+      "peakInput": 6383,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 47568,
+    "cacheRead": 65664,
+    "output": 2481,
+    "reasoning": 470,
+    "steps": 20,
+    "peakInput": 10901
+  },
+  "seals": 0,
+  "toolHistogram": {
+    "write": 3,
+    "read": 4,
+    "edit": 5
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all current rules honored"
+  }
+}

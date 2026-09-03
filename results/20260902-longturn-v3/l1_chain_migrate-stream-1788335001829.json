@@ -1,0 +1,56 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "sessionId": "slice-val-l1_chain_migrate-stream-low-1788335001829",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-lwmOnl",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 48,
+      "input": 48580,
+      "cacheRead": 1575680,
+      "output": 24051,
+      "reasoning": 14869,
+      "peakInput": 60471,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 48580,
+    "cacheRead": 1575680,
+    "output": 24051,
+    "reasoning": 14869,
+    "steps": 48,
+    "peakInput": 60471
+  },
+  "seals": 0,
+  "bounces": 0,
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 81225
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 13,
+    "enforced": 8
+  },
+  "toolHistogram": {
+    "read": 46,
+    "write": 46
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

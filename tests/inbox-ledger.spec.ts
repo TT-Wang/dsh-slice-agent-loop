@@ -91,13 +91,13 @@ describe('InboxLedger', () => {
     ledger.inject(context)
     ledger.followup(first)
     ledger.followup(second)
-    const beforeClaim = session.events.length
+    const beforeClaim = session.snapshotEvents().length
 
     expect(ledger.claimFirstStep(3)).toEqual([context, first])
 
     expect(ledger.inbox.nextStep).toEqual([])
     expect(ledger.inbox.nextTurn).toEqual([second])
-    expect(session.events.slice(beforeClaim).map(event => {
+    expect(session.snapshotEvents().slice(beforeClaim).map(event => {
       if (event.type !== 'agent/inbox/spliced') return event.type
       return event.data
     })).toEqual([
@@ -156,12 +156,12 @@ describe('InboxLedger', () => {
     ledger.followup(claimed)
     ledger.followup(pending)
     ledger.claimFirstStep(1)
-    const beforeClear = session.events.length
+    const beforeClear = session.snapshotEvents().length
 
     ledger.clear()
 
     expect(ledger.hasPending).toBe(false)
-    expect(session.events.slice(beforeClear).map(event => event.type === 'agent/inbox/spliced'
+    expect(session.snapshotEvents().slice(beforeClear).map(event => event.type === 'agent/inbox/spliced'
       ? event.data
       : event.type)).toEqual([
       { target: 'next-turn', start: 0, removedCount: 1, inserted: [], outcome: 'canceled' },

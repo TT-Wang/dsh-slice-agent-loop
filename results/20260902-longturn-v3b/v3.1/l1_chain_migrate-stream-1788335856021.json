@@ -1,0 +1,79 @@
+{
+  "scenario": "l1_chain_migrate",
+  "arm": "stream",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": {
+    "hotWindowSteps": 3,
+    "pushHits": 3,
+    "extractRules": true,
+    "sideEffort": "off"
+  },
+  "sessionId": "slice-val-l1_chain_migrate-stream-low-1788335856021",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-l1_chain_migrate-5SPWfS",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 48,
+      "input": 48284,
+      "cacheRead": 1579136,
+      "output": 13263,
+      "reasoning": 2950,
+      "peakInput": 58873,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 48284,
+    "cacheRead": 1579136,
+    "output": 13263,
+    "reasoning": 2950,
+    "steps": 48,
+    "peakInput": 58873
+  },
+  "seals": 0,
+  "bounces": 1,
+  "suspends": [
+    "R1",
+    "R2",
+    "R3",
+    "R6",
+    "R8"
+  ],
+  "digest": {
+    "count": 44,
+    "charsBefore": 798173,
+    "charsAfter": 81225
+  },
+  "stateRules": {
+    "turn": 1,
+    "step": 3,
+    "rules": 9,
+    "enforced": 9,
+    "list": [
+      "R1 [path-regex]: Migrate every node into exactly one output file each at migrated/<id in lowercase>.svc",
+      "R2 [line-regex]: Line 1 of each output file is exactly: # migrated-by: kestrel-v3",
+      "R3 [content-includes]: Then exactly four lines `key: value` (one space after the colon, nothing before it, no blank lines, no comments) in this order: name, port, owner, tier",
+      "R4 [content-excludes]: drop a leading `legacy-` prefix if present; the word \"legacy\" must not appear anywhere in the output file",
+      "R5 [line-regex]: port: zero-padded to 5 digits (443 -> 00443, 8080 -> 08080, 31337 -> 31337)",
+      "R6 [field-enum]: owner: keep the local part, replace the domain with kestrel.internal  (a.b@oldcorp.example -> a.b@kestrel.internal)",
+      "R7 [field-enum]: tier: gold -> p1, silver -> p3, bronze -> p7",
+      "R8 [line-regex]: the last line is exactly: ;; end-of-record 7f3a",
+      "R9 [line-regex]: migrated/INDEX.txt must end up listing the output path of every migrated node, one per line, exactly as `migrated/<id>.svc`, in chain order, nothing else in the file."
+    ]
+  },
+  "toolHistogram": {
+    "read": 46,
+    "write": 47
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "ok=45/45; early=15/15 mid=15/15 late=15/15; violations: none"
+  }
+}

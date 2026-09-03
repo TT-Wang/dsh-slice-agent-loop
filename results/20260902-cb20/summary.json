@@ -1,0 +1,40 @@
+{
+ "paired": 19,
+ "completion": {
+  "slice-fold": "20/20",
+  "default": "19/20"
+ },
+ "price_sheet": {
+  "miss": 0.22,
+  "hit": 0.007,
+  "out": 0.66
+ },
+ "slice_fold": {
+  "fileRecall": 0.7491228070175439,
+  "spanRecall": 0.8029957048013611,
+  "filePrecision": 0.22198410464664334,
+  "f1macro": 0.3317796124297672,
+  "steps": 33.578947368421055,
+  "price": 0.4824497359999999,
+  "miss": 516238,
+  "hit": 20288128,
+  "out": 343728
+ },
+ "default_flash_20260812": {
+  "fileRecall": 0.7606516290726817,
+  "spanRecall": 0.772311236571846,
+  "filePrecision": 0.22941404548052746,
+  "f1macro": 0.3227366262546318,
+  "steps": 39.8421052631579,
+  "price": 0.5414183840000002,
+  "miss": 963381,
+  "hit": 18403712,
+  "out": 304013
+ },
+ "f1_wins_losses_ties": [
+  9,
+  8,
+  2
+ ],
+ "cheaper_on": 11
+}
