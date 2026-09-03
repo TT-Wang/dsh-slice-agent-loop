@@ -26,10 +26,16 @@ export interface Config {
     mode?: 'slice' | 'state' | 'stream';
     /** v3 追加流的注入时摘要策略。 */
     digest?: {
+        enabled?: boolean;
         minChars?: number;
         headLines?: number;
         tailLines?: number;
         maxKeepRatio?: number;
+        structuredBlockCap?: number;
+        structuredBlockMin?: number;
+        logMinChars?: number;
+        logMaxErrors?: number;
+        logContextLines?: number;
     };
     state?: {
         hotWindowSteps?: number;

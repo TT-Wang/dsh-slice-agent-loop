@@ -34,7 +34,7 @@ export interface Config {
   /** 'slice'(缺省)或 'state':世界状态循环(提案 2026-09-02)。 */
   mode?: 'slice' | 'state' | 'stream'
   /** v3 追加流的注入时摘要策略。 */
-  digest?: { minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number }
+  digest?: { enabled?: boolean; minChars?: number; headLines?: number; tailLines?: number; maxKeepRatio?: number; structuredBlockCap?: number; structuredBlockMin?: number; logMinChars?: number; logMaxErrors?: number; logContextLines?: number }
   state?: { hotWindowSteps?: number; pinSteps?: number; pushHits?: number; extractRules?: boolean; sideEffort?: 'off' | 'low' | 'high' | 'max' | 'inherit'; contractBounceBudget?: number; extractAtStep?: number; enforceFromStep?: number }
 }
 

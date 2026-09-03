@@ -6,7 +6,7 @@
 
 这句话听起来像常识,但今天主流 coding agent 的做法是把整段对话史原样塞回模型:多给的部分从不裁剪,少给的时刻无法挽回。这个插件把围绕这句话设计的 slice loop 装进 [DeepSeek Harness](https://github.com/dsh2026):**同一个 harness、同一个模型、同一套工具与持久化,只把 agent loop 换掉**——所以下面每一组对照实验,唯一的变量就是循环本身。
 
-早期内测版;对应 DSH `0.1.2-alpha.2`(斜杠路由 wire + cookie 鉴权;自带 bench 驱动已说新协议)。
+早期内测版;对应 DSH `0.1.2-alpha.4`(`snapshotEvents`、typert `/api/<ns>/<method>` RPC + cookie 鉴权;自带 bench 驱动已说新协议)。
 
 ## 一句话,两个约束
 
@@ -26,17 +26,30 @@ Transcript 架构的三个结构问题:**A · Context rot**——上下文越长
 | system prompt · 工具 schema | 冻结,整个会话逐字节不变(前缀缓存友好) |
 | **SESSION TAPE(会话磁带)** | 只追加的封存轮账本:每轮问了什么、做了什么、文件基线与补丁、回复 |
 | OPEN FILES | 当前打开文件,带 sha256 锚与 edited 标记 |
-| 本轮请求 + 工具观察流 | 轮内追加,轮末封存归档 |
+| 本轮请求 + 工具观察流 | 轮内追加——大工具结果在**进入时折叠**(见下)——轮末封存归档 |
 
 **磁带**长得像 transcript——同样只追加、同样缓存友好——但每条账目带哈希和出处。超长内容在切口处以精确标记截断,全文始终留在持久会话日志里。
 
-**召回**是"不少给"的兑现,两层:`recall_search` 找到某句话在哪一轮(评分检索,默认挡掉工具输出洪水),`recall_turn` 逐字取回那一轮。截断处的磁带上留着路标,指回原文。
+**召回**是"不少给"的兑现,三层:`recall_search` 找到某句话在哪一轮(评分检索,默认挡掉工具输出洪水),`recall_turn` 逐字取回那一轮,`recall_step(turn, step)` 在折叠视图不够用时逐字取回某一条工具结果。磁带的截断处和每个折叠视图上都留着路标,指回原文。
 
 | Transcript 的问题 | 本插件的应对 |
 |---|---|
 | A · Context rot | 峰值有界:模型永远在小上下文里工作 |
 | B · 压缩丢失 | 折叠但不丢失:会话日志全量持久,两层召回逐字回取 |
 | C · 平方成本 | 每轮只携带这一轮需要的;磁带只追加,前缀缓存生效 |
+
+### 两次折叠,两个时间尺度
+
+slice 在两个时刻折叠历史:
+
+| 折叠 | 何时 | 上下文里留下什么 | 什么可回取 |
+|---|---|---|---|
+| **跨轮**(磁带) | 轮末 | 轮摘要、文件基线与补丁、回复头尾 | 全部,经 `recall_turn` / `recall_search` |
+| **轮内**(注入时折叠,2026-09 起默认) | 工具结果进入本轮的那一刻 | 数据/文档读取:头尾行 + 全部结构行,附录块只留前几个键;构建/测试/日志输出:每条错误、失败、警告及其上下文、栈帧、摘要行;源代码与 grep/glob 结果:从不折叠 | 完整结果,经 `recall_step(turn, step)` |
+
+为什么轮内折叠是杠杆:DeepSeek 的前缀缓存下,命中价约是未命中的 1/30,任何改写旧字节的设计(滑动窗口、轮中封存、逐步重建的账本)每步都付未命中价,输给只追加的流。轮内唯一还能省的是每条**新**结果的体量——所以流保持只追加,每条结果进入时折叠一次,之后永不改写。实测一轮 45 节点的链式迁移(约 300K token 读取):$0.135 → $0.024,45/45 全对。路由规则及其对 Headroom 的借鉴见 `docs/fold-content-routing.md`。
+
+模式:`mode: 'slice'`(默认)即上述全部。`mode: 'stream'`(实验性,默认关)追加每轮一份**宪法**(请求原文 + 从最早读取的文件里提取的规则)和一份**契约**(宿主在每次写入后按谓词校验,带弹回预算,提取错的规则最多打断一次);它是能稳定通过规则文档型账本任务(l2)的配置。`mode: 'state'`(热窗式世界状态循环)作为实验存档——`docs/world-state-loop.md`。`defaultReasoningEffort: 'low'` 是插件默认(连接层的显式设置优先)——效能阶梯见 `docs/effort-ladder.md`。
 
 ## 实测:双臂对照
 
@@ -100,6 +113,24 @@ Transcript 架构的三个结构问题:**A · Context rot**——上下文越长
 钱只记账不投票。决策存档 `docs/adr/0001-keep-header-restatements.md`;
 账本 `results/20260901-header-dedup/`;分支 `feature/header-dedup` 留作
 不合入的物证。
+
+### 结果更新——2026-09-03(轮内折叠 · 三臂)
+
+条件:flash、适配器出厂档(high)、每轮不设步数顶(250)、完整工具栈(bash/grep/glob);default 臂的数字从 8 月的会话日志按同一价目表重算;除注明外均为单次运行。完整表格与环境体检记录:`docs/slice-fold-multiturn.md`。
+
+| 场景 | default(8 月) | slice 8 月版(无轮内折叠) | slice 现在(轮内折叠) |
+|---|---|---|---|
+| s1 长程调试(6 轮) | ✓ $0.091 | ✓ $0.074 | ✓ $0.068 |
+| s2 任务图(10) | ✓ $0.081 | ✓ $0.094 | ✓ $0.120 |
+| s3 区间代数(10) | ✓ $0.051 | ✓ $0.087 | ✓ $0.081 |
+| s13 失忆(16) | ✓ $0.030 | ✓ $0.026 | ✓ $0.021 |
+| s14b 召回阶梯(17) | ✓ $0.031 | ✓ $0.029 | ✓ $0.025 |
+| s10 洪水(76) | **✗** 丢 3 条事实 · $0.250 | ✓ $0.164 | **✓ 零丢失** · $0.157 |
+| CB-20 检索(19 题配对) | fileR 0.761 · $0.541 · 19/20 | fileR 0.816 · $0.602 · 20/20 | fileR 0.749 · **$0.482** · 20/20 |
+| l1 链式迁移(单轮,约 300K 读取) | ✓ $0.135 | ✓ $0.142 | ✓ **$0.024–0.031** |
+| l2 账本过账(规则文档 + 运行态) | ✓ $0.124 | ✓ $0.050 | 无宪法时 ✓/✗;`mode: 'stream'` 3/3,$0.0285 |
+
+读法:多轮组 9/9(default 8/9);记忆与洪水型省 21–37%;检索省 11% 且召回与 default 持平(比 8 月的 slice 版本低 4–7pp,混杂了 kernel 改动);单轮重读取省 80%。编码型从 −25% 到 +61% 不等:**输出税**——每轮重建后模型重新推敲、重新跑测试——是 slice 架构本身的性质,不是折叠的,折叠从不作用于源代码。
 
 ### ② 失忆重演 · 双臂 · 逐出核验
 
@@ -192,7 +223,9 @@ ContextBench(给一个真实 issue,agent 检索出修复所依赖的代码位置
 
 | 缺陷 | 说明与实测量级 | 方向 |
 |---|---|---|
-| **1 · 缓存命中天然低于 transcript loop** | 切片每轮重建,字节位置移动即缓存失效,新鲜输入占比高(编码短任务实测 fresh 2~3×);DeepSeek 的缓存折扣对只追加的 transcript 有利(08-16 新价目后两代都约 1/30,此前 flash 1/50、pro 1/120)——中短任务可能没有价格优势(flash 实测部分场景 +10%~65%,但长链路调试场景在新价目下已反超 -38%;pro 下 s13 +6%)。 | 字节卫生两组优化(稳定渲染、第二次读取即冻结)已排期;长会话与检索负载在两代计价下都反超(s10:-59%/-20%;CB-20 pro:-21%);缓存折扣更浅的计价(Claude / OpenAI)下交叉点更早。 |
+| **1 · 编码任务付输出税** | 切片每轮重建,编码负载上模型每次重建后重新推敲、重新跑测试:s2/s3 比 default 贵 48–61%,输出 token 是它的 1.7–2 倍;s1/s4 则便宜 12–25%。输入侧的缓存问题已由轮内折叠解决:1/30 的缓存折扣下,只追加且折叠每条新结果的流胜过一切改写历史的设计(l1:−80%)。 | 把上一轮的结论更明确地带在磁带上,让模型不必重推;每格跑三次再下结论——单次波动 ±30%。 |
+| **5 · 轮内折叠用一点检索广度换字节** | CB-20 文件召回 0.749,8 月版本 0.816(混杂 kernel 与宿主差异);完赛 20/20,便宜 20%。折叠从不碰源代码与 grep 结果;规则是在日志与档案上调出来的。 | 用今天的代码跑 `--no-fold` 消融;日志错误优先与结构行两条规则是旋钮。 |
+| **6 · 规则文档型任务需要宪法** | 没有宪法时 l2 四次里三次把输出写错目录;`mode: 'stream'` 三次全对,成本相同。 | 决定 stream 是否成为长单轮任务的默认;交互式会话保持可选(短轮为提取付费却无收益)。 |
 | **2 · 召回通道依赖模型主动伸手** | 历史逐字节可回取,受控压力下的自发召回已实证(测试②);但日常编码负载里主动召回接近零(信息多在磁带容量内,靠系统推送覆盖),跨会话"接着昨天做"的冷启动仍有风险。 | 让召回在日常负载与冷启动里成为习惯;agent memory 仍是前沿话题,改造已排期。 |
 | **3 · 检索广度与节俭内核仍在调平** | 当前内核换来精度与价格,召回广度对上一构建有回撤。 | kernel A/B 持续迭代。 |
 | **4 · 整体仍是早期插件** | 目前覆盖 web profile 的 agent-loop 面;settings 面板对齐、子代理生态、TUI 等外围尚在跟进。核心机制(封存、审计事件、两层召回)已被上面三组测试反复验证。 | 工程覆盖面问题,不是技术难度问题。 |
@@ -214,9 +247,13 @@ dsh plugin --profile web add "github:TT-Wang/dsh-slice-agent-loop#main"
 
 | 键 | 默认 | |
 |---|--:|---|
-| `kernel` | `'slice'` | 系统提示 kernel;`'ported'` 换成 Python prompt 逐字移植版(A/B 臂) |
 | `maxStepsPerTurn` | `50` | 单轮 continuation step 硬顶 |
 | `maxParallelToolCalls` | `10` | 每步并行工具上限;DSH 0811 起同时限制子 agent 扇出 |
+| `defaultReasoningEffort` | `'low'` | 连接层未设置时注入的推理档;`'inherit'` 保持适配器出厂档 |
+| `digest` | `{ enabled: true, minChars: 1500, logMinChars: 512, … }` | 轮内折叠策略(`docs/fold-content-routing.md`);`enabled: false` 回到 8 月行为 |
+| `mode` | `'slice'` | `'stream'` 加宪法与契约;`'state'` 是存档的热窗实验 |
+| `state` | `{ pinSteps: 2, extractAtStep: 3, enforceFromStep: 8, contractBounceBudget: 1, sideEffort: 'off' }` | stream/state 旋钮 |
+| `inTurnSeal` | `{ enabled: false }` | 轮中封存实验(缓存计价下不划算) |
 
 在你 profile 的 `cordis.patch.yml` 里按 id 定位已有行来设
 (`- id: slice-agent-loop` + `config:`)。
@@ -231,6 +268,15 @@ npm run typecheck && npm test
 
 `lib/` 是提交物(git 源安装不跑构建)—— 推之前先 `npm run build`。
 真模型冒烟:`npm run e2e:recall`(需要 env 里有 `DEEPSEEK_API_KEY`)。
+
+评测(env 里要有 `DEEPSEEK_API_KEY` 与 `SLICE_CALL_LEDGER_DIR`):先跑环境探针,再跑任意 scenarios-snapshot 场景:
+
+```bash
+npx tsx scripts/run-scenario.mts results/20260902-multiturn/scenarios-snapshot/z0_env_smoke --arm slice-noseal --tools full --ledger-dir results/probe
+npx tsx scripts/run-scenario.mts <场景目录> --arm transcript|slice-noseal|stream --effort low|inherit --max-steps 250 --tools full --ledger-dir results/<批次>
+```
+
+`--effort inherit --max-steps 250 --tools full` 复现 8 月的评测条件;每份账本记录实际生效的 effort、步数上限与工具清单。`scripts/h2h-sessions.py` 从 `~/.dsh/sessions` 重算历史用量,`scripts/mt-report.py` 出对照表,`scripts/cb20-dsh.mjs` 对着跑起来的 web profile 跑 CB-20。设计笔记:`docs/fold-content-routing.md`、`docs/slice-fold-multiturn.md`、`docs/world-state-loop.md`、`docs/effort-ladder.md`、`docs/in-turn-slicing.md`、`docs/miss-attribution.md`。
 
 ## 许可
 

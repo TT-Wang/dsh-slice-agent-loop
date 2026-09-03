@@ -12,7 +12,7 @@ slice loop built around that one sentence into the
 same tools and persistence — only the agent loop is swapped**, so in every
 comparison below the loop itself is the only variable.
 
-Early beta; tracks DSH `0.1.2-alpha.2` (slash-route wire + cookie auth; the bundled bench driver speaks the new protocol).
+Early beta; tracks DSH `0.1.2-alpha.4` (`snapshotEvents`, typert `/api/<ns>/<method>` RPC with cookie auth; the bundled bench drivers speak the new protocol).
 
 ## One sentence, two constraints
 
@@ -38,22 +38,51 @@ slice rebuilt for that turn:
 | system prompt · tool schemas | Frozen, byte-identical for the whole session (prefix-cache friendly) |
 | **SESSION TAPE** | Append-only ledger of sealed turns: what was asked and done, file baselines with patches applied, replies |
 | OPEN FILES | Currently open files, with sha256 anchors and edited markers |
-| Current turn + tool observations | Appended within the turn, sealed and archived at turn end |
+| Current turn + tool observations | Appended within the turn — large tool results are **condensed at insertion** (see below) — sealed and archived at turn end |
 
 The **tape** looks like a transcript — append-only, cache-friendly — but every
 entry carries a hash and provenance. Long content is truncated at the cut with
 an exact marker, and the full text stays durable in the session log.
 
-**Recall** is how "no less" is honored, in two tiers: `recall_search` finds
+**Recall** is how "no less" is honored, in three tiers: `recall_search` finds
 which turn said something (scored search, tool-output flood excluded by
-default), `recall_turn` returns that turn verbatim. The tape leaves a signpost
-at every cut pointing back to the original.
+default), `recall_turn` returns that turn verbatim, and `recall_step(turn, step)`
+returns one tool result in full when its condensed view is not enough. The tape
+and every condensed view leave a signpost at the cut pointing back to the original.
 
 | Transcript's problem | This plugin's answer |
 |---|---|
 | A · Context rot | Bounded peak: the model always works in a small context |
 | B · Compaction loss | Fold without losing: the session log is fully durable, two-tier recall retrieves verbatim |
 | C · Quadratic cost | Each turn carries only what that turn needs; the tape is append-only, so the prefix cache works |
+
+### Two folds, two time scales
+
+Slice folds history twice, at different moments:
+
+| Fold | When | What survives in context | What stays recoverable |
+|---|---|---|---|
+| **Cross-turn** (the tape) | At turn end | Turn digest, file baselines + patches, reply head/tail | Everything, via `recall_turn` / `recall_search` |
+| **In-turn** (insertion-time condensation, default since 2026-09) | The moment a tool result enters the turn | Data/document reads: first and last lines plus every structured line, appendix blocks trimmed to their first few keys. Build/test/log output: every error, failure and warning with context, stack traces, summary lines. Source code and grep/glob results: never condensed | The full result, via `recall_step(turn, step)` |
+
+Why the in-turn fold is the lever: under DeepSeek's prefix cache a hit costs
+~1/30 of a miss, so anything that rewrites earlier bytes (sliding windows,
+mid-turn sealing, per-step ledgers) pays the miss price every step and loses to
+an append-only stream. Within a turn the only cost left to cut is the size of
+each **new** result — so the stream stays append-only and each result is
+condensed once, on entry, never rewritten. Measured on a 45-node chain-migration
+turn (~300K tokens of reads): $0.135 → $0.024, 45/45 correct. The routing rules
+and their Headroom lineage are in `docs/fold-content-routing.md`.
+
+Modes: `mode: 'slice'` (default) is everything above. `mode: 'stream'`
+(experimental, off by default) adds a per-turn **constitution** (the request
+plus rules extracted from the first files read) and a **contract** (host-side
+predicate checks on writes, with a bounce budget so a mis-extracted rule can
+interrupt at most once); it is the configuration that passes the rule-document
+ledger task (l2) reliably. `mode: 'state'` (hot-window world-state loop) is kept
+as an archived experiment — `docs/world-state-loop.md`. `defaultReasoningEffort:
+'low'` is the plugin default (an explicit connection setting wins) — the effort
+ladder is in `docs/effort-ladder.md`.
 
 ## Measurements: two arms, head to head
 
@@ -152,6 +181,32 @@ in dedup's favor and did not override the behavior gate. Decision recorded
 in `docs/adr/0001-keep-header-restatements.md`; ledgers in
 `results/20260901-header-dedup/`; branch `feature/header-dedup` left
 unmerged as the artifact.
+
+### Results update — 2026-09-03 (in-turn fold · three arms)
+
+Conditions: flash, adapter-default effort (high), no step cap (250), full tool
+stack (bash/grep/glob); the default arm's numbers are recomputed from the
+August session logs at the same price sheet; single runs unless noted. Full
+tables and the environment audit: `docs/slice-fold-multiturn.md`.
+
+| Scenario | default (Aug) | slice, Aug build (no in-turn fold) | slice, now (in-turn fold) |
+|---|---|---|---|
+| s1 long-horizon debug (6 turns) | ✓ $0.091 | ✓ $0.074 | ✓ $0.068 |
+| s2 task-DAG scheduler (10) | ✓ $0.081 | ✓ $0.094 | ✓ $0.120 |
+| s3 interval algebra (10) | ✓ $0.051 | ✓ $0.087 | ✓ $0.081 |
+| s13 amnesia (16) | ✓ $0.030 | ✓ $0.026 | ✓ $0.021 |
+| s14b recall ladder (17) | ✓ $0.031 | ✓ $0.029 | ✓ $0.025 |
+| s10 flood (76) | **✗** 3 facts lost · $0.250 | ✓ $0.164 | **✓ zero loss** · $0.157 |
+| CB-20 retrieval (19 paired) | fileR 0.761 · $0.541 · 19/20 | fileR 0.816 · $0.602 · 20/20 | fileR 0.749 · **$0.482** · 20/20 |
+| l1 chain migration (1 turn, ~300K read) | ✓ $0.135 | ✓ $0.142 | ✓ **$0.024–0.031** |
+| l2 ledger posting (rule doc + running state) | ✓ $0.124 | ✓ $0.050 | ✓/✗ without a constitution; `mode: 'stream'` 3/3 at $0.0285 |
+
+Readings: 9/9 on the multi-turn set (default 8/9); memory and flood loads
+−21–37%; retrieval −11% at parity recall against default (−4–7pp against the
+August slice build, confounded with kernel changes); single-turn heavy reads
+−80%. Coding tasks split from −25% to +61%: the **output tax** — after each
+per-turn rebuild the model re-reasons and re-runs tests — is a property of the
+slice architecture, not of the fold, which never triggers on source code.
 
 ### ② Amnesia re-enactment · both arms · eviction-verified
 
@@ -275,7 +330,9 @@ in 949s, R/span 1.00/1.00, $0.1222).
 
 | Defect | What it is, measured | Direction |
 |---|---|---|
-| **1 · Cache hits are structurally fewer than a transcript loop's** | The slice is rebuilt every turn; when bytes move, cache entries die, so the fresh-input share is high (2–3× on short coding tasks). DeepSeek's cache discounts favor append-only transcripts (both ~1/30 under the sheet effective 2026-08-16; formerly flash 1/50, pro 1/120) — short and mid-length tasks may show no price advantage (measured +10–65% on some flash scenarios, though long-horizon debug now flips to -38%; +6% on s13 under pro). | Two byte-hygiene optimizations (stable rendering, freeze-on-second-read) are scheduled; long-session and retrieval loads win under both pricings (s10: -59%/-20%; CB-20 pro: -21%); shallower cache discounts (Claude / OpenAI) move the crossover earlier. |
+| **1 · Coding tasks pay an output tax** | The slice is rebuilt every turn, so on coding loads the model re-reasons and re-runs tests after each rebuild: s2/s3 cost +48–61% against default with 1.7–2× the output tokens, while s1/s4 come in −12–25%. Input-side, the in-turn fold settled the cache question: an append-only stream that condenses each new result beats every rewrite-history design under a 1/30 cache discount (l1: −80%). | Carry the previous turn's conclusions more explicitly in the tape so the model does not re-derive them; measure with three runs per cell — single runs move ±30%. |
+| **5 · In-turn condensation trades a little retrieval breadth for bytes** | CB-20 file recall 0.749 vs 0.816 on the August build (confounded with kernel and host changes), 20/20 completion, −20% price. Condensation never touches source code or grep results; its rules were tuned on logs and dossiers. | `--no-fold` ablation on today's build; error-first log rules and structured-line rules are the two knobs. |
+| **6 · Rule-document tasks need the constitution** | Without it the model drifted to a wrong output directory in 3 of 4 l2 runs; `mode: 'stream'` passes 3/3 and costs the same. | Decide whether stream becomes the default for long single-turn tasks; keep it opt-in for interactive sessions (short turns pay for extraction and gain nothing). |
 | **2 · The recall channel depends on the model reaching for it** | History is byte-recoverable, and spontaneous recall under controlled pressure is proven (test ②); but on everyday coding loads active recall is near zero (most information fits tape capacity and push covers it), and cross-session "continue from yesterday" cold starts remain a risk. | Make recall habitual on everyday loads and cold starts; agent memory is still frontier territory, work scheduled. |
 | **3 · Retrieval breadth vs. the frugal kernel is still being balanced** | The current kernel buys precision and price at some recall-breadth regression against the previous build. | Kernel A/B iteration continues. |
 | **4 · Still an early plugin overall** | Covers the web profile's agent-loop surface today; settings-panel alignment, the subagent ecosystem, and TUI are catching up. The core mechanisms (sealing, audit events, two-tier recall) are validated by the three test groups above. | An engineering-coverage problem, not a technical-difficulty one. |
@@ -298,9 +355,13 @@ this plugin refuses to load beside that assertion.
 
 | key | default | |
 |---|--:|---|
-| `kernel` | `'slice'` | system-prompt kernel; `'ported'` swaps in the verbatim Python prompt (A/B arm) |
 | `maxStepsPerTurn` | `50` | hard ceiling on continuation steps per turn |
 | `maxParallelToolCalls` | `10` | parallel tool bodies per step; since DSH 0811 this also caps subagent fan-out |
+| `defaultReasoningEffort` | `'low'` | effort injected when the connection sets none; `'inherit'` keeps the adapter default |
+| `digest` | `{ enabled: true, minChars: 1500, logMinChars: 512, … }` | in-turn condensation policy (`docs/fold-content-routing.md`); `enabled: false` restores the August behavior |
+| `mode` | `'slice'` | `'stream'` adds constitution + contract; `'state'` is the archived hot-window experiment |
+| `state` | `{ pinSteps: 2, extractAtStep: 3, enforceFromStep: 8, contractBounceBudget: 1, sideEffort: 'off' }` | stream/state knobs |
+| `inTurnSeal` | `{ enabled: false }` | mid-turn sealing experiment (not worth it under cache pricing) |
 
 Set them from your profile's `cordis.patch.yml`, targeting the existing row by
 id (`- id: slice-agent-loop` + `config:`).
@@ -316,6 +377,23 @@ npm run typecheck && npm test
 `lib/` is committed (git-source installs run no build) — `npm run build`
 before pushing. Real-model smoke: `npm run e2e:recall` (needs
 `DEEPSEEK_API_KEY` in env).
+
+Benchmarks (`DEEPSEEK_API_KEY` and `SLICE_CALL_LEDGER_DIR` in env): run the
+environment probe first, then any scenarios-snapshot scenario:
+
+```bash
+npx tsx scripts/run-scenario.mts results/20260902-multiturn/scenarios-snapshot/z0_env_smoke --arm slice-noseal --tools full --ledger-dir results/probe
+npx tsx scripts/run-scenario.mts <scenario-dir> --arm transcript|slice-noseal|stream --effort low|inherit --max-steps 250 --tools full --ledger-dir results/<batch>
+```
+
+`--effort inherit --max-steps 250 --tools full` reproduces the August
+conditions; every ledger records the effort, step cap and tool list that
+actually took effect. `scripts/h2h-sessions.py` recomputes usage from
+`~/.dsh/sessions`, `scripts/mt-report.py` builds the comparison table,
+`scripts/cb20-dsh.mjs` drives CB-20 against a running web profile. Design notes:
+`docs/fold-content-routing.md`, `docs/slice-fold-multiturn.md`,
+`docs/world-state-loop.md`, `docs/effort-ladder.md`, `docs/in-turn-slicing.md`,
+`docs/miss-attribution.md`.
 
 ## License
 
