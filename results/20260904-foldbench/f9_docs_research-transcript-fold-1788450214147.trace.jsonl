@@ -1,0 +1,11 @@
+{"turn":1,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/\"})"],"text":""}
+{"turn":1,"step":2,"calls":["fetch_page({\"url\": \"https://docs.example.com/api/client\"})","fetch_page({\"url\": \"https://docs.example.com/api/orders\"})","fetch_page({\"url\": \"https://docs.example.com/api/webhooks\"})"],"text":""}
+{"turn":1,"step":3,"calls":["expand_result({\"turn\": 1, \"step\": 2, \"call\": 1})","fetch_page({\"url\": \"https://docs.example.com/api/errors\"})","fetch_page({\"url\": \"https://docs.example.com/api/batches\"})","fetch_page({\"url\": \"https://docs.example.com/api/rate-limits\"})"],"text":""}
+{"turn":1,"step":4,"calls":["expand_result({\"turn\": 1, \"step\": 2, \"call\": 3})","expand_result({\"turn\": 1, \"step\": 3, \"call\": 4})"],"text":""}
+{"turn":1,"step":5,"calls":["expand_result({\"turn\": 1, \"step\": 2, \"call\": 2})"],"text":""}
+{"turn":1,"step":6,"calls":["write({\"file_path\": \"answers.json\", \"content\": \"{\\n  \\\"connect_timeout_default\\\": 45,\\n  \\\"max_batch_size\\\": 250,\\n  \\\"retry_backoff_default_ms\\\": 800,\\n  \\\"deprecate)"],"text":"All data gathered. Writing answers.json."}
+{"turn":1,"step":7,"calls":["bash({\"command\": \"python3 -m json.tool answers.json > /dev/null && echo VALID\", \"description\": \"Validate answers.json syntax\"})"],"text":""}
+{"turn":1,"step":8,"calls":[],"text":"DONE\n\nanswers.json written with the following values drawn from the Meridian docs:\n- **connect_timeout_default** — 45 (Client Configuration, `connect_timeout` default)\n- **max_batch_size** — 250 (batc"}
+{"turn":2,"step":1,"calls":["fetch_page({\"url\": \"https://docs.example.com/guides/migration-3x\"})","fetch_page({\"url\": \"https://docs.example.com/guides/migration-2x\"})"],"text":""}
+{"turn":2,"step":2,"calls":["write({\"content\": \"When a connection drops mid-batch, the 3.x client resumes the batch from the last acknowledged checkpoint after reconnecting, so already-accepted i)"],"text":""}
+{"turn":2,"step":3,"calls":[],"text":"Found it in the \"Connection loss during a batch\" section of the 3.x migration guide. In 2.x a dropped batch was abandoned and had to be resubmitted from scratch; in the new version (3.x) the client re"}
