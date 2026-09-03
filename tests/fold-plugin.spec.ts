@@ -149,3 +149,16 @@ describe('expansion back-off', () => {
     expect(requestText(adapter, 5)).not.toContain('"step\\": 5')
   })
 })
+
+describe('pinned steps still fold huge results', () => {
+  it('a 20K+ result at step 1 is condensed even with pinSteps 2', async () => {
+    const HUGE = Array.from({ length: 600 }, (_, i) => `2026-09-04 10:00:00 INFO tick ${i} ${'x'.repeat(30)}`).join('\n')
+    const adapter = new MockAdapter([toolCallResponse('c1', 'bash', { file_path: 'run' }), textResponse('done')])
+    const ctx = await harness(adapter, [{ name: 'bash', text: HUGE }], { pinSteps: 2, digest: { minChars: 1500 } })
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-pin-huge'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'go')
+    await handle.agent.whenIdle()
+    expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
+    expect(requestText(adapter, 1)).not.toContain('tick 300 ')
+  })
+})

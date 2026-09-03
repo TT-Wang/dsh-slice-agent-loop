@@ -29,6 +29,8 @@ export interface Config {
   digest?: Partial<DigestPolicy>
   /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
   pinSteps?: number
+  /** 钉住步里仍然要折的体量(默认 20000 字符):规则/说明文档只有几 K,而开头一步跑出来的 170K 测试输出不是规则。 */
+  pinMaxChars?: number
   /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
    *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
   backoffAfterExpansions?: number
@@ -53,6 +55,11 @@ function parseArgs(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw
   try { return JSON.parse(raw) } catch { return undefined }
 }
+function resultChars(message: ToolResultMessage): number {
+  let n = 0
+  for (const b of message.content as ReadonlyArray<ToolResultBlock>) for (const inner of b.content ?? []) if (inner.type === 'text' && typeof inner.text === 'string') n += inner.text.length
+  return n
+}
 function resultText(block: ToolResultBlock): string {
   return (block.content ?? []).filter((b) => b.type === 'text' && typeof b.text === 'string').map((b) => b.text as string).join('\n')
 }
@@ -66,7 +73,7 @@ class SessionFolder {
   /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
   private readonly foldedAt = new Map<string, string>()
   private readonly perTool = new Map<string, { folded: number; expanded: number }>()
-  constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number, private readonly backoffAfter: number) {}
+  constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number, private readonly backoffAfter: number, private readonly pinMaxChars: number) {}
 
   /** 把游标之后新落盘的、仍在 surface 上的追加态工具结果折掉。 */
   fold(): void {
@@ -89,7 +96,7 @@ class SessionFolder {
       const n = (ordinal.get(key) ?? this.countBefore(d.turn, d.step, i)) + 1
       ordinal.set(key, n)
       if (!onSurface.has(i)) continue
-      if (d.step <= this.pinSteps) continue
+      if (d.step <= this.pinSteps && resultChars(d.message) < this.pinMaxChars) continue
       this.foldOne(i as SessionSeq, event as SessionEvent<'tool/result'>, d, n)
     }
     this.cursor = end
@@ -214,6 +221,8 @@ export class ToolResultFold extends Service {
     const enabled = config.enabled ?? true
     const pinSteps = config.pinSteps ?? 2
     if (!Number.isInteger(pinSteps) || pinSteps < 0) throw new Error('pinSteps must be a non-negative integer')
+    const pinMaxChars = config.pinMaxChars ?? 20_000
+    if (!(pinMaxChars >= 0)) throw new Error('pinMaxChars must be >= 0')
     const backoffAfter = config.backoffAfterExpansions ?? 2
     if (!Number.isInteger(backoffAfter) || backoffAfter < 1) throw new Error('backoffAfterExpansions must be an integer >= 1')
     ctx.effect(() => ctx.tools.register(expandResultToolDefinition()), 'toolResultFold.expandResult()')
@@ -227,7 +236,7 @@ export class ToolResultFold extends Service {
       const session = (agent as Agent).session
       let folder = folders.get(session)
       if (folder === undefined) {
-        folder = new SessionFolder(session, policy, pinSteps, backoffAfter)
+        folder = new SessionFolder(session, policy, pinSteps, backoffAfter, pinMaxChars)
         folders.set(session, folder)
         FOLD_STATS.set(session, folder.stats)
       }

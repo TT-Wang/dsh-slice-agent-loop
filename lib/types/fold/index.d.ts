@@ -24,6 +24,8 @@ export interface Config {
     digest?: Partial<DigestPolicy>;
     /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
     pinSteps?: number;
+    /** 钉住步里仍然要折的体量(默认 20000 字符):规则/说明文档只有几 K,而开头一步跑出来的 170K 测试输出不是规则。 */
+    pinMaxChars?: number;
     /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
      *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
     backoffAfterExpansions?: number;
