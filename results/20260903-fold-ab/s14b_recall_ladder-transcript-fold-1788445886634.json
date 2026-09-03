@@ -1,0 +1,233 @@
+{
+  "scenario": "s14b_recall_ladder",
+  "arm": "transcript-fold",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-s14b_recall_ladder-transcript-fold-inherit-1788445886634",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s14b_recall_ladder-mEbBjx",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 5,
+      "input": 2835,
+      "cacheRead": 16128,
+      "output": 1453,
+      "reasoning": 1077,
+      "peakInput": 6103,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 5,
+      "input": 831,
+      "cacheRead": 39296,
+      "output": 3982,
+      "reasoning": 3128,
+      "peakInput": 10463,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 3,
+      "input": 568,
+      "cacheRead": 34048,
+      "output": 1225,
+      "reasoning": 591,
+      "peakInput": 12060,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 5,
+      "input": 839,
+      "cacheRead": 68096,
+      "output": 2139,
+      "reasoning": 1024,
+      "peakInput": 14846,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 4,
+      "input": 2712,
+      "cacheRead": 66176,
+      "output": 834,
+      "reasoning": 506,
+      "peakInput": 18123,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 4,
+      "input": 2492,
+      "cacheRead": 77824,
+      "output": 376,
+      "reasoning": 48,
+      "peakInput": 20874,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 4,
+      "input": 2686,
+      "cacheRead": 88576,
+      "output": 377,
+      "reasoning": 39,
+      "peakInput": 23617,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 4,
+      "input": 2530,
+      "cacheRead": 99840,
+      "output": 389,
+      "reasoning": 39,
+      "peakInput": 26410,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 4,
+      "input": 2639,
+      "cacheRead": 110976,
+      "output": 413,
+      "reasoning": 43,
+      "peakInput": 29236,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 4,
+      "input": 2569,
+      "cacheRead": 122368,
+      "output": 413,
+      "reasoning": 37,
+      "peakInput": 32068,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 4,
+      "input": 2668,
+      "cacheRead": 133632,
+      "output": 424,
+      "reasoning": 39,
+      "peakInput": 34917,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 4,
+      "input": 2854,
+      "cacheRead": 144896,
+      "output": 445,
+      "reasoning": 35,
+      "peakInput": 37785,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 3,
+      "input": 442,
+      "cacheRead": 115712,
+      "output": 1324,
+      "reasoning": 642,
+      "peakInput": 39280,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 5,
+      "input": 661,
+      "cacheRead": 203264,
+      "output": 1941,
+      "reasoning": 1029,
+      "peakInput": 41523,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 2,
+      "input": 245,
+      "cacheRead": 83584,
+      "output": 284,
+      "reasoning": 62,
+      "peakInput": 42039,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 336,
+      "cacheRead": 85376,
+      "output": 1325,
+      "reasoning": 930,
+      "peakInput": 43516,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 3,
+      "input": 616,
+      "cacheRead": 133888,
+      "output": 1530,
+      "reasoning": 834,
+      "peakInput": 45580,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 28523,
+    "cacheRead": 1623680,
+    "output": 18874,
+    "reasoning": 10103,
+    "steps": 65,
+    "peakInput": 45580
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "grep": 2,
+    "bash": 11,
+    "read": 21,
+    "glob": 1,
+    "write": 5,
+    "edit": 13
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "prompted recall + substrate all hold | tier1[host=exact,port=exact,token_env=exact,retry_backoff=exact] | recall_note: '部署参数是直接记得的:host/port、token_env、retry_backoff_ms 均为本会话中用户直接给出的原值,未从文件查回。'"
+  }
+}

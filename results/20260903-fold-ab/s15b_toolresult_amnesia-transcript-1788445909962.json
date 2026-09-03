@@ -1,0 +1,231 @@
+{
+  "scenario": "s15b_toolresult_amnesia",
+  "arm": "transcript",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-s15b_toolresult_amnesia-transcript-inherit-1788445909962",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-s15b_toolresult_amnesia-rQRXMR",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 6,
+      "input": 2342,
+      "cacheRead": 16640,
+      "output": 2405,
+      "reasoning": 1449,
+      "peakInput": 4388,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 75,
+      "cacheRead": 6016,
+      "output": 264,
+      "reasoning": 124,
+      "peakInput": 6091,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 4,
+      "input": 2763,
+      "cacheRead": 30208,
+      "output": 409,
+      "reasoning": 110,
+      "peakInput": 9048,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 3,
+      "input": 2479,
+      "cacheRead": 29696,
+      "output": 301,
+      "reasoning": 37,
+      "peakInput": 11633,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 3,
+      "input": 2421,
+      "cacheRead": 37504,
+      "output": 338,
+      "reasoning": 34,
+      "peakInput": 14223,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 3,
+      "input": 2535,
+      "cacheRead": 45184,
+      "output": 368,
+      "reasoning": 32,
+      "peakInput": 16828,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 3,
+      "input": 2499,
+      "cacheRead": 53120,
+      "output": 400,
+      "reasoning": 32,
+      "peakInput": 19481,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 3,
+      "input": 2471,
+      "cacheRead": 61184,
+      "output": 445,
+      "reasoning": 36,
+      "peakInput": 22182,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 3,
+      "input": 2424,
+      "cacheRead": 69376,
+      "output": 473,
+      "reasoning": 32,
+      "peakInput": 24906,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 3,
+      "input": 2502,
+      "cacheRead": 77568,
+      "output": 481,
+      "reasoning": 0,
+      "peakInput": 27671,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 3,
+      "input": 2502,
+      "cacheRead": 85888,
+      "output": 550,
+      "reasoning": 34,
+      "peakInput": 30470,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 3,
+      "input": 2540,
+      "cacheRead": 94336,
+      "output": 586,
+      "reasoning": 34,
+      "peakInput": 33320,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 3,
+      "input": 409,
+      "cacheRead": 101760,
+      "output": 1052,
+      "reasoning": 412,
+      "peakInput": 34473,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 2,
+      "input": 173,
+      "cacheRead": 69888,
+      "output": 690,
+      "reasoning": 226,
+      "peakInput": 35291,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 3,
+      "input": 351,
+      "cacheRead": 106752,
+      "output": 191,
+      "reasoning": 0,
+      "peakInput": 35816,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 406,
+      "cacheRead": 72448,
+      "output": 1387,
+      "reasoning": 984,
+      "peakInput": 36959,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 5,
+      "input": 893,
+      "cacheRead": 193152,
+      "output": 1742,
+      "reasoning": 892,
+      "peakInput": 39606,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 29785,
+    "cacheRead": 1150720,
+    "output": 12082,
+    "reasoning": 4468,
+    "steps": 53,
+    "peakInput": 39606
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "glob": 1,
+    "bash": 7,
+    "read": 16,
+    "edit": 12,
+    "write": 3
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "prompted recall + substrate all hold | tier1: 24/24 exact | tier2: 24/24 | recall_note: 'results.md 中的数字是查回来的:对照本会话早前 bench.py 的运行输出逐项核对(原始 samples.jsonl 已被一次性脚本清除),并非凭记忆直接写出。'"
+  }
+}

@@ -1,0 +1,229 @@
+{
+  "scenario": "n3_rot_checkpoints",
+  "arm": "transcript-fold",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-n3_rot_checkpoints-transcript-fold-inherit-1788445635729",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-n3_rot_checkpoints-GnOTh1",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 1,
+      "input": 124,
+      "cacheRead": 2048,
+      "output": 108,
+      "reasoning": 105,
+      "peakInput": 2172,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 1,
+      "input": 4807,
+      "cacheRead": 2176,
+      "output": 31,
+      "reasoning": 25,
+      "peakInput": 6983,
+      "wallMs": 0
+    },
+    {
+      "turn": 3,
+      "steps": 1,
+      "input": 4843,
+      "cacheRead": 6912,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 11755,
+      "wallMs": 0
+    },
+    {
+      "turn": 4,
+      "steps": 3,
+      "input": 507,
+      "cacheRead": 35584,
+      "output": 331,
+      "reasoning": 155,
+      "peakInput": 12227,
+      "wallMs": 0
+    },
+    {
+      "turn": 5,
+      "steps": 1,
+      "input": 5454,
+      "cacheRead": 12160,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 17614,
+      "wallMs": 0
+    },
+    {
+      "turn": 6,
+      "steps": 1,
+      "input": 5355,
+      "cacheRead": 17536,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 22891,
+      "wallMs": 0
+    },
+    {
+      "turn": 7,
+      "steps": 1,
+      "input": 5384,
+      "cacheRead": 22784,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 28168,
+      "wallMs": 0
+    },
+    {
+      "turn": 8,
+      "steps": 2,
+      "input": 175,
+      "cacheRead": 56448,
+      "output": 172,
+      "reasoning": 84,
+      "peakInput": 28425,
+      "wallMs": 0
+    },
+    {
+      "turn": 9,
+      "steps": 1,
+      "input": 5904,
+      "cacheRead": 28416,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 34320,
+      "wallMs": 0
+    },
+    {
+      "turn": 10,
+      "steps": 1,
+      "input": 5989,
+      "cacheRead": 34304,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 40293,
+      "wallMs": 0
+    },
+    {
+      "turn": 11,
+      "steps": 1,
+      "input": 6023,
+      "cacheRead": 40192,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 46215,
+      "wallMs": 0
+    },
+    {
+      "turn": 12,
+      "steps": 2,
+      "input": 156,
+      "cacheRead": 92544,
+      "output": 158,
+      "reasoning": 64,
+      "peakInput": 46455,
+      "wallMs": 0
+    },
+    {
+      "turn": 13,
+      "steps": 1,
+      "input": 6491,
+      "cacheRead": 46464,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 52955,
+      "wallMs": 0
+    },
+    {
+      "turn": 14,
+      "steps": 1,
+      "input": 6574,
+      "cacheRead": 52864,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 59438,
+      "wallMs": 0
+    },
+    {
+      "turn": 15,
+      "steps": 1,
+      "input": 6519,
+      "cacheRead": 59392,
+      "output": 6,
+      "reasoning": 0,
+      "peakInput": 65911,
+      "wallMs": 0
+    },
+    {
+      "turn": 16,
+      "steps": 2,
+      "input": 232,
+      "cacheRead": 131840,
+      "output": 135,
+      "reasoning": 47,
+      "peakInput": 66131,
+      "wallMs": 0
+    },
+    {
+      "turn": 17,
+      "steps": 2,
+      "input": 417,
+      "cacheRead": 132608,
+      "output": 440,
+      "reasoning": 189,
+      "peakInput": 66808,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 64954,
+    "cacheRead": 774272,
+    "output": 1435,
+    "reasoning": 669,
+    "steps": 23,
+    "peakInput": 66808
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 1,
+    "write": 7
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "all checkpoints exact + trap honest | ck1=Y,ck2=Y,ck3=Y,ck4=Y,ck5=Y,ck6=Y"
+  }
+}
