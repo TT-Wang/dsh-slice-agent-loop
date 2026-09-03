@@ -266,6 +266,11 @@ for (const e of agent.session.snapshotEvents()) {
   names[name] = (names[name] ?? 0) + 1
 }
 console.log('tool histogram:', JSON.stringify(names))
+const toolNames = ctx.tools.schemas().map((t) => t.name)
+// 实际生效的 effort 档:从第一条 request/header 事件(logged ⟺ sent 审计不变式)读,不信参数。
+const headerEv = agent.session.snapshotEvents().find((e) => e.type === 'request/header') as { data?: { header?: { config?: { reasoningEffort?: string; maxTokens?: number; model?: string } } } } | undefined
+const resolvedEffort = headerEv?.data?.header?.config?.reasoningEffort ?? '(not in header)'
+console.log(`env: tools=${FULL_TOOLS ? 'full' : 'fs'} registered=[${toolNames.join(',')}] maxStepsPerTurn=${MAX_STEPS} effort=${EFFORT} resolved=${resolvedEffort} model=${headerEv?.data?.header?.config?.model ?? '?'}`)
 // 轨迹摘要(诊断用):每步的工具调用(名 + 参数前 160 字符)与助手正文前 200 字符,
 // 写到账本旁的 .trace.jsonl——按步归因"为什么这一步在读/在写/在想"。
 const trace: string[] = []
@@ -282,7 +287,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

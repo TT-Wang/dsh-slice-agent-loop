@@ -1,0 +1,70 @@
+{
+  "scenario": "z0_env_smoke",
+  "arm": "slice-noseal",
+  "effort": "inherit",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "recall_turn",
+      "recall_search",
+      "recall_step"
+    ],
+    "maxStepsPerTurn": 250,
+    "resolvedEffort": "high",
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-z0_env_smoke-slice-noseal-inherit-1788411083874",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-z0_env_smoke-Z8B2SG",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 5,
+      "input": 1928,
+      "cacheRead": 23296,
+      "output": 2377,
+      "reasoning": 1168,
+      "peakInput": 6927,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 1928,
+    "cacheRead": 23296,
+    "output": 2377,
+    "reasoning": 1168,
+    "steps": 5,
+    "peakInput": 6927
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 2,
+    "glob": 1,
+    "grep": 1,
+    "read": 9,
+    "edit": 1,
+    "write": 4
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "env probe ok"
+  }
+}

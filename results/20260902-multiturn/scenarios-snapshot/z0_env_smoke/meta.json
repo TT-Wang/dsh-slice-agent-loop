@@ -1,0 +1,1 @@
+{"name": "z0_env_smoke", "turns": 1, "max_steps_per_turn": 40, "stressor": "environment probe: every tool (bash/grep/glob/read/write/edit) must actually work end-to-end"}

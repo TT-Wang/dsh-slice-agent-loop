@@ -7,8 +7,6 @@ for scen in s1_longhorizon_debug s2_taskdag_scheduler s3_intervalset_algebra s4_
   echo "════════ CELL $scen × slice-noseal[fold,inherit,steps250,tools=full]  $(date +%H:%M:%S) ════════"
   npx tsx scripts/run-scenario.mts $SNAP/$scen --arm slice-noseal --effort inherit --max-steps 250 --tools full --ledger-dir results/20260902-multiturn 2>&1 | grep -vE "^\s+at " | tail -6
 done
-for scen in l1_chain_migrate l2_ledger_state; do
-  echo "════════ CELL $scen × slice-noseal[fold]  $(date +%H:%M:%S) ════════"
-  npx tsx scripts/run-scenario.mts results/20260902-longturn-v2/scenarios-snapshot/$scen --arm slice-noseal --effort low --ledger-dir results/20260902-multiturn 2>&1 | grep -vE "^\s+at " | tail -6
-done
+echo "════════ CELL s4_multifile_refactor × transcript[inherit,steps250,tools=full]  $(date +%H:%M:%S) ════════"
+npx tsx scripts/run-scenario.mts $SNAP/s4_multifile_refactor --arm transcript --effort inherit --max-steps 250 --tools full --ledger-dir results/20260902-multiturn 2>&1 | grep -vE "^\s+at " | tail -6
 echo "ALL-CELLS-DONE-MT $(date +%H:%M:%S)"
