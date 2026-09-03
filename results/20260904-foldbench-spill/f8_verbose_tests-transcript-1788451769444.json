@@ -1,0 +1,83 @@
+{
+  "scenario": "f8_verbose_tests",
+  "arm": "transcript",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "fetch_page",
+      "db_query"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "spillMaxInlineBytes": 50000,
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-f8_verbose_tests-transcript-low-1788451769444",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f8_verbose_tests-Fu5XkG",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 15,
+      "input": 24917,
+      "cacheRead": 186496,
+      "output": 4748,
+      "reasoning": 1900,
+      "peakInput": 30695,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 3,
+      "input": 354,
+      "cacheRead": 92800,
+      "output": 699,
+      "reasoning": 269,
+      "peakInput": 31519,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 25271,
+    "cacheRead": 279296,
+    "output": 5447,
+    "reasoning": 2169,
+    "steps": 18,
+    "peakInput": 31519
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 12,
+    "read": 2,
+    "edit": 12,
+    "write": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "suite green, tests untouched, failing list exact (24)"
+  }
+}

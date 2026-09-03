@@ -1,0 +1,83 @@
+{
+  "scenario": "f7_build_fix",
+  "arm": "transcript",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "fetch_page",
+      "db_query"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "spillMaxInlineBytes": 50000,
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": null,
+  "sessionId": "slice-val-f7_build_fix-transcript-low-1788451769401",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f7_build_fix-qAhDtR",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 7,
+      "input": 6160,
+      "cacheRead": 29824,
+      "output": 1416,
+      "reasoning": 249,
+      "peakInput": 8051,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 3,
+      "input": 413,
+      "cacheRead": 24576,
+      "output": 347,
+      "reasoning": 74,
+      "peakInput": 8581,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 6573,
+    "cacheRead": 54400,
+    "output": 1763,
+    "reasoning": 323,
+    "steps": 10,
+    "peakInput": 8581
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": null,
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 5,
+    "read": 6,
+    "edit": 6,
+    "write": 2
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "build green, broken list exact (6), warnings count right"
+  }
+}

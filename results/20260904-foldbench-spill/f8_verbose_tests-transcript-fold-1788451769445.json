@@ -1,0 +1,88 @@
+{
+  "scenario": "f8_verbose_tests",
+  "arm": "transcript-fold",
+  "effort": "low",
+  "model": "deepseek-v4-flash",
+  "tools": "full",
+  "readBases": null,
+  "readPointer": null,
+  "readPointers": 0,
+  "anchor": null,
+  "tapeOpts": null,
+  "env": {
+    "registeredTools": [
+      "read",
+      "write",
+      "edit",
+      "glob",
+      "grep",
+      "bash",
+      "fetch_page",
+      "db_query",
+      "expand_result"
+    ],
+    "maxStepsPerTurn": 60,
+    "resolvedEffort": "low",
+    "spillMaxInlineBytes": 50000,
+    "headerModel": "deepseek-v4-flash"
+  },
+  "seal": {
+    "enabled": false,
+    "sealTokens": 40000,
+    "batchSteps": 8,
+    "keepSteps": 4
+  },
+  "state": null,
+  "digestPolicy": {},
+  "sessionId": "slice-val-f8_verbose_tests-transcript-fold-low-1788451769445",
+  "workdir": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/slice-val-f8_verbose_tests-YKqGTV",
+  "turns": [
+    {
+      "turn": 1,
+      "steps": 14,
+      "input": 34625,
+      "cacheRead": 238848,
+      "output": 5042,
+      "reasoning": 2591,
+      "peakInput": 38921,
+      "wallMs": 0
+    },
+    {
+      "turn": 2,
+      "steps": 2,
+      "input": 244,
+      "cacheRead": 78208,
+      "output": 475,
+      "reasoning": 213,
+      "peakInput": 39489,
+      "wallMs": 0
+    }
+  ],
+  "totals": {
+    "input": 34869,
+    "cacheRead": 317056,
+    "output": 5517,
+    "reasoning": 2804,
+    "steps": 16,
+    "peakInput": 39489
+  },
+  "seals": 0,
+  "bounces": 0,
+  "suspends": [],
+  "digest": {
+    "count": 1,
+    "charsBefore": 32648,
+    "charsAfter": 8428
+  },
+  "stateRules": null,
+  "toolHistogram": {
+    "bash": 10,
+    "read": 14,
+    "edit": 12,
+    "write": 1
+  },
+  "verdict": {
+    "ok": true,
+    "detail": "suite green, tests untouched, failing list exact (24)"
+  }
+}
