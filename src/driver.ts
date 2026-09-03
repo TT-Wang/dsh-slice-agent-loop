@@ -215,7 +215,8 @@ export interface ReadBasesPolicy {
   maxChars: number
 }
 
-export const DEFAULT_READ_BASES: ReadBasesPolicy = { enabled: true, maxChars: 40_000 }
+/** 默认关:s2/s3 实测只在 anchor 'base' 下才划算(否则模型在脑中合成 patch,推理翻倍)。 */
+export const DEFAULT_READ_BASES: ReadBasesPolicy = { enabled: false, maxChars: 40_000 }
 
 /** 世界状态循环的策略(提案 2026-09-02)。 */
 export interface StatePolicy {
@@ -1461,6 +1462,9 @@ export class SliceLoopAgent implements Agent {
       const hash = _h(body)
       // tapeFiles 里存的是完整 sha256(continuity.sealTurn),索引展示的是短哈希——按完整值比。
       const full = createHash('sha256').update(body, 'utf8').digest('hex')
+      // 只有完整基线模式才把"不必重读"写进索引:patch 模式下模型会照做,然后在脑中合成
+      // base+patch,推理翻倍(s2 实测 76K → 126K)。
+      if (this.anchorMode !== 'base') return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · (edited this session)`
       const verdict = this.cont.tapeFiles[p]?.hash === full ? 'current in tape — edit from the tape, do not read it again' : 'changed on disk — read before editing'
       return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · ${verdict}`
     }).join('\n')

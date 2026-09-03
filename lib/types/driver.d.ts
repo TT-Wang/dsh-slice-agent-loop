@@ -107,6 +107,11 @@ declare module '@deepseek-ai/dsh-session' {
             label: string;
             usage?: unknown;
         };
+        'slice/read-pointer': {
+            turn: number;
+            step: number;
+            path: string;
+        };
         'slice/contract-bounce': {
             turn: number;
             step: number;
@@ -154,7 +159,20 @@ export interface SliceLoopDriverConfig {
     mode: 'slice' | 'state' | 'stream';
     state: StatePolicy;
     digest: DigestPolicy;
+    /** 读过未改的文件在轮末锚定为 base(见 continuity.ts sealTurn)。 */
+    readBases: ReadBasesPolicy;
+    /** 磁带现行文件的整读 → 指回磁带的指针(默认开)。 */
+    readPointer: boolean;
+    /** 文件锚定方式:'auto' = patch/base 取短;'base' = 永远完整基线。 */
+    anchorMode: 'auto' | 'base';
 }
+export interface ReadBasesPolicy {
+    enabled: boolean;
+    /** 超过此字符数的文件不锚定(磁带体量守卫)。 */
+    maxChars: number;
+}
+/** 默认关:s2/s3 实测只在 anchor 'base' 下才划算(否则模型在脑中合成 patch,推理翻倍)。 */
+export declare const DEFAULT_READ_BASES: ReadBasesPolicy;
 /** 世界状态循环的策略(提案 2026-09-02)。 */
 export interface StatePolicy {
     /** 热窗:保留原文的最近步数。 */
@@ -190,6 +208,9 @@ export declare class SliceLoopAgent implements Agent {
     private readonly defaultReasoningEffort;
     private readonly inTurnSeal;
     private readonly mode;
+    private readonly readBases;
+    private readonly readPointer;
+    private readonly anchorMode;
     private readonly digestPolicy;
     private readonly statePolicy;
     /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -322,6 +343,14 @@ export declare class SliceLoopAgent implements Agent {
      * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
      */
     private openFilesIndex;
+    /** 工具结果进轨迹前的整形:磁带现行文件的整读 → 指针;然后(若开)注入时摘要。 */
+    private shapeForTrajectory;
+    /**
+     * 读取指针(2026-09-03):整读一个"磁带里已有且与盘态同 hash"的文件时,结果换成一句指回
+     * 磁带的话——全文本来就在上下文里,重发它只是付一次未命中价加一步输出。全文仍进会话
+     * 日志(recall_step 可取)。带 offset/limit 的部分读、不在磁带里或已变化的文件原样返回。
+     */
+    private pointerForTapeCurrentRead;
     /** 注入时摘要:工具结果的文本块折成紧凑视图;不折的原样返回同一消息对象。 */
     private digestForTrajectory;
     /** 宪法成形(钉住 + 规则提取)后作为一条用户消息追加进流——只追加一次,永不重建。 */
@@ -369,4 +398,6 @@ export declare const EDIT_TOOL_NAMES: Set<string>;
  * 参数来自 `ToolExecution.arguments`——registry 已解析好的值，不是 JSON 串。
  * 宽容处理 unknown：模型可以发任何东西，非对象一律当作"没有路径"。
  */
+/** read 工具的目标路径(tool-fs `read` / `read_file`)。 */
+export declare function readToolPath(name: string, args: unknown): string | undefined;
 export declare function editedPath(name: string, args: unknown): string | undefined;

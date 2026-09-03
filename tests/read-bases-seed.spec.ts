@@ -29,7 +29,7 @@ describe('read bases end to end', () => {
       ])
       const ctx = new Context()
       await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
-      await ctx.plugin(apply, { tape: { readBases: enabled } })
+      await ctx.plugin(apply, enabled ? { tape: { readBases: true, readPointer: true, anchor: 'base' } } : {})
       ctx.llm.registerAdapter(['mock'], adapter)
       ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'r', parameters: { file_path: { type: 'string', required: true } }, execute: async ({ file_path }) => [{ type: 'text', text: readFileSync(join(root, file_path), 'utf8') }] }))
       const handle = await ctx.agents.create({ sessionId: SessionId(`rb-${enabled}`), meta: { cwd: root }, agentOptions: { provider: 'mock', model: 'mock' } })

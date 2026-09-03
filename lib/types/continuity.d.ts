@@ -26,6 +26,11 @@ export interface Continuity {
         path: string;
         body: string;
     }>;
+    /** 本轮读过(未必改过)的文件盘态——轮末也锚定为 base(2026-09-03 重读税实验)。 */
+    pendingReads: Array<{
+        path: string;
+        body: string;
+    }>;
     /**
      * 本轮**最后一个** tool/result 的错误正文（成功结果清空）。轮内的失败模型
      * 本来就在轨迹里看得见；这里攒的是"这一轮结束时还挂着一个失败调用"，
@@ -71,6 +76,8 @@ export declare function sealTurn(c: Continuity, opts: {
     userRequest: string;
     assistantReply: string;
     sessionId: string;
+    /** 'auto'(现状:patch/base 取渲染更短者)或 'base'(永远完整基线——模型不必在脑中合成 patch)。 */
+    anchorMode?: 'auto' | 'base';
 }): {
     entries: number;
     gcRemoved: number;
@@ -86,6 +93,8 @@ export declare function sealTurn(c: Continuity, opts: {
  * （seed.py HASH SEAM 同构），且一轮内多次成功编辑各自保留自己的后态。
  */
 export declare function trackEdit(c: Continuity, path: string, body: string): void;
+/** 读取后态快照(driver 在成功的 read tool/result 边界调用):同一路径只留最后一次。 */
+export declare function trackRead(c: Continuity, path: string, body: string): void;
 /**
  * 工具结果结算（driver 在每个 tool/result 边界调用，实时与重放两条路都要走）。
  * 最后一个结果说了算：失败留下正文，成功清空。正文过 redactText —— CURRENT

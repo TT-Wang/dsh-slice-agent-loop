@@ -33,8 +33,8 @@ function armLabel(l: Ledger): string {
   if (l.state?.extractRules === false) label += '/no-rules'
   else if (l.state?.sideEffort !== undefined && l.state.sideEffort !== 'inherit') label += `/side-${l.state.sideEffort}`
   if (l.digestPolicy?.enabled === false) label += '/no-fold'
-  if (l.readBases === false) label += '/no-read-bases'
-  if (l.readPointer === false) label += '/no-read-pointer'
+  if (l.readBases === true) label += '/read-bases'
+  if (l.readPointer === true) label += '/read-pointer'
   if (l.anchor === 'base') label += '/anchor-base'
   if (l.digestPolicy?.structuredBlockCap !== undefined) label += `/cap-${l.digestPolicy.structuredBlockCap}`
   if (l.effort !== 'low') label += `/effort-${l.effort}`

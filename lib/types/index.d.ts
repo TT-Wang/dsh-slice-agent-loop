@@ -37,6 +37,13 @@ export interface Config {
         logMaxErrors?: number;
         logContextLines?: number;
     };
+    /** 读过未改的文件轮末锚定为 base(默认开;maxChars 守卫)。 */
+    tape?: {
+        readBases?: boolean;
+        readBaseMaxChars?: number;
+        readPointer?: boolean;
+        anchor?: 'auto' | 'base';
+    };
     state?: {
         hotWindowSteps?: number;
         pinSteps?: number;

@@ -219,7 +219,7 @@ export class SliceLoopPlugin extends Service {
     const digest = resolveDigestPolicy(config.digest)
     const readBases = { enabled: config.tape?.readBases ?? DEFAULT_READ_BASES.enabled, maxChars: config.tape?.readBaseMaxChars ?? DEFAULT_READ_BASES.maxChars }
     if (!Number.isInteger(readBases.maxChars) || readBases.maxChars < 0) throw new Error('tape.readBaseMaxChars must be a non-negative integer')
-    const readPointer = config.tape?.readPointer ?? true
+    const readPointer = config.tape?.readPointer ?? false
     const anchorMode = config.tape?.anchor ?? 'auto'
     if (anchorMode !== 'auto' && anchorMode !== 'base') throw new Error("tape.anchor must be 'auto' or 'base'")
     const state = { ...DEFAULT_STATE_POLICY, ...(config.state ?? {}) }
