@@ -17,7 +17,8 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import { freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionSeq, ToolResultMessage } from '@deepseek-ai/dsh-session'
 import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session'
-import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { defineTool, type PostToolDecision, type ToolDefinition, type ToolExecution, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import type { SpillStore } from '@deepseek-ai/dsh-spill'
 import { digestToolResult, resolveDigestPolicy, type DigestPolicy } from '../slice/result-digest.js'
 
 export const name = 'tool-result-fold'
@@ -32,6 +33,10 @@ export interface Config {
   /** 钉住步里仍然要折的体量(默认 8000 字符):规则/说明文档只有几 K(l1 的 MANIFEST 3K、l2 的规则 3.7K),而开头两步
    *  整页抓回来的 10–14K 文档、170K 的测试输出不是规则;f9 实测模型把 6 页都放在第 2 步抓,20000 的阈值让它们全被钉住。 */
   pinMaxChars?: number
+  /** spill 预览臂(默认 50000 字节,与 dsh-base 的 spill-policy maxInlineBytes 对齐;0 = 关):结果达到这个体量时,在 tools/post-execute
+   *  就把原文存进 ctx.spillStore(有 spill 后端时),模型看到的是按内容路由的折叠视图 + 文件定位,而不是 spill-policy 的头尾预览。
+   *  没挂 spill 后端时此臂不生效。read 结果与 spill-policy 同样跳过(它靠 pre-step 的 surface 替换折叠,原文留日志)。 */
+  spillPreviewMinBytes?: number
   /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
    *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
   backoffAfterExpansions?: number
@@ -41,7 +46,7 @@ export const EXPAND_TOOL_NAME = 'expand_result'
 
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
 export const FOLD_AFFORDANCE = `<fold>
-Your context is append-only: nothing already in it is rewritten or dropped. Large tool results are condensed by the host as they enter. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away. So read a whole file in one call rather than paging it with offset/limit — a full read costs no more context than its condensed view, while every page costs a step.
+Your context is append-only: nothing already in it is rewritten or dropped. Large tool results are condensed by the host as they enter. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. So read a whole file in one call rather than paging it with offset/limit — a full read costs no more context than its condensed view, while every page costs a step.
 </fold>`
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
@@ -70,7 +75,7 @@ class SessionFolder {
   private cursor = 0
   private readonly calls = new Map<string, CallInfo>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
-  readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[] }
+  readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[], spilled: 0 }
   /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
   private readonly foldedAt = new Map<string, string>()
   private readonly perTool = new Map<string, { folded: number; expanded: number }>()
@@ -181,14 +186,45 @@ export function fullResultAt(events: readonly SessionEvent[], turn: number, step
   return null
 }
 
+/** 部分取回(2026-09-04):按正则取匹配行(±2 行上下文)或按行号区间——比整份取回便宜得多;s10 的 64 次整份取回、f9 的散文事实都是它的场景。 */
+export function partialByGrep(text: string, pattern: string, head: string): string {
+  let re: RegExp
+  try { re = new RegExp(pattern, 'i') } catch { throw new Error(`expand_result: invalid regex ${JSON.stringify(pattern)}`) }
+  const lines = text.split('\n')
+  const hits: number[] = []
+  for (let i = 0; i < lines.length; i += 1) if (re.test(lines[i]!)) hits.push(i)
+  if (hits.length === 0) return `[${head} · 0 of ${lines.length} lines match /${pattern}/i]`
+  const keep = new Set<number>()
+  for (const i of hits) for (let k = Math.max(0, i - 2); k <= Math.min(lines.length - 1, i + 2); k += 1) keep.add(k)
+  const out: string[] = []
+  let prev = -1
+  for (const i of [...keep].sort((x, y) => x - y)) {
+    if (prev !== -1 && i > prev + 1) out.push(`…[${i - prev - 1} lines]…`)
+    out.push(`${i + 1}: ${lines[i]!}`)
+    prev = i
+  }
+  const shown = Math.min(hits.length, 200)
+  return `[${head} · ${hits.length} of ${lines.length} lines match /${pattern}/i${hits.length > 200 ? ', first 200 shown' : ''}]\n${out.slice(0, shown * 5 + 200).join('\n')}`
+}
+
+export function partialByLines(text: string, range: string, head: string): string {
+  const m = /^(\d+)\s*-\s*(\d+)$/.exec(range.trim())!
+  const lines = text.split('\n')
+  const a = Math.max(1, Number(m[1])); const b = Math.min(lines.length, Number(m[2]))
+  if (b < a) throw new Error(`expand_result: empty range ${range} (result has ${lines.length} lines)`)
+  return `[${head} · lines ${a}-${b} of ${lines.length}]\n${lines.slice(a - 1, b).map((l, i) => `${a + i}: ${l}`).join('\n')}`
+}
+
 export function expandResultToolDefinition(): ToolDefinition {
   return defineTool({
     name: EXPAND_TOOL_NAME,
-    description: 'Return the FULL text of a tool result that the host condensed on entry. The condensed view\'s first line names the call: turn, step and the result\'s ordinal within that step (1-based).',
+    description: 'Return the text of a tool result that the host condensed on entry. The condensed view\'s first line names the call: turn, step and the result\'s ordinal within that step (1-based). Pass `grep` to get only the lines matching a regex (with 2 lines of context) or `lines` as "start-end" for a line range — both are much cheaper than the whole result; omit both for the full text.',
     parameters: {
       turn: { type: 'number', required: true, description: 'Turn number from the condensed view\'s first line.' },
       step: { type: 'number', required: true, description: 'Step number from the condensed view\'s first line.' },
       call: { type: 'number', description: 'Which result of that step (1-based; default 1).' },
+      grep: { type: 'string', description: 'Case-insensitive regex: return only matching lines, each with 2 lines of context, and a count of matches.' },
+      lines: { type: 'string', description: 'Line range "start-end" (1-based, inclusive), e.g. "120-180".' },
     },
     output: {
       schema: { type: 'string' as const },
@@ -197,14 +233,17 @@ export function expandResultToolDefinition(): ToolDefinition {
     execute: async (args: unknown, exec: ToolRunContext): Promise<string> => {
       const agent = exec.agent as Agent | undefined
       if (agent === undefined) throw new Error(`${EXPAND_TOOL_NAME} runs only inside an agent loop`)
-      const a = args as { turn?: unknown; step?: unknown; call?: unknown }
+      const a = args as { turn?: unknown; step?: unknown; call?: unknown; grep?: unknown; lines?: unknown }
       const turn = Number(a.turn); const step = Number(a.step); const call = a.call === undefined ? 1 : Number(a.call)
       if (!Number.isInteger(turn) || !Number.isInteger(step) || turn < 1 || step < 1 || !Number.isInteger(call) || call < 1) {
         throw new Error(`${EXPAND_TOOL_NAME} needs {"turn": N, "step": M} (and optional "call": K), all positive integers`)
       }
       const hit = fullResultAt(agent.session.snapshotEvents() as readonly SessionEvent[], turn, step, call)
       if (hit === null) throw new Error(`no tool result recorded at turn ${turn} step ${step} call ${call}`)
-      return `[full result of ${hit.name} · turn ${turn} step ${step} call ${call}]\n${hit.text}`
+      const head = `${hit.name} · turn ${turn} step ${step} call ${call}`
+      if (typeof a.grep === 'string' && a.grep.trim()) return partialByGrep(hit.text, a.grep, head)
+      if (typeof a.lines === 'string' && /^\d+\s*-\s*\d+$/.test(a.lines.trim())) return partialByLines(hit.text, a.lines, head)
+      return `[full result of ${head}]\n${hit.text}`
     },
   })
 }
@@ -233,6 +272,33 @@ export class ToolResultFold extends Service {
       'toolResultFold.affordance()',
     )
     const folders = new WeakMap<Session, SessionFolder>()
+    const spillMin = config.spillPreviewMinBytes ?? 50_000
+    if (!(spillMin >= 0)) throw new Error('spillPreviewMinBytes must be >= 0')
+    if (spillMin > 0) {
+      // 跑在 spill-policy 的 next() 里(它是 prepend 的):我们先把超大结果换成折叠视图 + 定位,它再看到的就是小结果,不会二次 spill。
+      ctx.on('tools/post-execute', async (exec: ToolExecution, result: Readonly<ToolExecutionResult>, next: () => Promise<PostToolDecision>): Promise<PostToolDecision> => {
+        const downstream = await next()
+        if (downstream.kind !== 'accept' || downstream.value !== undefined || downstream.content !== undefined) return downstream
+        if (result.isError || exec.name === 'read' || exec.name === 'read_file' || exec.name === EXPAND_TOOL_NAME) return downstream
+        const store = ctx.get('spillStore') as SpillStore | undefined
+        const agent = exec.agent as Agent | undefined
+        if (store === undefined || agent === undefined) return downstream
+        const texts = result.content.filter((b): b is { type: 'text'; text: string } => b.type === 'text' && typeof (b as { text?: unknown }).text === 'string')
+        const full = texts.map((b) => b.text).join('\n')
+        if (Buffer.byteLength(full, 'utf8') < spillMin) return downstream
+        const path = callPath(parseArgs(exec.arguments))
+        const r = digestToolResult(full, { tool: exec.name, ...(path ? { path } : {}) }, policy)
+        if (!r.digested) return downstream
+        let ref
+        try {
+          ref = await store.saveText({ owner: { sessionId: agent.session.id }, source: { toolName: exec.name, callId: String((exec as { callId?: unknown }).callId ?? ''), label: 'result' }, suggestedName: `${exec.name}.txt`, content: full } as never)
+        } catch { return downstream }
+        const folder = folders.get(agent.session)
+        if (folder) folder.stats.spilled += 1
+        const text = `[${exec.name}${path ? ' ' + path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · full text (${ref.bytes} bytes) stored at ${ref.locator} — ${ref.retrievalHint}]\n${r.text}`
+        return { ...downstream, content: [...result.content.filter((b) => b.type !== 'text'), { type: 'text', text }] as never }
+      })
+    }
     ctx.on('agent/pre-step', ({ agent }, next) => {
       const session = (agent as Agent).session
       let folder = folders.get(session)

@@ -56,6 +56,8 @@ const Subprocess = (await hp('subprocess', 'subprocess-local')).default
 const BashLocal = (await hp('shell', 'bash-local')).default
 const ShellEnv = await hp('shell', 'shell-env')
 const ToolBash = await hp('shell', 'tool-bash')
+const SpillLocal = (await hp('spill', 'spill-local')).default
+const SpillPolicy = await hp('spill', 'spill-policy')
 const SessionProjections = (await import(join(HARNESS, 'packages', 'session', 'session-projection', 'src', 'index.ts'))).default
 const PUBLIC_BASE_URL = 'https://api.deepseek.com'
 
@@ -164,6 +166,9 @@ if (FULL_TOOLS) {
   // 评测用的整份返回工具(2026-09-04):网页抓取镜像 + SQLite 查询;场景没有 site/ 或 data/*.db 时调用会报错,不影响其他场景。
   ctx.tools.register(fetchPageTool(workdir))
   ctx.tools.register(dbQueryTool(workdir))
+  // 产品默认(dsh-base)同款:超过 50KB 的工具结果存成文件、模型看预览 + 路径。两臂同挂,A/B 才是产品条件。
+  await ctx.plugin(SpillLocal, { root: join(workdir, '.spill') })
+  await ctx.plugin(SpillPolicy, { maxInlineBytes: 50_000 })
 }
 // effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
 // 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
@@ -320,7 +325,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
-const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? (READ_BASES ?? true) : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? (READ_POINTER ?? true) : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ARM.startsWith('slice') || ARM === 'stream' ? (ANCHOR ?? 'base') : null, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' || ARM === 'transcript-fold' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
+const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? (READ_BASES ?? true) : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? (READ_POINTER ?? true) : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ARM.startsWith('slice') || ARM === 'stream' ? (ANCHOR ?? 'base') : null, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, spillMaxInlineBytes: FULL_TOOLS ? 50_000 : null, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' || ARM === 'transcript-fold' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))

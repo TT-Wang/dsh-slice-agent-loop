@@ -178,3 +178,50 @@ describe('pinned steps and medium documents', () => {
     expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)                  // 第 2 步的整页文档折了
   })
 })
+
+import { partialByGrep, partialByLines } from '../src/fold/index.js'
+describe('partial expansion', () => {
+  const text = Array.from({ length: 300 }, (_, i) => (i === 150 ? 'ERROR: pool exhausted at 14:31:40' : `line ${i} info tick`)).join('\n')
+  it('grep returns matching lines with two lines of context and the count', () => {
+    const out = partialByGrep(text, 'pool exhausted', 'read · turn 1 step 2 call 1')
+    expect(out).toContain('1 of 300 lines match'); expect(out).toContain('151: ERROR: pool exhausted'); expect(out).toContain('149: line 148'); expect(out).toContain('153: line 152')
+    expect(out.split('\n').length).toBeLessThan(10)
+    expect(partialByGrep(text, 'nothing here', 'x')).toContain('0 of 300 lines match')
+    expect(() => partialByGrep(text, '(', 'x')).toThrow('invalid regex')
+  })
+  it('lines returns an inclusive numbered range', () => {
+    const out = partialByLines(text, '10-12', 'read · turn 1 step 2 call 1')
+    expect(out).toContain('lines 10-12 of 300'); expect(out).toContain('10: line 9 info tick'); expect(out).toContain('12: line 11 info tick'); expect(out).not.toContain('13: ')
+  })
+})
+
+import SpillLocal from '@deepseek-ai/dsh-spill-local'
+import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
+import { mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+describe('spill preview arm', () => {
+  it('a 60K bash result is stored through the spill store and the model sees the content-routed digest with the locator', async () => {
+    const LOG = Array.from({ length: 1200 }, (_, i) => (i === 700 ? '2026-09-04 10:00:00 ERROR worker 7 failed: boom' : `2026-09-04 10:00:00 INFO tick ${i} ${'x'.repeat(30)}`)).join('\n')
+    expect(LOG.length).toBeGreaterThan(60000)
+    const adapter = new MockAdapter([toolCallResponse('c1', 'bash', { file_path: 'run' }), toolCallResponse('c2', 'bash', { file_path: 'run' }), toolCallResponse('c3', 'bash', { file_path: 'run' }), textResponse('done')])
+    const ctx = new Context()
+    await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
+    await ctx.plugin(InvariantService); await ctx.plugin(agentLoopInvariant); await ctx.plugin(SessionProjections); await ctx.plugin(StockAgentLoop, {} as never)
+    await ctx.plugin(SpillLocal, { root: mkdtempSync(join(tmpdir(), 'spill-')) } as never)
+    await ctx.plugin(SpillPolicy as never, { maxInlineBytes: 50000 } as never)
+    await ctx.plugin(fold, { pinSteps: 0, spillPreviewMinBytes: 50000 } as never)
+    ctx.tools.register(defineContentToolFixture({ name: 'bash', description: 'bash', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: LOG }] }))
+    ctx.llm.registerAdapter(['mock'], adapter)
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-spill'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'run it three times')
+    await handle.agent.whenIdle()
+    const second = requestText(adapter, 1)
+    expect(second).toContain('ERROR worker 7 failed')                 // 错误行留在视图里
+    expect(second).toContain('stored at')                              // 定位
+    expect(second).not.toContain('tick 300 ')                          // 噪音没进上下文
+    expect(second).not.toContain('Omitted')                            // spill-policy 没有再做头尾预览
+    expect(FOLD_STATS.get(handle.agent.session)!.spilled).toBeGreaterThanOrEqual(1)
+    expect(adapter.requests).toHaveLength(4)                           // 不变量全程成立
+  })
+})

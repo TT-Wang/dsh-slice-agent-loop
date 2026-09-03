@@ -45,6 +45,11 @@ const PEERS = {
   '@deepseek-ai/dsh-token-meter': 'packages/llm/token-meter',
   // 原生 AgentLoop 的依赖:tool-result-fold 插件的契约测试要挂原生 loop。
   '@deepseek-ai/dsh-session-projection': 'packages/session/session-projection',
+  // tool-result-fold 的 spill 预览臂:类型来自 dsh-spill,契约测试挂真实的 spill-local + spill-policy。
+  '@deepseek-ai/dsh-spill': 'packages/spill/spill',
+  '@deepseek-ai/dsh-spill-local': 'packages/spill/spill-local',
+  '@deepseek-ai/dsh-spill-policy': 'packages/spill/spill-policy',
+  '@deepseek-ai/dsh-output-retention': 'packages/util/output-retention',
 }
 
 /** Older harness snapshots that moved a package keep a fallback path here. */
