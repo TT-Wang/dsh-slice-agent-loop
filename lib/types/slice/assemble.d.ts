@@ -36,6 +36,10 @@ export interface SliceInput {
         text: string;
     }[];
 }
+/** 磁带头部按内容选:有 patch 才讲合成规则,否则讲快照语义。 */
+export declare function tapeHeader(tape: readonly {
+    kind: string;
+}[]): string;
 /**
  * Zone header table, in body order. Exported for offline miss attribution
  * (src/slice/miss-attribution.ts maps a byte-divergence offset back to the

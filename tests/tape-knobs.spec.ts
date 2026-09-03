@@ -142,3 +142,15 @@ describe('gcSupersededBases', () => {
     expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)
   })
 })
+
+import { tapeHeader } from '../src/slice/assemble.js'
+describe('tape header follows the tape content', () => {
+  it('describes snapshots when there are no patches, and composition when there are', () => {
+    const noPatch = tapeHeader([{ kind: 'digest' }, { kind: 'base' }, { kind: 'reply' }])
+    expect(noPatch).toContain('FULL content of that file as it stood at the end of that turn')
+    expect(noPatch).not.toContain('every later [patch]')
+    const withPatch = tapeHeader([{ kind: 'digest' }, { kind: 'base' }, { kind: 'patch' }])
+    expect(withPatch).toContain('every later [patch]')
+    expect(tapeHeader([])).toContain('FULL content')
+  })
+})

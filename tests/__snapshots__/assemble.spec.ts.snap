@@ -2,7 +2,7 @@
 
 exports[`assembleSlice > matches the exact assembled bytes 1`] = `
 "<context>
-# SESSION TAPE (append-only sealed record: turn digests · file base versions · the patches YOU already applied (recorded by the host exactly as executed). CURRENT content of a tracked file = its latest [base] + every later [patch], in order; each patch shows the resulting sha256 — if it equals the file's hash in the OPEN FILES index below, your composition IS the current file and you may edit from it directly. A file marked [external], absent from the tape, or with a non-matching hash must be read_file'd before editing. Digest entries are the sealed record of earlier turns, not current-world truth)
+# SESSION TAPE (append-only sealed record of earlier turns: turn digests · file snapshots · your replies. A [base <path> @sha256 · N lines] entry is the FULL content of that file as it stood at the end of that turn — after the edits that turn's digest lists — so the newest [base] for a path is your latest known version of it (older [base] entries for the same path are history). When the OPEN FILES index below says 'current in tape', the file on disk is still byte-identical to that newest [base]: edit from it directly, do not read it again. A file absent from the tape, marked [external], or with a non-matching hash must be read_file'd before editing. Digest entries are the sealed record of earlier turns, not current-world truth)
 [turn slice-turn-1 · task t · completed]
 ask: 做点事
 [base a.py @sha256:cc42155088fc · 1 lines]
