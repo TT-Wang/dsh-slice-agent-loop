@@ -198,6 +198,8 @@ export function digestData(text: string, policy: DigestPolicy = DEFAULT_DIGEST_P
   for (let i = 0; i < n; i += 1) {
     if (!isStructured(lines[i]!)) { kept = 0; continue }
     if (i < policy.headLines) continue
+    // 表格行不受块上限约束:一张 40 行的参数表砍到 12 行就是把模型要的东西砍掉;整页都是表时由 maxKeepRatio 兜底。
+    if (/^\s*\|.*\|/.test(strip(lines[i]!))) { keep.add(i); continue }
     const key = structuredKey(lines[i]!)
     const novel = !seenKeys.has(key)
     seenKeys.add(key)
