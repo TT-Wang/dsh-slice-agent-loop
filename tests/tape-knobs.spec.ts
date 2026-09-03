@@ -177,3 +177,14 @@ describe('newFileMinTouches', () => {
     expect(Object.keys(e.tapeFiles)).toEqual(['old.py'])
   })
 })
+
+import { effectiveAnchorMode } from '../src/driver.js'
+describe('working-set switch', () => {
+  it("keeps full-base mode up to baseMaxFiles tracked files and falls back to 'auto' beyond", () => {
+    expect(effectiveAnchorMode('base', 0, 4)).toBe('base')
+    expect(effectiveAnchorMode('base', 4, 4)).toBe('base')
+    expect(effectiveAnchorMode('base', 5, 4)).toBe('auto')
+    expect(effectiveAnchorMode('base', 12, Infinity)).toBe('base')
+    expect(effectiveAnchorMode('auto', 1, 4)).toBe('auto')
+  })
+})

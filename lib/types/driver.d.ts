@@ -177,6 +177,8 @@ export interface SliceLoopDriverConfig {
     baseMaxChars: number;
     gcSupersededBases: boolean;
     newFileMinTouches: number;
+    /** 工作集上限:磁带跟踪的文件数超过它就退回 patch/base 择短且不给读指针(多文件形状上实测更省)。 */
+    baseMaxFiles: number;
 }
 export interface ReadBasesPolicy {
     enabled: boolean;
@@ -231,6 +233,7 @@ export declare class SliceLoopAgent implements Agent {
     private readonly baseMaxChars;
     private readonly gcSupersededBases;
     private readonly newFileMinTouches;
+    private readonly baseMaxFiles;
     private readonly digestPolicy;
     private readonly statePolicy;
     /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -362,6 +365,13 @@ export declare class SliceLoopAgent implements Agent {
      * （HASH SEAM：与 tape 锚定同一 redactText(codeFile) 域，否则永不命中）。
      * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
      */
+    /**
+     * 工作集开关(2026-09-03 第三轮):完整基线 + 读指针在 1–4 个文件的编码循环上赢(s1/s2),在 8–12 个
+     * 文件的工作集上输(s4/s5/s6 六个样本全部高于旧形态:整个工作集摆在面前,模型改成"在脑中做",推理
+     * 涨五到七成)。磁带跟踪的文件数超过 baseMaxFiles 就退回旧形态:patch/base 择短、索引不写结论、
+     * 读返回正文。和 rent-or-buy 规则一样只看已观察到的访问记录,不预测任务。
+     */
+    private effectiveAnchorMode;
     private openFilesIndex;
     /** 工具结果进轨迹前的整形:磁带现行文件的整读 → 指针;然后(若开)注入时摘要。 */
     private shapeForTrajectory;
@@ -421,3 +431,5 @@ export declare const EDIT_TOOL_NAMES: Set<string>;
 /** read 工具的目标路径(tool-fs `read` / `read_file`)。 */
 export declare function readToolPath(name: string, args: unknown): string | undefined;
 export declare function editedPath(name: string, args: unknown): string | undefined;
+/** 纯函数形式的工作集开关(便于单测):tracked > baseMaxFiles ⇒ 'auto'。 */
+export declare function effectiveAnchorMode(anchorMode: 'auto' | 'base', trackedFiles: number, baseMaxFiles: number): 'auto' | 'base';

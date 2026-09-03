@@ -52,6 +52,7 @@ export interface Config {
         baseMaxChars?: number;
         gcSupersededBases?: boolean;
         newFileMinTouches?: number;
+        baseMaxFiles?: number;
     };
     state?: {
         hotWindowSteps?: number;

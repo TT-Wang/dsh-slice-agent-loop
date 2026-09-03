@@ -220,6 +220,8 @@ export interface SliceLoopDriverConfig {
   baseMaxChars: number
   gcSupersededBases: boolean
   newFileMinTouches: number
+  /** 工作集上限:磁带跟踪的文件数超过它就退回 patch/base 择短且不给读指针(多文件形状上实测更省)。 */
+  baseMaxFiles: number
 }
 
 export interface ReadBasesPolicy {
@@ -325,6 +327,7 @@ export class SliceLoopAgent implements Agent {
   private readonly baseMaxChars: number
   private readonly gcSupersededBases: boolean
   private readonly newFileMinTouches: number
+  private readonly baseMaxFiles: number
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -388,6 +391,7 @@ export class SliceLoopAgent implements Agent {
     this.baseMaxChars = config.baseMaxChars
     this.gcSupersededBases = config.gcSupersededBases
     this.newFileMinTouches = config.newFileMinTouches
+    this.baseMaxFiles = config.baseMaxFiles
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -550,7 +554,7 @@ export class SliceLoopAgent implements Agent {
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
-            anchorMode: this.anchorMode,
+            anchorMode: this.effectiveAnchorMode(),
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
             checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases, newFileMinTouches: this.newFileMinTouches,
@@ -972,7 +976,7 @@ export class SliceLoopAgent implements Agent {
             userRequest: last?.user ?? '',
             assistantReply: last?.assistant ?? '',
             sessionId: this.session.id,
-            anchorMode: this.anchorMode,
+            anchorMode: this.effectiveAnchorMode(),
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
             checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits, readBasesMinReads: this.readBasesMinReads, baseMaxChars: this.baseMaxChars, gcSupersededBases: this.gcSupersededBases, newFileMinTouches: this.newFileMinTouches,
@@ -1485,6 +1489,16 @@ export class SliceLoopAgent implements Agent {
    * （HASH SEAM：与 tape 锚定同一 redactText(codeFile) 域，否则永不命中）。
    * 盘态缺失/不可读只发布状态行，绝不把 seal 时的陈旧字节冒充为当前盘态。
    */
+  /**
+   * 工作集开关(2026-09-03 第三轮):完整基线 + 读指针在 1–4 个文件的编码循环上赢(s1/s2),在 8–12 个
+   * 文件的工作集上输(s4/s5/s6 六个样本全部高于旧形态:整个工作集摆在面前,模型改成"在脑中做",推理
+   * 涨五到七成)。磁带跟踪的文件数超过 baseMaxFiles 就退回旧形态:patch/base 择短、索引不写结论、
+   * 读返回正文。和 rent-or-buy 规则一样只看已观察到的访问记录,不预测任务。
+   */
+  private effectiveAnchorMode(): 'auto' | 'base' {
+    return effectiveAnchorMode(this.anchorMode, Object.keys(this.cont.tapeFiles).length, this.baseMaxFiles)
+  }
+
   private openFilesIndex(): string {
     const paths = Object.keys(this.cont.tapeFiles).sort()
     if (paths.length === 0) return ''
@@ -1508,7 +1522,7 @@ export class SliceLoopAgent implements Agent {
       const full = createHash('sha256').update(body, 'utf8').digest('hex')
       // 只有完整基线模式才把"不必重读"写进索引:patch 模式下模型会照做,然后在脑中合成
       // base+patch,推理翻倍(s2 实测 76K → 126K)。
-      if (this.anchorMode !== 'base') return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · (edited this session)`
+      if (this.effectiveAnchorMode() !== 'base') return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · (edited this session)`
       const verdict = this.cont.tapeFiles[p]?.hash === full ? 'current in tape — edit from the tape, do not read it again' : 'changed on disk — read before editing'
       return `### ${p} — ${pySplitlines(body).length} lines · sha256:${hash} · ${verdict}`
     }).join('\n')
@@ -1518,7 +1532,7 @@ export class SliceLoopAgent implements Agent {
 
   /** 工具结果进轨迹前的整形:磁带现行文件的整读 → 指针;然后(若开)注入时摘要。 */
   private shapeForTrajectory(turn: number, step: number, block: ToolCallBlock, message: UserMessage): UserMessage {
-    const pointed = this.readPointer ? this.pointerForTapeCurrentRead(turn, step, block, message) : undefined
+    const pointed = this.readPointer && this.effectiveAnchorMode() === 'base' ? this.pointerForTapeCurrentRead(turn, step, block, message) : undefined
     if (pointed !== undefined) return pointed
     return this.digestPolicy.enabled ? this.digestForTrajectory(turn, step, block, message) : message
   }
@@ -2057,4 +2071,9 @@ function readDiskStatus(cwd: string, relOrAbs: string): DiskStatus {
     const message = error instanceof Error ? error.message : String(error)
     return { kind: 'unreadable', reason: message.split('\n')[0]!.slice(0, 120) }
   }
+}
+
+/** 纯函数形式的工作集开关(便于单测):tracked > baseMaxFiles ⇒ 'auto'。 */
+export function effectiveAnchorMode(anchorMode: 'auto' | 'base', trackedFiles: number, baseMaxFiles: number): 'auto' | 'base' {
+  return anchorMode === 'base' && trackedFiles <= baseMaxFiles ? 'base' : 'auto'
 }

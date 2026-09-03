@@ -249,7 +249,7 @@ ContextBench(给一个真实 issue,agent 检索出修复所依赖的代码位置
 
 | 缺陷 | 说明与实测量级 | 方向 |
 |---|---|---|
-| **1 · 编码任务付输出税** | 切片每轮重建,编码负载上模型每次重建后重新推敲、重新跑测试:s2/s3 比 default 贵 48–61%,输出 token 是它的 1.7–2 倍;s1/s4 则便宜 12–25%。输入侧的缓存问题已由轮内折叠解决:1/30 的缓存折扣下,只追加且折叠每条新结果的流胜过一切改写历史的设计(l1:−80%)。 | 2026-09-03 磁带第二轮(已成默认):只读文件再读才锚定、完整基线锚定、同轮编辑塌缩,s2 降到 $0.077/0.077/0.112(旧 slice 0.120,transcript 0.081),s3 与四个记忆型场景持平,全部通过。剩下的税在每轮第 1 步:模型对着编译出的种子重新定向,首步推理是 transcript 的 2–4 倍(之后各步完全一样)。回复留全、摘要带测试结论、旧推理链上带(两次证伪)都动不了它。下一步:更便宜的开轮——更短的磁带规则、每文件只留一份现行基线;每格跑三次,单次波动 ±30%。 |
+| **1 · 编码任务付输出税** | 切片每轮重建,编码负载上模型每次重建后重新推敲、重新跑测试:s2/s3 比 default 贵 48–61%,输出 token 是它的 1.7–2 倍;s1/s4 则便宜 12–25%。输入侧的缓存问题已由轮内折叠解决:1/30 的缓存折扣下,只追加且折叠每条新结果的流胜过一切改写历史的设计(l1:−80%)。 | 2026-09-03 磁带二、三轮(已成默认):rent-or-buy 锚定(读两次 / 碰两次才锚)、同轮编辑塌缩、完整基线 + 读指针,s2 九次中位 $0.085(旧 slice 0.120、transcript 0.081),s1 0.050(0.068),记忆型持平,全部通过。同一形态在 8–12 文件的工作集上输(s4/s5/s6 六个样本全高于旧形态):整个工作集摆在面前,模型改成在脑中做,effort high 下推理比多走几步工具贵——所以加了 `baseMaxFiles` 开关,跟踪文件超过 4 个就退回旧形态。开轮推理是 transcript 的 2–4 倍且与种子大小无关(241 个开轮样本相关系数 0.01);快照语义的头部把"解读磁带"的占比从三成降到一成,总量没降。旧推理链上带第二次证伪。下一步:每格三次,以及 5–7 个文件的形状。 |
 | **5 · 轮内折叠用一点检索广度换字节** | CB-20 文件召回 0.749,8 月版本 0.816(混杂 kernel 与宿主差异);完赛 20/20,便宜 20%。折叠从不碰源代码与 grep 结果;规则是在日志与档案上调出来的。 | 用今天的代码跑 `--no-fold` 消融;日志错误优先与结构行两条规则是旋钮。 |
 | **6 · 规则文档型任务需要宪法** | 没有宪法时 l2 四次里三次把输出写错目录;`mode: 'stream'` 三次全对,成本相同。 | 决定 stream 是否成为长单轮任务的默认;交互式会话保持可选(短轮为提取付费却无收益)。 |
 | **2 · 召回通道依赖模型主动伸手** | 历史逐字节可回取,受控压力下的自发召回已实证(测试②);但日常编码负载里主动召回接近零(信息多在磁带容量内,靠系统推送覆盖),跨会话"接着昨天做"的冷启动仍有风险。 | 让召回在日常负载与冷启动里成为习惯;agent memory 仍是前沿话题,改造已排期。 |
@@ -280,7 +280,7 @@ dsh plugin --profile web add "github:TT-Wang/dsh-slice-agent-loop#main"
 | `mode` | `'slice'` | `'stream'` 加宪法与契约;`'state'` 是存档的热窗实验 |
 | `state` | `{ pinSteps: 2, extractAtStep: 3, enforceFromStep: 8, contractBounceBudget: 1, sideEffort: 'off' }` | stream/state 旋钮 |
 | `inTurnSeal` | `{ enabled: false }` | 轮中封存实验(缓存计价下不划算) |
-| `tape` | `{ readBases: true, readBasesMinReads: 2, readPointer: true, anchor: 'base', collapseEdits: true, baseMaxChars: 60000 }` | 磁带形态(默认即 2026-09-03 的胜出配置):只读文件跨 2 轮被读到才锚定;现行文件整读返回指针;改过的文件重落完整基线(超过 `baseMaxChars` 的退回 patch/base 择短);同轮多次编辑塌缩为末态。可选:`rebaseAfterPatches`、`replyHeadChars`/`replyTailChars`、`checkInDigest` |
+| `tape` | `{ readBases: true, readBasesMinReads: 2, newFileMinTouches: 2, readPointer: true, anchor: 'base', baseMaxFiles: 4, baseMaxChars: 60000, collapseEdits: true, gcSupersededBases: false }` | 磁带形态。rent-or-buy 规则(89 个历史会话核验过):只读文件跨 2 轮被读到才锚定;本会话新建的文件第二次碰到才锚定;同轮多次编辑塌缩为末态。工作集开关:磁带跟踪的文件不超过 `baseMaxFiles` 时,改过的文件重落完整基线、现行文件整读返回指针(1–4 文件的编码循环上赢);超过后退回 patch/base 择短且不给指针(8–12 文件的工作集上赢)。`baseMaxChars` 限制单份完整基线。可选:`gcSupersededBases`(种子里每文件只留一份现行基线)、`rebaseAfterPatches`、`replyHeadChars`/`replyTailChars`、`checkInDigest` |
 
 在你 profile 的 `cordis.patch.yml` 里按 id 定位已有行来设
 (`- id: slice-agent-loop` + `config:`)。
