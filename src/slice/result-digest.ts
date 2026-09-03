@@ -37,12 +37,19 @@ export interface DigestPolicy {
   logMaxErrors: number
   /** log 类每条保留行前后带的上下文行数。 */
   logContextLines: number
+  /** data 类超过这么多字符的单行按字符头尾截断(压缩 JSON / base64 / 长 CSV 行 / 无换行的 blob;
+   *  2026-09-03 s13 的 9K 字符 3 行 blob 按行判全被留下)。Infinity = 不截。 */
+  maxLineChars: number
+  /** 超长行保留的头部 / 尾部字符数。 */
+  lineHeadChars: number
+  lineTailChars: number
 }
 
 export const DEFAULT_DIGEST_POLICY: DigestPolicy = {
   enabled: true, minChars: 1500, headLines: 10, tailLines: 4, maxKeepRatio: 0.55,
   structuredBlockCap: 12, structuredBlockMin: 3,
   logMinChars: 512, logMaxErrors: 10, logContextLines: 3,
+  maxLineChars: 1500, lineHeadChars: 700, lineTailChars: 300,
 }
 
 /** 结构行:`key = value`、`key: value`、markdown/注释标题、围栏。噪音正文极少长这样。 */
@@ -129,6 +136,14 @@ function render(lines: readonly string[], keep: ReadonlySet<number>): string {
   return out.join('\n')
 }
 
+function cutLongLine(line: string, policy: DigestPolicy): string {
+  if (!(line.length > policy.maxLineChars)) return line
+  const head = Math.max(0, policy.lineHeadChars)
+  const tail = Math.max(0, policy.lineTailChars)
+  if (head + tail >= line.length) return line
+  return `${line.slice(0, head)} …[+${line.length - head - tail} chars]… ${tail > 0 ? line.slice(-tail) : ''}`
+}
+
 function finish(text: string, lines: readonly string[], keep: ReadonlySet<number>, kind: ContentKind, ratio: number): DigestResult {
   const rendered = render(lines, keep)
   if (rendered.length >= text.length * ratio) return { text, digested: false, totalLines: lines.length, keptLines: lines.length, kind }
@@ -144,7 +159,9 @@ const untouched = (text: string, kind: ContentKind): DigestResult => {
 
 export function digestData(text: string, policy: DigestPolicy = DEFAULT_DIGEST_POLICY): DigestResult {
   if (text.length < policy.minChars) return untouched(text, 'data')
-  const lines = text.split('\n')
+  // 超长行先按字符截断(头 + 标记 + 尾),再走按行的头尾/结构行逻辑;finish 用原文长度算保留比,
+  // 所以只截了行也算折叠。
+  const lines = text.split('\n').map((l) => cutLongLine(l, policy))
   const n = lines.length
   const keep = new Set<number>()
   for (let i = 0; i < Math.min(policy.headLines, n); i += 1) keep.add(i)
@@ -248,6 +265,8 @@ export function resolveDigestPolicy(input: Partial<DigestPolicy> | undefined): D
   const p = { ...DEFAULT_DIGEST_POLICY, ...(input ?? {}) }
   if (!Number.isInteger(p.minChars) || p.minChars < 0) throw new Error('digest.minChars must be a non-negative integer')
   if (!Number.isInteger(p.logMinChars) || p.logMinChars < 0) throw new Error('digest.logMinChars must be a non-negative integer')
+  if (!(p.maxLineChars > 0)) throw new Error('digest.maxLineChars must be > 0 (Infinity = never cut)')
+  if (!Number.isInteger(p.lineHeadChars) || p.lineHeadChars < 0 || !Number.isInteger(p.lineTailChars) || p.lineTailChars < 0) throw new Error('digest.lineHeadChars/lineTailChars must be non-negative integers')
   if (!Number.isInteger(p.headLines) || p.headLines < 0 || !Number.isInteger(p.tailLines) || p.tailLines < 0) throw new Error('digest.headLines/tailLines must be non-negative integers')
   if (!(p.maxKeepRatio > 0 && p.maxKeepRatio <= 1)) throw new Error('digest.maxKeepRatio must be in (0, 1]')
   if (!(p.structuredBlockCap >= 1)) throw new Error('digest.structuredBlockCap must be >= 1 (Infinity = no cap)')

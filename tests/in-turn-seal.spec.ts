@@ -35,7 +35,9 @@ describe('in-turn sealing', () => {
     await ctx.plugin(SystemPrompt)
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentRegistry)
-    await ctx.plugin(apply, { inTurnSeal: { enabled: true, sealTokens: 1, batchSteps: 2, keepSteps: 1, protectEarlySteps: 0 } })
+    // 用例的载荷是几千字符的单行合成文本;插入时折叠的超长行截断(maxLineChars)会先于封存改写它,
+    // 这里关掉,只观察封存本身。
+    await ctx.plugin(apply, { inTurnSeal: { enabled: true, sealTokens: 1, batchSteps: 2, keepSteps: 1, protectEarlySteps: 0 }, digest: { maxLineChars: Infinity } })
     ctx.llm.registerAdapter(['mock'], adapter)
     ctx.tools.register(defineContentToolFixture({
       name: 'probe',

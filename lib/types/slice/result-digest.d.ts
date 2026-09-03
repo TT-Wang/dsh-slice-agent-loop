@@ -35,6 +35,12 @@ export interface DigestPolicy {
     logMaxErrors: number;
     /** log 类每条保留行前后带的上下文行数。 */
     logContextLines: number;
+    /** data 类超过这么多字符的单行按字符头尾截断(压缩 JSON / base64 / 长 CSV 行 / 无换行的 blob;
+     *  2026-09-03 s13 的 9K 字符 3 行 blob 按行判全被留下)。Infinity = 不截。 */
+    maxLineChars: number;
+    /** 超长行保留的头部 / 尾部字符数。 */
+    lineHeadChars: number;
+    lineTailChars: number;
 }
 export declare const DEFAULT_DIGEST_POLICY: DigestPolicy;
 export declare function looksLikeCodePath(path: string | undefined): boolean;
