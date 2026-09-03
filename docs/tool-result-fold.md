@@ -101,6 +101,42 @@ f9 四次复跑的曲线(取回 5 → 4 → 3 页,成本 0.0076 → 0.0087 → 0
 一次;剩下三次取回都是为了嵌在散文句子里的事实(webhook 头名、迁移行为),这类事实没有启发式能留住——这是折叠在
 "读文档找事实"上的根本边界:它省的是文档里模型不需要的部分,而模型需要的部分若在散文里,就只能取回。
 
+## 第四轮:摸清 dsh 默认 loop、调研业界、定改进方向(2026-09-04)
+
+**dsh 默认组合(dsh-base)里已经有的上下文机制**,按结果进入上下文的先后:
+
+1. 工具级硬截断(bash 的 `maxOutputChars` 等):按位置截,附一句"已截断",取不回。
+2. `spill-policy`(默认 `maxInlineBytes: 50000`):`tools/post-execute` 上把超过 50KB 的纯文本结果存成会话私有文件,模型看头尾预览 + 路径
+   +"用 read/grep 去看";`read` 的结果不 spill(避免 read → spill → read 的死循环)。它 prepend 自己的监听器并在 `next()` 之后才做界定,
+   所以其他 post-execute 监听器先看到结果。
+3. `compaction-tool-result-pruner`:压缩触发时把超过 8192 字符的旧工具结果修成头 4096 + 尾 1024(按位置)。
+4. `compaction-basic`:上下文快满时额外调一次模型把最老的历史写成摘要;原文从上下文消失(s10 里 default 丢事实的来源)。
+5. 其他相关:`token-meter`(压缩决策共用的用量测量)、`fs-observation-policy`(read-before-edit 与版本守卫)、`repeat-tool-reminder`、
+   `tool-web`(web_search / web_fetch 是产品里真实存在的整份返回工具)。
+
+我们的折叠插在 2 之前、按内容而不是按位置、可逆——这是 dsh 组合里没有的一层。但 runner 之前没挂 spill,A/B 和产品条件差一层,
+现在 `--tools full` 同时挂 spill-local + spill-policy(50000),两臂同条件。
+
+**业界(2026 年 9 月,来源见文末)**:各家 agent 都有硬截断与摘要压缩;Anthropic 的 API 有 context editing(按阈值清掉旧工具结果,
+替换成占位符)与服务端 compaction;Claude Code 用它们,报告 29–39% 的收益;Gemini CLI 有按工具的 `summarizeToolOutput`(只对
+shell 输出,用 flash-lite 做摘要,给 token 预算);Codex CLI 有 `tool_output_token_limit` 与单层交接摘要;Cursor 把长输出写成文件
+让 agent 自己读(和 dsh 的 spill 同型)。研究侧:《The Complexity Trap》(NeurIPS 2025 DL4Code)在 SWE-bench Verified 上证明
+"直接遮蔽旧观察"把成本砍半、解题率不输 LLM 摘要;SWE-Pruner(2026)用 0.6B 的 skimmer 按任务目标挑行,省 23–54% token;
+ACON 用自然语言优化压缩准则。业界没有人原生做"按内容路由 + 可逆取回",最接近的是 Headroom(外挂代理)。
+
+**据此定的方向与实验**:
+
+| 方向 | 机制 | 状态 |
+|---|---|---|
+| D1 部分取回 | `expand_result` 加 `grep`(正则,±2 行上下文)与 `lines`("a-b");整份取回是 s10 的全部成本、f9 的残余成本 | 已实现,A/B:s10、f9 |
+| D2 spill 预览臂 | ≥ 50KB 的结果在 post-execute 存进 `ctx.spillStore`,模型看按内容路由的折叠视图 + 文件定位,而不是头尾预览 | 已实现,A/B:f7、f8(spill 同挂) |
+| D3 runner 对齐产品 | 两臂同挂 spill-local + spill-policy(50000) | 已做 |
+| D4 重复结果指针 | 与之前某次结果字节相同的结果换成一行指针 | 离线估计:同参数重复调用在 s10 为 70 次(但 digest.md 每轮在变,内容并不相同),其他场景 0–16 次;真正内容相同的重复很少,未实现 |
+| D5 压缩时的观察遮蔽 | 参照 Complexity Trap:压缩触发时先把旧折叠视图替换成一行存根再摘要 | 前缀缓存下中途遮蔽要重写前缀,只在压缩时才划算;runner 没挂 compaction,未实现 |
+| D6 散文文档的模型摘要 | Gemini 式,对折不动的散文用小模型摘要 | 研究说遮蔽 ≈ 摘要且更简单、摘要会改写事实;未实现 |
+
+<!--ROUND4-RESULTS-->
+
 ## Headroom 吸收清单
 
 已吸收:ContentRouter(按内容类型分派)、LogCompressor(错误优先、上下文行、相似行去重、首末错误必留、省略标记带层级计数)、
