@@ -93,6 +93,8 @@ export declare function sealTurn(c: Continuity, opts: {
     replyCaps?: ReplyCaps;
     /** 把本轮最后一次检查写进轮摘要。 */
     checkInDigest?: boolean;
+    /** 同一轮内对同一文件的多次成功编辑只锚定末态(默认 false:每次编辑各落一条,保留"已执行的 patch"序列)。 */
+    collapseEdits?: boolean;
 }): {
     entries: number;
     gcRemoved: number;

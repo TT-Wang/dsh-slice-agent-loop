@@ -106,8 +106,9 @@ const REBASE_AFTER = num('--rebase-after', Infinity)
 const REPLY_HEAD = num('--reply-head', -1)
 const REPLY_TAIL = num('--reply-tail', -1)
 const CHECK_DIGEST = args.includes('--check-digest')
-const TAPE_OPTS = { readBases: READ_BASES, readPointer: READ_POINTER, anchor: ANCHOR, ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}) }
-const TAPE_TOUCHED = READ_BASES || READ_POINTER || ANCHOR !== 'auto' || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST
+const COLLAPSE = args.includes('--collapse-edits')
+const TAPE_OPTS = { readBases: READ_BASES, readPointer: READ_POINTER, anchor: ANCHOR, ...(Number.isFinite(REBASE_AFTER) ? { rebaseAfterPatches: REBASE_AFTER } : {}), ...(REPLY_HEAD >= 0 ? { replyHeadChars: REPLY_HEAD } : {}), ...(REPLY_TAIL >= 0 ? { replyTailChars: REPLY_TAIL } : {}), ...(CHECK_DIGEST ? { checkInDigest: true } : {}), ...(COLLAPSE ? { collapseEdits: true } : {}) }
+const TAPE_TOUCHED = READ_BASES || READ_POINTER || ANCHOR !== 'auto' || Number.isFinite(REBASE_AFTER) || REPLY_HEAD >= 0 || REPLY_TAIL >= 0 || CHECK_DIGEST || COLLAPSE
 // --tools full:挂完整工具栈(grep/glob + bash),与原 h2h 评测一致;默认只有 read/write/edit。
 const FULL_TOOLS = args.includes('--tools') && args[args.indexOf('--tools') + 1] === 'full'
 const DIGEST_OPTS = { ...(Number.isFinite(CAP) ? { structuredBlockCap: CAP } : {}), ...(NO_FOLD ? { enabled: false } : {}) }

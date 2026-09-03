@@ -18,10 +18,15 @@ def profile(path):
     usage = {x['turn']: (x['output'], x.get('reasoning', 0)) for x in l['turns']}
     P = dict(miss=0.22, hit=0.007, out=0.66); t = l['totals']
     cost = (t['input'] * P['miss'] + t['cacheRead'] * P['hit'] + t['output'] * P['out']) / 1e6
-    return dict(label=f"{l['arm']}{'' if l.get('readBases') in (None, True) else '/no-read-bases'}", ok=l['verdict']['ok'], cost=cost, steps=steps, reads=reads, tests=tests, usage=usage, tools=tools, totals=t)
+    to = l.get('tapeOpts') or {}
+    label = l['arm'] + ('/rb' if l.get('readBases') else '') + ('/rp' if l.get('readPointer') else '') + ('/base' if l.get('anchor') == 'base' else '') \
+        + (f"/rebase-{to['rebaseAfterPatches']}" if 'rebaseAfterPatches' in to else '') + (f"/reply-{to['replyHeadChars']}+{to.get('replyTailChars', '')}" if 'replyHeadChars' in to else '') \
+        + ('/check' if to.get('checkInDigest') else '') + ('/collapse' if to.get('collapseEdits') else '')
+    return dict(label=label, ok=l['verdict']['ok'], cost=cost, steps=steps, reads=reads, tests=tests, usage=usage, tools=tools, totals=t)
 runs = [profile(p) for p in sys.argv[1:]]
 turns = sorted(set().union(*[set(r['steps']) for r in runs]))
 print('turn  ' + ' ‖ '.join(f"{r['label'][:22]:<22} steps rd tst   out/reason" for r in runs))
+for r in runs: print('  ', r['label'])
 for tn in turns:
     cells = []
     for r in runs:

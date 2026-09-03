@@ -62,3 +62,21 @@ describe('tape knobs', () => {
     expect(d.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(1)
   })
 })
+
+describe('collapseEdits', () => {
+  it('anchors only the final post-state of a file edited several times in one turn', () => {
+    const file = (v: number) => Array.from({ length: 30 }, (_, i) => (i === 10 ? `    return ${v}` : `def g${i}():\n    return ${i}`)).join('\n') + '\n'
+    const a = createContinuity()
+    trackEdit(a, 'm.py', file(1)); trackEdit(a, 'm.py', file(2)); trackEdit(a, 'm.py', file(3)); trackEdit(a, 'o.py', 'x = 1\n')
+    const ra = seal(a, 1, 'r', { anchorMode: 'base', collapseEdits: true })
+    expect(ra.anchored.map((x) => x.path)).toEqual(['m.py', 'o.py'])
+    expect(a.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(2)
+    expect(a.tapeFiles['m.py']!.content).toBe(file(3))
+    // 默认:每次编辑各落一条
+    const b = createContinuity()
+    trackEdit(b, 'm.py', file(1)); trackEdit(b, 'm.py', file(2)); trackEdit(b, 'm.py', file(3))
+    const rb = seal(b, 1, 'r', { anchorMode: 'base' })
+    expect(rb.anchored).toHaveLength(3)
+    expect(b.sessionTape.filter((e) => e.kind === 'base')).toHaveLength(3)
+  })
+})

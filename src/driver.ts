@@ -215,6 +215,7 @@ export interface SliceLoopDriverConfig {
   replyCaps: ReplyCaps
   /** 本轮最后一次测试结果写进轮摘要。 */
   checkInDigest: boolean
+  collapseEdits: boolean
 }
 
 export interface ReadBasesPolicy {
@@ -315,6 +316,7 @@ export class SliceLoopAgent implements Agent {
   private readonly rebaseAfterPatches: number
   private readonly replyCaps: ReplyCaps
   private readonly checkInDigest: boolean
+  private readonly collapseEdits: boolean
   private readonly digestPolicy: DigestPolicy
   private readonly statePolicy: StatePolicy
   /** 世界状态账本:跨轮持久(会话级),append-only。 */
@@ -373,6 +375,7 @@ export class SliceLoopAgent implements Agent {
     this.rebaseAfterPatches = config.rebaseAfterPatches
     this.replyCaps = config.replyCaps
     this.checkInDigest = config.checkInDigest
+    this.collapseEdits = config.collapseEdits
     this.scope = harnessUniverse().scope.createScope(loopCtx, this)
     this.ctx = this.scope.ctx.extend({ agent: this })
     this.dispatch = harnessUniverse().agent.agentEvents(this.ctx, this)
@@ -536,7 +539,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits,
           })
         }
         pendingAnchors = []
@@ -958,7 +961,7 @@ export class SliceLoopAgent implements Agent {
             anchorMode: this.anchorMode,
             rebaseAfterPatches: this.rebaseAfterPatches,
             replyCaps: this.replyCaps,
-            checkInDigest: this.checkInDigest,
+            checkInDigest: this.checkInDigest, collapseEdits: this.collapseEdits,
           })
           for (const anchor of sealed.anchored) {
             this.session.append('slice/file-anchor', { turn, path: anchor.path, body: anchor.body })

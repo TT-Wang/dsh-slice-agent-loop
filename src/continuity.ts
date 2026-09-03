@@ -218,6 +218,8 @@ export function sealTurn(
     replyCaps?: ReplyCaps
     /** 把本轮最后一次检查写进轮摘要。 */
     checkInDigest?: boolean
+    /** 同一轮内对同一文件的多次成功编辑只锚定末态(默认 false:每次编辑各落一条,保留"已执行的 patch"序列)。 */
+    collapseEdits?: boolean
   },
 ): { entries: number; gcRemoved: number; epochFolds: number; anchored: Array<{ path: string; body: string }> } {
   const tape = c.sessionTape
@@ -250,8 +252,11 @@ export function sealTurn(
   // 读过未改的文件也锚定(2026-09-03):多轮编码任务里 slice 每轮重读 2–3 个文件,transcript
   // 却按命中价白带着。磁带字节在 1/30 的命中价下几乎免费;重读是一步 + 一次工具调用 +
   // 未命中价。本轮编辑过的文件走同一循环的 base/patch 逻辑,这里只补只读的;同 hash 不重复。
-  const editedNow = new Set(c.pendingEdits.map((e) => e.path))
-  const toAnchor = [...c.pendingEdits, ...c.pendingReads.filter((r) => !editedNow.has(r.path))]
+  // collapseEdits(2026-09-03):base 模式下中间态是纯浪费——s2 第 7 轮磁带上 13 份 scheduler.py
+  // 只有 1 份是当前版;封存本来就是一次性追加,塌缩不多付任何缓存未命中。
+  const edits = opts.collapseEdits ? [...new Map(c.pendingEdits.map((e) => [e.path, e] as const)).values()] : c.pendingEdits
+  const editedNow = new Set(edits.map((e) => e.path))
+  const toAnchor = [...edits, ...c.pendingReads.filter((r) => !editedNow.has(r.path))]
   for (const { path, body } of toAnchor) {
     const state = files[path]
     const hash = sha256(body)
