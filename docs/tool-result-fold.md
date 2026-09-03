@@ -1,5 +1,7 @@
 # tool-result-fold:给 dsh 原生 transcript loop 加轮内折叠
 
+> 独立仓库(正式家):https://github.com/TT-Wang/dsh-tool-result-fold — `dsh plugin add github:TT-Wang/dsh-tool-result-fold`。本仓库的 `src/fold` 是同源副本,供 runner 与契约测试用。
+
 2026-09-03 夜。一天的磁带实验之后的结论是:短会话里最简单的 transcript 最便宜,slice 赢在长会话与
 重工具输出;而全天最干净的收益是**轮内折叠**——l1 那 80% 全靠它,不依赖磁带。于是把折叠从 slice
 里拆出来,做成一个能直接挂在默认 loop 上的独立插件。

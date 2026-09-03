@@ -1,6 +1,9 @@
 /**
  * tool-result-fold — 给 dsh 默认 transcript loop 加"轮内折叠"的独立插件(2026-09-04)。
  *
+ * 正式家在独立仓库 https://github.com/TT-Wang/dsh-tool-result-fold(`dsh plugin add github:TT-Wang/dsh-tool-result-fold`);
+ * 这里的副本供本仓库的 runner(`--arm transcript-fold`)与契约测试使用,两边源码同源,改动请先改那边。
+ *
  * 机制:每步开始前(`agent/pre-step`),把上一步刚落盘的工具结果按内容路由折成紧凑视图,以
  * **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,引用被遮蔽的 seq)——与 dsh 自带的
  * compaction-tool-result-pruner 同一机制,会话不变量明确允许"引用被替换事件的内容改写"。
