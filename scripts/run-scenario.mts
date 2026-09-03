@@ -288,12 +288,16 @@ console.log(`env: tools=${FULL_TOOLS ? 'full' : 'fs'} registered=[${toolNames.jo
 // 轨迹摘要(诊断用):每步的工具调用(名 + 参数前 160 字符)与助手正文前 200 字符,
 // 写到账本旁的 .trace.jsonl——按步归因"为什么这一步在读/在写/在想"。
 const trace: string[] = []
+// 完整版(.full.jsonl):每步全部工具调用参数与助手正文,不截断——用于归因可见输出
+// (2026-09-03:slice 的可见输出税主要是 bash 里的长 heredoc 探针,截断的 trace 看不出来)。
+const full: string[] = []
 for (const e of agent.session.snapshotEvents()) {
   if (e.type === 'assistant/message') {
     const d = e.data as { turn: number; step: number; message: { content: ReadonlyArray<{ type: string; text?: string; name?: string; arguments?: string }> } }
     const calls = d.message.content.filter((b) => b.type === 'tool-call').map((b) => `${b.name}(${(b.arguments ?? '').slice(0, 160)})`)
     const text = d.message.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('').slice(0, 200)
     trace.push(JSON.stringify({ turn: d.turn, step: d.step, calls, text }))
+    full.push(JSON.stringify({ turn: d.turn, step: d.step, calls: d.message.content.filter((b) => b.type === 'tool-call').map((b) => ({ name: b.name, arguments: b.arguments ?? '' })), text: d.message.content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('') }))
   }
 }
 
@@ -306,6 +310,7 @@ mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)
 writeFileSync(ledgerPath, JSON.stringify(ledger, null, 2))
 writeFileSync(ledgerPath.replace(/\.json$/, '.trace.jsonl'), trace.join('\n') + '\n')
+writeFileSync(ledgerPath.replace(/\.json$/, '.full.jsonl'), full.join('\n') + '\n')
 writeFileSync(join(workdir, 'verdict.json'), JSON.stringify(ledger, null, 2))
 console.log(`totals: steps=${totals.steps} miss=${totals.input} hit=${totals.cacheRead} out=${totals.output} (reasoning ${totals.reasoning}) peakPrompt=${totals.peakInput} seals=${seals} bounces=${bounces}${rulesEv ? ` rules=${rulesEv.data?.rules}/${rulesEv.data?.enforced}enforced` : ''}${digestStat ? ` digests=${digestStat.count} (${digestStat.charsBefore}→${digestStat.charsAfter} chars)` : ''}`)
 console.log(`verdict: ${verdict.ok ? '✓' : '✗'} ${verdict.detail}\nsession ${sessionId}\nledger ${ledgerPath}`)
