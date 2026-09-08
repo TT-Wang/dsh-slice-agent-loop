@@ -33,8 +33,8 @@
     "build": "node scripts/clean-build.mjs && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "link:dsh": "node scripts/link-dsh.mjs",
-    "e2e:recall": "tsx scripts/e2e-recall.mts"
+    "verify:packed": "node scripts/validation/run-packed-smoke.mjs",
+    "verify:master": "node scripts/validation/run-master-tests.mjs"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {

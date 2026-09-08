@@ -24,3 +24,5 @@ jobs:
       - run: npm run build
       - name: Verify Git-install artifacts
         run: git diff --exit-code -- lib
+      - name: Verify packed plugin through published DSH Loader
+        run: npm run verify:packed
