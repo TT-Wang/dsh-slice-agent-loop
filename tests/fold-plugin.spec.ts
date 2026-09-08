@@ -8,22 +8,30 @@
 import { Context } from '@deepseek-ai/cordis'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
-import LlmService, { createUserMessage } from '@deepseek-ai/dsh-llm'
-import SessionStore, { SessionId, isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
+import LlmService, { createUserMessage, createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
+import SessionStore, { SessionId, isAppendSurfaceEvent, isReplacementSurfaceEvent, type Session, type ToolResultMessage } from '@deepseek-ai/dsh-session'
+import { SettingsProvider } from '@deepseek-ai/dsh-settings'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import InvariantService from '@deepseek-ai/dsh-invariants'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
-import fold, { EXPAND_TOOL_NAME, FOLD_STATS } from '../src/fold/index.js'
+import fold, { EXPAND_TOOL_NAME, FOLD_STATS, fullResultAt } from '../src/fold/index.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
 const CODE = Array.from({ length: 80 }, (_, i) => `def f${i}(x):\n    return x + ${i}`).join('\n')
 
+class TestSettings extends SettingsProvider {
+  readonly writable = false
+  protected load(): Promise<Record<string, unknown>> { return Promise.resolve({}) }
+  protected persist(): Promise<void> { return Promise.reject(new Error('read-only test settings')) }
+}
+
 async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: string; isError?: boolean }>, config: { pinSteps?: number; digest?: Record<string, unknown> } = { pinSteps: 0, digest: { minChars: 1500 } }): Promise<Context> {
   const ctx = new Context()
+  await ctx.plugin(TestSettings)
   await ctx.plugin(LlmService)
   await ctx.plugin(SessionStore)
   await ctx.plugin(SystemPrompt)
@@ -195,6 +203,121 @@ describe('partial expansion', () => {
   })
 })
 
+/** Drive the real plugin hook over controlled durable events, including historic
+ * combined result messages the current stock loop no longer produces. */
+async function folderHarness(seed?: readonly import('@deepseek-ai/dsh-session').SessionEvent[]) {
+  const ctx = new Context()
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(SystemPrompt)
+  await ctx.plugin(ToolRegistry)
+  await ctx.plugin(fold, { pinSteps: 0, digest: { minChars: 1500 }, spillPreviewMinBytes: 0 })
+  const session = ctx.sessions.create(SessionId('folder-events'), seed ? { seed } : undefined)
+  const run = () => ctx.waterfall('agent/pre-step', {
+    agent: { session } as Agent, messages: [], turn: 1, step: 2, signal: new AbortController().signal,
+  }, async () => ({ kind: 'enter' as const, messages: [] }))
+  return { ctx, session, run }
+}
+
+function appendResult(session: Session, id: string, text: string, step = 3) {
+  const callId = ToolCallId(id)
+  session.append('tool/call', { turn: 1, step, callId, name: 'read', arguments: '{"file_path":"data.txt"}' })
+  return session.append('tool/result', {
+    turn: 1, step, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text }] }),
+  }, { surfaceOp: 'append' })
+}
+
+describe('fold result identity and replay', () => {
+  it('keeps exact expansion ordinals across cursors after more than 64 earlier events of the same step', async () => {
+    const bench = await folderHarness()
+    try {
+      for (let i = 1; i <= 70; i += 1) appendResult(bench.session, `old-${i}`, `short result ${i}`)
+      await bench.run()
+      const original = appendResult(bench.session, 'last', BIG)
+      await bench.run()
+      const replacement = bench.session.snapshotEvents().find((event) =>
+        event.type === 'tool/result' && isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.[0] === original.seq)
+      expect(JSON.stringify(replacement)).toContain('"call\\": 71')
+      expect(fullResultAt(bench.session.snapshotEvents(), 1, 3, 71)).toEqual({ name: 'read', text: BIG })
+      expect(fullResultAt(bench.session.snapshotEvents(), 1, 3, 70)?.text).toBe('short result 70')
+    } finally { await bench.ctx.fiber.dispose() }
+  })
+
+  it('preserves every sibling result block, error and non-text block, and expands all original text', async () => {
+    const bench = await folderHarness()
+    try {
+      for (const id of ['first', 'second', 'error']) {
+        bench.session.append('tool/call', {
+          turn: 1, step: 3, callId: ToolCallId(id), name: 'read', arguments: '{"file_path":"data.txt"}',
+        })
+      }
+      const first = createToolResultMessage({ callId: ToolCallId('first'), isError: false, content: [
+        { type: 'text', text: BIG }, { type: 'reasoning', text: 'opaque non-text content' },
+      ] })
+      const second = createToolResultMessage({ callId: ToolCallId('second'), isError: false, content: [{ type: 'text', text: `${BIG}\nSECOND END` }] })
+      const error = createToolResultMessage({ callId: ToolCallId('error'), isError: true, content: [{ type: 'text', text: `ERROR CONTENT\n${BIG}` }] })
+      const message = { ...first, content: [...first.content, ...second.content, ...error.content] } as unknown as ToolResultMessage
+      const original = bench.session.append('tool/result', { turn: 1, step: 3, message }, { surfaceOp: 'append' })
+      await bench.run()
+      const replacement = bench.session.snapshotEvents().find((event) =>
+        event.type === 'tool/result' && isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.[0] === original.seq)
+      expect(replacement?.type).toBe('tool/result')
+      if (replacement?.type !== 'tool/result') throw new Error('missing replacement')
+      const blocks = replacement.data.message.content as readonly { content: readonly { type: string; text?: string }[] }[]
+      expect(blocks).toHaveLength(3)
+      expect(blocks[0]?.content[1]).toEqual(first.content[0].content[1])
+      expect(blocks[2]).toEqual(error.content[0])
+      expect(blocks[0]?.content[0]?.text).toContain('expand_result')
+      expect(blocks[1]?.content[0]?.text).toContain('expand_result')
+      expect(fullResultAt(bench.session.snapshotEvents(), 1, 3, 1)).toEqual({
+        name: 'read', text: `${BIG}\n${BIG}\nSECOND END\nERROR CONTENT\n${BIG}`,
+      })
+      expect(original.data.message).toEqual(message)
+    } finally { await bench.ctx.fiber.dispose() }
+  })
+
+  it('replays fold counts and expansion backoff from exact durable replacement messages', async () => {
+    const live = await folderHarness()
+    try {
+      appendResult(live.session, 'read-one', BIG, 1)
+      await live.run()
+      live.session.append('tool/call', { turn: 1, step: 2, callId: ToolCallId('expand-one'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":1,"call":1}' })
+      await live.run()
+      appendResult(live.session, 'read-two', BIG, 3)
+      await live.run()
+      live.session.append('tool/call', { turn: 1, step: 4, callId: ToolCallId('expand-two'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":3,"call":1}' })
+      await live.run()
+      const replay = await folderHarness(live.session.snapshotEvents())
+      try {
+        await replay.run()
+        expect(FOLD_STATS.get(replay.session)).toEqual(FOLD_STATS.get(live.session))
+        expect(FOLD_STATS.get(replay.session)?.backedOff).toEqual(['read'])
+        appendResult(live.session, 'after-backoff', BIG, 5)
+        appendResult(replay.session, 'after-backoff', BIG, 5)
+        await live.run()
+        await replay.run()
+        expect(FOLD_STATS.get(replay.session)).toEqual(FOLD_STATS.get(live.session))
+        expect(FOLD_STATS.get(replay.session)?.folded).toBe(2)
+      } finally { await replay.ctx.fiber.dispose() }
+    } finally { await live.ctx.fiber.dispose() }
+  })
+
+  it('does not attribute an unrelated surface replacement to this fold plugin', async () => {
+    const live = await folderHarness()
+    try {
+      const original = appendResult(live.session, 'external', BIG)
+      live.session.append('tool/result', {
+        ...original.data,
+        message: { ...original.data.message, content: [{ ...original.data.message.content[0], content: [{ type: 'text', text: '[another plugin summary]' }] }] },
+      }, { surfaceOp: { op: 'replace', start: original.seq, end: original.seq }, sourceEventSeqs: [original.seq] })
+      await live.run()
+      expect(FOLD_STATS.get(live.session)?.folded).toBe(0)
+      live.session.append('tool/call', { turn: 1, step: 4, callId: ToolCallId('expand-external'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":3,"call":1}' })
+      await live.run()
+      expect(FOLD_STATS.get(live.session)?.expanded).toBe(0)
+    } finally { await live.ctx.fiber.dispose() }
+  })
+})
+
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
 import { mkdtempSync } from 'node:fs'
@@ -206,6 +329,7 @@ describe('spill preview arm', () => {
     expect(LOG.length).toBeGreaterThan(60000)
     const adapter = new MockAdapter([toolCallResponse('c1', 'bash', { file_path: 'run' }), toolCallResponse('c2', 'bash', { file_path: 'run' }), toolCallResponse('c3', 'bash', { file_path: 'run' }), textResponse('done')])
     const ctx = new Context()
+    await ctx.plugin(TestSettings)
     await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
     await ctx.plugin(InvariantService); await ctx.plugin(agentLoopInvariant); await ctx.plugin(SessionProjections); await ctx.plugin(StockAgentLoop, {} as never)
     await ctx.plugin(SpillLocal, { root: mkdtempSync(join(tmpdir(), 'spill-')) } as never)

@@ -6,8 +6,7 @@ node_modules
 # 构建/运行产物
 *.tsbuildinfo
 
-# 依赖锁：本项目只有 3 个 dev 依赖，全部实际依赖是宿主提供的 peer。
-# 锁文件曾把维护者机器上的 file:/Users/... 绝对路径钉进仓库，导致别人 `npm ci` 必挂。
+# Reproducible public dependencies are pinned in pnpm-lock.yaml.
 package-lock.json
 
 # 一次性工作报告：写给当时那次移植任务的，不是写给读者的。

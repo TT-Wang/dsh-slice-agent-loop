@@ -13,10 +13,11 @@
  * 文档/数据留头尾与结构行。默认 loop 不装 slice loop 也能用;两者不要同时挂(slice 自己折)。
  */
 import { Context, Service } from '@deepseek-ai/cordis'
+import { isDeepStrictEqual } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionSeq, ToolResultMessage } from '@deepseek-ai/dsh-session'
-import { isAppendSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type PostToolDecision, type ToolDefinition, type ToolExecution, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { SpillStore } from '@deepseek-ai/dsh-spill'
 import { digestToolResult, resolveDigestPolicy, type DigestPolicy } from '../slice/result-digest.js'
@@ -46,11 +47,12 @@ export const EXPAND_TOOL_NAME = 'expand_result'
 
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
 export const FOLD_AFFORDANCE = `<fold>
-Your context is append-only: nothing already in it is rewritten or dropped. Large tool results are condensed by the host as they enter. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. So read a whole file in one call rather than paging it with offset/limit — a full read costs no more context than its condensed view, while every page costs a step.
+Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.
 </fold>`
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
 interface CallInfo { name: string; path?: string }
+interface FoldView { message: ToolResultMessage; tools: string[]; before: number; after: number }
 
 function callPath(args: unknown): string | undefined {
   if (typeof args !== 'object' || args === null) return undefined
@@ -75,9 +77,12 @@ class SessionFolder {
   private cursor = 0
   private readonly calls = new Map<string, CallInfo>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
+  private readonly ordinals = new Map<string, number>()
+  private readonly originalAt = new Map<number, { turn: number; step: number; ordinal: number }>()
+  private readonly countedFolds = new Set<number>()
   readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[], spilled: 0 }
   /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
-  private readonly foldedAt = new Map<string, string>()
+  private readonly foldedAt = new Map<string, readonly string[]>()
   private readonly perTool = new Map<string, { folded: number; expanded: number }>()
   constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number, private readonly backoffAfter: number, private readonly pinMaxChars: number) {}
 
@@ -86,7 +91,6 @@ class SessionFolder {
     const session = this.session
     const end = session.seq
     const onSurface = new Set<number>(session.surface.nodes as readonly number[])
-    const ordinal = new Map<string, number>()
     for (let i = this.cursor; i < end; i += 1) {
       const event = session.eventAt(i as SessionSeq) as SessionEvent | undefined
       if (event === undefined) continue
@@ -96,11 +100,17 @@ class SessionFolder {
         if (d.name === EXPAND_TOOL_NAME) this.noteExpansion(parseArgs(d.arguments))
         continue
       }
-      if (event.type !== 'tool/result' || !isAppendSurfaceEvent(event)) continue
+      if (event.type !== 'tool/result') continue
+      if (isReplacementSurfaceEvent(event)) {
+        this.restoreFold(event)
+        continue
+      }
+      if (!isAppendSurfaceEvent(event)) continue
       const d = event.data as { turn: number; step: number; message: ToolResultMessage }
       const key = `${d.turn}:${d.step}`
-      const n = (ordinal.get(key) ?? this.countBefore(d.turn, d.step, i)) + 1
-      ordinal.set(key, n)
+      const n = (this.ordinals.get(key) ?? 0) + 1
+      this.ordinals.set(key, n)
+      this.originalAt.set(i, { turn: d.turn, step: d.step, ordinal: n })
       if (!onSurface.has(i)) continue
       if (d.step <= this.pinSteps && resultChars(d.message) < this.pinMaxChars) continue
       this.foldOne(i as SessionSeq, event as SessionEvent<'tool/result'>, d, n)
@@ -112,60 +122,88 @@ class SessionFolder {
   private noteExpansion(args: unknown): void {
     const a = (typeof args === 'object' && args !== null ? args : {}) as { turn?: unknown; step?: unknown; call?: unknown }
     const key = `${Number(a.turn)}:${Number(a.step)}:${a.call === undefined ? 1 : Number(a.call)}`
-    const tool = this.foldedAt.get(key)
-    if (tool === undefined) return
+    const tools = this.foldedAt.get(key)
+    if (tools === undefined) return
     this.stats.expanded += 1
-    const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
-    t.expanded += 1
-    this.perTool.set(tool, t)
-    if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(tool)) this.stats.backedOff.push(tool)
-  }
-
-  /** 同一步里游标之前已有几个追加态结果(游标跨步时序号要接上)。 */
-  private countBefore(turn: number, step: number, upto: number): number {
-    let n = 0
-    for (let i = Math.max(0, upto - 64); i < upto; i += 1) {
-      const e = this.session.eventAt(i as SessionSeq) as SessionEvent | undefined
-      if (e?.type === 'tool/result' && isAppendSurfaceEvent(e)) {
-        const d = e.data as { turn: number; step: number }
-        if (d.turn === turn && d.step === step) n += 1
-      }
+    for (const tool of tools) {
+      const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
+      t.expanded += 1
+      this.perTool.set(tool, t)
+      if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(tool)) this.stats.backedOff.push(tool)
     }
-    return n
   }
 
-  private foldOne(seq: SessionSeq, event: SessionEvent<'tool/result'>, d: { turn: number; step: number; message: ToolResultMessage }, n: number): void {
-    const first = d.message.content[0] as ToolResultBlock | undefined
-    if (!first || first.type !== 'tool-result' || first.isError || !first.content) return
-    const info = this.calls.get(String(first.toolCallId ?? d.message.source?.callId ?? '')) ?? { name: 'tool' }
-    if (info.name === EXPAND_TOOL_NAME) return
-    if (this.stats.backedOff.includes(info.name)) return
+  /**
+   * Replay only replacements that exactly match this folder's deterministic
+   * renderer and cited original. Other plugins' replacements do not count as
+   * folds. Changing digest policy can prevent recognition of an old fold;
+   * without a durable policy record we deliberately leave that count unknown.
+   */
+  private restoreFold(event: SessionEvent<'tool/result'>): void {
+    if (event.sourceEventSeqs?.length !== 1) return
+    const source = event.sourceEventSeqs[0]!
+    if (this.countedFolds.has(source)) return
+    const at = this.originalAt.get(source)
+    const original = this.session.eventAt(source)
+    if (at === undefined || original?.type !== 'tool/result' || !isAppendSurfaceEvent(original)) return
+    const view = this.buildFold(original.data, at.ordinal)
+    if (view === undefined || !isDeepStrictEqual(view.message, event.data.message)) return
+    this.recordFold(source, at.turn, at.step, at.ordinal, view)
+  }
+
+  private buildFold(d: { turn: number; step: number; message: ToolResultMessage }, n: number): FoldView | undefined {
     let changed = false
     let before = 0
     let after = 0
+    const tools = new Set<string>()
     const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}})`
-    const inner = first.content.map((b) => {
-      if (b.type !== 'text' || typeof b.text !== 'string') return b
-      before += b.text.length
-      const r = digestToolResult(b.text, { tool: info.name, ...(info.path ? { path: info.path } : {}) }, this.policy)
-      after += r.text.length
-      if (!r.digested) return b
-      changed = true
-      return { ...b, text: `[${info.name}${info.path ? ' ' + info.path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · ${hint} returns the full text]\n${r.text}` }
+    const content = (d.message.content as readonly ToolResultBlock[]).map((block) => {
+      if (block.type !== 'tool-result' || block.isError || !block.content) return block
+      const info = this.calls.get(String(block.toolCallId ?? d.message.source?.callId ?? '')) ?? { name: 'tool' }
+      if (info.name === EXPAND_TOOL_NAME || this.stats.backedOff.includes(info.name)) return block
+      let blockChanged = false
+      const inner = block.content.map((b) => {
+        if (b.type !== 'text' || typeof b.text !== 'string') return b
+        before += b.text.length
+        const r = digestToolResult(b.text, { tool: info.name, ...(info.path ? { path: info.path } : {}) }, this.policy)
+        if (!r.digested) {
+          after += b.text.length
+          return b
+        }
+        changed = blockChanged = true
+        tools.add(info.name)
+        const text = `[${info.name}${info.path ? ' ' + info.path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · ${hint} returns the full text]\n${r.text}`
+        after += text.length
+        return { ...b, text }
+      })
+      return blockChanged ? { ...block, content: inner } : block
     })
-    if (!changed) return
-    const message = freezeMessage<ToolResultMessage>({ ...d.message, content: [{ ...(first as object), content: inner }] as never })
-    this.session.append('tool/result', { ...(event.data as object), message } as never, {
+    if (!changed) return undefined
+    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), tools: [...tools], before, after }
+  }
+
+  private recordFold(seq: number, turn: number, step: number, n: number, view: FoldView): void {
+    if (this.countedFolds.has(seq)) return
+    this.countedFolds.add(seq)
+    this.stats.folded += 1
+    this.stats.charsBefore += view.before
+    this.stats.charsAfter += view.after
+    this.foldedAt.set(`${turn}:${step}:${n}`, view.tools)
+    for (const tool of view.tools) {
+      const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
+      t.folded += 1
+      this.perTool.set(tool, t)
+    }
+  }
+
+  private foldOne(seq: SessionSeq, event: SessionEvent<'tool/result'>, d: { turn: number; step: number; message: ToolResultMessage }, n: number): void {
+    const view = this.buildFold(d, n)
+    if (view === undefined) return
+    this.session.append('tool/result', { ...(event.data as object), message: view.message } as never, {
       surfaceOp: { op: 'replace', start: seq, end: seq },
       sourceEventSeqs: [seq],
     })
-    this.stats.folded += 1
-    this.stats.charsBefore += before
-    this.stats.charsAfter += after
-    this.foldedAt.set(`${d.turn}:${d.step}:${n}`, info.name)
-    const t = this.perTool.get(info.name) ?? { folded: 0, expanded: 0 }
-    t.folded += 1
-    this.perTool.set(info.name, t)
+    this.recordFold(seq, d.turn, d.step, n, view)
   }
 }
 
@@ -180,8 +218,9 @@ export function fullResultAt(events: readonly SessionEvent[], turn: number, step
     if (d.turn !== turn || d.step !== step) continue
     n += 1
     if (n !== call) continue
-    const first = d.message.content[0] as ToolResultBlock
-    return { name: calls.get(String(first.toolCallId ?? d.message.source?.callId ?? '')) ?? 'tool', text: resultText(first) }
+    const blocks = (d.message.content as readonly ToolResultBlock[]).filter((block) => block.type === 'tool-result')
+    const names = [...new Set(blocks.map((block) => calls.get(String(block.toolCallId ?? d.message.source?.callId ?? '')) ?? 'tool'))]
+    return { name: names.join(', ') || 'tool', text: blocks.map(resultText).join('\n') }
   }
   return null
 }

@@ -67,6 +67,16 @@ function textOf(message: UserMessage | { content: ReadonlyArray<{ type: string }
     .join('')
 }
 
+/** User-role runtime snapshots and generated context are not user requests. */
+function isUserInput(data: Record<string, unknown>): boolean {
+  const source = data.source as { kind?: unknown } | undefined
+  return source?.kind === 'user'
+}
+
+function isOriginalEvent(event: { surfaceOp?: unknown }): boolean {
+  return event.surfaceOp === undefined || event.surfaceOp === 'append'
+}
+
 interface SealedTurnPage {
   rendered: string
   userMessages: number
@@ -79,17 +89,25 @@ interface SealedTurnPage {
  * nothing for that turn.
  */
 export function renderSealedTurn(
-  events: Iterable<{ type: string; data: unknown }>,
+  events: Iterable<{ type: string; data: unknown; surfaceOp?: unknown }>,
   turn: number,
 ): SealedTurnPage | null {
   const users: string[] = []
+  const originalRecords: unknown[] = []
   const steps: Array<{ step: number; text: string }> = []
   let status = 'open'
   let openTurn: number | null = null
   let seen = false
 
   for (const event of events) {
+    if (!isOriginalEvent(event)) continue
     const data = event.data as Record<string, unknown>
+    const attributedTurn: unknown = event.type === 'user/message' ? openTurn : data.turn
+    if (attributedTurn === turn
+      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/code-dispatch'].includes(event.type)
+      && (event.type !== 'user/message' || isUserInput(data))) {
+      originalRecords.push({ type: event.type, data: event.data })
+    }
     switch (event.type) {
       case 'turn/start':
         openTurn = data.turn as number
@@ -101,7 +119,7 @@ export function renderSealedTurn(
         break
       case 'user/message':
         // data IS the UserMessage; ownership = the turn open at append time.
-        if (openTurn === turn) {
+        if (openTurn === turn && isUserInput(data)) {
           const text = textOf(data as unknown as UserMessage)
           if (text.trim()) users.push(text)
         }
@@ -135,6 +153,7 @@ export function renderSealedTurn(
   } else {
     for (const { step, text } of steps) lines.push(`[step ${step}]`, text, '')
   }
+  lines.push('', '## Original records (including reasoning, tool output and recorded file metadata)', JSON.stringify(originalRecords))
   return {
     rendered: lines.join('\n').replace(/\n+$/, '\n'),
     userMessages: users.length,
@@ -143,7 +162,7 @@ export function renderSealedTurn(
 }
 
 /** Sealed turn numbers present in the log, for the not-found error message. */
-function sealedTurns(events: Iterable<{ type: string; data: unknown }>): number[] {
+function sealedTurns(events: Iterable<{ type: string; data: unknown; surfaceOp?: unknown }>): number[] {
   const turns = new Set<number>()
   for (const event of events) {
     if (event.type === 'turn/end') turns.add((event.data as { turn: number }).turn)
@@ -194,7 +213,7 @@ function snippetAround(text: string, terms: readonly string[], window = 90): str
  * by default).
  */
 export function searchSessionEvents(
-  events: Iterable<{ type: string; data: unknown }>,
+  events: Iterable<{ type: string; data: unknown; surfaceOp?: unknown }>,
   query: string,
   opts?: { kinds?: readonly SearchKind[]; limit?: number },
 ): RecallHit[] {
@@ -214,6 +233,7 @@ export function searchSessionEvents(
   let seq = 0
   for (const event of events) {
     seq += 1
+    if (!isOriginalEvent(event)) continue
     const data = event.data as Record<string, unknown>
     switch (event.type) {
       case 'turn/start':
@@ -223,7 +243,7 @@ export function searchSessionEvents(
         if (openTurn === (data.turn as number)) openTurn = null
         break
       case 'user/message':
-        if (kinds.has('user') && openTurn !== null) {
+        if (kinds.has('user') && openTurn !== null && isUserInput(data)) {
           const text = textOf(data as unknown as UserMessage)
           if (text.trim()) docs.push({ turn: openTurn, kind: 'user', text, seq })
         }

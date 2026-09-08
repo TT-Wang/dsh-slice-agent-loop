@@ -1,0 +1,11 @@
+# Use native DSH surface replacements
+
+DSH 0.1.3-alpha.2 already persists positional surface replacements and reconstructs each model request. Slice now supplies conversational retention policy through `agent/pre-step`; the stock loop owns dispatch, retries, input claim/commit, request-series changes, lifecycle and projections.
+
+Runtime and instruction sources remain at their original surface positions. Replacing a whole transcript with one text seed loses their ownership: runtime projection runs before pre-step, and instruction plugins inspect retained source metadata. Slice therefore replaces only completed conversational spans with complete provenance, preserving external user replacements and multimodal input. Request construction validates the final admitted message budget after all pre-step middleware.
+
+The source log is the only replay input. The continuity reducer supplies sealed-turn metadata; the positional renderer preserves message ownership and order. Published read windows and diff metadata cannot prove full file bytes or backend identity, so exact file anchors and pointer reads are disabled. Custom events are not written because the released append API cannot mark them ignorable.
+
+The old driver, lifecycle, inbox projection, package-universe workaround and filesystem rollback are removed. Their implementation-specific tests retire with them; stock-loop integration tests verify the behavior this plugin still owns. Pure tape, fold, observation and admission tests remain.
+
+ADR-0001's measured header restatements remain part of the historical renderer. The native kernel changes teaching sites where old file/hash and rebuilt-seed claims no longer have a producer. This is a semantic migration, not evidence that prompt slimming improves model quality. The prior quality and cost tables are archived and must be rerun for the new policy.
