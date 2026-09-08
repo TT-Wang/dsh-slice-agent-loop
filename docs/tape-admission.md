@@ -1,3 +1,9 @@
+> **Status (2026-09-11): not on the live request path.** Since the
+> pressure-archive policy (`planArchive` in `src/context.ts`) the plugin no
+> longer calls `admitTape`; history is archived into frozen
+> `[slice checkpoint v1 …]` nodes instead of per-span tapes with omission
+> markers. This page documents the pure module and its tests only.
+
 # Request tape admission
 
 `admitTape` in `src/slice/admission.ts` selects a request view from recorded

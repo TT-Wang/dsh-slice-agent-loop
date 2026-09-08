@@ -8,12 +8,15 @@
 > - **本文所设想的 `src/slice/` 形状已经不成立** —— 那台自建渲染器
 >   （`assemble.ts` / `SliceCtx` / `assemble()`）在原生迁移后不在现役调用图上，
 >   文件已移到 `src/lab/assemble.ts`；现役上下文装配是 `src/context.ts`
->   （`compactHistory` + `HISTORY_HEADER` + surface replacement），它没有区、没有
->   `SliceCtx`、也没有 `assemble()`。S1/S2/S4 里关于"driver 每轮全量构造"、
+>   （压力归档控制律：`planArchive` / `applyArchive` / `archiveUnderPressure`，
+>   高水位时把最旧的完整轮替换成一个冻结的 `[slice checkpoint v1 …]` 节点，
+>   低于高水位什么都不追加），它没有区、没有 `SliceCtx`、也没有 `assemble()`。
+>   `compactHistory` / `HISTORY_HEADER` / `admitTape` 已不存在。S1/S2/S4 里关于"driver 每轮全量构造"、
 >   "缓存边界 = system + 上一轮结束时的 tape"的决策，讲的都是那台已退役的驱动器。
->   **注意 `src/slice/` 目录本身仍然现役**：`src/context.ts:5-6` 直接 import
->   `slice/admission.ts` 与 `slice/tape.ts`，`src/fold/` 用 `slice/result-digest.ts`
->   ——它们是现役渲染与准入代码，别当死代码删。本文的范围行（下面「范围：
+>   **注意 `src/slice/` 目录本身仍然现役**：`src/context.ts` import
+>   `slice/tape.ts` 的 `renderTapeReply`（checkpoint 里的回复摘录），
+>   `src/continuity.ts` 用 `slice/tape.ts` 与 `slice/internal/`，`src/fold/` 用
+>   `slice/result-digest.ts`——它们是现役渲染代码，别当死代码删。本文的范围行（下面「范围：
 >   `src/slice/`。不含 `tape.ts` 内部逻辑」）本来就把 `tape.ts` 排除在外。
 > - S6「迁移」标为 **OPEN** 且从未闭合；真正发生的迁移是另一件事（迁到 DSH 原生
 >   loop），不是本文设想的那次。

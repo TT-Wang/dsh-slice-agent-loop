@@ -4,8 +4,8 @@
  * 与 recall_turn 同源:从持久会话日志(tool/call · tool/result 事件)取,不依赖
  * 内存轨迹,agent 重建后同样可用。
  *
- * turn/step 从哪来:在线路径上,SESSION TAPE 的省略标记只给 recall_turn
- * (src/context.ts 的 recallForEntry 只产 kind:'turn'),写着 recall_step 的是折叠视图首行
+ * turn/step 从哪来:在线路径上,归档检查点 `[slice checkpoint v1 …]`(src/context.ts)只给
+ * recall_turn 与 expand_result({"seq": q}) 定位,写着 turn/step 的是折叠视图首行
  * (`expand_result({"turn": t, "step": s, "call": n})`)与 fold 可供性(src/fold/index.ts),
  * 模型据此索引整步。src/lab/step-tape.ts 的封存条目首行是同一形状,但它不在运行时路径上。
  */
