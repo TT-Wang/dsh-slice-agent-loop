@@ -1,6 +1,6 @@
 # dsh-slice-agent-loop
 
-DSH 的切片式 agent loop：不重放 transcript，每轮从账本重建一个有界的工作切片。本表是项目的规范词汇——输出（issue 标题、提案、测试名）用这里的词，不漂移到 _Avoid_ 列的同义词。
+DSH 原生 agent loop 上的切片上下文策略：通过持久化 surface replacement 压缩已完成对话，同时保留原生上下文来源。本表是项目的规范词汇——输出（issue 标题、提案、测试名）用这里的词，不漂移到 _Avoid_ 列的同义词。
 
 ## Language
 

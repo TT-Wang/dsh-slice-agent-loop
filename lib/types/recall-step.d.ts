@@ -11,5 +11,6 @@ export declare const RECALL_STEP_TOOL_NAME = "recall_step";
 export declare function renderSealedStepPage(events: Iterable<{
     type: string;
     data: unknown;
+    surfaceOp?: unknown;
 }>, turn: number, step: number): string | null;
 export declare function recallStepToolDefinition(): ToolDefinition;

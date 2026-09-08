@@ -1,65 +1,26 @@
-# CI can only run what does NOT need the DeepSeek Harness.
-#
-# Every meaningful gate in this repo needs the harness peers, which
-# are private packages resolved from a local `dsh` checkout via `npm run
-# link:dsh` — a GitHub runner has no such checkout, so the driver, lifecycle and
-# inbox gates cannot run here. Faking those peers to make CI green would test a
-# mock instead of the contract, which is worse than not testing them.
-#
-# What CI does cover: the slice engine (assemble, tape, pytext, difflib) is
-# pure and peer-free. Its gates are behavior tests — the Python parity goldens
-# retired with the schema they pinned (plan/SEAMS.md). The load-bearing one is
-# `tests/assemble.spec.ts`'s tape-comes-first assertion: the prefix-cache
-# boundary is `system + 上一轮结束时的 tape`, so anything that moves the tape
-# off the front silently destroys the cost model — exactly the drift worth
-# gating here.
-#
-# The full suite is the maintainer's pre-push gate:
-#   npm run link:dsh && npm run typecheck && npm test
-
 name: CI
-
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
-
 permissions:
   contents: read
-
 jobs:
-  slice-engine:
-    name: slice engine (peer-free)
+  published-dsh:
+    name: published DSH alpha.2
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-
-      - name: Install dev dependencies
-        # No lockfile by design (see .gitignore): every runtime dependency is a
-        # peer supplied by the host, leaving only typescript/vitest/tsx/@types.
-        # --legacy-peer-deps because the line above is literally true: every runtime
-        # dependency here is a peer the host supplies. Without it npm 7+ tries to satisfy
-        # those peers from the registry and the tree no longer resolves at all (the published
-        # dsh packages moved on; dsh-agent@rc.6 wants dsh-llm ^0.1.0-rc.6 while the root range
-        # admits rc.8). That ERESOLVE is what took this workflow down, and it will keep moving
-        # with every upstream release — so stop asking npm to resolve peers we never install.
-        run: npm install --no-audit --no-fund --legacy-peer-deps
-
-      - name: Peer-free engine behavior tests
-        run: npx vitest run tests/assemble.spec.ts tests/tape.spec.ts
-
-      - name: Typecheck the peer-free slice engine
-        # The full `npm run typecheck` needs the harness peers; this checks the
-        # ported engine on its own.
-        # Scoped to src/slice — the step's own description says it "checks the ported engine
-        # on its own", but the bare command typechecked the whole project, driver.ts included,
-        # which cannot compile without the peers this job deliberately does not install. The
-        # peer-facing half (driver/lifecycle/universe/…) is covered by `npm run typecheck`
-        # against a real dsh checkout; CI gates the half it can honestly gate.
-        run: npx tsc --noEmit --strict --target es2022 --module nodenext $(find src/slice -name '*.ts' | tr '\n' ' ')
-             --moduleResolution nodenext --skipLibCheck src/slice/index.ts
+          node-version: '22.22.3'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '11.7.0'
+      - run: pnpm install --frozen-lockfile
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - name: Verify Git-install artifacts
+        run: git diff --exit-code -- lib

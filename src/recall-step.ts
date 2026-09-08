@@ -35,13 +35,14 @@ function parseInt1(value: unknown): number | null {
 
 /** 渲染某轮某步的全部调用与结果;该步无记录返回 null。 */
 export function renderSealedStepPage(
-  events: Iterable<{ type: string; data: unknown }>,
+  events: Iterable<{ type: string; data: unknown; surfaceOp?: unknown }>,
   turn: number,
   step: number,
 ): string | null {
   const calls: string[] = []
   const results: string[] = []
   for (const event of events) {
+    if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') continue
     const d = event.data as CallEvent | ResultEvent
     if (!d || (d as CallEvent).turn !== turn || (d as CallEvent).step !== step) continue
     if (event.type === 'tool/call') {
@@ -72,8 +73,8 @@ export function recallStepToolDefinition(): ToolDefinition {
     name: RECALL_STEP_TOOL_NAME,
     description:
       'Retrieve the verbatim tool calls and full results of one earlier STEP of the current turn (or a past '
-      + 'turn). Use it when the SEALED STEPS block shows `…[+N chars in sealed step]…` and you need the cut '
-      + 'content — a file body you read earlier, a full listing, an error trace. Serves from the durable '
+      + 'turn). Use it to retrieve original tool content omitted from a folded view: an earlier read, '
+      + 'a listing or an error trace. Surface replacement copies are excluded. Serves from the durable '
       + 'session log.',
     parameters: {
       turn: { type: 'string', required: true, description: 'Turn number as shown in the sealed entry, e.g. "3".' },

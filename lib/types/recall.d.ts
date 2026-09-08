@@ -57,6 +57,7 @@ interface SealedTurnPage {
 export declare function renderSealedTurn(events: Iterable<{
     type: string;
     data: unknown;
+    surfaceOp?: unknown;
 }>, turn: number): SealedTurnPage | null;
 /** One scored hit: enough to decide, plus the exact recall_turn follow-up. */
 export interface RecallHit {
@@ -80,6 +81,7 @@ export interface RecallHit {
 export declare function searchSessionEvents(events: Iterable<{
     type: string;
     data: unknown;
+    surfaceOp?: unknown;
 }>, query: string, opts?: {
     kinds?: readonly SearchKind[];
     limit?: number;
