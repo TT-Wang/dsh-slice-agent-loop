@@ -240,7 +240,7 @@ export function renderTapeReply(artifactId: string, text: string, caps: ReplyCap
   if (chars.length > caps.cap) {
     body = chars.slice(0, caps.head).join("")
       + ` …[+${chars.length - caps.head - caps.tail} chars in sealed turn]… `
-      + chars.slice(-caps.tail).join("");
+      + (caps.tail > 0 ? chars.slice(-caps.tail).join("") : "");
   }
   if (!body) return "";
   const h = _h(body);
