@@ -57,6 +57,8 @@ npm run build
 
 Public alpha.2 dependencies are pinned in `pnpm-lock.yaml`; no maintainer checkout or absolute dependency path is required. CI runs the full suite against those published packages, including stock-loop invariants and real JSONL close/resume. The build removes stale generated files before emitting Git-install artifacts.
 
+Run `npm run verify:packed` for a keyless standard-installer/Loader/JSONL smoke, or `npm run verify:master -- /path/to/deepseek-harness` against one prepared upstream source checkout. [Recorded upgrade verification](docs/upgrade-verification.md) separates published-release, source-master and packed-artifact evidence.
+
 The native regression suite covers runtime retention/update/removal, opaque instruction source ownership, multimodal input, retries and steering, request-series transitions, admission failures, unload, and resume without the plugin. A separate test checks that changing a later message causes the stock invariant to reject dispatch.
 
 The cache prefix and per-turn paid text depend on which spans change; there is no universal cache-hit or cost guarantee. [Earlier custom-loop measurements](docs/legacy-loop.md) are historical. This migration changes the policy and needs new model-quality/cost experiments before those numbers can be reused.
