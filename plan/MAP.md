@@ -1,6 +1,21 @@
+> ⚠️ **状态（2026-09-10）：本文与 `SEAMS.md` 同属 2026-09-08 原生迁移之前的
+> schema 重构方案，已不是现役地图。** 逐条核对的坏引用：
+> - `../src/driver.ts:900`、`../src/driver.ts:1216` —— **`src/driver.ts` 已不存在**
+>   （原生迁移删除了自建驱动器），两处链接都是死链。
+> - `../src/slice/assemble.ts` —— 该文件已作为非现役模块移到
+>   [`../src/lab/assemble.ts`](../src/lab/assemble.ts)（下面正文 `:14`、`:116` 的
+>   旧路径按此换算）；即使还在，它也不在插件的现役调用图上，不再是本文所说的
+>   "实现"。注意同目录的 `src/slice/tape.ts`、`src/slice/admission.ts`、
+>   `src/slice/result-digest.ts` **仍是现役代码**，由 `src/context.ts` 与
+>   `src/fold/` 直接 import。
+> - 「没有区表、没有 `Region` 类型、没有 `zone` 字段」这条目标形态**没有实现**：
+>   `assemble.ts` 最终导出了带 `zone` 字段的 `ZONE_HEADERS`（7 项）。
+>
+> 现役上下文装配在 `src/context.ts`；现役词汇见仓库根的 `CONTEXT.md`。
+
 # MAP — slice schema
 
-> 给人看的。不被 guard 检查 —— 分组随时会过时，别拿它当契约。契约在 [SEAMS.md](SEAMS.md)，实现在 [src/slice/assemble.ts](../src/slice/assemble.ts)（提案稿 plan/schema.ts 已被它取代，删除）。
+> 给人看的。不被 guard 检查 —— 分组随时会过时，别拿它当契约。契约在 [SEAMS.md](SEAMS.md)，实现在 [src/lab/assemble.ts](../src/lab/assemble.ts)（提案稿 plan/schema.ts 已被它取代，删除；该文件 2026-09-10 前在 `src/slice/assemble.ts`）。
 
 ## 目标形态
 
@@ -102,7 +117,7 @@ driver 现在只写一个字段。这是 16 个空区的**唯一**原因 —— 
 1. ✅ 接 `lastError` —— `trackToolOutcome` + `Continuity.pendingError/lastError`，实时与重放两条路都走
 2. ✅ cap 定为 1000 / 2000（ASK / REPLY），driver-contract 与 tape.spec 的 fixture 改为从常量派生
 3. ✅ 行为测试：`tests/assemble.spec.ts`（5 条）+ `tests/tape.spec.ts`（7 条，从 golden 移植）
-4. ✅ 换 schema：`src/slice/assemble.ts`；driver 改线；两段式重投影与 `sliceCapacityChars` 删除
+4. ✅ 换 schema：`src/slice/assemble.ts`（现 `src/lab/assemble.ts`）；driver 改线；两段式重投影与 `sliceCapacityChars` 删除
 5. ✅ 退役 golden 套件、删旧 schema 六个文件、删 `kernel: 'ported'`
 
 净 −3437 / +87 行。`src/slice/` 现共 1289 行，其中 schema 本体 143 行

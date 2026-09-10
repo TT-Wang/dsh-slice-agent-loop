@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { dbQueryTool, fetchPageTool } from '../src/bench/tools.js'
+import { dbQueryTool, fetchPageTool } from '../src/lab/bench-tools.js'
 
 describe('bench tools', () => {
   const wd = mkdtempSync(join(tmpdir(), 'bench-tools-'))

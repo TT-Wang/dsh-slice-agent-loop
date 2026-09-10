@@ -50,6 +50,8 @@ const PEERS = {
   '@deepseek-ai/dsh-spill-local': 'packages/spill/spill-local',
   '@deepseek-ai/dsh-spill-policy': 'packages/spill/spill-policy',
   '@deepseek-ai/dsh-output-retention': 'packages/util/output-retention',
+  // examples/ 用它起真实的 DeepSeek 适配器;它不在本仓已发布的 alpha 闭包里。
+  '@deepseek-ai/dsh-llm-deepseek': 'packages/llm/llm-deepseek',
 }
 
 /** Older harness snapshots that moved a package keep a fallback path here. */

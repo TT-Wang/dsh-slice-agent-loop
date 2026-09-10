@@ -14,6 +14,11 @@ package-lock.json
 # 这些数字一提交就开始腐烂，而没有任何门会发现。
 PORT-REPORT.md
 
+# Python 字节码：解释器/机器相关产物，跨版本无意义，且 scripts/*.py 跑一次就会生成。
+# 归档里已跟踪的那批由 `git rm -r --cached` 解除跟踪（.py 源仍在，可随时重现）。
+__pycache__/
+*.pyc
+
 # 系统噪音
 .DS_Store
 *.log

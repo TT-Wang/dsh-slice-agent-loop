@@ -1,3 +1,9 @@
+> ⚠️ **架构状态（2026-09-10）**:本页三臂表测自 2026-09-03 的**自建 loop**
+> (`run-scenario.mts` 驱动器 + 2026-08 历史 default 会话重定价)，不是 2026-09-08
+> 起的 DSH 原生 slice 上下文策略。**数字不可跨架构比较。** 轮内折叠机制本身仍在
+> (`src/fold/`，见 `docs/tool-result-fold.md`)，但它现在跑在原生 loop 上，成本与
+> 缓存结构都已不同。
+
 # slice + 轮内折叠 vs 历史 default:多轮 s 系列、CB20、l1/l2
 
 > 2026-09-03 · deepseek-harness-a4 · deepseek-v4-flash · 提交 `0898eae` 起轮内折叠是 slice 默认

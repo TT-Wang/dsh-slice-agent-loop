@@ -1,9 +1,9 @@
 /**
- * 切片装配的最小观察点：不起 agent、不连 DSH，直接看一轮拼出来什么。
+ * 切片装配的最小观察点(assembleSlice 已下放 src/lab,不在运行时路径上)：不起 agent、不连 DSH，直接看一轮拼出来什么。
  *
  *     npx tsx examples/dbg-assemble.ts
  */
-import { assembleSlice } from '../src/slice/index.js'
+import { assembleSlice } from '../src/lab/assemble.js'
 import { baseEntry, digestEntry } from '../src/slice/tape.js'
 
 const { system, user } = assembleSlice(

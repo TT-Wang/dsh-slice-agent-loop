@@ -1,3 +1,9 @@
+> ⚠️ **状态（2026-09-10）：与 `SEAMS.md` / `MAP.md` 同批，属 2026-09-08 原生迁移
+> 之前的方案文档。** 坏链两处：`[schema.ts](schema.ts)` —— `plan/schema.ts` 从未落地
+> （提案稿被 `assemble.ts` 取代后删除）；`[PORT-REPORT.md](../PORT-REPORT.md)` ——
+> 该文件不在本仓库。本页的 build 裁决讲的是已退役的自建渲染器，不适用于现役的
+> `src/context.ts` 路径。
+
 # SOURCING — 借 vs 造
 
 **这一节大部分是 N/A，这是真话不是省事。** slice schema 是插件内部的一个纯函数模块：输入 ctx，输出字符串。它不调网络、不落盘、不依赖任何第三方库。可借的东西本来就少。

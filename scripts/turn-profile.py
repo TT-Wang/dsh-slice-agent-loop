@@ -23,6 +23,7 @@ def profile(path):
         + (f"/rebase-{to['rebaseAfterPatches']}" if 'rebaseAfterPatches' in to else '') + (f"/reply-{to['replyHeadChars']}+{to.get('replyTailChars', '')}" if 'replyHeadChars' in to else '') \
         + ('/check' if to.get('checkInDigest') else '') + ('/collapse' if to.get('collapseEdits') else '') + (f"/rbmin-{to['readBasesMinReads']}" if 'readBasesMinReads' in to else '') + ('/gc' if to.get('gcSupersededBases') else '') + (f"/newmin-{to['newFileMinTouches']}" if 'newFileMinTouches' in to else '') + (f"/maxfiles-{to['baseMaxFiles']}" if 'baseMaxFiles' in to else '')
     return dict(label=label, ok=l['verdict']['ok'], cost=cost, steps=steps, reads=reads, tests=tests, usage=usage, tools=tools, totals=t)
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 runs = [profile(p) for p in sys.argv[1:]]
 turns = sorted(set().union(*[set(r['steps']) for r in runs]))
 print('turn  ' + ' ‖ '.join(f"{r['label'][:22]:<22} steps rd tst   out/reason" for r in runs))

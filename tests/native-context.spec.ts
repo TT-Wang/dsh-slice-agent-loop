@@ -11,6 +11,7 @@ import {
   nativeFailure, nativeHarness, nativeMessage, nativeSend, nativeText, nativeTool,
   type CapturedRequest, type NativeHarness,
 } from './native-harness.js'
+import { DEFAULT_MAX_REQUEST_CHARS } from '../src/index.js'
 
 const live: NativeHarness[] = []
 const roots: string[] = []
@@ -121,6 +122,96 @@ describe('slice context on the native DSH loop', () => {
       'Current runtime context: none. Earlier runtime-context snapshots no longer apply.',
     ])
     expect(h.errors).toEqual([])
+  })
+
+  it('does not accumulate superseded runtime snapshots when the context changes every turn', async () => {
+    const turns = 60
+    const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`)))
+    let tick = 0
+    h.ctx.systemPrompt.variable('tick', () => `${tick}`.padStart(6, '0') + 'x'.repeat(3_000))
+    h.ctx.systemPrompt.context({ name: 'changing-runtime', order: 50, text: 'RUNTIME {{tick}}' })
+    const { agent } = await create(h, 'native-runtime-churn')
+    for (let turn = 1; turn <= turns; turn += 1) {
+      tick = turn
+      h.captured.length = 0 // the fixture keeps a full event-log clone per request
+      await nativeSend(agent, `question ${turn}`)
+    }
+
+    const surface = agent.session.surface.nodes.map(seq => agent.session.eventAt(seq)!)
+    const snapshots = surface.filter(event => event.type === 'user/message'
+      && event.data.source.kind === 'plugin' && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')
+    // Under factory defaults this session used to die: one protected snapshot per
+    // turn, per-span budget collapsing to zero, then the same refusal forever.
+    expect(h.adapter.requests).toHaveLength(turns)
+    expect(h.errors).toEqual([])
+    // Exactly the live snapshot. The host projects the new one before pre-step
+    // and appends it right after, so the plugin shadows the outgoing one in the
+    // same step instead of paying for it once more; a context of size C costs C
+    // per request, not 2C. (Shadowing is safe even when the step never
+    // dispatches: RuntimeContextProjection drops a retained node a replacement
+    // event names, and reprojects on the next pre-step.)
+    expect(snapshots).toHaveLength(1)
+    expect(surface.length).toBeLessThanOrEqual(8)
+    const last = h.adapter.requests.at(-1)!.messages
+    const projected = last.filter(message => message.role === 'user' && message.source.kind === 'plugin'
+      && message.source.plugin === '@deepseek-ai/dsh-system-prompt')
+    expect(projected).toHaveLength(1)
+    expect(textIn([projected.at(-1)!])).toContain(`RUNTIME ${String(turns).padStart(6, '0')}`)
+    expect(textIn(last)).not.toContain('RUNTIME 000001')
+    expect(Array.from(JSON.stringify(last)).length).toBeLessThan(DEFAULT_MAX_REQUEST_CHARS)
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
+  it('gives history budget back instead of dying on maxRequestChars', async () => {
+    const turns = 24
+    const maxRequestChars = 120_000
+    const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`.padEnd(1_500, 'y'))), {
+      config: { maxHistoryChars: 90_000, maxRequestChars },
+    })
+    let tick = 0
+    h.ctx.systemPrompt.variable('tick', () => `${tick}`.padStart(6, '0') + 'x'.repeat(30_000))
+    h.ctx.systemPrompt.context({ name: 'big-runtime', order: 50, text: 'RUNTIME {{tick}}' })
+    const { agent } = await create(h, 'native-request-budget')
+    for (let turn = 1; turn <= turns; turn += 1) {
+      tick = turn
+      h.captured.length = 0
+      await nativeSend(agent, `question ${turn}`.padEnd(1_500, 'z'))
+    }
+
+    // The protected floor (one runtime snapshot plus current input) leaves less
+    // room than maxHistoryChars, so spending the whole history budget overflows
+    // the request. Refusing there is permanent -- every later turn throws the
+    // same way with no dispatch -- while the history the plugin is holding is
+    // its own to give back.
+    expect(h.adapter.requests).toHaveLength(turns)
+    expect(h.errors).toEqual([])
+    for (const request of h.adapter.requests) {
+      expect(Array.from(JSON.stringify(request.messages)).length).toBeLessThanOrEqual(maxRequestChars)
+    }
+    const view = textIn(h.adapter.requests.at(-1)!.messages)
+    expect(view).toContain(`question ${turns}`)
+    expect(view).toContain('recall_turn')
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
+  it('keeps dispatching through the last-resort tier and on the turn after it', async () => {
+    const turns = 40
+    const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`)), {
+      config: { maxHistoryChars: 800 },
+    })
+    const { agent } = await create(h, 'native-last-resort')
+    for (let turn = 1; turn <= turns; turn += 1) await nativeSend(agent, `question ${turn}`)
+
+    expect(h.adapter.requests).toHaveLength(turns)
+    expect(h.errors).toEqual([])
+    // Per-entry omission markers name every omitted turn and stop fitting; the
+    // bounded marker replaces them and keeps its durable locators.
+    const view = textIn(h.adapter.requests.at(-1)!.messages)
+    expect(view).toMatch(/all \d+ sealed turns \(1\.\.\d+\) omitted/)
+    expect(view).toContain('recall_turn({"turn":"<id>"})')
+    expect(view).toContain(`question ${turns}`)
+    expect(textIn(h.adapter.requests.at(-2)!.messages)).toMatch(/all \d+ sealed turns \(1\.\.\d+\) omitted/)
+    for (const captured of h.captured.slice(-3)) expectReconstructable(captured)
   })
 
   it('preserves structured image content and its position in current input after earlier turns are compacted', async () => {

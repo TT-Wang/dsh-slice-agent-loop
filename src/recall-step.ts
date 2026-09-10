@@ -2,8 +2,12 @@
  * recall-step.ts — 轮内封存的召回工具:逐字取回某一步的完整工具调用与结果。
  *
  * 与 recall_turn 同源:从持久会话日志(tool/call · tool/result 事件)取,不依赖
- * 内存轨迹,agent 重建后同样可用。封存条目首行写着 `recall_step(turn, step)`,
- * 模型据此索引。
+ * 内存轨迹,agent 重建后同样可用。
+ *
+ * turn/step 从哪来:在线路径上,SESSION TAPE 的省略标记只给 recall_turn
+ * (src/context.ts 的 recallForEntry 只产 kind:'turn'),写着 recall_step 的是折叠视图首行
+ * (`expand_result({"turn": t, "step": s, "call": n})`)与 fold 可供性(src/fold/index.ts),
+ * 模型据此索引整步。src/lab/step-tape.ts 的封存条目首行是同一形状,但它不在运行时路径上。
  */
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -75,7 +79,8 @@ export function recallStepToolDefinition(): ToolDefinition {
       'Retrieve the verbatim tool calls and full results of one earlier STEP of the current turn (or a past '
       + 'turn). Use it to retrieve original tool content omitted from a folded view: an earlier read, '
       + 'a listing or an error trace. Surface replacement copies are excluded. Serves from the durable '
-      + 'session log.',
+      + 'session log. Narrower and cheaper than recall_turn (one step, not the whole turn); when you only '
+      + 'need one condensed result of that step, expand_result({"turn": t, "step": s, "call": n}) is cheaper still.',
     parameters: {
       turn: { type: 'string', required: true, description: 'Turn number as shown in the sealed entry, e.g. "3".' },
       step: { type: 'string', required: true, description: 'Step number as shown in the sealed entry, e.g. "12".' },

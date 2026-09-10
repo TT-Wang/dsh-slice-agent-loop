@@ -22,7 +22,7 @@ await step('tool-fs-search', async () => ctx.plugin(await pkg('fs/tool-fs-search
 await step('bash-local', async () => ctx.plugin((await pkg('shell/bash-local')).default, { cwd: workdir }))
 await step('shell-env', async () => ctx.plugin(await pkg('shell/shell-env'), {}))
 await step('tool-bash', async () => ctx.plugin(await pkg('shell/tool-bash'), { enableRunInBackground: false }))
-await step('slice plugin (state)', async () => ctx.plugin(apply, { mode: 'state' }))
+await step('slice plugin', async () => ctx.plugin(apply, { mode: 'slice' }))
 const names = (ctx.tools as unknown as { list?: () => Array<{ name: string }>; names?: () => string[] })
 let listed: string[] = []
 try { listed = (names.list?.() ?? []).map((t) => t.name) } catch {}

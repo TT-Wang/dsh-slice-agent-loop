@@ -2,7 +2,7 @@
 
 # dsh-slice-agent-loop
 
-English | [中文](README.zh.md)
+English | [中文](legacy-loop.zh.md) · [current README](../README.md)
 
 > **Every turn, hand the model exactly the context it needs. No more, no less.**
 
@@ -181,8 +181,13 @@ The paid repetition is not teaching the rule; it is suppressing re-read
 paranoia, worth more than the ~80 tok/turn it costs. Cost delta was −7–9%
 in dedup's favor and did not override the behavior gate. Decision recorded
 in `docs/adr/0001-keep-header-restatements.md`; ledgers in
-`results/20260901-header-dedup/`; branch `feature/header-dedup` left
-unmerged as the artifact.
+`results/20260901-header-dedup/`. **Correction (2026-09-10): the earlier
+claim that branch `feature/header-dedup` was "left unmerged as the artifact"
+is false.** Its tip `ddd2503` — the rejected dedup itself — is an ancestor of
+`main` (`git merge-base --is-ancestor ddd2503 main` → true;
+`git log --oneline main..feature/header-dedup` → 0 commits), and the ADR's
+re-run gate was never run. See the Status header of
+`docs/adr/0001-keep-header-restatements.md`.
 
 ### Results update — 2026-09-03 (in-turn fold · three arms)
 
@@ -452,4 +457,4 @@ actually took effect. `scripts/h2h-sessions.py` recomputes usage from
 
 ## License
 
-BSD-3-Clause — see [LICENSE](LICENSE).
+BSD-3-Clause — see [LICENSE](../LICENSE).

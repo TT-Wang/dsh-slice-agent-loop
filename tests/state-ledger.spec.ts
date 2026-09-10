@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   addFact, checkPredicates, createLedger, currentFiles, globToRegExp, liveFacts,
   parseRulesJson, recordFile, renderConstitution, renderLedger, supersedeFact,
-} from '../src/slice/state-ledger.js'
+} from '../src/lab/state-ledger.js'
 
 describe('state ledger', () => {
   it('renders append-only: a later render extends the earlier one as a byte prefix', () => {

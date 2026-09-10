@@ -5,7 +5,16 @@
 > - **#2 recall 两级化 — 已落地,形态有别于计划**:独立工具 `recall_search`(评分检索 + kind 防洪)+ 既有 `recall_turn`,未做 `around` 操作(轮粒度的 recall_turn 已覆盖邻域需求)、未做 operation 复用单工具(两工具目录语义更清晰)
 > - **#1 bounded-call 隔离 — 判定不适用,未落地**:本 loop 唯一模型调用即主轮请求(driver.ts:971),无元调用消费者;按仓库纪律不造无消费者的基础设施
 > - **#3 TTL 感知恢复 — 判定不适用,未落地**:切片每轮重建有界上下文,冷恢复无可修剪之物
-> 详见 README「Memory recall」节与 commit aa80006 / 后续修复提交。
+> 详见 commit aa80006 / 后续修复提交。
+>
+> **架构状态补记(2026-09-10)**:本页写在自建 loop 上。其中的实现引用现已失效——
+> `src/bounded-call.ts`、`src/cache-policy.ts` 从未落地(见上方判定),
+> `tests/driver-contract.spec.ts` 与 `driver.ts:971` 随 2026-09-08 原生迁移消失。
+> 已落地的两项(#5 前缀不变门、#2 recall 两级化)在现役路径上仍然有效:
+> `recall_search` / `recall_turn` 见 README;前缀稳定性现在由 `src/context.ts`
+> 的 surface replacement 位置决定，见 `CONTEXT.md`「缓存前缀」。
+> 原引用的 README「Memory recall」节已不存在(该标题在当前 README 与
+> `docs/legacy-loop.md` 中零命中)。
 
 来源：DeepSeek-Reasonix 研究（2026-08-12）· 目标仓库：`~/code/dsh-slice-agent-loop`
 原则：每项都带测试门（本仓库惯例：变异验证）；不引入新持久化；bounded slice 哲学优先。

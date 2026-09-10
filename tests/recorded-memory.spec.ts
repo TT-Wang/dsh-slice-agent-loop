@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildContinuity, reduceContinuityEvents } from '../src/state/reducer.js'
 import { recordedFileObservations } from '../src/observations/files.js'
-import { fileObservationsByPath } from '../src/state/selectors.js'
+import { fileObservationsByPath } from '../src/lab/state-selectors.js'
 import type { RecordedEvent } from '../src/state/events.js'
 
 const user = (text: string): RecordedEvent => ({

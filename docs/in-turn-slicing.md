@@ -1,3 +1,15 @@
+> ⚠️ **机制已退役 + 数字不可比（2026-09-10）。**
+> - **配置已退役**:`inTurnSeal` 在当前插件加载时直接报错
+>   (`src/index.ts` 的 `allowed` 白名单里没有它 → `Retired slice configuration
+>   inTurnSeal`)。本文描述的开关不再存在。
+> - **实现引用已失效**:本文提到的 `src/driver.ts`(`maybeSealSteps`)**在仓库中
+>   已不存在**——2026-09-08 原生迁移删掉了自建驱动器。纯函数层现在是
+>   `src/lab/step-tape.ts`(2026-09-10 前在 `src/slice/step-tape.ts`)，仍留在源码
+>   树里，但只被 `tests/step-tape.spec.ts` 引用，不在插件的现役调用图上。
+>   轮内压缩现在由 `tool-result-fold`(`src/fold/`) 承担，
+>   机制不同，见 `docs/tool-result-fold.md`。
+> - **下面的 A/B 数字测自旧 loop**，与当前架构不可比。
+
 # 轮内切片(in-turn slicing):设计、v2 重载荷 A/B 结果与裁决
 
 > 2026-09-02 · deepseek-harness-a4(DSH 0.1.2-alpha.4)· deepseek-v4-flash
@@ -12,7 +24,7 @@ slice loop 把"每轮只给模型这一轮需要的上下文"做到了**轮界**
 
 ## 实现
 
-- `src/slice/step-tape.ts`:封存条目纯函数;`stepsToSeal` 经济学门槛(轨迹 ≥
+- `src/lab/step-tape.ts`(原 `src/slice/step-tape.ts`):封存条目纯函数;`stepsToSeal` 经济学门槛(轨迹 ≥
   sealTokens 且未封存步 ≥ batch+keep 才批量封);`sealSavesEnough` 体量守卫
   (折叠不压缩就不封);`protectEarlySteps` 宪法保护(见下)。
 - `src/driver.ts` `maybeSealSteps`:请求组装前折叠;`slice/step-seal` 审计事件。

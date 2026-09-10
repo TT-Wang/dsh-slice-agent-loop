@@ -1,26 +1,22 @@
-import { readFileSync } from 'node:fs'
-import { Context } from 'cordis'
+/**
+ * 最小观察点:绕开 agent,直接对 dsh-llm 发一次请求,看解析出来的 config 与 chunk 流。
+ *
+ * 前提: `npm run link:dsh` 已把宿主 peer 软链进来,且 DEEPSEEK_API_KEY 已导出。
+ *
+ *     DEEPSEEK_API_KEY=... npx tsx examples/dbg-direct.ts
+ */
+import { Context } from '@deepseek-ai/cordis'
 import LlmService from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { DeepSeekAdapter, PUBLIC_BASE_URL, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from '@deepseek-ai/dsh-llm-deepseek'
+import { MODEL, PROVIDER, registerDeepSeek, requireApiKey } from './host-deepseek.js'
 
-const toml = readFileSync(`${process.env.HOME}/.sliceagent/config.toml`, 'utf8')
-const apiKey = toml.match(/^api_key\s*=\s*"([^"]+)"/m)![1]
+const apiKey = requireApiKey()
 
 const ctx = new Context()
 await ctx.plugin(LlmService)
-ctx.llm.registerAdapter(['deepseek-official'], new DeepSeekAdapter({
-  options: () => ({
-    baseURL: PUBLIC_BASE_URL, apiKeyEnv: 'DEEPSEEK_API_KEY', defaults: {},
-    maxTokens: DEFAULT_MAX_TOKENS, defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
-    streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-    models: [{ id: 'deepseek-v4-flash', name: 'deepseek-v4-flash', contextWindow: DEFAULT_CONTEXT_WINDOW }],
-    retryPolicy: { attempts: 1, initialDelayMs: 0, backoff: 1, maxDelayMs: 0 },
-  }),
-  resolveApiKey: async () => apiKey,
-}))
+await registerDeepSeek(ctx.llm, apiKey)
 
-const prepared = await ctx.llm.prepareCall({ provider: 'deepseek-official', model: 'deepseek-v4-flash', maxTokens: 512 })
+const prepared = await ctx.llm.prepareCall({ provider: PROVIDER, model: MODEL, maxTokens: 512 })
 console.log('RESOLVED:', JSON.stringify(prepared.config))
 const chunks: string[] = []
 for await (const chunk of prepared.stream({

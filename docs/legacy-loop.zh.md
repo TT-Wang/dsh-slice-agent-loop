@@ -2,7 +2,7 @@
 
 # dsh-slice-agent-loop
 
-[English](README.md) | 中文
+[English](legacy-loop.md) | 中文 · [当前 README](../README.zh.md)
 
 > **每一轮对话,把模型最需要的上下文交给它。不多给,也不少给。**
 
@@ -113,8 +113,11 @@ slice 在两个时刻折叠历史:
 重读**:对照臂两跑稳定 10/10 次冗余重读,去重臂 25/15。这份重复挣的不是
 教学,是压多疑,值回那 ~80 tok/轮。钱反而是去重臂便宜 7–9%,但按预声明契约
 钱只记账不投票。决策存档 `docs/adr/0001-keep-header-restatements.md`;
-账本 `results/20260901-header-dedup/`;分支 `feature/header-dedup` 留作
-不合入的物证。
+账本 `results/20260901-header-dedup/`。**更正(2026-09-10):此前"分支
+`feature/header-dedup` 留作不合入的物证"的说法不成立。** 该分支 tip 即被否决的
+`ddd2503`,已是 `main` 的祖先(`git merge-base --is-ancestor ddd2503 main` → 真;
+`git log --oneline main..feature/header-dedup` → 0 条),且 ADR 要求的重跑门从未跑过。
+详见 `docs/adr/0001-keep-header-restatements.md` 的 Status 段。
 
 ### 结果更新——2026-09-03(轮内折叠 · 三臂)
 
@@ -310,4 +313,4 @@ npx tsx scripts/run-scenario.mts <场景目录> --arm transcript|slice-noseal|st
 
 ## 许可
 
-BSD-3-Clause —— 见 [LICENSE](LICENSE)。
+BSD-3-Clause —— 见 [LICENSE](../LICENSE)。

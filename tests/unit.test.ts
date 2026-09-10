@@ -3,7 +3,7 @@
  *
  * 原文件还含 region registry / elasticity 两组（移植自 test_region_registry.py
  * 与 test_context_elasticity.py）——它们测的分区表、四档保真度和弹性控制器已被
- * src/slice/assemble.ts 取代，随之删除。tape 与 continuity 部分原样保留。
+ * src/lab/assemble.ts 取代，随之删除。tape 与 continuity 部分原样保留。
  */
 import { describe, expect, it } from "vitest";
 import { searchSessionEvents, renderSearchHits } from "../src/recall.js";

@@ -1,7 +1,21 @@
+> ⚠️ **机制已退役 + 数字不可比（2026-09-10）。**
+> - **配置已退役**:`mode: 'state'` 与 `mode: 'stream'`(以及 `state`、`tape`)
+>   在当前插件加载时直接报错——`src/index.ts` 只接受 `mode: 'slice'`，其余抛
+>   `Only mode: slice is supported; state/stream rollback experiments are retired.`
+>   本文正文多处(约 `:4`、`:95`、`:98`、`:171`)仍按这两个 mode 现役来写，**那是
+>   历史记录**。
+> - **写前快照/写后校验/回滚**这一套宿主文件操作已随迁移整体删除(见 README
+>   Migration 段)，不要按本文去实现或期待它。
+> - 纯函数层现在是 `src/lab/state-ledger.ts`(2026-09-10 前在
+>   `src/slice/state-ledger.ts`)，仍留在源码树里，但只被
+>   `tests/state-ledger.spec.ts` 引用，不在插件的现役调用图上。
+> - **下面的 A/B 与回放数字测自 2026-09-02 的自建 loop**，与当前 DSH 原生 slice
+>   上下文策略不可比。
+
 # 世界状态循环(World-State Loop):实现、v2 重载荷 A/B、回放试点与裁决
 
 > 2026-09-02 · deepseek-harness-a4 · deepseek-v4-flash · effort low
-> 提案:docs/plans 同名提案(2026-09-02);实现:`src/slice/state-ledger.ts` + driver `mode: 'state'`
+> 提案:docs/plans 同名提案(2026-09-02);实现:`src/slice/state-ledger.ts`(现 `src/lab/state-ledger.ts`) + driver `mode: 'state'`
 
 ## 实现(MVP,默认关闭)
 

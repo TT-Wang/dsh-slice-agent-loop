@@ -143,7 +143,7 @@ describe('gcSupersededBases', () => {
   })
 })
 
-import { tapeHeader } from '../src/slice/assemble.js'
+import { tapeHeader } from '../src/lab/assemble.js'
 describe('tape header follows the tape content', () => {
   it('describes snapshots when there are no patches, and composition when there are', () => {
     const noPatch = tapeHeader([{ kind: 'digest' }, { kind: 'base' }, { kind: 'reply' }])

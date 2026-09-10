@@ -1,0 +1,16 @@
+{
+ "extends": "./tsconfig.json",
+ "compilerOptions": {
+  "noEmit": true,
+  "rootDir": ".",
+  "types": [
+   "node"
+  ],
+  "allowImportingTsExtensions": true
+ },
+ "include": [
+  "scripts/**/*.mts",
+  "scripts/**/*.ts",
+  "examples/**/*.ts"
+ ]
+}

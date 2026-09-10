@@ -5,40 +5,31 @@
  *   t1 "你好"（占住 goal）→ t2 "暗号：蓝莓42" → t3 "暗号是什么？"
  * 只有 recordUser + sealTurn + toSliceCtx 链路通了，t3 才答得出。
  *
+ * 前提（见 examples/host-deepseek.ts）：先 `npm run link:dsh` 软链宿主 peer，
+ * 并导出 DEEPSEEK_API_KEY。
+ *
  * 用法：npx tsx examples/smoke-continuity.ts
  */
 
-import { readFileSync } from 'node:fs'
-import { Context } from 'cordis'
-import AgentRegistry from '@deepseek-ai/dsh-agent'
+import { Context } from '@deepseek-ai/cordis'
+import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry from '@deepseek-ai/dsh-tools'
-import { DeepSeekAdapter, PUBLIC_BASE_URL, DEFAULT_CONTEXT_WINDOW, DEFAULT_MAX_TOKENS, DEFAULT_STREAM_IDLE_TIMEOUT_MS } from '@deepseek-ai/dsh-llm-deepseek'
 import apply from '../src/index.js'
+import { MODEL, PROVIDER, registerDeepSeek, requireApiKey } from './host-deepseek.js'
 
-const PROVIDER = 'deepseek-official'
-const MODEL = 'deepseek-v4-flash'
-
-function readKernelApiKey(): string {
-  const toml = readFileSync(`${process.env.HOME}/.sliceagent/config.toml`, 'utf8')
-  const match = toml.match(/^api_key\s*=\s*"([^"]+)"/m)
-  if (!match) throw new Error('no api_key in ~/.sliceagent/config.toml')
-  return match[1]
-}
-
-function lastAssistantText(agent: { session: { events: readonly any[] } }): string {
-  const msgs = agent.session.events.filter((e) => e.type === 'assistant/message')
+function lastAssistantText(agent: Agent): string {
+  const msgs = agent.session.snapshotEvents().filter((e) => e.type === 'assistant/message')
   const last = msgs.at(-1)
-  return last?.data?.message?.content
-    ?.filter((b: { type: string }) => b.type === 'text')
-    .map((b: { text: string }) => b.text).join('') ?? ''
+  return last?.data.message.content
+    .map((b) => (b.type === 'text' ? b.text : '')).join('') ?? ''
 }
 
 async function main(): Promise<void> {
-  const apiKey = readKernelApiKey()
+  const apiKey = requireApiKey()
   const ctx = new Context()
   await ctx.plugin(LlmService)
   await ctx.plugin(SessionStore)
@@ -47,19 +38,7 @@ async function main(): Promise<void> {
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(apply)
 
-  ctx.llm.registerAdapter([PROVIDER], new DeepSeekAdapter({
-    options: () => ({
-      baseURL: PUBLIC_BASE_URL,
-      apiKeyEnv: 'DEEPSEEK_API_KEY',
-      defaults: {},
-      maxTokens: DEFAULT_MAX_TOKENS,
-      defaultContextWindow: DEFAULT_CONTEXT_WINDOW,
-      streamIdleTimeoutMs: DEFAULT_STREAM_IDLE_TIMEOUT_MS,
-      models: [{ id: MODEL, name: MODEL, contextWindow: DEFAULT_CONTEXT_WINDOW }],
-      retryPolicy: { attempts: 1, initialDelayMs: 0, backoff: 1, maxDelayMs: 0 },
-    }),
-    resolveApiKey: async () => apiKey,
-  }))
+  await registerDeepSeek(ctx.llm, apiKey)
 
   ctx.on('agent/error', (payload) => console.log('AGENT-ERROR:', JSON.stringify(payload).slice(0, 400)))
 
@@ -84,8 +63,8 @@ async function main(): Promise<void> {
   }
 
   const answer = lastAssistantText(agent)
-  const turns = agent.session.events.filter((e) => e.type === 'turn/start').length
-  const ends = agent.session.events.filter((e) => e.type === 'turn/end')
+  const turns = agent.session.snapshotEvents().filter((e) => e.type === 'turn/start').length
+  const ends = agent.session.snapshotEvents().filter((e) => e.type === 'turn/end')
   console.log('turns:', turns, 'ends:', ends.map((e) => e.data.reason.kind).join(','))
 
   await handle.dispose()

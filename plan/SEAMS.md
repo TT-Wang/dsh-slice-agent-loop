@@ -1,3 +1,25 @@
+> ⚠️ **状态（2026-09-10）：本文是 2026-09-08 原生迁移之前的 slice schema 契约，
+> 已不再是现役契约，仅作设计史保留。** 逐条核对的漂移：
+> - **`[schema.ts](schema.ts)` 是坏链** —— `plan/schema.ts` 从未落地，提案稿被
+>   `assemble.ts` 取代后删除（`plan/MAP.md` 开头已记录这一点）。
+> - **「没有区表、没有 `Region` 类型、没有 `zone` 字段」与实现相反** ——
+>   `assemble.ts` 导出了带 `zone` 字段的 `ZONE_HEADERS`（7 项，供离线 miss 归因把
+>   字节偏移映射回段）。契约写"不要那张表"，实现最终还是需要它。
+> - **本文所设想的 `src/slice/` 形状已经不成立** —— 那台自建渲染器
+>   （`assemble.ts` / `SliceCtx` / `assemble()`）在原生迁移后不在现役调用图上，
+>   文件已移到 `src/lab/assemble.ts`；现役上下文装配是 `src/context.ts`
+>   （`compactHistory` + `HISTORY_HEADER` + surface replacement），它没有区、没有
+>   `SliceCtx`、也没有 `assemble()`。S1/S2/S4 里关于"driver 每轮全量构造"、
+>   "缓存边界 = system + 上一轮结束时的 tape"的决策，讲的都是那台已退役的驱动器。
+>   **注意 `src/slice/` 目录本身仍然现役**：`src/context.ts:5-6` 直接 import
+>   `slice/admission.ts` 与 `slice/tape.ts`，`src/fold/` 用 `slice/result-digest.ts`
+>   ——它们是现役渲染与准入代码，别当死代码删。本文的范围行（下面「范围：
+>   `src/slice/`。不含 `tape.ts` 内部逻辑」）本来就把 `tape.ts` 排除在外。
+> - S6「迁移」标为 **OPEN** 且从未闭合；真正发生的迁移是另一件事（迁到 DSH 原生
+>   loop），不是本文设想的那次。
+>
+> 现役词汇与机制锚点见仓库根的 `CONTEXT.md`。
+
 # SEAMS — slice schema（DSH 原生重构）
 
 一句话：**把每轮该带的东西按固定顺序拼成一个字符串。**

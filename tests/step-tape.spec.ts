@@ -9,7 +9,7 @@ import {
   renderStepTape,
   resolveSealPolicy,
   stepsToSeal,
-} from '../src/slice/step-tape.js'
+} from '../src/lab/step-tape.js'
 
 describe('cutHeadTail', () => {
   it('keeps short text verbatim and cuts long text with an exact marker', () => {
@@ -82,7 +82,7 @@ describe('stepsToSeal', () => {
 
 describe('sealSavesEnough (l1 byte-light guard)', () => {
   it('rejects a fold that does not meaningfully compress', async () => {
-    const { sealSavesEnough } = await import('../src/slice/step-tape.js')
+    const { sealSavesEnough } = await import('../src/lab/step-tape.js')
     // l1 病态:结果 137 字符 < head+tail 保留窗,折叠后反而更大 → 不划算。
     expect(sealSavesEnough(400, 520)).toBe(false)  // 折叠反而更大
     expect(sealSavesEnough(400, 280)).toBe(false)  // 只省 30% < 40% 门槛

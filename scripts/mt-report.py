@@ -5,6 +5,7 @@
 s14b 取 08-12 与 08-26 r1(08-31 为 reasoning-ab 变体,排除);其余场景无基线。"""
 import json, sys, glob, os, statistics
 P = dict(miss=0.22, hit=0.007, out=0.66)
+if len(sys.argv) < 3: raise SystemExit(__doc__)
 new_dir, h2h_json = sys.argv[1], sys.argv[2]
 h2h = json.load(open(h2h_json))
 PICK = {

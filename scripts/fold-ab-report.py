@@ -3,6 +3,7 @@
 用法:python3 scripts/fold-ab-report.py <ledger-dir> [--md]"""
 import json, sys, glob, os
 P = dict(miss=0.22, hit=0.007, out=0.66)
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 d = sys.argv[1]; md = '--md' in sys.argv
 rows = {}
 for f in sorted(glob.glob(os.path.join(d, '*.json'))):

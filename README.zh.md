@@ -2,28 +2,63 @@
 
 [English](README.md)
 
-面向 **DeepSeek Harness 0.1.3-alpha.2** 的有界上下文插件。现在与原生 agent-loop 一起运行，生命周期、收件箱、并发调度、持久化、请求序列和完整请求重建不变量都由 DSH 管理。
+面向 **DeepSeek Harness 0.1.3-alpha.2** 的有界对话上下文策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。
 
-已完成的对话片段通过原生 surface replacement 写入 SESSION TAPE。运行时上下文、指令来源、当前请求和用户多模态消息保留原来的来源与位置；原始事件留在日志中，折叠和恢复后仍可召回。
+已完成的对话片段成为持久的 `user/message` surface replacement。指令消息、当前用户输入、用户多模态消息与**当前生效的**运行时快照保留原来的来源与位置。唯一的例外是已被宿主取代的运行时快照：它会被移出请求视图，原位留下一条指向其 `recall_turn` 页的标记——因为每轮留一个死快照在 surface 上会把各 span 的预算压到零。原始事件留在会话日志里；折叠、省略或恢复之后由 `recall_turn` / `recall_search` 取回。
 
-## 迁移
+## 安装与组合
 
-1. 恢复原生 `agent-loop`、`agent-loop-invariant` 与 session projections；新 bundle 只添加 slice 插件。
-2. 将 `maxParallelToolCalls` 等调度配置移到原生 loop。
-3. `state`／`stream` 模式以及 `state`、`tape`、`inTurnSeal` 配置已经退役，加载时会明确报错。旧的本机文件快照与写入回滚代码已删除。
-4. 私有 `sliceContext.contribute` 改用 DSH 的 system-prompt／runtime-context 扩展。`./invariant` 现为原生完整检查的兼容导出，不要重复挂载。
-5. 旧日志里的 required `slice/*` 事件仍需原来的 reader 或显式迁移；本次不会改写旧日志或修改宿主的已知事件集合。
+用 DSH 的插件安装器安装本仓库，并应用它的 `cordis.patch.yml` bundle。该 patch **只新增插件**。**保持 `agent-loop`、`agent-loop-invariant` 与原生 session projections 启用。** Git 包内含已生成的 `lib/` 产物。
 
-## 配置与限制
+```yaml
+- id: slice-agent-loop
+  name: '@dsh-external/dsh-slice-agent-loop'
+  config:
+    maxHistoryChars: 120000
+    maxRequestChars: 400000
+    maxStepsPerTurn: 50
+    defaultReasoningEffort: low
+```
 
-默认 `maxHistoryChars: 120000` 限制历史文本和召回标记；`maxRequestChars: 400000` 限制序列化模型消息，包括保护的上下文与当前输入。它们是字符上限，不是 token 估算；system prompt、工具 schema 与模型容量仍由宿主负责。无法安全满足上限时明确拒绝请求，不静默超限；预算拒绝前先记录用户输入。默认 `maxStepsPerTurn: 50`，`defaultReasoningEffort: low`，显式模型选择优先。
+| 配置项 | 含义 |
+|---|---|
+| `maxHistoryChars` | 渲染后对话历史合计的硬上限，含各段 header 与召回标记。 |
+| `maxRequestChars` | 序列化模型 **messages** 的硬上限，含受保护上下文与当前输入。它是字符上限，不是 token 估算；system prompt／工具 schema 与模型容量仍归宿主。 |
+| `maxStepsPerTurn` | 超过这么多模型步就停止派发；默认 50。 |
+| `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`；宿主／模型的显式选择优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入。模型未声明（或根本不声明 reasoning）时沿用适配器默认，并按路由告警一次；若能力查询本身失败，则静默沿用适配器默认（`src/effort-default.ts` 的 `declaredEfforts` 在任何异常上返回 `undefined`，只有拿到能力表时才告警）。|
+| `digest` | 内容路由选项，见 `src/slice/result-digest.ts`。 |
+| `fold` | 工具结果折叠选项，含 `enabled`、`pinSteps`、`pinMaxChars`、`spillPreviewMinBytes`、`backoffAfterExpansions`。 |
 
-`recall_search` 搜索原始记录，`recall_turn` 包含该轮用户、助手与工具原始记录，`recall_step` 返回步骤，`expand_result` 按实际工具结果序号精确召回。`digest` 和 `fold` 可配置工具结果折叠策略。
+拒绝之前先做确定性降级。装不下自己那份 `maxHistoryChars` 的历史 span，会被换成一条有界的"全部省略"标记，其中带着它覆盖的每一轮的 `recall_turn` 定位符——**按 span 逐段降级**，装得下的 span 不会被装不下的那段拖着一起丢；这一步会走插件的 `warn` 通道打日志。装配后的请求若仍超过 `maxRequestChars`，则把历史预算让回去、从同一批原始事件重新规划（最多六轮），而不是让本会话之后每一轮都以同样方式拒绝。只有连有界标记都装不下、或仅受保护部分就已超出消息预算时，请求构造才**明确失败**。插件不会静默返回超限视图。预算拒绝前先记录当前输入。历史片段一律先全部规划、再追加替换。
 
-读取窗口与编辑 diff 只能证明历史观察，不能证明文件全文、当前磁盘内容或远端身份。因此完整文件 base／免重读指针暂不启用，详见 [记录式记忆](docs/recorded-memory.md)。
+`recall_search` 搜索原始的用户与助手文本、工具输入与工具错误；普通工具**输出**默认不在检索范围（它是会话里体量最大、信噪比最低的文本），需要时显式传 `kinds: ["tool_output"]`（见 `src/recall.ts` 的 `DEFAULT_SEARCH_KINDS`）。`recall_turn` 返回一整轮，含原始记录与工具元数据；`recall_step` 取回某一步；`expand_result` 按精确的结果序号取回，可按行或正则过滤。带 spill 定位符的工具结果用其预览里给出的定位符。
 
-## 验证
+## 从 0.0.1 迁移
 
-Node `^22.19.0 || >=24.0.0`，pnpm 11.7.0；依次执行 `pnpm install --frozen-lockfile`、`npm run typecheck`、`npm test`、`npm run build`。依赖锁定公开发布的 alpha.2 包；CI 运行完整测试，包括原生请求不变量和 JSONL 关闭／恢复。
+- 删掉旧的、停用原生 loop 与不变量的 override，改用新的增量 bundle。
+- 把 `maxParallelToolCalls` 等调度配置移到原生 `agent-loop` 行。
+- `mode: state`、`mode: stream`、`state`、`tape`、`inTurnSeal` 已退役，加载时报错。不安全的宿主文件快照与写入回滚实现已删除。
+- 私有的 `sliceContext.contribute` 注册表已退役。改用宿主的 system-prompt／runtime-context 扩展，让来源身份与持久化归 DSH。
+- 原生不变量与本包的兼容导出 `./invariant` **二选一挂载，不要都挂**。两者装的是同一套完整重建检查。
+- 旧日志里含 required `slice/*` 事件的，仍需原来的 reader 或显式迁移。本次发布不改写宿主的已知事件词汇表，也不改写旧会话文件。
 
-缓存前缀与现付文本取决于实际替换片段。本次迁移没有沿用旧实现的成本／质量结论；[历史实验](docs/legacy-loop.zh.md) 需要在新策略上重新跑模型评测。
+文件读取是记录下来的窗口，写入／编辑元数据含 diff 片段。它们是历史观察，不能证明文件当前全文，也不能证明后端身份。完整 base／免重读指针类优化保持关闭，直到宿主提供带完整 provider 文本、目标身份与版本的持久观察通道。见 [记录式记忆](docs/recorded-memory.md)。
+
+## 开发与验证
+
+使用 Node `^22.19.0 || >=24.0.0` 与 pnpm 11.7.0：
+
+```sh
+pnpm install --frozen-lockfile
+npm run typecheck
+npm test
+npm run build
+```
+
+公开的 alpha.2 依赖锁在 `pnpm-lock.yaml` 里；**不需要维护者的本地检出，也不需要任何绝对依赖路径**。CI 对着这些已发布包跑完整测试，包括原生 loop 不变量与真实 JSONL 关闭／恢复。构建会先清掉过期的生成文件再产出 Git 安装用的产物。
+
+`npm run verify:packed` 跑一遍免密钥的标准安装器／Loader／JSONL 冒烟；`npm run verify:master -- /path/to/deepseek-harness` 对着一份准备好的上游源码检出跑。[已记录的升级验证](docs/upgrade-verification.md) 把已发布版本、源码 master、打包产物三类证据分开陈述。
+
+原生回归套件覆盖：运行时上下文的保留／更新／移除、不透明指令来源归属、多模态输入、重试与 steering、请求序列切换、admission 失败、卸载，以及不带插件恢复会话。另有一个测试验证：改动后续消息会被原生不变量拒绝派发。
+
+缓存前缀与现付文本取决于本轮哪些片段发生变化；**不存在普适的缓存命中或成本保证**。[早期自建 loop 的实测](docs/legacy-loop.zh.md) 属历史记录。本次迁移改变了策略，那些数字需要在新架构上重跑模型质量／成本实验后才能重新引用。

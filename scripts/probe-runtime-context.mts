@@ -77,7 +77,10 @@ await runTurn(1, 'Reply with exactly: OK-1. No tools.')
 await runTurn(2, 'Reply with exactly: OK-2. No tools.')
 // ── 真实状态切换:approval ask → never。生产者变更 → 投影新快照 → 下一轮种子的
 // runtime-context 块字节变化 → 归因应在边界 3 报 runtime-context-volatile。
-ctx.approval.setPolicy(agent, 'never')
+// ApprovalService 是从宿主 checkout 动态 import 进来的，它对 Context 的类型扩展
+// 不在本程序里，所以按一个窄形状取服务，而不是把整个 ctx 当 any。
+const approval = ctx as unknown as { approval: { setPolicy(agent: unknown, policy: string): void } }
+approval.approval.setPolicy(agent, 'never')
 console.log('── setPolicy(never) between turn 2 and 3')
 await runTurn(3, 'Reply with exactly: OK-3. No tools.')
 await runTurn(4, 'Reply with exactly: OK-4. No tools.')

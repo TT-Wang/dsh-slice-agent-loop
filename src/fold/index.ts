@@ -4,13 +4,16 @@
  * 正式家在独立仓库 https://github.com/TT-Wang/dsh-tool-result-fold(`dsh plugin add github:TT-Wang/dsh-tool-result-fold`);
  * 这里的副本供本仓库的 runner(`--arm transcript-fold`)与契约测试使用,两边源码同源,改动请先改那边。
  *
- * 机制:每步开始前(`agent/pre-step`),把上一步刚落盘的工具结果按内容路由折成紧凑视图,以
- * **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,引用被遮蔽的 seq)——与 dsh 自带的
- * compaction-tool-result-pruner 同一机制,会话不变量明确允许"引用被替换事件的内容改写"。
+ * 机制:每步开始前(`agent/pre-step`,`prepend` 挂在最外层、拿到下游的 enter 判定之后才折),把上一步
+ * 刚落盘的工具结果按内容路由折成紧凑视图,以 **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,
+ * 引用被遮蔽的 seq)——与 dsh 自带的 compaction-tool-result-pruner 同一机制,会话不变量明确允许
+ * "引用被替换事件的内容改写"。
  * 原文原样留在日志里,`expand_result` 逐字取回;模型看到的上下文只追加不改写,前缀缓存不受影响。
  *
- * 路由规则复用 slice 的 result-digest(Headroom 式):代码与 grep/glob 不折,日志错误优先,
- * 文档/数据留头尾与结构行。默认 loop 不装 slice loop 也能用;两者不要同时挂(slice 自己折)。
+ * 路由规则复用 slice 的 result-digest(Headroom 式):代码不折,grep/glob 只在巨量命中时按文件配额折,
+ * 日志错误优先,文档/数据留头尾与结构行。
+ * 装载:默认 loop 不装 slice loop 也能用;slice loop 则无条件挂这一份副本(折叠只在这里做,slice 自己不折)。
+ * 同一个 ctx 里不要再挂独立仓库那一份——两份都会注册 `expand_result`,重名注册直接失败。
  */
 import { Context, Service } from '@deepseek-ai/cordis'
 import { isDeepStrictEqual } from 'node:util'
@@ -44,11 +47,23 @@ export interface Config {
 }
 
 export const EXPAND_TOOL_NAME = 'expand_result'
+/** slice loop 注册的整步召回工具;独立挂载时它不存在,可供性里就不能提(见 foldAffordance)。 */
+const RECALL_STEP_TOOL_NAME = 'recall_step'
+
+/** grep/glob 的措辞必须与 digestSearch 的实际契约一致:巨量命中会按文件配额折,并写明丢了多少
+ *  (`src/slice/result-digest.ts` 的 searchMinMatches/searchMinChars/searchMaxPerFile 与 maxKeepRatio)。
+ *  阈值是可配的,所以这里只说"很多命中"而不写死数字;`tests/fold-plugin.spec.ts` 把措辞钉在行为上。 */
+const FOLD_BODY = `Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code is never condensed; grep/glob results are kept whole unless one search returns very many matches, and then each file keeps its first and last matching lines and an exact \`[... and N more matches in <file>]\` marker names what was dropped. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.`
+
+/** 整步召回句:只有 ${RECALL_STEP_TOOL_NAME} 真的注册了才加,否则就是在宣告一个不存在的工具。 */
+const RECALL_STEP_CLAUSE = ` The locator stays valid after the turn is sealed; ${RECALL_STEP_TOOL_NAME}({"turn": t, "step": s}) returns that whole step — every call and every full result — from the same durable log.`
 
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
-export const FOLD_AFFORDANCE = `<fold>
-Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.
-</fold>`
+export function foldAffordance(hasRecallStep: boolean): string {
+  return `<fold>\n${FOLD_BODY}${hasRecallStep ? RECALL_STEP_CLAUSE : ''}\n</fold>`
+}
+
+export const FOLD_AFFORDANCE = foldAffordance(false)
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
 interface CallInfo { name: string; path?: string }
@@ -307,7 +322,11 @@ export class ToolResultFold extends Service {
     ctx.effect(() => ctx.tools.register(expandResultToolDefinition()), 'toolResultFold.expandResult()')
     if (!enabled) return
     ctx.effect(
-      () => ctx.systemPrompt.section({ name: 'fold:affordance', order: -900, text: FOLD_AFFORDANCE }),
+      () => ctx.systemPrompt.section({
+        name: 'fold:affordance', order: -900,
+        // 每次装配现算一次(结果对同一装载是恒定的,前缀缓存不受影响):slice loop 挂着时才提 recall_step。
+        text: (assembly) => foldAffordance(ctx.tools.get(RECALL_STEP_TOOL_NAME, assembly.scope) !== undefined),
+      }),
       'toolResultFold.affordance()',
     )
     const folders = new WeakMap<Session, SessionFolder>()
@@ -338,7 +357,12 @@ export class ToolResultFold extends Service {
         return { ...downstream, content: [...result.content.filter((b) => b.type !== 'text'), { type: 'text', text }] as never }
       })
     }
-    ctx.on('agent/pre-step', ({ agent }, next) => {
+    // 折在 next() 之后:下游(slice loop 的步数上限、宿主的中止)可能把这一步判成非 enter,
+    // 那一步不再构造请求,先折就是一次没人看的 surface 替换 + 日志写入(A-RT-12)。
+    // enter 之后仍然早于请求构造(agent/request),折叠视图照常进这一步的请求。
+    ctx.on('agent/pre-step', async ({ agent }, next) => {
+      const decision = await next()
+      if (decision.kind !== 'enter') return decision
       const session = (agent as Agent).session
       let folder = folders.get(session)
       if (folder === undefined) {
@@ -347,8 +371,8 @@ export class ToolResultFold extends Service {
         FOLD_STATS.set(session, folder.stats)
       }
       folder.fold()
-      return next()
-    })
+      return decision
+    }, { prepend: true })
   }
 }
 
