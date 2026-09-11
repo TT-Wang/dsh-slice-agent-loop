@@ -10,6 +10,8 @@ Completed conversational spans become durable `user/message` surface replacement
 
 Install this repository with DSH's plugin installer and apply its `cordis.patch.yml` bundle. The patch only adds the plugin. **Keep `agent-loop`, `agent-loop-invariant`, and the stock session projections enabled.** The Git package includes generated `lib/` artifacts.
 
+This package already mounts its own copy of tool-result folding: the same source as the standalone [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) plugin, also exported here as `./fold`. **Do not install the standalone plugin into the same profile.** Both register `expand_result`, and the second registration fails at load with `tool "expand_result" is already registered`. Mount `./fold` (or the standalone plugin) on its own only when you want folding on the stock loop without the slice policy.
+
 ```yaml
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
@@ -58,6 +60,8 @@ npm run build
 Public alpha.2 dependencies are pinned in `pnpm-lock.yaml`; no maintainer checkout or absolute dependency path is required. CI runs the full suite against those published packages, including stock-loop invariants and real JSONL close/resume. The build removes stale generated files before emitting Git-install artifacts.
 
 Run `npm run verify:packed` for a keyless standard-installer/Loader/JSONL smoke, or `npm run verify:master -- /path/to/deepseek-harness` against one prepared upstream source checkout. [Recorded upgrade verification](docs/upgrade-verification.md) separates published-release, source-master and packed-artifact evidence.
+
+`verify:packed` prerequisites: pnpm 11.7.0 as pinned by `packageManager` (enable corepack; any other version fails the run unless `SLICE_PACKED_ALLOW_PNPM_MISMATCH=1` is set), npm registry access (it installs the published `@deepseek-ai/dsh` 0.1.3-alpha.2 into a fresh temporary workspace), and the build toolchain for the JSONL persistence native addon `fs-ext`, whose install script the smoke runs. It prints its evidence directory when it finishes.
 
 The native regression suite covers runtime retention/update/removal, opaque instruction source ownership, multimodal input, retries and steering, request-series transitions, admission failures, unload, and resume without the plugin. A separate test checks that changing a later message causes the stock invariant to reject dispatch.
 

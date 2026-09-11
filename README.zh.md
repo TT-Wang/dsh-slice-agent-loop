@@ -10,6 +10,8 @@
 
 用 DSH 的插件安装器安装本仓库，并应用它的 `cordis.patch.yml` bundle。该 patch **只新增插件**。**保持 `agent-loop`、`agent-loop-invariant` 与原生 session projections 启用。** Git 包内含已生成的 `lib/` 产物。
 
+本包已经自带一份工具结果折叠，和独立插件 [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) 同源，也以 `./fold` 导出。**不要在同一个 profile 里再装那个独立插件**：两者都会注册 `expand_result`，第二次注册会在加载时直接失败（`tool "expand_result" is already registered`）。只有想在不装 slice 策略的原生 loop 上单独用折叠时，才单独挂 `./fold`（或那个独立插件）。
+
 ```yaml
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
@@ -58,6 +60,8 @@ npm run build
 公开的 alpha.2 依赖锁在 `pnpm-lock.yaml` 里；**不需要维护者的本地检出，也不需要任何绝对依赖路径**。CI 对着这些已发布包跑完整测试，包括原生 loop 不变量与真实 JSONL 关闭／恢复。构建会先清掉过期的生成文件再产出 Git 安装用的产物。
 
 `npm run verify:packed` 跑一遍免密钥的标准安装器／Loader／JSONL 冒烟；`npm run verify:master -- /path/to/deepseek-harness` 对着一份准备好的上游源码检出跑。[已记录的升级验证](docs/upgrade-verification.md) 把已发布版本、源码 master、打包产物三类证据分开陈述。
+
+`verify:packed` 的前置条件：pnpm 11.7.0（由 `packageManager` 固定，建议开启 corepack；版本不符会直接失败，除非设置 `SLICE_PACKED_ALLOW_PNPM_MISMATCH=1`）；能访问 npm registry（它会把已发布的 `@deepseek-ai/dsh` 0.1.3-alpha.2 装进一个全新的临时工作区）；以及 JSONL 持久化原生插件 `fs-ext` 构建所需的工具链（冒烟会执行它的 install 脚本）。运行结束会打印证据目录。
 
 原生回归套件覆盖：运行时上下文的保留／更新／移除、不透明指令来源归属、多模态输入、重试与 steering、请求序列切换、admission 失败、卸载，以及不带插件恢复会话。另有一个测试验证：改动后续消息会被原生不变量拒绝派发。
 
