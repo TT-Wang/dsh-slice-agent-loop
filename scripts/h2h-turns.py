@@ -3,6 +3,7 @@
 用法:python3 scripts/h2h-turns.py <session-id-prefix> [...]   (在 ~/.dsh/sessions 下按 session-<id> 匹配)"""
 import json, sys, os, glob, re, subprocess, collections
 P = dict(miss=0.22, hit=0.007, out=0.66)
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 for sid in sys.argv[1:]:
     paths = glob.glob(os.path.expanduser(f'~/.dsh/sessions/*-h2h-*/session-{sid}*/session.jsonl.zstd'))
     if not paths: print('no session', sid); continue

@@ -81,7 +81,7 @@ runner:`--arm transcript-fold`(原生 loop + 本插件);账本 `digest` 字段�
 
 ## 给 runner 加"整份返回"的工具之后:f9 / f10
 
-runner 在 `--tools full` 下多注册两个工具(`src/bench/tools.ts`):`fetch_page(url)` 从工作目录 `site/` 返回整页文本
+runner 在 `--tools full` 下多注册两个工具(`src/lab/bench-tools.ts`，2026-09-10 前在 `src/bench/tools.ts`):`fetch_page(url)` 从工作目录 `site/` 返回整页文本
 (HTML 转文本,标题与表格行保留),`db_query(sql)` 对 `data/*.db` 执行只读 SQL、整份结果按 JSONL 返回。两者都接不了
 `| grep`,是真实产品里网页抓取、MCP 查询、数据库工具的形状。
 

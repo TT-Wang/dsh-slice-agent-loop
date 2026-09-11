@@ -1,3 +1,20 @@
+> ⚠️ **架构状态（2026-09-10）**:本页 CB50 运行测自**已退役的自建 loop**
+> （2026-08-10，slice-ts 驱动器取代 agent-loop），不是 2026-09-08 起的 DSH 原生
+> slice 上下文策略。**数字不可跨架构比较**。
+
+> **口径说明（2026-09-10 补）：本页与 [`docs/eval-report.md`](eval-report.md) §5 是
+> 同一次运行的两种聚合，不是两次实验。** 本页把超时题计 0 分留在分母（n=50 双臂）；
+> eval-report §5 把超时题逐臂剔除（default n=44 / slice n=49）。价格合计两处相同
+> （$0.7746 / $1.0957），正说明同源。两套聚合都可用
+> [`docs/cb50-recompute.py`](cb50-recompute.py) 从下面这张 50 行表复算：
+>
+> ```sh
+> python3 docs/cb50-recompute.py docs/cb50-detail.md
+> ```
+>
+> 逐题表的超时行：default #5/#7/#15/#37/#38/#50（6 题）、slice #2（1 题）。
+> eval-report 曾把 default 写成 5 题，已于 2026-09-10 更正为 6。
+
 # CB50 逐题明细（d = default，s = slice-ts；TO = 20min 超时）
 
 | # | 实例 | fileR·d | fileR·s | spanR·d | spanR·s | 读文件·d | 读文件·s | 步数·d | 步数·s | 价格·d($) | 价格·s($) |
@@ -65,6 +82,8 @@
 | 合计价格 | $0.7746 | $1.0957 | +41.4% |
 
 注：聚合口径修正——超时题计入 0 分（不再剔除），对 default 影响更大（它超时多）。
+这是与 [`docs/eval-report.md`](eval-report.md) §5（超时剔除、default n=44 / slice n=49，
+fileR 0.677→0.761 / spanR 0.684→0.752）唯一的差异来源；两者同源同数据，见页首口径说明。
 
 ## F1（超时计 0，n=50）
 

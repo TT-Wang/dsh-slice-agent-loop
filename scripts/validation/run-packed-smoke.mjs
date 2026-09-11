@@ -8,6 +8,14 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 
 const candidate = process.argv[2]
+const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
+// The fixture pins this repository's package manager (package.json
+// "packageManager"). Evidence from a different pnpm is not comparable, and a
+// silently different install layout is exactly what this smoke exists to catch.
+const packageManager = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).packageManager
+// Budget for each step (install, plugin add, the session run). A cold install of
+// the published host tree over a slow registry link can exceed the default.
+const stepTimeoutMs = Number.parseInt(process.env.SLICE_PACKED_STEP_TIMEOUT_MS ?? '', 10) || 180_000
 const directory = mkdtempSync(join(tmpdir(), 'dsh-slice-packed-'))
 const fixtureSources = dirname(fileURLToPath(import.meta.url))
 const home = join(directory, 'home')
@@ -18,7 +26,7 @@ mkdirSync(output)
 let sourceArtifact = candidate
 if (sourceArtifact === undefined) {
   const packed = spawnSync('npm', ['pack', '--json', '--pack-destination', directory], {
-    cwd: fileURLToPath(new URL('../../', import.meta.url)), encoding: 'utf8',
+    cwd: repoRoot, encoding: 'utf8',
     maxBuffer: 8 * 1024 * 1024, timeout: 180_000,
   })
   writeFileSync(join(output, 'pack.log'), (packed.stdout ?? '') + (packed.stderr ?? ''))
@@ -36,13 +44,13 @@ const artifact = join(directory, 'candidate.tgz')
 copyFileSync(resolve(sourceArtifact), artifact)
 const sha256 = createHash('sha256').update(readFileSync(artifact)).digest('hex')
 writeFileSync(join(directory, 'package.json'), JSON.stringify({
-  name: 'dsh-slice-packed-validation', private: true, type: 'module',
+  name: 'dsh-slice-packed-validation', private: true, type: 'module', packageManager,
   dependencies: { '@deepseek-ai/dsh': '0.1.3-alpha.2' },
 }, null, 2) + '\n')
 copyFileSync(join(fixtureSources, 'packed-runner.mjs'), join(directory, 'runner.mjs'))
 copyFileSync(join(fixtureSources, 'packed-profile.patch.yml'), join(profile, 'cordis.patch.yml'))
 writeFileSync(join(profile, 'package.json'), JSON.stringify({
-  name: 'slice-packed-profile', private: true, type: 'module',
+  name: 'slice-packed-profile', private: true, type: 'module', packageManager,
   dsh: { profile: { bundles: [], patchReload: 'startup' } },
 }, null, 2) + '\n')
 // Match the supported launcher's own profile defaults; peers resolve to its
@@ -51,7 +59,7 @@ writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLinke
 const env = { ...process.env, DSH_HOME: home, DSH_VALIDATION_OUTPUT: output }
 let commandNumber = 0
 function run(command, args, cwd = directory) {
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000 })
+  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: stepTimeoutMs })
   const filename = `command-${++commandNumber}.log`
   writeFileSync(join(output, filename), JSON.stringify({ command, args, cwd, status: result.status }) + '\n' + (result.stdout ?? '') + (result.stderr ?? ''))
   if (result.error !== undefined || result.status !== 0) {
@@ -60,6 +68,12 @@ function run(command, args, cwd = directory) {
   return result
 }
 console.log(`Packed verification workspace: ${directory}`)
+const pnpmVersion = run('pnpm', ['--version']).stdout.trim()
+const wantedPnpm = /^pnpm@(\S+)$/.exec(packageManager ?? '')?.[1]
+if (wantedPnpm !== undefined && pnpmVersion !== wantedPnpm && process.env.SLICE_PACKED_ALLOW_PNPM_MISMATCH !== '1') {
+  throw new Error(`verify:packed needs pnpm ${wantedPnpm} (package.json packageManager) but found ${pnpmVersion}. `
+    + 'Enable corepack (corepack enable) so the pinned version is used, or set SLICE_PACKED_ALLOW_PNPM_MISMATCH=1 to accept incomparable evidence.')
+}
 run('pnpm', ['install', '--ignore-scripts'])
 const host = createRequire(realpathSync(join(directory, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')))
 // Only persistence's declared native addon needs an install script for this
@@ -72,6 +86,6 @@ run(process.execPath, [cli, 'plugin', '--profile', 'slice-packed', 'add', artifa
 run(process.execPath, [cli, '--profile', 'slice-packed', '--dump-config'])
 run(process.execPath, [cli, '--profile', 'slice-packed'])
 const summary = JSON.parse(readFileSync(join(output, 'summary.json'), 'utf8'))
-const verified = { ...summary, artifactSha256: sha256, node: process.version, platform: process.platform, arch: process.arch }
+const verified = { ...summary, artifactSha256: sha256, node: process.version, pnpm: pnpmVersion, platform: process.platform, arch: process.arch }
 writeFileSync(join(output, 'summary.json'), JSON.stringify(verified, null, 2) + '\n')
 console.log(JSON.stringify({ ...verified, evidence: output }, null, 2))

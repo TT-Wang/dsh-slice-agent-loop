@@ -13,5 +13,12 @@
  },
  "include": [
   "src"
+ ],
+ // src/lab is offline/experimental: unreachable from the published entry points,
+ // so it must not be emitted into lib/ or declared in lib/types. Specs and the
+ // bench scripts still import it directly and still get type-checked, because an
+ // imported file joins the program even when the include glob excludes it.
+ "exclude": [
+  "src/lab"
  ]
 }

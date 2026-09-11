@@ -3,6 +3,9 @@
 判卷 · $ · 步/读/测 · miss 拆成 封存(每轮第 1 步)/轮内 · hit · out(reasoning) · 种子峰值字符。
 用法:python3 scripts/knob-report.py <ledger.json> [...]  (label 同 turn-profile.py)"""
 import json, sys, re, os, glob, collections
+from pathlib import Path
+# 侧车账本按仓库根定位,而不是要求 cwd 恰好是仓库根。
+SIDECARS = Path(__file__).resolve().parent.parent / 'results' / 'sidecars'
 P = dict(miss=0.22, hit=0.007, out=0.66)
 def label(l):
     to = l.get('tapeOpts') or {}
@@ -10,6 +13,7 @@ def label(l):
         + (f"/rebase-{to['rebaseAfterPatches']}" if 'rebaseAfterPatches' in to else '') + (f"/reply-{to['replyHeadChars']}+{to.get('replyTailChars', '')}" if 'replyHeadChars' in to else '') \
         + ('/check' if to.get('checkInDigest') else '') + ('/collapse' if to.get('collapseEdits') else '') + (f"/rbmin-{to['readBasesMinReads']}" if 'readBasesMinReads' in to else '') + ('/gc' if to.get('gcSupersededBases') else '') + (f"/newmin-{to['newFileMinTouches']}" if 'newFileMinTouches' in to else '') + (f"/maxfiles-{to['baseMaxFiles']}" if 'baseMaxFiles' in to else '')
 print(f"{'scenario':<10}{'config':<44}{'ok':<3}{'$':>7}{'steps':>6}{'rd':>4}{'tst':>4}{'sealmiss':>9}{'turnmiss':>9}{'hit':>9}{'out':>7}{'reason':>7}{'seedmax':>8}")
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 for path in sys.argv[1:]:
     l = json.load(open(path)); t = l['totals']
     tr = [json.loads(x) for x in open(path.replace('.json', '.trace.jsonl'))]
@@ -19,7 +23,7 @@ for path in sys.argv[1:]:
             m = re.search(r'"file_path": "([^"]+)"', c)
             if c.startswith('read') and m: reads.add((x['turn'], m.group(1)))
             if c.startswith('bash') and re.search(r'pytest|python -m|unittest|npm test|python3? [\w./-]+\.py', c): tests += 1
-    side = glob.glob(os.path.join('results/sidecars', f"{l['sessionId']}.calls.jsonl"))
+    side = glob.glob(os.path.join(str(SIDECARS), f"{l['sessionId']}.calls.jsonl"))
     seal = turn = seedmax = 0
     if side:
         for line in open(side[0]):

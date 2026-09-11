@@ -4,13 +4,16 @@
  * 正式家在独立仓库 https://github.com/TT-Wang/dsh-tool-result-fold(`dsh plugin add github:TT-Wang/dsh-tool-result-fold`);
  * 这里的副本供本仓库的 runner(`--arm transcript-fold`)与契约测试使用,两边源码同源,改动请先改那边。
  *
- * 机制:每步开始前(`agent/pre-step`),把上一步刚落盘的工具结果按内容路由折成紧凑视图,以
- * **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,引用被遮蔽的 seq)——与 dsh 自带的
- * compaction-tool-result-pruner 同一机制,会话不变量明确允许"引用被替换事件的内容改写"。
+ * 机制:每步开始前(`agent/pre-step`,`prepend` 挂在最外层、拿到下游的 enter 判定之后才折),把上一步
+ * 刚落盘的工具结果按内容路由折成紧凑视图,以 **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,
+ * 引用被遮蔽的 seq)——与 dsh 自带的 compaction-tool-result-pruner 同一机制,会话不变量明确允许
+ * "引用被替换事件的内容改写"。
  * 原文原样留在日志里,`expand_result` 逐字取回;模型看到的上下文只追加不改写,前缀缓存不受影响。
  *
- * 路由规则复用 slice 的 result-digest(Headroom 式):代码与 grep/glob 不折,日志错误优先,
- * 文档/数据留头尾与结构行。默认 loop 不装 slice loop 也能用;两者不要同时挂(slice 自己折)。
+ * 路由规则复用 slice 的 result-digest(Headroom 式):代码不折,grep/glob 只在巨量命中时按文件配额折,
+ * 日志错误优先,文档/数据留头尾与结构行。
+ * 装载:默认 loop 不装 slice loop 也能用;slice loop 则无条件挂这一份副本(折叠只在这里做,slice 自己不折)。
+ * 同一个 ctx 里不要再挂独立仓库那一份——两份都会注册 `expand_result`,重名注册直接失败。
  */
 import { Context, Service } from '@deepseek-ai/cordis';
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
@@ -37,7 +40,8 @@ export interface Config {
 }
 export declare const EXPAND_TOOL_NAME = "expand_result";
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
-export declare const FOLD_AFFORDANCE = "<fold>\nWithin the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code and grep/glob results are never condensed. Everything else is replaced by exact markers `\u2026[+N lines / M chars]\u2026`, and the view's first line names the call that returns the full result: expand_result({\"turn\": t, \"step\": s, \"call\": n}), durable and one call away; add \"grep\": <regex> or \"lines\": \"a-b\" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.\n</fold>";
+export declare function foldAffordance(hasRecallStep: boolean): string;
+export declare const FOLD_AFFORDANCE: string;
 /** 从日志取某步第 n 个追加态工具结果的原文(替换事件不算)。 */
 export declare function fullResultAt(events: readonly SessionEvent[], turn: number, step: number, call: number): {
     name: string;

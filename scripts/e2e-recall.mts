@@ -87,7 +87,7 @@ send(agent, [
 ].join(' '))
 await agent.whenIdle()
 
-const t1 = agent.session.events.filter(e => e.type === 'assistant/message').at(-1)
+const t1 = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
 const t1text = (t1?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
   .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 const t1len = [...t1text].length
@@ -103,8 +103,8 @@ if (t1len <= REPLY_CAP_CHARS) {
 send(agent, 'Quote, verbatim and in full, the exact final sentence of your previous reply. Do not paraphrase.')
 await agent.whenIdle()
 
-const callsAfterT2 = agent.session.events.filter(e => e.type === 'tool/call').length
-const t2reply = agent.session.events.filter(e => e.type === 'assistant/message').at(-1)
+const callsAfterT2 = agent.session.snapshotEvents().filter(e => e.type === 'tool/call').length
+const t2reply = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
 const t2text = (t2reply?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
   .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 console.log(`T2: tool calls so far=${callsAfterT2}; reply quotes code word: ${t2text.includes(CODE_WORD)}`)
@@ -114,13 +114,13 @@ let t3text = ''
 if (callsAfterT2 === 0) {
   send(agent, 'Now use the recall_turn tool with {"turn": "slice-turn-1"} and quote that same final sentence from its output.')
   await agent.whenIdle()
-  const t3reply = agent.session.events.filter(e => e.type === 'assistant/message').at(-1)
+  const t3reply = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
   t3text = (t3reply?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
     .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 }
 
 // ── 取证 ──────────────────────────────────────────────────────────────────
-const events = agent.session.events
+const events = agent.session.snapshotEvents()
 const recallCalls = events.filter(e => e.type === 'tool/call' && JSON.stringify(e.data).includes('recall_turn'))
 const recallResults = events.filter(e => e.type === 'tool/result')
   .map(e => JSON.stringify(e.data))

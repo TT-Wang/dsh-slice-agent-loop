@@ -17,11 +17,16 @@ import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import InvariantService from '@deepseek-ai/dsh-invariants'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
-import fold, { EXPAND_TOOL_NAME, FOLD_STATS, fullResultAt } from '../src/fold/index.js'
+import fold, { EXPAND_TOOL_NAME, FOLD_AFFORDANCE, FOLD_STATS, foldAffordance, fullResultAt } from '../src/fold/index.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
 const CODE = Array.from({ length: 80 }, (_, i) => `def f${i}(x):\n    return x + ${i}`).join('\n')
+/** 5 个文件各 60 条命中:超过 searchMinMatches 120 与 searchMinChars 10_000,按文件配额(5)折。 */
+const GREP_HUGE = Array.from({ length: 5 }, (_, f) =>
+  Array.from({ length: 60 }, (_, i) => `src/mod${f}/file${f}.ts:${i + 1}:  const handler${i} = createHandler('route-${i}', options)`).join('\n')).join('\n')
+/** 30 条命中、约 1K 字符:两个阈值都不到,原样。 */
+const GREP_SMALL = Array.from({ length: 30 }, (_, i) => `src/small.ts:${i + 1}:  const handler${i} = createHandler()`).join('\n')
 
 class TestSettings extends SettingsProvider {
   readonly writable = false
@@ -112,6 +117,50 @@ describe('tool-result-fold on the stock loop', () => {
     expect(requestText(adapter, 1)).toContain('def f79(x)')
     expect(requestText(adapter, 2)).toContain('row 55 payload')   // 错误结果原样
     expect(handle.agent.session.snapshotEvents().filter((e) => e.type === 'tool/result' && isReplacementSurfaceEvent(e))).toHaveLength(0)
+    expect(FOLD_STATS.get(handle.agent.session)?.folded ?? 0).toBe(0)
+  })
+})
+
+/**
+ * A-RT-13:可供性曾写 "source code and grep/glob results are never condensed",而 grep/glob 走
+ * digestSearch,巨量命中会按文件配额折。这里把措辞钉在行为上:措辞承诺的标记形状必须真的出现,
+ * 而"代码不折"与"小结果不折"仍然成立。
+ */
+describe('the fold affordance states the real grep/glob contract', () => {
+  it('no longer claims grep/glob is never condensed, and names the per-file drop marker it emits', () => {
+    expect(FOLD_AFFORDANCE).not.toContain('grep/glob results are never condensed')
+    expect(FOLD_AFFORDANCE).toContain('source code is never condensed')
+    expect(FOLD_AFFORDANCE).toContain('[... and N more matches in <file>]')
+    // 独立挂载(没有 slice loop)时不宣告 recall_step;slice 挂着时才加,见 fold-reject-step.spec.ts。
+    expect(FOLD_AFFORDANCE).not.toContain('recall_step')
+    expect(foldAffordance(true)).toContain('recall_step({"turn": t, "step": s})')
+  })
+
+  it('condenses a huge grep result with that exact marker', async () => {
+    const adapter = new MockAdapter([toolCallResponse('c1', 'grep', { file_path: 'src' }), textResponse('done')])
+    const ctx = await harness(adapter, [{ name: 'grep', text: GREP_HUGE }])
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-grep-huge'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'grep the repo')
+    await handle.agent.whenIdle()
+    expect(GREP_HUGE.length).toBeGreaterThan(10_000)
+    const second = requestText(adapter, 1)
+    expect(second).toContain('[... and 55 more matches in src/mod0/file0.ts]')   // 措辞承诺的标记
+    expect(second).toContain('src/mod0/file0.ts:1:')                             // 每文件首条留下
+    expect(second).toContain('src/mod4/file4.ts:60:')                            // 末条留下
+    expect(second).not.toContain('file0.ts:30:')                                 // 中段确实被丢了
+    expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
+  })
+
+  it('leaves a search under both thresholds exactly as the tool returned it', async () => {
+    const adapter = new MockAdapter([toolCallResponse('c1', 'grep', { file_path: 'src' }), textResponse('done')])
+    const ctx = await harness(adapter, [{ name: 'grep', text: GREP_SMALL }])
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-grep-small'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'grep the repo')
+    await handle.agent.whenIdle()
+    expect(GREP_SMALL.length).toBeLessThan(10_000)
+    const second = requestText(adapter, 1)
+    expect(second).toContain('src/small.ts:15:')                                  // 中段原样
+    expect(second).not.toContain('more matches in')
     expect(FOLD_STATS.get(handle.agent.session)?.folded ?? 0).toBe(0)
   })
 })

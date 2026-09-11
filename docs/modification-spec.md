@@ -1,3 +1,19 @@
+> ⚠️ **已被取代（2026-09-10）——本文是 2026-09-08 原生重构**之前**的修改 spec，
+> 仅作历史记录保留。**
+> - 基线不再成立:本文自述基线 `HEAD caa4d9f` / 154 门;当前 `main` 为 153 个测试。
+> - 它规划的改动面大半已随重构消失。逐条核对(2026-09-10):`../src/driver.ts`、
+>   `../src/slice/regions.ts` 与 `../src/system-prompt.ts` **三个文件都已不存在**
+>   (前两个随原生迁移删除，`system-prompt.ts` 由本次 A-RT-07 修复删除)，因此文中
+>   所有形如 `../src/driver.ts:982`、`../src/driver.ts:1196`、
+>   `../src/slice/regions.ts:396`、`../src/slice/regions.ts:634`、
+>   `src/system-prompt.ts:19-68`(见 `:159` B5 一节)的定位都是坏链;
+>   `../src/continuity.ts`(519 行)与 `../src/slice/tape.ts`(573 行)文件仍在——
+>   `tape.ts` 更是现役渲染器(`src/context.ts` 直接 import)——但它们经历过重写，
+>   文中的**行号**(`continuity.ts:136/336`、`tape.ts:410`)不再指向所述代码。
+>   保留原文只为不篡改历史，不要按这些定位去找代码。
+> - 当前架构的对应文档:上下文装配见 `src/context.ts` 与 `docs/tape-admission.md`，
+>   工具结果折叠见 `docs/tool-result-fold.md`、`docs/fold-content-routing.md`。
+
 # 修改 Spec(综合版)— dsh-slice-agent-loop
 
 本文合并了外部评审提出的 spec 与独立实测。**外部 spec 的位置全部准确**;两处机制需要改写,而且 A 与 B 的关系是反的。

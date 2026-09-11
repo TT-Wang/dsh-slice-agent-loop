@@ -1,8 +1,9 @@
 /**
  * recall_turn — the slice loop's memory-recall tool.
  *
- * The tape truncates every sealed reply at REPLY_CAP_CHARS (1,200 code points)
- * and marks the cut with `…[+N chars in sealed turn]`. Until this tool, the
+ * The tape truncates every sealed reply at REPLY_CAP_CHARS (2,000 code points:
+ * 1,400 head + 500 tail, src/slice/tape.ts) and marks the cut with
+ * `…[+N chars in sealed turn]`. Until this tool, the
  * marker was a dead end: the Python engine pages the full text back through
  * its virtual context filesystem (`@sliceagent/history/...`), but that
  * filesystem has no DSH counterpart — DSH has no path interception, no read
@@ -45,8 +46,14 @@ export const RECALL_SEARCH_TOOL_NAME = 'recall_search'
  * Tool INPUT (what was asked of a tool) and tool ERRORS stay in: both are
  * short and load-bearing. Callers opt tool output in with kinds:
  * ['tool_output'] when they know the fact was tool-born.
+ *
+ * CONTEXT is user-role text a plugin produced rather than the human: runtime-
+ * context snapshots and injected notices. It is searched by default because
+ * the history policy omits superseded snapshots from the request view and
+ * points at these tools for them (src/context.ts) — an omission is only legal
+ * when a recall tool actually serves the omitted content.
  */
-export const DEFAULT_SEARCH_KINDS = ['user', 'assistant', 'tool_input', 'tool_error'] as const
+export const DEFAULT_SEARCH_KINDS = ['user', 'assistant', 'context', 'tool_input', 'tool_error'] as const
 export type SearchKind = (typeof DEFAULT_SEARCH_KINDS)[number] | 'tool_output'
 
 /** `slice-turn-7`, `7`, or 7 → 7; null when unparseable. */
@@ -73,6 +80,12 @@ function isUserInput(data: Record<string, unknown>): boolean {
   return source?.kind === 'user'
 }
 
+/** Names the producer of a user-role message the human did not write. */
+function contextSource(data: Record<string, unknown>): string {
+  const source = data.source as { kind?: unknown; plugin?: unknown } | undefined
+  return typeof source?.plugin === 'string' ? source.plugin : String(source?.kind ?? 'generated')
+}
+
 function isOriginalEvent(event: { surfaceOp?: unknown }): boolean {
   return event.surfaceOp === undefined || event.surfaceOp === 'append'
 }
@@ -81,6 +94,8 @@ interface SealedTurnPage {
   rendered: string
   userMessages: number
   assistantSteps: number
+  /** User-role messages a plugin produced: runtime snapshots, injected notices. */
+  contextMessages: number
 }
 
 /**
@@ -93,6 +108,7 @@ export function renderSealedTurn(
   turn: number,
 ): SealedTurnPage | null {
   const users: string[] = []
+  const contexts: string[] = []
   const originalRecords: unknown[] = []
   const steps: Array<{ step: number; text: string }> = []
   let status = 'open'
@@ -104,8 +120,7 @@ export function renderSealedTurn(
     const data = event.data as Record<string, unknown>
     const attributedTurn: unknown = event.type === 'user/message' ? openTurn : data.turn
     if (attributedTurn === turn
-      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/code-dispatch'].includes(event.type)
-      && (event.type !== 'user/message' || isUserInput(data))) {
+      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/code-dispatch'].includes(event.type)) {
       originalRecords.push({ type: event.type, data: event.data })
     }
     switch (event.type) {
@@ -117,13 +132,18 @@ export function renderSealedTurn(
         if ((data.turn as number) === turn) status = (data.reason as { kind: string }).kind
         if (openTurn === (data.turn as number)) openTurn = null
         break
-      case 'user/message':
+      case 'user/message': {
         // data IS the UserMessage; ownership = the turn open at append time.
-        if (openTurn === turn && isUserInput(data)) {
-          const text = textOf(data as unknown as UserMessage)
-          if (text.trim()) users.push(text)
-        }
+        if (openTurn !== turn) break
+        const text = textOf(data as unknown as UserMessage)
+        if (!text.trim()) break
+        // Generated context is never folded into the human's request, but it is
+        // still served: the history policy omits superseded runtime snapshots
+        // from the request view naming exactly this page as their locator.
+        if (isUserInput(data)) users.push(text)
+        else contexts.push(`[${contextSource(data)}]\n${text}`)
         break
+      }
       case 'assistant/message':
         if ((data.turn as number) === turn) {
           seen = true
@@ -141,7 +161,9 @@ export function renderSealedTurn(
   const lines = [
     // Epistemic frame, aligned with the kernel's evidence tiers: a sealed turn
     // establishes what was SAID, never current world state. Verbatim, but old.
-    `[sealed turn slice-turn-${turn} · status ${status} · ${users.length} user message(s) · ${steps.length} assistant step(s) with text · historical record: establishes what was said, not current world state]`,
+    `[sealed turn slice-turn-${turn} · status ${status} · ${users.length} user message(s)`
+    + `${contexts.length > 0 ? ` · ${contexts.length} generated context message(s)` : ''}`
+    + ` · ${steps.length} assistant step(s) with text · historical record: establishes what was said, not current world state]`,
     '',
     '## User request (verbatim)',
     users.length > 0 ? users.join('\n\n') : '(no user text recorded for this turn)',
@@ -153,11 +175,15 @@ export function renderSealedTurn(
   } else {
     for (const { step, text } of steps) lines.push(`[step ${step}]`, text, '')
   }
+  if (contexts.length > 0) {
+    lines.push('', '## Generated context recorded during this turn (verbatim)', ...contexts)
+  }
   lines.push('', '## Original records (including reasoning, tool output and recorded file metadata)', JSON.stringify(originalRecords))
   return {
     rendered: lines.join('\n').replace(/\n+$/, '\n'),
     userMessages: users.length,
     assistantSteps: steps.length,
+    contextMessages: contexts.length,
   }
 }
 
@@ -242,12 +268,14 @@ export function searchSessionEvents(
       case 'turn/end':
         if (openTurn === (data.turn as number)) openTurn = null
         break
-      case 'user/message':
-        if (kinds.has('user') && openTurn !== null && isUserInput(data)) {
-          const text = textOf(data as unknown as UserMessage)
-          if (text.trim()) docs.push({ turn: openTurn, kind: 'user', text, seq })
-        }
+      case 'user/message': {
+        if (openTurn === null) break
+        const kind: SearchKind = isUserInput(data) ? 'user' : 'context'
+        if (!kinds.has(kind)) break
+        const text = textOf(data as unknown as UserMessage)
+        if (text.trim()) docs.push({ turn: openTurn, kind, text, seq })
         break
+      }
       case 'assistant/message': {
         const turn = data.turn as number
         const step = data.step as number
@@ -350,14 +378,15 @@ export function recallSearchToolDefinition(): ToolDefinition {
     description:
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits with turn ids — follow up with recall_turn for the verbatim record. '
-      + 'By default searches user/assistant text, tool inputs and tool errors; ordinary tool output is '
-      + 'excluded as flood — pass kinds: ["tool_output"] to search it deliberately.',
+      + 'By default searches user/assistant text, generated context (runtime snapshots and injected notices), '
+      + 'tool inputs and tool errors; ordinary tool output is excluded as flood — pass kinds: ["tool_output"] '
+      + 'to search it deliberately.',
     parameters: {
       query: { type: 'string', required: true, description: 'Terms to search for (matched case-insensitively).' },
       kinds: {
         type: 'array',
-        description: 'Override the searched kinds. Any of: user, assistant, tool_input, tool_error, tool_output.',
-        items: { type: 'string', enum: ['user', 'assistant', 'tool_input', 'tool_error', 'tool_output'] },
+        description: 'Override the searched kinds. Any of: user, assistant, context, tool_input, tool_error, tool_output.',
+        items: { type: 'string', enum: ['user', 'assistant', 'context', 'tool_input', 'tool_error', 'tool_output'] },
       },
       limit: { type: 'number', description: 'Max hits, 1-20. Default 5.' },
     },

@@ -14,6 +14,8 @@
  */
 import { execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
 // a4 web 宿主要 cookie 认证:GET /?token=<launch token> 换 cookie,之后每个请求带 Cookie。
 
 const args = process.argv.slice(2)
@@ -23,8 +25,11 @@ const ARM = opt('--arm', 'slice-fold')
 const IDS = JSON.parse(fs.readFileSync(opt('--ids', 'results/20260902-cb20/cb20-ids.json'), 'utf8'))
 const OUT = opt('--out', `results/20260902-cb20/cb20-${ARM}.json`)
 const LIMIT = Number(opt('--n', IDS.length))
-const PY = opt('--py', '/private/tmp/claude-501/-Users-tongtao-Desktop/6984c665-bf21-4387-81ac-9e23eb47bc85/scratchpad/cbvenv/bin/python')
-const CACHE = '/Users/tongtao/.cache/contextbench-repos'
+// --py 指向装了 datasets 的解释器(ContextBench 题库要它);默认走 PATH 上的 python3。
+const PY = opt('--py', process.env.CB_PYTHON ?? 'python3')
+// 仓库镜像缓存:默认 ~/.cache/contextbench-repos,可用 --cache / CB_CACHE 覆盖。
+// 曾经写死成某台机器的绝对路径,别人跑就会把 2 GB 级镜像克隆到不存在的目录。
+const CACHE = opt('--cache', process.env.CB_CACHE ?? join(homedir(), '.cache', 'contextbench-repos'))
 const TURN_TIMEOUT_MS = 20 * 60 * 1000
 // flash 谷时刊例(与 ab-summary 同口径)
 const PRICE = { freshIn: 0.22 / 1e6, cacheIn: 0.007 / 1e6, out: 0.66 / 1e6 }
@@ -55,7 +60,7 @@ for i in json.loads(sys.argv[1]):
                 'gold': json.loads(r['gold_context']) if isinstance(r['gold_context'], str) else r['gold_context']})
 print(json.dumps(out))
 `
-  const out = execFileSync(PY, ['-c', code, JSON.stringify(ids)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  const out = execFileSync(PY, ['-c', code, JSON.stringify(ids)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 900_000 })
   return JSON.parse(out.trim().split('\n').pop())
 }
 
@@ -113,14 +118,14 @@ async function runInstance(base, task, workdir) {
       try {
         // sessionId 本身已带 session- 前缀(a4);目录名就是它。
         const dirName = String(sessionId).startsWith('session-') ? String(sessionId) : `session-${sessionId}`
-        const out = execFileSync('find', [`${process.env.HOME}/.dsh/sessions`, '-maxdepth', '2', '-type', 'd', '-name', dirName], { encoding: 'utf8' }).trim()
+        const out = execFileSync('find', [`${process.env.HOME}/.dsh/sessions`, '-maxdepth', '2', '-type', 'd', '-name', dirName], { encoding: 'utf8', timeout: 60_000 }).trim()
         if (out) { logPath = `${out.split('\n')[0]}/session.jsonl.zstd`; console.error(`  log: ${logPath}`) }
       } catch { /* not yet */ }
       if (!logPath) continue
     }
     if (!fs.existsSync(logPath)) continue
     let text
-    try { text = execFileSync('zstd', ['-dc', logPath], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 }) } catch { continue }
+    try { text = execFileSync('zstd', ['-dc', logPath], { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024, timeout: 300_000 }) } catch { continue }
     frames = []
     for (const line of text.split('\n')) {
       if (!line) continue

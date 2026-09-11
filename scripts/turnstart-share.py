@@ -3,6 +3,7 @@
 tape/[base]/sha256/OPEN FILES/patch/digest 的段落字符占比。用法:python3 scripts/turnstart-share.py <ledger.json|.full.jsonl> ..."""
 import json, sys, re, glob
 pat = re.compile(r'tape|\[base|base file|base version|base entry|base snapshot|sha256|OPEN FILES|patch|current in tape|snapshot|digest|sealed', re.I)
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 for arg in sys.argv[1:]:
     f = arg if arg.endswith('.full.jsonl') else arg.replace('.json', '.full.jsonl')
     rows = [json.loads(l) for l in open(f)]

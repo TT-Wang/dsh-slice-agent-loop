@@ -29,7 +29,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, readlinkSync, realpat
 import { homedir } from 'node:os'
 import { basename, join, relative, resolve } from 'node:path'
 import apply from '../src/index.ts'
-import { normalizeUsage } from '../src/call-ledger.ts'
+import { normalizeUsage } from '../src/lab/call-ledger.ts'
 
 function harnessRoot(): string {
   const candidates = [
@@ -81,7 +81,7 @@ const caseId = basename(resolve(CASE))
 const wtRoot = resolve('results/replay-worktrees')
 mkdirSync(wtRoot, { recursive: true })
 const workdir = join(wtRoot, `${caseId}-${ARM}-${Date.now()}`)
-execFileSync('git', ['-C', meta.cwd, 'worktree', 'add', '--detach', workdir, meta.sha], { stdio: 'ignore' })
+execFileSync('git', ['-C', meta.cwd, 'worktree', 'add', '--detach', workdir, meta.sha], { stdio: 'ignore', timeout: 600_000 })
 // --peers <harness checkout>:仓库自己的测试要它那个年代的宿主 API。把活仓库
 // node_modules 逐项软链进 worktree,但 @deepseek-ai/* 重指到给定检出(替换
 // ~/.dsh/source/current 前缀),其余原样。不传则整个 node_modules 软链。
@@ -128,11 +128,14 @@ await ctx.plugin(ShellEnv, {})
 await ctx.plugin(ToolBash, { enableRunInBackground: false })
 if (ARM === 'transcript') {
   await ctx.plugin(SessionProjections)
-  await ctx.plugin(StockAgentLoop, {})
+  await ctx.plugin(StockAgentLoop, {} as never)
 } else {
   await ctx.plugin(apply, {
     defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max',
     maxStepsPerTurn: MAX_STEPS,
+    // @ts-expect-error 已退休的实验面：Config.inTurnSeal / mode:'state'。这两个 driver 还停在退休前的插件契约上，
+    // 现在跑会在插件构造处直接抛错。留 expect-error 而不是把文件排除在门禁外：
+    // 其余每一行仍被类型检查，等 driver 真被移植时这条指令自己会报错。
     inTurnSeal: { enabled: ARM === 'slice-seal', sealTokens: 40_000, batchSteps: 8, keepSteps: 4 },
     ...(ARM === 'state' ? { mode: 'state' as const } : {}),
   })
@@ -185,7 +188,9 @@ for (const e of agent.session.snapshotEvents()) {
   const d = e.data as Record<string, unknown>; const c = (d.block ?? d) as Record<string, unknown>
   const nm = String(c.name ?? '?'); names[nm] = (names[nm] ?? 0) + 1
 }
+// @ts-expect-error 已退休的实验面：插件不再发 slice/step-seal 事件（计数恒为 0）。
 const seals = agent.session.snapshotEvents().filter((e) => e.type === 'slice/step-seal').length
+// @ts-expect-error 已退休的实验面：插件不再发 slice/contract-bounce 事件（计数恒为 0）。
 const bounces = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-bounce').length
 
 // ── 裁决:终态 vs oracle ──────────────────────────────────────────────────────
@@ -206,7 +211,7 @@ function similarity(a: string, b: string): number {
   if (la.length + lb.length === 0) return 1
   return (2 * lcsLines(la, lb)) / (la.length + lb.length)
 }
-const changedInReplay = execFileSync('git', ['-C', workdir, 'status', '--porcelain'], { encoding: 'utf8' })
+const changedInReplay = execFileSync('git', ['-C', workdir, 'status', '--porcelain'], { encoding: 'utf8', timeout: 300_000 })
   .split('\n').filter(Boolean).map((l) => l.slice(3).trim()).filter((p) => p !== 'node_modules')
 const oracleSet = new Set(meta.touchedFiles)
 const replaySet = new Set(changedInReplay)

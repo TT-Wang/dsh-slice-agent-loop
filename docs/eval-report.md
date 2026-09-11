@@ -1,8 +1,14 @@
 > ⚠️ **2026-08-31 勘误/后续**:本报告 flash 轮 **default 臂**的 s10 数字已**作废**
 > (压缩因配置名漂移未真正生效,"零丢失"是无效对照;修正标定后 flash default 同样
 > FAIL)。schema 已重写(四档保真度 / kernel:'ported' 等机制随之移除,文中相关描述
-> 为历史记录)。修正结论与新系列见 README「Results update — 2026-08」与
-> results/20260826-retention · 20260827-cost1m · 20260831-reasoning-ab 档案。
+> 为历史记录)。修正结论与新系列见 [legacy-loop.md](legacy-loop.md) 的「Results update — 2026-08-24 → 31」一节
+> 与 results/20260826-retention · 20260827-cost1m · 20260831-reasoning-ab 档案。
+> （该节 2026-09-08 原生迁移时从根 README 移入 `docs/legacy-loop.md`;此处指路 2026-09-10 更正。）
+
+> ⚠️ **架构状态（2026-09-10）**:本报告全部数字测自**已退役的自建 loop**
+> （replace-the-agent-loop 驱动器 + Python sidecar 臂），不是 2026-09-08 起的
+> DSH 原生 slice 上下文策略。两套架构的请求装配、缓存前缀与成本结构都不同，
+> **数字不可跨架构比较**，不要用它论证当前插件的质量或成本。
 
 # dsh-slice-agent-loop 评测报告（slice vs transcript default）
 
@@ -19,7 +25,7 @@
 | st1 栈追踪 | 1 轮 | PASS | PASS | **-11.8%** | — |
 | **s13 失忆** | 16 轮 | PASS | PASS | **-3.9%** | 8.5K→59K · **平顶 ~15K** |
 | **s10 洪水** | 76 轮 | PASS | PASS | **-37.9%** | 8.8K→**217K** · **~27K（13%）** |
-| **CB50 检索** | 50 题 | 完赛（5 超时） | 完赛（1 超时） | +41.4% | **召回反超：fileR +12.4% · spanR +9.9%** |
+| **CB50 检索** | 50 题 | 完赛（**6** 超时） | 完赛（1 超时） | +41.4% | **召回反超：fileR +12.4% · spanR +9.9%**（超时剔除口径，见 §5） |
 
 **全部通过 verifier（能力无损）。** 价格结论分两类：编码任务组 slice-ts 贵 8%~66%（集成保真税，见 §4）；压力/记忆组 slice-ts 便宜 4%~38% 且峰值有界——对话越长、上下文越大，slice 优势越大；检索组 slice 召回反超（见 §5）。
 
@@ -67,6 +73,14 @@ Python sidecar 臂（历史对照）同场景便宜 13%~66%——它工具 schem
 
 ## 5. CB50（ContextBench-50 精准检索）
 
+> **聚合口径：超时题逐臂剔除（default n=44 / slice n=49）。** 本节数字与
+> `docs/cb50-detail.md`「聚合（超时按 0 分计，n=50）」是**同一次运行的两种聚合**，
+> 不是两次实验。差异全部来自这一个约定：那边把超时题计 0 分留在分母（对超时更多的
+> default 臂惩罚更重），因此召回 Δ 更大（fileR +25.2% / spanR +22.5%）。两套数字都可用
+> `docs/cb50-recompute.py` 从 `docs/cb50-detail.md` 的 50 行逐题表复算。
+> 逐题表的超时行是 default #5/#7/#15/#37/#38/#50（6 题）与 slice #2（1 题）；
+> 本报告曾把 default 写成 5 题，2026-09-10 更正为 6。
+
 双臂各 50 题完赛（本地评分器，gold_context 后缀对齐；pulled 账本含 bash/read/grep/git-show 读取姿势）：
 
 | 指标 | default | slice-ts | Δ |
@@ -74,21 +88,28 @@ Python sidecar 臂（历史对照）同场景便宜 13%~66%——它工具 schem
 | **fileRecall** | 0.677 | **0.761** | **+12.4%** |
 | **spanRecall** | 0.684 | **0.752** | **+9.9%** |
 | filePrecision | 0.186 | **0.208** | +11.8% |
-| 超时题数（20min 上限） | 5 | **1** | — |
+| 超时题数（20min 上限） | **6** | **1** | — |
 | price（合计） | $0.7746 | $1.0957 | +41.4% |
 | freshIn | 1,662,997 | 3,997,844 | — |
 | cacheIn | 93,080,320 | 97,326,080 | — |
 | out | 1,004,015 | 940,971 | — |
 
-**要点**：评测前提"transcript 是检索主场"被证伪——slice-ts 召回**全面领先**（文件 +12%、span +10%、精度 +12%）且超时仅 1/5。bounded slice 强迫的"每轮重读纪律"在检索任务上是优势而非劣势。代价仍是价格（+41%），与编码组同因（集成保真税）。
+**要点**：评测前提"transcript 是检索主场"被证伪——slice-ts 召回**全面领先**（文件 +12%、span +10%、精度 +12%）且超时仅 1/6。bounded slice 强迫的"每轮重读纪律"在检索任务上是优势而非劣势。代价仍是价格（+41%），与编码组同因（集成保真税）。
 
 ## 6. 运行方法
 
-```bash
-# 双臂：default = web profile:3082；slice = slice-ts profile:3083（dsh-slice-agent-loop 取代 agent-loop）
-node scripts/dsh-h2h.mjs <scenario> both              # 5 场景（evals/h2h 格式）
-H2H_SCENARIOS_DIR=.../multiturn_coding node scripts/dsh-h2h.mjs s10_compactloss both
-node scripts/cb50-dsh.mjs default 50                  # CB50（双臂并行各一进程）
-```
+> **复现状态（2026-09-10 核对）：本节原来的命令行不可复现，已删除。**
+> `scripts/dsh-h2h.mjs` 与 `scripts/cb50-dsh.mjs` 在本仓库**从未存在过**
+> （`git log --all -- scripts/dsh-h2h.mjs scripts/cb50-dsh.mjs` 为空）——驱动器住在
+> 维护者仓外的 `dsh-slice` 工作区。仓内现存的相关脚本是 `scripts/cb20-dsh.mjs`
+> （CB20，不是 CB50）、`scripts/h2h-sessions.py`、`scripts/h2h-turns.py`。
+>
+> 原始数据同样不可取：本轮的逐题 JSON 只写到过 `/tmp/dsh-h2h-*.json` 与
+> `/tmp/cb50-{default,slice}.json`，从未进 `results/` 归档，早已随 `/tmp` 清空。
+> **本报告 CB50 一节可复算的唯一真相源是 `docs/cb50-detail.md` 的 50 行逐题表**；
+> `docs/cb50-recompute.py` 从它复算出本节与该文件两套聚合。其余场景（s1/s2/s3i/s10/s13…）
+> 的账本在 `results/` 下按日期目录归档。
 
-原始数据：`/tmp/dsh-h2h-*.json`、`/tmp/cb50-{default,slice}.json`。
+双臂配置（存档记录，非可执行命令）：default = web profile:3082；slice = slice-ts
+profile:3083（dsh-slice-agent-loop 取代 agent-loop）；场景取自 evals/h2h 格式的
+`multiturn_coding` 目录；CB50 双臂并行各一进程，单题 20min 上限。

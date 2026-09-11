@@ -8,6 +8,7 @@
 import json, sys, glob, os, statistics
 P = dict(miss=0.22, hit=0.007, out=0.66)
 def cost(t): return (t['input'] * P['miss'] + t['cacheRead'] * P['hit'] + t['output'] * P['out']) / 1e6
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 root = sys.argv[1]
 def load(arm):
     rows = {}

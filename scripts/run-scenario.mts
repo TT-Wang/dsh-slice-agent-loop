@@ -30,8 +30,8 @@ import { basename, join, resolve } from 'node:path'
 import apply from '../src/index.ts'
 import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import FoldPlugin, { FOLD_STATS } from '../src/fold/index.ts'
-import { dbQueryTool, fetchPageTool } from '../src/bench/tools.ts'
-import { normalizeUsage } from '../src/call-ledger.ts'
+import { dbQueryTool, fetchPageTool } from '../src/lab/bench-tools.ts'
+import { normalizeUsage } from '../src/lab/call-ledger.ts'
 
 function harnessRoot(): string {
   const candidates = [
@@ -146,7 +146,7 @@ const py = (fn: string) =>
     'import sys, json',
     `sys.path.insert(0, ${JSON.stringify(resolve(scenarioDir))})`,
     fn,
-  ].join('\n')], { encoding: 'utf8' })
+  ].join('\n')], { encoding: 'utf8', timeout: 300_000 })
 py(`import setup; setup.setup(${JSON.stringify(workdir)})`)
 console.log(`scenario ${scenario} · ${prompts.length} turns (meta says ${meta.turns}) · model ${MODEL} · effort ${EFFORT} · arm ${ARM}${SEAL.enabled ? ` (seal ${SEAL.sealTokens}t/${SEAL.batchSteps}/${SEAL.keepSteps})` : ''}\nworkdir ${workdir}`)
 
@@ -178,12 +178,15 @@ if (FULL_TOOLS) {
 if (ARM === 'transcript' || ARM === 'transcript-fold') {
   // 原生 loop 需要 sessionProjections;effort 走 connection defaults(下面)。
   await ctx.plugin(SessionProjections)
-  await ctx.plugin(StockAgentLoop, {})
+  await ctx.plugin(StockAgentLoop, {} as never)
   // transcript-fold:原生 loop + 独立的轮内折叠插件(src/fold),不挂 slice loop。
   if (ARM === 'transcript-fold') await ctx.plugin(FoldPlugin, { digest: DIGEST_OPTS, ...(PIN_STEPS >= 0 ? { pinSteps: PIN_STEPS } : {}) })
 } else {
   await ctx.plugin(apply, {
     ...(EFFORT === 'default' ? {} : { defaultReasoningEffort: EFFORT as 'off' | 'low' | 'high' | 'max' }),
+    // @ts-expect-error 已退休的实验面：Config.inTurnSeal / state / stream / tape / mode:'state'|'stream'。这两个 driver 还停在退休前的插件契约上，
+    // 现在跑会在插件构造处直接抛错。留 expect-error 而不是把文件排除在门禁外：
+    // 其余每一行仍被类型检查，等 driver 真被移植时这条指令自己会报错。
     inTurnSeal: SEAL,
     // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
     maxStepsPerTurn: MAX_STEPS,
@@ -271,6 +274,7 @@ interface TurnRow { turn: number; steps: number; input: number; cacheRead: numbe
 const rowsByTurn = new Map<number, TurnRow>()
 // 旁路调用(slice/side-call:规则提取等)不占步数,但用量全额计入——成本比较必须诚实。
 for (const e of agent.session.snapshotEvents()) {
+  // @ts-expect-error 已退休的实验面：插件不再发 slice/side-call 事件（计数恒为 0）。
   if (e.type !== 'assistant/message' && e.type !== 'slice/side-call') continue
   const d = e.data as { turn: number; step: number; usage?: unknown }
   const n = normalizeUsage(d.usage)
@@ -282,12 +286,17 @@ for (const e of agent.session.snapshotEvents()) {
   rowsByTurn.set(d.turn, row)
 }
 const turnRows = [...rowsByTurn.values()].sort((a, b) => a.turn - b.turn)
+// @ts-expect-error 已退休的实验面：插件不再发 slice/step-seal 事件（计数恒为 0）。
 const seals = agent.session.snapshotEvents().filter((e) => e.type === 'slice/step-seal').length
+// @ts-expect-error 已退休的实验面：插件不再发 slice/contract-bounce 事件（计数恒为 0）。
 const bounces = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-bounce').length
+// @ts-expect-error 已退休的实验面：插件不再发 slice/contract-suspend 事件（计数恒为 0）。
 const suspends = agent.session.snapshotEvents().filter((e) => e.type === 'slice/contract-suspend').map((e) => (e.data as { rules: string[] }).rules).flat()
+// @ts-expect-error 已退休的实验面：插件不再发 slice/digest 事件（计数恒为 0）。
 const digests = agent.session.snapshotEvents().filter((e) => e.type === 'slice/digest') as Array<{ data: { charsBefore: number; charsAfter: number } }>
 const foldStats = ARM === 'transcript-fold' ? FOLD_STATS.get(agent.session) : undefined
 const digestStat = digests.length ? { count: digests.length, charsBefore: digests.reduce((a, e) => a + e.data.charsBefore, 0), charsAfter: digests.reduce((a, e) => a + e.data.charsAfter, 0) } : foldStats && foldStats.folded > 0 ? { count: foldStats.folded, charsBefore: foldStats.charsBefore, charsAfter: foldStats.charsAfter } : null
+// @ts-expect-error 已退休的实验面：插件不再发 slice/state-rules 事件（计数恒为 0）。
 const rulesEv = agent.session.snapshotEvents().find((e) => e.type === 'slice/state-rules') as { data?: { rules?: number; enforced?: number; error?: string } } | undefined
 const totals = turnRows.reduce((t, r) => ({ input: t.input + r.input, cacheRead: t.cacheRead + r.cacheRead, output: t.output + r.output, reasoning: t.reasoning + r.reasoning, steps: t.steps + r.steps, peakInput: Math.max(t.peakInput, r.peakInput) }), { input: 0, cacheRead: 0, output: 0, reasoning: 0, steps: 0, peakInput: 0 })
 
@@ -327,6 +336,7 @@ const verdictRaw = py(
   `import verify; ok, detail = verify.verify(${JSON.stringify(workdir)}); print(json.dumps({'ok': ok, 'detail': detail}))`,
 )
 const verdict = JSON.parse(verdictRaw.trim().split('\n').at(-1)!) as { ok: boolean; detail: string }
+// @ts-expect-error 已退休的实验面：插件不再发 slice/read-pointer 事件（计数恒为 0）。
 const ledger = { scenario, arm: ARM, effort: EFFORT, model: MODEL, tools: FULL_TOOLS ? 'full' : 'fs', readBases: ARM.startsWith('slice') || ARM === 'stream' ? (READ_BASES ?? true) : null, readPointer: ARM.startsWith('slice') || ARM === 'stream' ? (READ_POINTER ?? true) : null, readPointers: agent.session.snapshotEvents().filter((e) => e.type === 'slice/read-pointer').length, anchor: ARM.startsWith('slice') || ARM === 'stream' ? (ANCHOR ?? 'base') : null, tapeOpts: TAPE_TOUCHED ? TAPE_OPTS : null, env: { registeredTools: toolNames, maxStepsPerTurn: MAX_STEPS, resolvedEffort, spillMaxInlineBytes: FULL_TOOLS ? 50_000 : null, headerModel: headerEv?.data?.header?.config?.model ?? null }, seal: SEAL, state: ARM === 'state' || ARM === 'stream' ? STATE_OPTS : null, digestPolicy: ARM === 'stream' || ARM === 'slice-noseal' || ARM === 'slice-seal' || ARM === 'transcript-fold' ? DIGEST_OPTS : null, sessionId, workdir, turns: turnRows, totals, seals, bounces, suspends, digest: digestStat, stateRules: rulesEv?.data ?? null, toolHistogram: names, verdict }
 mkdirSync(LEDGER_DIR, { recursive: true })
 const ledgerPath = join(LEDGER_DIR, `${scenario}-${ARM}-${sessionId.split('-').at(-1)}.json`)

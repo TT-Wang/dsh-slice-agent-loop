@@ -4,15 +4,15 @@
 #
 # The slice loop does not replace the system prompt; it CONTRIBUTES one section
 # to it. `src/index.ts` registers the slice kernel as `slice:kernel` at order
-# -1000, so it renders first and every section DSH's own registry contributes
+# -1200, so it renders first and every section DSH's own registry contributes
 # follows it in the same string — `renderPrompt(assembly)` joins them all.
 #
-#     this loop's section       1,924 chars   (verified 2026-08-24)
+#     this loop's section       1,284 chars   (measured 2026-09-11)
 #     appended by DSH          ~4,621         (registry sections — measured
 #                                              under the OLD composition;
 #                                              RE-MEASURE before quoting)
 #     ─────────────────────────────────
-#     total                    ~6,545         (was 17,292)
+#     total                    ~5,905         (was 17,292)
 #
 # WHAT CHANGED, AND WHY IT MATTERS FOR MEASUREMENT
 #
@@ -57,7 +57,8 @@
 #   #3  do not run the benchmark through `dsh web`. That 964-char section comes
 #       from the web bundle and describes HMR, Vite, and this GUI's URL — pure
 #       noise for a headless run.
-#   #4  this file: the `persona` row is simply absent.
+#   #4  this file: an EMPTY `persona` row wins the slot (see the identity
+#       block below; an absent row would leave the deployment default).
 #
 # Preset rows are unreachable from a host-plane patch, which is why this has to
 # be a preset rather than something cordis.patch.yml could do.
@@ -91,11 +92,15 @@
 # the host plane, so dropping the group no longer drops the meter — a change
 # in this loop's favour, since the meter's projection units survive.
 #
-# This loop's bounded rebuild replaces compaction, and
-# `command-compact` injects `compact` — leaving the consumer mounted after its
-# service is gone suspends that fiber forever. The host-plane patch in
-# cordis.patch.yml disables the host-plane copies; the preset-plane group is
-# only reachable from here.
+# The slice policy compacts history itself, so a second compactor would
+# confound what is measured; and `command-compact` injects `compact`, so leaving
+# the consumer mounted without its service suspends that fiber forever. Both go
+# with the group.
+#
+# This preset does NOT turn off host-plane compaction, and neither does this
+# package: since the 2026-09-08 native migration its cordis.patch.yml only
+# inserts the plugin and disables nothing. If a measurement must rule host
+# compaction out, disable those rows in the launcher profile's own patch.
 #
 # Everything else is `standard` verbatim, including every tool. A benchmark
 # that quietly narrows the tool surface measures a different agent.
@@ -224,15 +229,18 @@
 
               When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
 
-# `compact-basic` reads `toolResultPrune` through `ctx.get`, so the pruner must
-# share this realm rather than sit outside it.
+# `standard` mounts its `compaction` group here (`compact-basic`,
+# `command-compact` and `tool-result-pruner`, sharing one realm because
+# `compact-basic` reads `toolResultPrune` through `ctx.get`). This preset omits
+# the whole group; see WHAT ELSE IS MISSING FROM `standard` in the header.
 #
-# `tokenMeter` is deliberately NOT in this realm: the meter stays on the HOST
-# plane, and the rows here resolve that one instance. It takes no configuration,
-# keys every fold by Session, and owns the context-meter projection units the
-# browser reads for every session — behind a realm those units would come and go
-# with whichever presets happen to be mounted. What a preset chooses is whether
-# its agent compacts at all, which is `compact-basic` below.
+# `tokenMeter` is deliberately NOT in any preset realm: the meter stays on the
+# HOST plane, and preset rows resolve that one instance. It takes no
+# configuration, keys every fold by Session, and owns the context-meter
+# projection units the browser reads for every session — behind a realm those
+# units would come and go with whichever presets happen to be mounted. What a
+# preset chooses is whether its agent compacts at all; this one mounts no
+# compactor.
 # ── delegation and workflows ────────────────────────────────────────────────
 
 # The `subagents` registry and its spawn/fork backends live in the HOST

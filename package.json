@@ -23,6 +23,8 @@
   },
   "files": [
     "lib/**/*",
+    "!lib/lab/**",
+    "!lib/types/lab/**",
     "cordis.patch.yml"
   ],
   "repository": {
@@ -31,8 +33,10 @@
   },
   "scripts": {
     "build": "node scripts/clean-build.mjs && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.scripts.json",
     "test": "vitest run",
+    "check:size": "node scripts/check-repo-size.mjs",
+    "link:dsh": "node scripts/link-dsh.mjs",
     "verify:packed": "node scripts/validation/run-packed-smoke.mjs",
     "verify:master": "node scripts/validation/run-master-tests.mjs"
   },

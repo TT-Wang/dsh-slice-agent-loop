@@ -1,8 +1,9 @@
 /**
  * recall_turn — the slice loop's memory-recall tool.
  *
- * The tape truncates every sealed reply at REPLY_CAP_CHARS (1,200 code points)
- * and marks the cut with `…[+N chars in sealed turn]`. Until this tool, the
+ * The tape truncates every sealed reply at REPLY_CAP_CHARS (2,000 code points:
+ * 1,400 head + 500 tail, src/slice/tape.ts) and marks the cut with
+ * `…[+N chars in sealed turn]`. Until this tool, the
  * marker was a dead end: the Python engine pages the full text back through
  * its virtual context filesystem (`@sliceagent/history/...`), but that
  * filesystem has no DSH counterpart — DSH has no path interception, no read
@@ -39,8 +40,14 @@ export declare const RECALL_SEARCH_TOOL_NAME = "recall_search";
  * Tool INPUT (what was asked of a tool) and tool ERRORS stay in: both are
  * short and load-bearing. Callers opt tool output in with kinds:
  * ['tool_output'] when they know the fact was tool-born.
+ *
+ * CONTEXT is user-role text a plugin produced rather than the human: runtime-
+ * context snapshots and injected notices. It is searched by default because
+ * the history policy omits superseded snapshots from the request view and
+ * points at these tools for them (src/context.ts) — an omission is only legal
+ * when a recall tool actually serves the omitted content.
  */
-export declare const DEFAULT_SEARCH_KINDS: readonly ["user", "assistant", "tool_input", "tool_error"];
+export declare const DEFAULT_SEARCH_KINDS: readonly ["user", "assistant", "context", "tool_input", "tool_error"];
 export type SearchKind = (typeof DEFAULT_SEARCH_KINDS)[number] | 'tool_output';
 /** `slice-turn-7`, `7`, or 7 → 7; null when unparseable. */
 export declare function parseTurnId(value: unknown): number | null;
@@ -48,6 +55,8 @@ interface SealedTurnPage {
     rendered: string;
     userMessages: number;
     assistantSteps: number;
+    /** User-role messages a plugin produced: runtime snapshots, injected notices. */
+    contextMessages: number;
 }
 /**
  * Render one turn's verbatim page from durable session events. Pure so the

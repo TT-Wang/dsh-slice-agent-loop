@@ -2,7 +2,7 @@
  * attribute-miss — offline cache-miss attribution over call-ledger sidecars.
  *
  * Input: one or more `<sessionId>.calls.jsonl` files written by
- * src/call-ledger.ts (enable with SLICE_CALL_LEDGER_DIR=<dir> on the bench
+ * src/lab/call-ledger.ts (enable with SLICE_CALL_LEDGER_DIR=<dir> on the bench
  * run), or a directory of them.
  *
  *   npx tsx scripts/attribute-miss.mts <file.jsonl | dir> [--json] [--tolerance-blocks N]
@@ -13,11 +13,11 @@
  * the server-reported actual miss, and a verdict. Exit code 1 when any
  * boundary is not 'ok' — the same predicate the future CI assertion pins.
  *
- * Verdict semantics live in src/slice/miss-attribution.ts.
+ * Verdict semantics live in src/lab/miss-attribution.ts.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { join, basename } from 'node:path'
-import { analyze, type Analysis, type CallRecord, type SeedRecord } from '../src/slice/miss-attribution.js'
+import { analyze, type Analysis, type CallRecord, type SeedRecord } from '../src/lab/miss-attribution.js'
 
 interface SessionData {
   name: string

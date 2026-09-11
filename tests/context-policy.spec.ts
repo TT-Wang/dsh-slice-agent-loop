@@ -129,6 +129,36 @@ describe('durable conversational context policy', () => {
     expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).toContain('DURABLE_FILE_BYTES')
   })
 
+  it('names the unpaired tool call when it declines to compact a span (A-RT-05)', () => {
+    const session = Session.create(SessionId('context-unpaired-tool'))
+    const id = ToolCallId('orphan-read')
+    session.append('turn/start', { turn: 1 })
+    user(session, 'read a file')
+    // The host preserves already-recorded tool/call events when a step fails
+    // terminally, so a call can outlive its result. Compaction must still decline
+    // -- but it must say so: a silent skip is indistinguishable from a budget
+    // that simply never shrinks, which is how this reaches a permanent refusal.
+    assistant(session, 1, [{ type: 'tool-call', id, name: 'read', arguments: '{}' }])
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const before = [...session.surface.nodes]
+    const warnings: string[] = []
+    compactHistory(session, 2_000, message => warnings.push(message))
+    expect(session.surface.nodes).toEqual(before)
+    expect(summaries(session)).toHaveLength(0)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('orphan-read')
+    expect(warnings[0]).toContain('left uncompacted')
+  })
+
+  it('stays silent when every span it skips is call-closed', () => {
+    const session = Session.create(SessionId('context-no-spurious-warn'))
+    for (let turn = 1; turn <= 3; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
+    const warnings: string[] = []
+    compactHistory(session, 2_000, message => warnings.push(message))
+    expect(warnings).toEqual([])
+    expect(summaries(session)).toHaveLength(1)
+  })
+
   it('does not split a tool call from its result across a protected plugin context boundary', () => {
     const session = Session.create(SessionId('context-protected-tool-span'))
     const id = ToolCallId('protected-read')
@@ -148,6 +178,105 @@ describe('durable conversational context policy', () => {
     expect(blocks.filter(block => block.type === 'tool-result')).toHaveLength(1)
   })
 
+  it('shadows superseded runtime snapshots and keeps only the live one protected', () => {
+    const session = Session.create(SessionId('context-runtime-snapshots'))
+    const snapshots: number[] = []
+    for (let turn = 1; turn <= 8; turn += 1) {
+      session.append('turn/start', { turn })
+      user(session, `QUESTION_${turn}`)
+      snapshots.push(user(session, `RUNTIME_SNAPSHOT_${turn}`, '@deepseek-ai/dsh-system-prompt').seq)
+      assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
+      session.append('turn/end', { turn, reason: { kind: 'completed' } })
+    }
+    compactHistory(session, 20_000)
+    const text = surfaceText(session)
+    expect(session.surface.nodes).toContain(snapshots[7])
+    expect(text).toContain('RUNTIME_SNAPSHOT_8')
+    for (let stale = 1; stale <= 7; stale += 1) expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
+    // The conversation around them survives; only the dead snapshots go.
+    for (let turn = 1; turn <= 8; turn += 1) expect(text).toContain(`QUESTION_${turn}`)
+    // Exactly one span before the live snapshot and one after it, whatever the
+    // turn count: protected boundaries no longer grow one per turn.
+    expect(summaries(session)).toHaveLength(2)
+  })
+
+  it('leaves a recall locator where it drops a superseded runtime snapshot', () => {
+    const session = Session.create(SessionId('context-runtime-locator'))
+    for (let turn = 1; turn <= 3; turn += 1) {
+      session.append('turn/start', { turn })
+      user(session, `QUESTION_${turn}`)
+      user(session, `RUNTIME_SNAPSHOT_${turn}`, '@deepseek-ai/dsh-system-prompt')
+      assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
+      session.append('turn/end', { turn, reason: { kind: 'completed' } })
+    }
+    compactHistory(session, 20_000)
+    const text = surfaceText(session)
+    // Omission is legal only against a locator a recall tool actually serves
+    // (src/slice/admission.ts:3-4), and the model has to be able to see that
+    // something was dropped at all.
+    for (const stale of [1, 2]) {
+      expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
+      expect(text).toContain(`superseded by a later one and omitted here; verbatim: recall_turn({"turn":"${stale}"})`)
+      expect(renderSealedTurn(session.snapshotEvents(), stale)?.rendered).toContain(`RUNTIME_SNAPSHOT_${stale}`)
+      expect(searchSessionEvents(session.snapshotEvents(), `RUNTIME_SNAPSHOT_${stale}`)[0]).toMatchObject({ turn: stale, kind: 'context' })
+    }
+  })
+
+  it('keeps a snapshot no recall page serves protected instead of omitting it', () => {
+    const session = Session.create(SessionId('context-unattributable-runtime'))
+    completedTurn(session, 1, 'QUESTION_1', 'ANSWER_1')
+    // Appended between turns: recall_turn owns nothing here, so there is no
+    // locator to print and the snapshot must keep its place.
+    const orphan = user(session, 'BETWEEN_TURNS_SNAPSHOT', '@deepseek-ai/dsh-system-prompt')
+    completedTurn(session, 2, 'QUESTION_2', 'ANSWER_2')
+    user(session, 'LIVE_SNAPSHOT', '@deepseek-ai/dsh-system-prompt')
+    compactHistory(session, 20_000)
+    expect(session.surface.nodes).toContain(orphan.seq)
+    expect(surfaceText(session)).toContain('BETWEEN_TURNS_SNAPSHOT')
+  })
+
+  it('keeps an admissible span when an older span overflows its share', () => {
+    const session = Session.create(SessionId('context-partial-last-resort'))
+    for (let turn = 1; turn <= 100; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
+    user(session, 'LIVE_SNAPSHOT', '@deepseek-ai/dsh-system-prompt')
+    completedTurn(session, 101, 'QUESTION_101', 'RECENT_ANSWER_THE_USER_NEEDS')
+    const warnings: string[] = []
+    compactHistory(session, 5_000, message => warnings.push(message))
+    const text = surfaceText(session)
+    // The 100-turn span cannot fit its share, the one-turn span fits with an
+    // order of magnitude to spare. Degradation is per span, not all-or-nothing.
+    expect(text).toContain('all 100 sealed turns (1..100) omitted')
+    expect(text).toContain('RECENT_ANSWER_THE_USER_NEEDS')
+    expect(Array.from(text).length).toBeLessThanOrEqual(5_000)
+    // An operator whose history view collapsed gets told, on the same channel
+    // as the unpaired-call skip.
+    expect(warnings.join('\n')).toContain('1 of 2 history span(s) exceeded maxHistoryChars=5000')
+  })
+
+  it('degrades to one bounded marker when per-turn recall markers no longer fit', () => {
+    const session = Session.create(SessionId('context-last-resort'))
+    for (let turn = 1; turn <= 40; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
+    // A per-entry omission marker names all 40 turns and cannot fit; the
+    // last-resort marker names the range instead and stays bounded.
+    compactHistory(session, 700)
+    const text = surfaceText(session)
+    expect(text).toContain('all 40 sealed turns (1..40) omitted')
+    expect(text).toContain('recall_turn({"turn":"<id>"})')
+    expect(text).not.toContain('QUESTION_1')
+    expect(Array.from(text).length).toBeLessThanOrEqual(700)
+    expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).toContain('QUESTION_1')
+    // The next turn compacts again from the same originals instead of refusing.
+    completedTurn(session, 41, 'QUESTION_41', 'ANSWER_41')
+    compactHistory(session, 700)
+    expect(surfaceText(session)).toContain('all 41 sealed turns (1..41) omitted')
+  })
+
+  it('says a refusal repeats until the budget or the session changes', () => {
+    const session = Session.create(SessionId('context-permanent-refusal'))
+    completedTurn(session, 1, 'a'.repeat(500), 'first answer')
+    expect(() => compactHistory(session, 10)).toThrow(/every later turn of this session fails the same way/)
+  })
+
   it('does not partially replace history when a marker cannot fit', () => {
     const session = Session.create(SessionId('context-atomic-admission'))
     completedTurn(session, 1, 'a'.repeat(500), 'first answer')
@@ -162,7 +291,7 @@ describe('durable conversational context policy', () => {
 })
 
 describe('recall source attribution', () => {
-  it('excludes plugin and generated context from user recall and search without duplicating originals', () => {
+  it('keeps generated context out of the user request but still serves it from both recall tools', () => {
     const session = Session.create(SessionId('recall-authority'))
     session.append('turn/start', { turn: 1 })
     user(session, 'REAL_USER_SENTINEL')
@@ -176,13 +305,26 @@ describe('recall source attribution', () => {
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
     const first = renderSealedTurn(session.snapshotEvents(), 1)!
     const second = renderSealedTurn(session.snapshotEvents(), 2)!
+    // Attribution is unchanged: generated context is not a user request.
     expect(first.userMessages).toBe(1)
-    expect(first.rendered).toContain('REAL_USER_SENTINEL')
-    expect(first.rendered).not.toContain('PLUGIN_INPUT_SENTINEL')
+    expect(first.contextMessages).toBe(1)
+    const request = first.rendered.slice(first.rendered.indexOf('## User request'), first.rendered.indexOf('## Assistant response'))
+    expect(request).toContain('REAL_USER_SENTINEL')
+    expect(request).not.toContain('PLUGIN_INPUT_SENTINEL')
+    expect(searchSessionEvents(session.snapshotEvents(), 'PLUGIN_INPUT_SENTINEL', { kinds: ['user'] })).toEqual([])
+    // Reachability, however, is required: compactHistory omits superseded
+    // runtime snapshots from the request view and names these two tools as the
+    // locator, so a page that cannot serve them would break the admission
+    // contract (src/slice/admission.ts:3-4). Both tools now serve them.
+    expect(first.rendered).toContain('## Generated context recorded during this turn (verbatim)')
+    expect(first.rendered).toContain('PLUGIN_INPUT_SENTINEL')
+    const context = searchSessionEvents(session.snapshotEvents(), 'PLUGIN_INPUT_SENTINEL')
+    expect(context).toHaveLength(1)
+    expect(context[0]).toMatchObject({ turn: 1, kind: 'context' })
     expect(second.userMessages).toBe(1)
+    expect(second.contextMessages).toBe(0)
     expect(second.rendered).not.toContain('REAL_USER_SENTINEL')
     expect(second.rendered).not.toContain('# SESSION TAPE')
-    expect(searchSessionEvents(session.snapshotEvents(), 'PLUGIN_INPUT_SENTINEL', { kinds: ['user'] })).toEqual([])
     const hits = searchSessionEvents(session.snapshotEvents(), 'REAL_USER_SENTINEL', { kinds: ['user'] })
     expect(hits).toHaveLength(1)
     expect(hits[0]?.turn).toBe(1)

@@ -5,7 +5,7 @@
  * 五条。第一条在保护架构，其余四条防手滑。
  */
 import { describe, expect, it } from 'vitest'
-import { assembleSlice, type SliceInput } from '../src/slice/assemble.js'
+import { assembleSlice, type SliceInput } from '../src/lab/assemble.js'
 import { baseEntry, digestEntry, type TapeEntry } from '../src/slice/tape.js'
 
 const EMPTY: SliceInput = { request: '', goal: '', tape: [], openFiles: '', lastError: '', contributions: [] }

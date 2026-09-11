@@ -4,11 +4,13 @@
 
 A bounded conversational-context policy for **DeepSeek Harness 0.1.3-alpha.2**. It runs alongside the stock agent loop, retaining its lifecycle, scheduler, inbox, persistence, request-series handling, and full request-reconstruction invariant.
 
-Completed conversational spans become durable `user/message` surface replacements. Runtime snapshots, instruction messages, current user input, and multimodal user messages keep their original sources and positions. Raw events remain in the session log; recall retrieves them after folding or resume.
+Completed conversational spans become durable `user/message` surface replacements. Instruction messages, current user input, multimodal user messages, and the **live** runtime snapshot keep their original sources and positions. A runtime snapshot the host has already superseded is the one exception: it is dropped from the request view and replaced by a marker naming its `recall_turn` page, because leaving one dead snapshot per turn on the surface drives every span budget to zero. Raw events remain in the session log; `recall_turn` and `recall_search` retrieve them after folding, omission or resume.
 
 ## Install and compose
 
 Install this repository with DSH's plugin installer and apply its `cordis.patch.yml` bundle. The patch only adds the plugin. **Keep `agent-loop`, `agent-loop-invariant`, and the stock session projections enabled.** The Git package includes generated `lib/` artifacts.
+
+This package already mounts its own copy of tool-result folding: the same source as the standalone [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) plugin, also exported here as `./fold`. **Do not install the standalone plugin into the same profile.** Both register `expand_result`, and the second registration fails at load with `tool "expand_result" is already registered`. Mount `./fold` (or the standalone plugin) on its own only when you want folding on the stock loop without the slice policy.
 
 ```yaml
 - id: slice-agent-loop
@@ -25,13 +27,13 @@ Install this repository with DSH's plugin installer and apply its `cordis.patch.
 | `maxHistoryChars` | Hard bound on the combined rendered conversational history, including headers and recall markers. |
 | `maxRequestChars` | Hard bound on serialized model **messages**, including protected context and current input. It is a character bound, not a token estimate; system prompt/tool schemas and model capacity remain host-owned. |
 | `maxStepsPerTurn` | Stop before dispatching beyond this many model steps; default 50. |
-| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit`; an explicit host/model choice wins. |
+| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit`; an explicit host/model choice wins. **Capability-gated**: the default is injected only when the resolved model declares that effort. A model that declares neither it nor any effort keeps the adapter default and is warned about once per route; if the capability lookup itself fails, the request silently keeps the adapter default (`declaredEfforts` in `src/effort-default.ts` returns `undefined` on any error, and only a known capability list is warned about). |
 | `digest` | Content-routing options from `src/slice/result-digest.ts`. |
 | `fold` | Tool-result folding options, including `enabled`, `pinSteps`, `pinMaxChars`, `spillPreviewMinBytes`, and `backoffAfterExpansions`. |
 
-If recall markers cannot fit, or protected input exceeds the message budget, request construction fails visibly. The plugin does not quietly return an oversized view. Current input is logged before budget refusal. Historical spans are planned before any replacement is appended.
+Before refusing, the plugin degrades deterministically. A history span that cannot fit its share of `maxHistoryChars` is replaced by one bounded omit-all marker carrying the `recall_turn` locators for every turn it covers — per span, so a span that still fits is not destroyed by an older one that does not; this is logged on the plugin's `warn` channel. If the assembled request then exceeds `maxRequestChars`, history budget is given back and the spans are re-planned from the same originals, up to six passes, rather than refusing identically on every later turn of the session. Only when even the bounded markers do not fit, or when the protected floor alone exceeds the message budget, does request construction fail visibly. The plugin never quietly returns an oversized view. Current input is logged before budget refusal. Historical spans are planned before any replacement is appended.
 
-`recall_search` searches original human, assistant and tool records; `recall_turn` returns a turn, including original records and tool metadata; `recall_step` retrieves a step; `expand_result` retrieves an exact result ordinal, optionally filtered by lines or a regex. Tool results with a spill locator use the locator shown in their preview.
+`recall_search` searches original human and assistant text, tool inputs and tool errors; ordinary tool **output** is excluded by default as flood — pass `kinds: ["tool_output"]` to search it deliberately (`DEFAULT_SEARCH_KINDS` in `src/recall.ts`). `recall_turn` returns a turn, including original records and tool metadata; `recall_step` retrieves a step; `expand_result` retrieves an exact result ordinal, optionally filtered by lines or a regex. Tool results with a spill locator use the locator shown in their preview.
 
 ## Migration from 0.0.1
 
@@ -58,6 +60,8 @@ npm run build
 Public alpha.2 dependencies are pinned in `pnpm-lock.yaml`; no maintainer checkout or absolute dependency path is required. CI runs the full suite against those published packages, including stock-loop invariants and real JSONL close/resume. The build removes stale generated files before emitting Git-install artifacts.
 
 Run `npm run verify:packed` for a keyless standard-installer/Loader/JSONL smoke, or `npm run verify:master -- /path/to/deepseek-harness` against one prepared upstream source checkout. [Recorded upgrade verification](docs/upgrade-verification.md) separates published-release, source-master and packed-artifact evidence.
+
+`verify:packed` prerequisites: pnpm 11.7.0 as pinned by `packageManager` (enable corepack; any other version fails the run unless `SLICE_PACKED_ALLOW_PNPM_MISMATCH=1` is set), npm registry access (it installs the published `@deepseek-ai/dsh` 0.1.3-alpha.2 into a fresh temporary workspace), and the build toolchain for the JSONL persistence native addon `fs-ext`, whose install script the smoke runs. Each step has a 180 s budget (`SLICE_PACKED_STEP_TIMEOUT_MS` overrides it), so a cold install needs a reasonably fast registry connection. It prints its evidence directory when it finishes.
 
 The native regression suite covers runtime retention/update/removal, opaque instruction source ownership, multimodal input, retries and steering, request-series transitions, admission failures, unload, and resume without the plugin. A separate test checks that changing a later message causes the stock invariant to reject dispatch.
 

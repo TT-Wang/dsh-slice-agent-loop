@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { assembleSlice, type SliceInput } from '../src/slice/assemble.js'
+import { assembleSlice, type SliceInput } from '../src/lab/assemble.js'
 import { baseEntry, digestEntry, type TapeEntry } from '../src/slice/tape.js'
 import {
   BLOCK_TOKENS,
@@ -22,13 +22,13 @@ import {
   zoneAt,
   type CallRecord,
   type SeedRecord,
-} from '../src/slice/miss-attribution.js'
+} from '../src/lab/miss-attribution.js'
 import {
   normalizeUsage,
   recordCallEvent,
   recordSeedEvent,
   resetCallLedgerForTest,
-} from '../src/call-ledger.js'
+} from '../src/lab/call-ledger.js'
 
 const SYSTEM = 'kernel prompt v1\n\nhost sections'
 

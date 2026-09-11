@@ -25,7 +25,7 @@ const config = join(directory, 'vitest.config.mts')
 writeFileSync(config, `import { standardDecoratorPlugin } from ${JSON.stringify(join(host, 'vitest.shared.ts'))}\n`
   + `const aliases = ${JSON.stringify(aliases)}\n`
   + `export default { root: ${JSON.stringify(plugin)}, plugins: [standardDecoratorPlugin()], resolve: { alias: aliases.map(({pattern,replacement}) => ({find:new RegExp(pattern),replacement})) }, test: { include: ['tests/**/*.{spec,test}.ts'], testTimeout: 30000 } }\n`)
-const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: host, encoding: 'utf8' })
+const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: host, encoding: 'utf8', timeout: 30_000 })
 if (commit.status !== 0) throw new Error('Cannot identify source checkout revision')
 const vitest = join(dirname(requirePlugin.resolve('vitest/package.json')), 'vitest.mjs')
 const result = spawnSync(process.execPath, [vitest, 'run', '--config', config, '--reporter=json', `--outputFile=${report}`], {

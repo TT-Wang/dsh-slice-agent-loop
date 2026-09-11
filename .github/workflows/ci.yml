@@ -6,15 +6,26 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   published-dsh:
-    name: published DSH alpha.2
+    name: published DSH alpha.2 (node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        # engines allows ^22.19.0 || >=24.0.0 — verify both ends of that claim.
+        node: ['22.22.3', '24.x']
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.22.3'
+          node-version: ${{ matrix.node }}
       - uses: pnpm/action-setup@v4
         with:
           version: '11.7.0'
@@ -26,3 +37,7 @@ jobs:
         run: git diff --exit-code -- lib
       - name: Verify packed plugin through published DSH Loader
         run: npm run verify:packed
+      # results/ is a committed evidence archive and 98% of what a Git install
+      # downloads. Raising the ceiling should be a deliberate commit.
+      - name: Tracked-bytes budget
+        run: npm run check:size

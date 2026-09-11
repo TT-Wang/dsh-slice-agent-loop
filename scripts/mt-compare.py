@@ -20,6 +20,7 @@ def load_old(src):
     scen = d.get('scenario') or re.sub(r'.*-(s\d+[a-z]?_[a-z_]+|n\d_[a-z_]+)-.*', r'\1', os.path.basename(src))
     t = d['totals']; steps = sum(x.get('steps', 0) for x in d.get('turns', [])) or None
     return dict(scenario=scen, ok=ok, input=t['input'], cacheRead=t['cacheRead'], output=t['output'], steps=steps, cost=cost(t), src=src)
+if len(sys.argv) < 2: raise SystemExit(__doc__)
 args = sys.argv[1:]
 new_dir = args[0]; olds = []
 i = 1
