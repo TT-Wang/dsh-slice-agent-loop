@@ -61,7 +61,7 @@ npm run build
 
 `npm run verify:packed` 跑一遍免密钥的标准安装器／Loader／JSONL 冒烟；`npm run verify:master -- /path/to/deepseek-harness` 对着一份准备好的上游源码检出跑。[已记录的升级验证](docs/upgrade-verification.md) 把已发布版本、源码 master、打包产物三类证据分开陈述。
 
-`verify:packed` 的前置条件：pnpm 11.7.0（由 `packageManager` 固定，建议开启 corepack；版本不符会直接失败，除非设置 `SLICE_PACKED_ALLOW_PNPM_MISMATCH=1`）；能访问 npm registry（它会把已发布的 `@deepseek-ai/dsh` 0.1.3-alpha.2 装进一个全新的临时工作区）；以及 JSONL 持久化原生插件 `fs-ext` 构建所需的工具链（冒烟会执行它的 install 脚本）。运行结束会打印证据目录。
+`verify:packed` 的前置条件：pnpm 11.7.0（由 `packageManager` 固定，建议开启 corepack；版本不符会直接失败，除非设置 `SLICE_PACKED_ALLOW_PNPM_MISMATCH=1`）；能访问 npm registry（它会把已发布的 `@deepseek-ai/dsh` 0.1.3-alpha.2 装进一个全新的临时工作区）；以及 JSONL 持久化原生插件 `fs-ext` 构建所需的工具链（冒烟会执行它的 install 脚本）。每一步有 180 秒预算（可用 `SLICE_PACKED_STEP_TIMEOUT_MS` 覆盖），冷启动安装需要到 registry 的连接够快。运行结束会打印证据目录。
 
 原生回归套件覆盖：运行时上下文的保留／更新／移除、不透明指令来源归属、多模态输入、重试与 steering、请求序列切换、admission 失败、卸载，以及不带插件恢复会话。另有一个测试验证：改动后续消息会被原生不变量拒绝派发。
 

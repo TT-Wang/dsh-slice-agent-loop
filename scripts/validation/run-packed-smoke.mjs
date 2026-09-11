@@ -13,6 +13,9 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 // "packageManager"). Evidence from a different pnpm is not comparable, and a
 // silently different install layout is exactly what this smoke exists to catch.
 const packageManager = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).packageManager
+// Budget for each step (install, plugin add, the session run). A cold install of
+// the published host tree over a slow registry link can exceed the default.
+const stepTimeoutMs = Number.parseInt(process.env.SLICE_PACKED_STEP_TIMEOUT_MS ?? '', 10) || 180_000
 const directory = mkdtempSync(join(tmpdir(), 'dsh-slice-packed-'))
 const fixtureSources = dirname(fileURLToPath(import.meta.url))
 const home = join(directory, 'home')
@@ -56,7 +59,7 @@ writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLinke
 const env = { ...process.env, DSH_HOME: home, DSH_VALIDATION_OUTPUT: output }
 let commandNumber = 0
 function run(command, args, cwd = directory) {
-  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000 })
+  const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: stepTimeoutMs })
   const filename = `command-${++commandNumber}.log`
   writeFileSync(join(output, filename), JSON.stringify({ command, args, cwd, status: result.status }) + '\n' + (result.stdout ?? '') + (result.stderr ?? ''))
   if (result.error !== undefined || result.status !== 0) {
