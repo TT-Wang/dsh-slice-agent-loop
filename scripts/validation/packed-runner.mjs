@@ -61,7 +61,9 @@ export function apply(ctx, config) {
     assert.deepEqual(errors, [])
     assert.equal(requests.length, 4)
     const before = structuredClone(handle.agent.session.snapshotEvents())
-    assert.ok(before.some(sessions.isReplacementSurfaceEvent), 'the packed context plugin must compact history')
+    // packed-profile.patch.yml lowers history.highWaterChars, so the third
+    // turn's first step must archive turn 1 into a frozen checkpoint.
+    assert.ok(before.some(event => sessions.isReplacementSurfaceEvent(event) && JSON.stringify(event).includes('[slice checkpoint v1')), 'the packed context plugin must archive under pressure')
     assert.ok(before.every(event => sessions.KNOWN_SESSION_EVENT_TYPES.has(event.type)), 'no unknown required plugin events')
     const recallResult = before.find(event => event.type === 'tool/result' && event.data.message.content[0].toolCallId === 'packed-recall')
     assert.ok(recallResult && recallResult.data.message.content[0].isError !== true)
