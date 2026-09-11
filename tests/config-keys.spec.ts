@@ -5,8 +5,14 @@ import { checkConfigKeys } from '../src/index.js'
 describe('checkConfigKeys', () => {
   it('accepts every documented key', () => {
     expect(() => checkConfigKeys({
-      maxHistoryChars: 1, maxRequestChars: 1, maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, mode: 'slice',
+      maxHistoryChars: 1, maxRequestChars: 1, maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, history: {}, mode: 'slice',
     })).not.toThrow()
+  })
+
+  it('accepts the pressure-archive history section and suggests it for a typo', () => {
+    expect(() => checkConfigKeys({ history: { highWaterChars: 20_000 } })).not.toThrow()
+    expect(() => checkConfigKeys({ histroy: { highWaterChars: 20_000 } }))
+      .toThrow('Unknown slice configuration key histroy. Did you mean history?')
   })
 
   it('names a retired key as retired and says where it went', () => {

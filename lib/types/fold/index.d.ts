@@ -14,6 +14,17 @@
  * 日志错误优先,文档/数据留头尾与结构行。
  * 装载:默认 loop 不装 slice loop 也能用;slice loop 则无条件挂这一份副本(折叠只在这里做,slice 自己不折)。
  * 同一个 ctx 里不要再挂独立仓库那一份——两份都会注册 `expand_result`,重名注册直接失败。
+ *
+ * 定位(2026-09-09):折叠视图首行同时给出 `{turn, step, call}`(步内序号)和 `{seq}`(原结果的日志 seq,跨进程稳定);
+ * `expand_result({"seq": N})` 接受折叠视图自己的 seq——顺着 sourceEventSeqs[0] 回到原文。
+ *
+ * spill 臂(tools/post-execute)改写的是**落盘前**的内容,日志里只剩视图;所以视图首行必须带 spill locator,
+ * expand_result 从 locator 读回原文。做不到(没有 spill 后端 / 存储失败)就不改写,留给 pre-step 在 surface 上折。
+ * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具、钉住步里的小结果,这条路同样不折。
+ *
+ * 恢复(resume / 插件晚挂):folder 建立时日志里最后一个 request/header 或 assistant/message 之前的追加态结果,
+ * 已经原样给模型看过(上一进程发过请求),第一次 pre-step 不再折它们——折了会让整段前缀改写、缓存全失;
+ * 只折之后新落盘的结果。之前进程留下的折叠替换仍按 restoreFold 逐个认领计数,退避阈值跨进程一致。
  */
 import { Context, Service } from '@deepseek-ai/cordis';
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
@@ -42,11 +53,29 @@ export declare const EXPAND_TOOL_NAME = "expand_result";
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
 export declare function foldAffordance(hasRecallStep: boolean): string;
 export declare const FOLD_AFFORDANCE: string;
+/** post-execute spill 视图首行 `[… · full text (N bytes) stored at <locator> — <hint>]`:日志里只有视图,原文靠 locator。 */
+export declare function spillLocatorOf(text: string): {
+    bytes: number;
+    locator: string;
+} | undefined;
 /** 从日志取某步第 n 个追加态工具结果的原文(替换事件不算)。 */
 export declare function fullResultAt(events: readonly SessionEvent[], turn: number, step: number, call: number): {
     name: string;
     text: string;
 } | null;
+/** 顺着替换链(折叠视图 → sourceEventSeqs[0])回到追加态原文事件;不是 tool/result 就明确报错。 */
+export declare function originalResultAt(events: readonly SessionEvent[], seq: number): SessionEvent<'tool/result'>;
+/** 按日志 seq 取结果:seq 可以是原文,也可以是它的折叠视图;附带 turn/step/call 以便两种定位互认。 */
+export declare function resultBySeq(events: readonly SessionEvent[], seq: number): {
+    name: string;
+    text: string;
+    seq: number;
+    turn: number;
+    step: number;
+    call: number;
+};
+/** 日志里的文本若是 spill 视图(原文在 post-execute 就被换掉了),从 locator 读回原文。 */
+export declare function originalText(logged: string, where: string): Promise<string>;
 /** 部分取回(2026-09-04):按正则取匹配行(±2 行上下文)或按行号区间——比整份取回便宜得多;s10 的 64 次整份取回、f9 的散文事实都是它的场景。 */
 export declare function partialByGrep(text: string, pattern: string, head: string): string;
 export declare function partialByLines(text: string, range: string, head: string): string;
