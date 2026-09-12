@@ -65,6 +65,10 @@ export type Warn = (message: string) => void
 const USER_HEAD = 600
 const USER_TAIL = 300
 const TOOL_LINES_PER_TURN = 6
+/** Tool names whose targets make up the per-turn read index of a sealed entry. */
+const READ_TOOL_NAMES = new Set(['read', 'read_section', 'read_file'])
+/** Cap for one turn's read index; the tail is summarized as "+N more". */
+const READ_INDEX_PER_TURN = 10
 
 function chars(value: unknown): number {
   return Array.from(JSON.stringify(value)).length
@@ -234,13 +238,24 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
 
 interface Run { nodes: Node[]; message: UserMessage }
 
-interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; snapshots: number[] }
+interface ReadRef { target: string; step: number }
+interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; reads: ReadRef[]; snapshots: number[] }
 interface EarlierItem { kind: 'earlier'; turns: [number, number] }
 
 function excerpt(text: string, verbatimUpTo: number, head: number, tail: number): string {
   const all = Array.from(text)
   if (all.length <= verbatimUpTo || all.length <= head + tail) return text
   return `${all.slice(0, head).join('')}…[+${all.length - head - tail} chars, recall_turn]…${all.slice(all.length - tail).join('')}`
+}
+
+/** The file a read-style tool call targeted, or undefined when its arguments name none. */
+function readTarget(argumentsJson: unknown): string | undefined {
+  if (typeof argumentsJson !== 'string') return undefined
+  try {
+    const parsed = JSON.parse(argumentsJson) as Record<string, unknown>
+    const value = parsed['path'] ?? parsed['file_path'] ?? parsed['filePath']
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  } catch { return undefined }
 }
 
 function collectItems(session: Session, run: readonly Node[], toolNames: Map<string, string>): Array<TurnItem | EarlierItem> {
@@ -250,7 +265,7 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
     const { event } = node
     if (ours(event) && !node.superseded) { items.push({ kind: 'earlier', turns: node.turns }); current = undefined; continue }
     const turn = node.turns[0]
-    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', tools: [], snapshots: [] }; items.push(current) }
+    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', tools: [], reads: [], snapshots: [] }; items.push(current) }
     // A superseded snapshot is neither user speech nor current truth: never a request line.
     if (node.superseded) { current.snapshots.push(...node.recallTurns); continue }
     if (!node.message) continue
@@ -258,6 +273,13 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
     else if (event.type === 'assistant/message') {
       const text = textOf(node.message)
       if (text) current.reply = text
+      // The next turn must see which files this turn already read: without the index the sealed span
+      // looks like the file was never opened, and the model re-reads it (c1: S1 rereads 43.5% vs N 23.0%).
+      for (const block of event.data.message.content) {
+        if (block.type !== 'tool-call' || !READ_TOOL_NAMES.has(block.name)) continue
+        const target = readTarget(block.arguments)
+        if (target !== undefined && !current.reads.some(read => read.target === target)) current.reads.push({ target, step: event.data.step })
+      }
     } else if (event.type === 'tool/result') {
       // Point at the original append record: that is where the full text lives.
       const origin = event.surfaceOp === 'append' ? event : session.eventAt(event.sourceEventSeqs?.[0] ?? event.seq) ?? event
@@ -284,6 +306,13 @@ export function snapshotNote(recallTurns: readonly number[]): string {
 
 interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps }
 
+/** One pointer line so a later turn knows which files this sealed turn already read. */
+function readIndexLine(reads: ReadonlyArray<ReadRef>): string {
+  const shown = reads.slice(0, READ_INDEX_PER_TURN).map(read => `${read.target} (step ${read.step})`)
+  const extra = reads.length - shown.length
+  return `[files read this turn: ${shown.join(', ')}${extra > 0 ? `, +${extra} more` : ''}]`
+}
+
 function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink): string {
   const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`]
   for (const item of items) {
@@ -295,6 +324,7 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
     })
     if (item.snapshots.length) lines.push(snapshotNote(item.snapshots))
     if (item.reply) lines.push(renderTapeReply(`slice-turn-${item.turn}`, item.reply, shrink.reply).trimEnd())
+    if (item.reads.length) lines.push(readIndexLine(item.reads))
     if (shrink.tools && item.tools.length) {
       lines.push(...item.tools.slice(0, TOOL_LINES_PER_TURN))
       if (item.tools.length > TOOL_LINES_PER_TURN) lines.push(`[+${item.tools.length - TOOL_LINES_PER_TURN} more tool results]`)
