@@ -1,27 +1,3 @@
-/**
- * Append-only session tape on the stock ordered surface.
- *
- * Every completed turn beyond `keepRecentTurns` is sealed into one frozen
- * `[slice tape v1 …]` entry at that turn's own position, at the first step of
- * the next turn. An entry is a pure function of the nodes it shadows and is
- * NEVER re-rendered or nested: the seal replaces the newest unsealed span, so
- * every byte before it is identical to the previous request and DeepSeek's
- * prefix cache keeps hitting. The re-billed suffix is the new entry itself,
- * not the whole conversation.
- *
- * That is the one property this module exists to protect. The alternative it
- * replaced — leave history raw, then collapse the OLDEST turns under pressure —
- * kept more verbatim text but rewrote the prefix at its first message, so each
- * archive re-billed the entire view. Measured on 14 recorded member sessions of
- * a live controller: an archive every ~2 turns, ~148K fresh tokens each, ~8.6%
- * of total weighted cost, against ~0.6K per turn for tail sealing.
- *
- * Superseded runtime-context snapshots need no separate shadowing here: the
- * host projects one per change and each declares the earlier ones obsolete, and
- * the turn they belong to absorbs them as one note line when it seals. Only the
- * last-resort tier (a request that cannot fit even with every turn sealed) ever
- * rewrites existing entries, and it says so through `warn`.
- */
 import { type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
 import { type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';
 export declare const HISTORY_SOURCE = "slice:history";

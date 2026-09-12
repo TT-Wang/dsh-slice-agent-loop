@@ -53,8 +53,9 @@ describe('per-turn read index inside a sealed tape entry', () => {
     readTurn(session, 3, ['src/gamma.ts']) // gives turn 2 its sealing opportunity
     const text = sealedText(session)
     expect(text).toContain(TAPE_PREFIX)
-    expect(text).toContain('[files read this turn: src/alpha.ts (step 1)]')
-    expect(text).toContain('[files read this turn: src/beta.ts (step 1)]')
+    // Turn 1 is sealed inside turn 2's entry... each sealed turn names its own read with a fingerprint.
+    expect(text).toMatch(/\[files read this turn: src\/alpha\.ts \(\d+ lines, [0-9a-f]{8}, step 1\)\]/u)
+    expect(text).toMatch(/\[files read this turn: src\/beta\.ts \(\d+ lines, [0-9a-f]{8}, step 1\)\]/u)
   })
 
   it('keeps one entry per file, cites the first step, and is absent when a turn read nothing', () => {
@@ -63,8 +64,8 @@ describe('per-turn read index inside a sealed tape entry', () => {
     readTurn(session, 2, []) // a turn with no read at all
     readTurn(session, 3, ['src/last.ts'])
     const text = sealedText(session)
-    expect(text).toContain('[files read this turn: src/dup.ts (step 1), src/other.ts (step 3)]')
-    expect((text.match(/src\/dup\.ts \(step/g) ?? [])).toHaveLength(1)
+    expect(text).toMatch(/\[files read this turn: src\/dup\.ts \(\d+ lines, [0-9a-f]{8}, step 1\), src\/other\.ts \(\d+ lines, [0-9a-f]{8}, step 3\)\]/u)
+    expect((text.match(/src\/dup\.ts \(/g) ?? [])).toHaveLength(1)
     expect(text).not.toContain('[files read this turn:]')
   })
 
@@ -74,8 +75,8 @@ describe('per-turn read index inside a sealed tape entry', () => {
     readTurn(session, 1, many)
     readTurn(session, 2, ['src/after.ts'])
     const text = sealedText(session)
-    expect(text).toContain('src/f0.ts (step 1)')
-    expect(text).toContain('src/f9.ts (step 10)')
+    expect(text).toContain('src/f0.ts (')
+    expect(text).toContain('src/f9.ts (')
     expect(text).not.toContain('src/f10.ts')
     expect(text).toContain('+3 more]')
   })

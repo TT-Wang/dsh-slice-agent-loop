@@ -22,6 +22,7 @@
  * last-resort tier (a request that cannot fit even with every turn sealed) ever
  * rewrites existing entries, and it says so through `warn`.
  */
+import { createHash } from 'node:crypto'
 import { createUserMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
@@ -69,6 +70,8 @@ const TOOL_LINES_PER_TURN = 6
 const READ_TOOL_NAMES = new Set(['read', 'read_section', 'read_file'])
 /** Cap for one turn's read index; the tail is summarized as "+N more". */
 const READ_INDEX_PER_TURN = 10
+/** Hex chars of the content digest kept in a read fingerprint (collision-prone by design: it is a hint). */
+const READ_DIGEST_CHARS = 8
 
 function chars(value: unknown): number {
   return Array.from(JSON.stringify(value)).length
@@ -238,7 +241,8 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
 
 interface Run { nodes: Node[]; message: UserMessage }
 
-interface ReadRef { target: string; step: number }
+interface ReadMark { digest: string; lines: number; chars: number }
+interface ReadRef { target: string; step: number; mark?: ReadMark }
 interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; reads: ReadRef[]; snapshots: number[] }
 interface EarlierItem { kind: 'earlier'; turns: [number, number] }
 
@@ -258,8 +262,58 @@ function readTarget(argumentsJson: unknown): string | undefined {
   } catch { return undefined }
 }
 
+/** The text a tool result handed back to the model — the bytes a fingerprint covers. */
+function resultText(blocks: ReadonlyArray<{ content?: ReadonlyArray<{ type: string; text?: string }> }>): string {
+  return blocks
+    .flatMap(block => block.content ?? [])
+    .filter(block => block.type === 'text')
+    .map(block => block.text ?? '')
+    .join('')
+}
+
+/** What one read returned: line count, size and a short content digest. */
+function readMark(text: string): ReadMark {
+  return {
+    digest: createHash('sha256').update(text, 'utf8').digest('hex').slice(0, READ_DIGEST_CHARS),
+    lines: text === '' ? 0 : text.split('\n').length,
+    chars: Array.from(text).length,
+  }
+}
+
+interface PriorRead { turn: number; digest: string }
+
+/**
+ * Every read this session already performed, by target, in event order. Built from the append-only
+ * log (not the surface) so a read stays comparable after its turn, or its result, was sealed away.
+ */
+function readHistory(session: Session): Map<string, PriorRead[]> {
+  const calls = new Map<string, { target: string; turn: number }>()
+  const history = new Map<string, PriorRead[]>()
+  for (const event of session.snapshotEvents()) {
+    if (event.type === 'assistant/message') {
+      for (const block of event.data.message.content) {
+        if (block.type !== 'tool-call' || !READ_TOOL_NAMES.has(block.name)) continue
+        const target = readTarget(block.arguments)
+        if (target !== undefined) calls.set(block.id, { target, turn: event.data.turn })
+      }
+      continue
+    }
+    // A derived replacement carries no new read: only the original append record counts.
+    if (event.type !== 'tool/result' || event.surfaceOp !== 'append') continue
+    for (const block of event.data.message.content) {
+      const call = calls.get(block.toolCallId)
+      if (call === undefined) continue
+      const list = history.get(call.target) ?? []
+      list.push({ turn: call.turn, digest: readMark(resultText(event.data.message.content)).digest })
+      history.set(call.target, list)
+    }
+  }
+  return history
+}
+
 function collectItems(session: Session, run: readonly Node[], toolNames: Map<string, string>): Array<TurnItem | EarlierItem> {
   const items: Array<TurnItem | EarlierItem> = []
+  const readByCall = new Map<string, ReadRef>()
   let current: TurnItem | undefined
   for (const node of run) {
     const { event } = node
@@ -278,13 +332,23 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
       for (const block of event.data.message.content) {
         if (block.type !== 'tool-call' || !READ_TOOL_NAMES.has(block.name)) continue
         const target = readTarget(block.arguments)
-        if (target !== undefined && !current.reads.some(read => read.target === target)) current.reads.push({ target, step: event.data.step })
+        if (target === undefined) continue
+        let ref = current.reads.find(read => read.target === target)
+        if (ref === undefined) { ref = { target, step: event.data.step }; current.reads.push(ref) }
+        readByCall.set(block.id, ref)
       }
     } else if (event.type === 'tool/result') {
       // Point at the original append record: that is where the full text lives.
       const origin = event.surfaceOp === 'append' ? event : session.eventAt(event.sourceEventSeqs?.[0] ?? event.seq) ?? event
       const source = origin.type === 'tool/result' ? origin : event
       const blocks = source.data.message.content
+      // Fingerprint the bytes the read returned: a later turn seeing the same digest knows the file is
+      // unchanged, and a different digest is the one honest reason to read it again.
+      const text = resultText(blocks)
+      for (const block of blocks) {
+        const ref = readByCall.get(block.toolCallId)
+        if (ref !== undefined && ref.mark === undefined) ref.mark = readMark(text)
+      }
       const name = blocks.map(block => toolNames.get(block.toolCallId) ?? 'tool').filter((n, i, a) => a.indexOf(n) === i).join(', ')
       const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? Array.from(b.text).length : 0), 0)
       current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq}})]`)
@@ -306,14 +370,23 @@ export function snapshotNote(recallTurns: readonly number[]): string {
 
 interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps }
 
-/** One pointer line so a later turn knows which files this sealed turn already read. */
-function readIndexLine(reads: ReadonlyArray<ReadRef>): string {
-  const shown = reads.slice(0, READ_INDEX_PER_TURN).map(read => `${read.target} (step ${read.step})`)
+/**
+ * One pointer line so a later turn knows which files this sealed turn already read — and, with the
+ * fingerprint, whether a file it read later still holds the same bytes (`= turn N`) or changed (`≠ turn N`).
+ * The digest is a hint, not proof: it covers what the read returned, not the file on disk.
+ */
+function readIndexLine(reads: ReadonlyArray<ReadRef>, turn: number, history: ReadonlyMap<string, PriorRead[]>): string {
+  const shown = reads.slice(0, READ_INDEX_PER_TURN).map(read => {
+    if (read.mark === undefined) return `${read.target} (step ${read.step})`
+    const prior = (history.get(read.target) ?? []).filter(entry => entry.turn < turn).at(-1)
+    const change = prior === undefined ? '' : prior.digest === read.mark.digest ? `, = turn ${prior.turn}` : `, ≠ turn ${prior.turn}`
+    return `${read.target} (${read.mark.lines} lines, ${read.mark.digest}, step ${read.step}${change})`
+  })
   const extra = reads.length - shown.length
   return `[files read this turn: ${shown.join(', ')}${extra > 0 ? `, +${extra} more` : ''}]`
 }
 
-function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink): string {
+function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink, history: ReadonlyMap<string, PriorRead[]>): string {
   const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
@@ -324,7 +397,7 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
     })
     if (item.snapshots.length) lines.push(snapshotNote(item.snapshots))
     if (item.reply) lines.push(renderTapeReply(`slice-turn-${item.turn}`, item.reply, shrink.reply).trimEnd())
-    if (item.reads.length) lines.push(readIndexLine(item.reads))
+    if (item.reads.length) lines.push(readIndexLine(item.reads, item.turn, history))
     if (shrink.tools && item.tools.length) {
       lines.push(...item.tools.slice(0, TOOL_LINES_PER_TURN))
       if (item.tools.length > TOOL_LINES_PER_TURN) lines.push(`[+${item.tools.length - TOOL_LINES_PER_TURN} more tool results]`)
@@ -339,6 +412,7 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
  */
 export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number): string {
   const items = collectItems(session, run, toolNames)
+  const history = readHistory(session)
   const covered = new Set<number>()
   for (const item of items) {
     if (item.kind === 'turn') covered.add(item.turn)
@@ -353,7 +427,7 @@ export function renderCheckpoint(session: Session, run: readonly Node[], toolNam
   }
   let text = ''
   for (const level of levels) {
-    text = renderItems(items, range, covered.size, pinUserChars, level)
+    text = renderItems(items, range, covered.size, pinUserChars, level, history)
     if (Array.from(text).length <= maxChars) return text
   }
   return text
