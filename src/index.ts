@@ -1,7 +1,6 @@
 /** Slice context policy for the stock DSH agent loop. */
 import { Context, Service } from '@deepseek-ai/cordis'
-import type { Session } from '@deepseek-ai/dsh-session'
-import { assertRequestBudget, requestChars, sealCompletedTurns, SliceBudgetError, type HistoryPolicy } from './context.js'
+import { sealCompletedTurns, type HistoryPolicy } from './context.js'
 import { applyEffortDefault, declaredEfforts, DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS, type ReasoningEffortDefault } from './effort-default.js'
 import { recallToolDefinition, recallSearchToolDefinition } from './recall.js'
 import { recallStepToolDefinition } from './recall-step.js'
@@ -23,14 +22,6 @@ export interface HistoryConfig {
 }
 
 export interface Config {
-  /**
-   * Optional extra cap on rendered history (entries plus retained raw turn text). No default. Sealing alone
-   * never rewrites an entry, so honouring this cap means rewriting them all — a full prefix break, warned
-   * through the plugin logger. Leave it unset unless a hard history bound matters more than the cache.
-   */
-  maxHistoryChars?: number
-  /** Hard bound on serialized model messages, including current input and multimodal data. */
-  maxRequestChars?: number
   maxStepsPerTurn?: number
   defaultReasoningEffort?: ReasoningEffortDefault
   digest?: FoldConfig['digest']
@@ -41,7 +32,6 @@ export interface Config {
 }
 
 export const DEFAULT_MAX_STEPS_PER_TURN = 50
-export const DEFAULT_MAX_REQUEST_CHARS = 400_000
 export const DEFAULT_HISTORY: Required<HistoryConfig> = {
   keepRecentTurns: 0, pinFirstTurn: true, pinUserChars: 1_200, entryMaxChars: 8_000,
 }
@@ -52,6 +42,12 @@ const RETIRED_HISTORY: Record<string, string> = {
   lowWaterChars: 'every completed turn is sealed, so there is no archive target to fall back to',
   keepRecentChars: 'use history.keepRecentTurns — the window is counted in turns now',
   checkpointMaxChars: 'renamed to history.entryMaxChars',
+}
+
+/** Top-level keys of the request budget, removed with it. */
+const RETIRED_BUDGET: Record<string, string> = {
+  maxRequestChars: 'the tape bounds the view by construction; the model context window is the host\'s limit, and a plugin-side ceiling only turned an oversized turn into a refusal that poisoned the rest of the session',
+  maxHistoryChars: 'honouring a history cap means rewriting entries, which is the prefix rewrite this policy exists to avoid',
 }
 
 const KERNEL = `You are sliceagent, an interactive engineering agent for code and general terminal/system tasks.
@@ -129,10 +125,8 @@ function resolveHistory(config: Config): HistoryPolicy {
     pinFirstTurn: history.pinFirstTurn ?? DEFAULT_HISTORY.pinFirstTurn,
     pinUserChars: positive(history.pinUserChars, DEFAULT_HISTORY.pinUserChars, 'history.pinUserChars'),
     entryMaxChars: positive(history.entryMaxChars, DEFAULT_HISTORY.entryMaxChars, 'history.entryMaxChars'),
-    maxRequestChars: positive(config.maxRequestChars, DEFAULT_MAX_REQUEST_CHARS, 'maxRequestChars'),
   }
   if (typeof policy.pinFirstTurn !== 'boolean') throw new Error('history.pinFirstTurn must be a boolean')
-  if (config.maxHistoryChars !== undefined) policy.maxHistoryChars = positive(config.maxHistoryChars, 1, 'maxHistoryChars')
   return policy
 }
 
@@ -152,13 +146,9 @@ export class SliceLoopPlugin extends Service {
     ctx.effect(() => ctx.tools.register(recallSearchToolDefinition()))
     ctx.effect(() => ctx.tools.register(recallStepToolDefinition()))
     ctx.plugin(ToolResultFold, { ...config.fold, digest: config.digest })
-    const pendingBudget = new WeakMap<Session, SliceBudgetError>()
     const warnedEffort = new Set<string>()
     ctx.on('agent/request', async ({ agent, signal }, next) => {
       const proposed = await next()
-      const failure = pendingBudget.get(agent.session)
-      if (failure) throw failure
-      assertRequestBudget(agent.session.deriveMessages(), policy.maxRequestChars)
       if (effort === 'inherit' || proposed.reasoningEffort !== undefined) return proposed
       // The host rejects an effort the resolved model does not declare, and the
       // stock loop only swallows NO_ADAPTER — injecting blind fails every request
@@ -182,23 +172,12 @@ export class SliceLoopPlugin extends Service {
         ctx.logger.warn(`slice maxStepsPerTurn=${steps} reached`)
         return { kind: 'reject' }
       }
-      // Not a latch: every step clears the flag and recomputes admission, so a
-      // refusal repeats only while the same budget still cannot fit the same
-      // protected layout. planArchive degrades before it refuses.
-      pendingBudget.delete(agent.session)
       const warn = (message: string): void => { ctx.logger.warn(message) }
-      // First step of a turn: the turn that just ended becomes one entry at its own position, so this request
-      // keeps the previous one's prefix up to that span and re-bills only the entry. A later step seals only
-      // as a last resort against a request that would otherwise be refused; mid-turn there is usually nothing
-      // new to seal, and a long single turn that overflows on its own still refuses (in-turn sealing is a
-      // separate mechanism, retired with the replacement driver).
-      if (step === 1 || requestChars(agent.session, decision.messages) > policy.maxRequestChars) {
-        try { sealCompletedTurns(agent.session, decision.messages, policy, warn) } catch (error) {
-          if (!(error instanceof SliceBudgetError)) throw error
-          // Refuse at request construction, after stock admission logs the user's input.
-          pendingBudget.set(agent.session, error)
-        }
-      }
+      // First step of a turn only: the turn that just ended becomes one entry at its own position, so this
+      // request keeps the previous one's prefix up to that span and re-bills only the entry. Mid-turn there is
+      // nothing new to seal, and rewriting anything mid-turn would spend the prefix the turn already paid for.
+      // A single turn that outgrows the model's context window is in-turn sealing's job, a separate mechanism.
+      if (step === 1) sealCompletedTurns(agent.session, decision.messages, policy, warn)
       return decision
     })
   }

@@ -1,13 +1,13 @@
 /**
- * Acceptance gate for porting the superseded-runtime-snapshot fix into the pressure-archive control law:
- * superseded snapshots are archivable at a pressure event, the live one is never shadowed, and nothing is
- * rewritten between pressure events.
+ * Acceptance gate for superseded runtime snapshots on the append-only session tape:
+ * a superseded snapshot is absorbed by the entry of the turn it belongs to, the live one is
+ * never shadowed, and a seal never rewrites anything already on the surface.
  */
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Message, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, foldSurface, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import { CHECKPOINT_PREFIX, HISTORY_SOURCE, RUNTIME_CONTEXT_SOURCE } from '../src/context.js'
+import { HISTORY_SOURCE, RUNTIME_CONTEXT_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import type { Config } from '../src/index.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type CapturedRequest, type NativeHarness } from './native-harness.js'
 
@@ -16,21 +16,32 @@ afterEach(async () => {
   for (const harness of live.splice(0).reverse()) await harness.ctx.fiber.dispose()
 })
 
-const WATER: Config = { history: { highWaterChars: 20_000, lowWaterChars: 8_000, keepRecentChars: 2_000 } }
+/** The default keep window, spelled out: a completed turn seals at the first step of the next turn. */
+const TAPE: Config = { history: { keepRecentTurns: 0 } }
 const TURNS = 60
 
 function isSnapshot(event: SessionEvent): event is SessionEvent<'user/message'> {
   return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === RUNTIME_CONTEXT_SOURCE
 }
 
-function isCheckpoint(event: SessionEvent): event is SessionEvent<'user/message'> {
+function isEntry(event: SessionEvent): event is SessionEvent<'user/message'> {
   return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE
-    && event.data.content.some(block => block.type === 'text' && block.text.startsWith(CHECKPOINT_PREFIX))
+    && event.data.content.some(block => block.type === 'text' && block.text.startsWith(TAPE_PREFIX))
 }
 
 function textOf(event: SessionEvent<'user/message'>): string {
   return event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
 }
+
+/** Sealed entries as they appear in one dispatched request, in surface order. */
+function entriesIn(messages: readonly Message[]): string[] {
+  return messages.flatMap(message => {
+    const text = message.content.map(block => block.type === 'text' ? block.text : '').join('')
+    return text.startsWith(TAPE_PREFIX) ? [text] : []
+  })
+}
+
+function header(text: string): string { return text.split('\n')[0]! }
 
 /** Every third turn runs one tool step, so tool-continuation requests are part of the sequence. */
 async function churn(): Promise<NativeHarness> {
@@ -39,7 +50,7 @@ async function churn(): Promise<NativeHarness> {
     if (turn % 3 === 0) responses.push(nativeTool(`probe-${turn}`, 'probe', { turn }))
     responses.push(nativeText(`ANSWER_${turn}`))
   }
-  const h = await nativeHarness(responses, { config: WATER })
+  const h = await nativeHarness(responses, { config: TAPE })
   live.push(h)
   h.ctx.tools.register(defineContentToolFixture({
     name: 'probe', description: 'Return a small result', parameters: { turn: { type: 'number' } },
@@ -74,16 +85,16 @@ function ours(event: SessionEvent): boolean {
   return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE
 }
 
-/** Indices of captured requests at which a slice archive event (our replacement appends) became visible. */
-function archiveIndices(captured: readonly CapturedRequest[]): number[] {
+/** Indices of captured requests at which a slice seal (our replacement appends) became visible. */
+function sealIndices(captured: readonly CapturedRequest[]): number[] {
   return captured.flatMap((entry, index) => {
     const before = index === 0 ? 0 : captured[index - 1]!.events.length
     return entry.events.slice(before).some(ours) ? [index] : []
   })
 }
 
-describe('superseded runtime snapshots under the pressure-archive control law', () => {
-  it('(a) never walls, archives repeatedly, and leaves only the unshadowed live snapshot after each archive', async () => {
+describe('superseded runtime snapshots on the append-only session tape', () => {
+  it('(a) never walls, seals every completed turn, and leaves only the unshadowed live snapshot after each seal', async () => {
     const h = await churn()
     expect(h.errors).toEqual([])
     expect(h.errors.some(error => String(error).includes('SliceBudgetError'))).toBe(false)
@@ -93,8 +104,9 @@ describe('superseded runtime snapshots under the pressure-archive control law', 
     const events = h.captured.at(-1)!.events
     expect(events.filter(event => event.type === 'turn/end').every(event => event.type === 'turn/end' && event.data.reason.kind === 'completed')).toBe(true)
 
-    const indices = archiveIndices(h.captured)
-    expect(indices.length).toBeGreaterThanOrEqual(2)
+    // One seal per completed turn, at the first step of the turn after it; turn 1 has nothing to seal yet.
+    const indices = sealIndices(h.captured)
+    expect(indices).toHaveLength(TURNS - 1)
     for (const index of indices) {
       const { events: log } = h.captured[index]!
       const surface = foldSurface(log).nodes.map(seq => log[seq]!)
@@ -106,57 +118,82 @@ describe('superseded runtime snapshots under the pressure-archive control law', 
       expect(newest.data.source).toMatchObject({ kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE })
       for (const replacement of log.filter(isReplacementSurfaceEvent)) expect(replacement.sourceEventSeqs ?? []).not.toContain(newest.seq)
     }
-    // An event may shed only dead snapshots (one-line notes) when that already reaches lowWater;
-    // later ones archive dialogue into checkpoints that nest the earlier notes.
-    const checkpointEvents = indices.filter(index => {
+    // A turn absorbs its own dead snapshot, so every seal writes a tape entry: outside the
+    // last-resort tier there is no separate note pass any more.
+    const entryEvents = indices.filter(index => {
       const before = index === 0 ? 0 : h.captured[index - 1]!.events.length
-      return h.captured[index]!.events.slice(before).some(isCheckpoint)
+      return h.captured[index]!.events.slice(before).some(isEntry)
     })
-    expect(checkpointEvents.length).toBeGreaterThanOrEqual(2)
+    expect(entryEvents).toEqual(indices)
     for (const captured of h.captured) expectReconstructable(captured)
   }, 60_000)
 
-  it('(b) rewrites nothing between archive events: each request strictly extends the previous one', async () => {
+  it('(b) rewrites nothing: a mid-turn step extends the previous request, and a seal lands after every entry already written', async () => {
     const h = await churn()
-    const indices = new Set(archiveIndices(h.captured))
-    expect(indices.size).toBeGreaterThanOrEqual(2)
+    const indices = new Set(sealIndices(h.captured))
+    expect(indices.size).toBe(TURNS - 1)
     let extensions = 0
     for (let i = 1; i < h.adapter.requests.length; i += 1) {
-      if (indices.has(i)) continue
       const earlier = h.adapter.requests[i - 1]!.messages
       const later = h.adapter.requests[i]!.messages
-      expect(later.length).toBeGreaterThan(earlier.length)
-      expect(firstDivergence(earlier, later)).toBe(earlier.length)
-      extensions += 1
+      if (!indices.has(i)) {
+        // No seal this step: the request only grows at its tail.
+        expect(later.length).toBeGreaterThan(earlier.length)
+        expect(firstDivergence(earlier, later)).toBe(earlier.length)
+        extensions += 1
+        continue
+      }
+      // A seal replaces the newest unsealed span, which sits after every entry already on the
+      // surface, so the cached prefix through those entries survives untouched.
+      expect(firstDivergence(earlier, later)).toBeGreaterThanOrEqual(entriesIn(earlier).length)
     }
-    // Superseded snapshots were therefore not removed turn by turn: between events they accumulate.
     expect(extensions).toBe(h.adapter.requests.length - 1 - indices.size)
-    const beforeFirst = h.captured[[...indices][0]! - 1]!.events
-    expect(foldSurface(beforeFirst).nodes.filter(seq => isSnapshot(beforeFirst[seq]!)).length).toBeGreaterThan(2)
+
+    // An entry is a pure function of the nodes it shadows: once written, its bytes never change.
+    const firstSeen = new Map<string, string>()
+    for (const sent of h.adapter.requests) {
+      for (const text of entriesIn(sent.messages)) {
+        const seen = firstSeen.get(header(text))
+        if (seen === undefined) firstSeen.set(header(text), text)
+        else expect(text).toBe(seen)
+      }
+    }
+    expect(firstSeen.size).toBe(TURNS - 1)
   }, 60_000)
 
-  it('(c) renders a superseded snapshot in a checkpoint as a note, never as a user request line', async () => {
+  it('(c) renders a superseded snapshot in an entry as a note, never as a user request line', async () => {
     const h = await churn()
     const events = h.captured.at(-1)!.events
-    const checkpoints = events.filter(isCheckpoint)
-    expect(checkpoints.length).toBeGreaterThanOrEqual(2)
-    for (const checkpoint of checkpoints) {
-      const text = textOf(checkpoint)
+    const written = events.filter(isEntry)
+    expect(written.length).toBeGreaterThanOrEqual(2)
+    for (const entry of written) {
+      const text = textOf(entry)
       expect(text).not.toContain('RUNTIME_SNAPSHOT_')
       expect(text).not.toContain('x'.repeat(100))
     }
-    const first = checkpoints[0]!
+    // Turn 1's own snapshot is sealed with turn 1, whose user message stays pinned on the surface.
+    const first = written[0]!
+    expect(header(textOf(first))).toContain(`${TAPE_PREFIX}1-1 · 1 turn(s) sealed`)
     expect(first.sourceEventSeqs?.some(seq => isSnapshot(events[seq]!))).toBe(true)
-    expect(textOf(first)).toMatch(/\[turn 2\]\nQUESTION_2\n\[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn\(\{"turn":"2"\}\)\]/)
+    expect(textOf(first)).toContain('[slice note · runtime-context snapshot superseded by a later one')
+    // From turn 2 on the note sits inside its own turn block, after that turn's request line.
+    const second = written[1]!
+    expect(header(textOf(second))).toContain(`${TAPE_PREFIX}2-2 · 1 turn(s) sealed`)
+    expect(textOf(second)).toMatch(/\[turn 2\]\nQUESTION_2\n\[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn\(\{"turn":"2"\}\)\]/)
   }, 60_000)
 
-  it('(d) accepts a history section in the plugin config and reports a misspelt one', async () => {
-    const h = await nativeHarness([nativeText('fine')], { config: { history: { highWaterChars: 20_000, lowWaterChars: 8_000 } } })
+  it('(d) accepts a history section in the plugin config, reports a misspelt one and migrates the retired water marks', async () => {
+    const h = await nativeHarness([nativeText('fine')], { config: { history: { keepRecentTurns: 2, entryMaxChars: 4_000 } } })
     live.push(h)
     const { agent } = await h.ctx.agents.create({ sessionId: SessionId('history-config'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
     await nativeSend(agent, 'hello')
     expect(h.errors).toEqual([])
     await expect(nativeHarness([], { config: { histroy: {} } as unknown as Config }))
       .rejects.toThrow('Unknown slice configuration key histroy. Did you mean history?')
+    // The water marks this gate was written against are retired, and each says where it went.
+    await expect(nativeHarness([], { config: { history: { highWaterChars: 20_000, lowWaterChars: 8_000 } } as unknown as Config }))
+      .rejects.toThrow('Retired history configuration highWaterChars')
+    await expect(nativeHarness([], { config: { history: { keepRecentChars: 2_000 } } as unknown as Config }))
+      .rejects.toThrow('Retired history configuration keepRecentChars: use history.keepRecentTurns')
   })
 })

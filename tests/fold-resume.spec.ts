@@ -3,7 +3,8 @@
  *   ① expand_result accepts a durable `seq` locator — the original's seq or the fold view's own seq — and turn/step/call still works;
  *   ② a result rewritten by the post-execute spill arm keeps a locator in the log and expand_result(seq) returns the original through it;
  *   ③ the post-execute spill arm honors the same back-off / pin state as the pre-step fold;
- *   ④ after resume (seed from snapshotEvents) results already shown raw are not folded, new large results are, and fold counts survive.
+ *   ④ after resume (seed from snapshotEvents) results already shown raw are not folded, new large results are, and fold counts survive;
+ *      a result left unshown by a blocked turn is folded when the tape's keep window still holds that turn raw, and sealed with it otherwise.
  */
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -61,6 +62,23 @@ function scriptAt(agent: Agent, at: number, decide: () => StreamChunk[], respons
     if (step === at) responses.push(decide())
     return decision
   }, { prepend: true })
+}
+/** A session whose previous process stopped between the tool result and the next request (an outer pre-step
+ *  rejected step 2 before the fold could run): nothing after the last request/header was shown, so the result
+ *  reaches the next process raw and unfolded. */
+async function unshownSeed(id: string): Promise<readonly SessionEvent[]> {
+  const first = await boot([nativeTool('c1', 'read', { file_path: 'a.txt' })], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
+  tool(first, 'read', () => BIG)
+  const one = await create(first, id)
+  one.agent.ctx.on('agent/pre-step', async ({ step }, next) => step === 2 ? { kind: 'reject' as const } : next(), { prepend: true })
+  await nativeSend(one.agent, 'read a.txt')
+  expect([...events(one.agent)].reverse().find((e) => e.type === 'turn/end')?.data.reason.kind).toBe('blocked')
+  const seed = structuredClone(events(one.agent))
+  expect(seed.some((e) => e.type === 'tool/result')).toBe(true)
+  expect(seed.some(isReplacementSurfaceEvent)).toBe(false)
+  await first.ctx.fiber.dispose()
+  live.pop()
+  return seed
 }
 
 describe('expand_result by durable seq', () => {
@@ -209,21 +227,11 @@ describe('resume from snapshotEvents', () => {
   })
 
   it('folds a result that landed after the last request in the previous process', async () => {
-    // the previous turn stopped between the tool result and the next request (an outer pre-step rejected step 2 before
-    // the fold could run): nothing after the last request/header was shown, so the result is folded after resume
-    const first = await boot([nativeTool('c1', 'read', { file_path: 'a.txt' })], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
-    tool(first, 'read', () => BIG)
-    const one = await create(first, 'resume-unshown')
-    one.agent.ctx.on('agent/pre-step', async ({ step }, next) => step === 2 ? { kind: 'reject' as const } : next(), { prepend: true })
-    await nativeSend(one.agent, 'read a.txt')
-    expect([...events(one.agent)].reverse().find((e) => e.type === 'turn/end')?.data.reason.kind).toBe('blocked')
-    const seed = structuredClone(events(one.agent))
-    expect(seed.some((e) => e.type === 'tool/result')).toBe(true)
-    expect(seed.some(isReplacementSurfaceEvent)).toBe(false)
-    await first.ctx.fiber.dispose()
-    live.pop()
+    const seed = await unshownSeed('resume-unshown')
 
-    const second = await boot([nativeText('done')], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
+    // keepRecentTurns 1 holds the blocked turn raw at the tail, so the tape seal at step 1 does not absorb the
+    // unfolded result before the fold reaches it: this case is about fold-on-resume, not about sealing.
+    const second = await boot([nativeText('done')], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 }, history: { keepRecentTurns: 1 } } })
     tool(second, 'read', () => BIG)
     const two = await create(second, 'resume-unshown', seed)
     const unshown = originals(two.agent)[0]!
@@ -232,6 +240,22 @@ describe('resume from snapshotEvents', () => {
     expect(second.errors).toEqual([])
     expect(replacements(two.agent).map((e) => (e as { sourceEventSeqs?: number[] }).sourceEventSeqs)).toEqual([[unshown.seq]])
     expect(FOLD_STATS.get(two.agent.session)!.folded).toBe(1)
+  })
+
+  it('or seals that result with its turn under the default window, still reachable by the same seq', async () => {
+    const seed = await unshownSeed('resume-sealed')
+
+    // the other side of the same interaction: with the default window the blocked turn seals at step 1 and absorbs
+    // the result before the fold sees it — nothing is lost, the entry names the locator the fold view would have.
+    const second = await boot([nativeText('done')], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
+    tool(second, 'read', () => BIG)
+    const two = await create(second, 'resume-sealed', seed)
+    const unshown = originals(two.agent)[0]!
+    await nativeSend(two.agent, 'continue')
+
+    expect(second.errors).toEqual([])
+    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq}})`)
+    expect(requestText(second, 0)).not.toContain('row 55 payload')
   })
 
   it('keeps fold and expansion counts, so back-off is consistent across the resume', async () => {

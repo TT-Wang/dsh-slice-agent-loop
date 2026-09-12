@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { createMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock } from '@deepseek-ai/dsh-llm'
+import { createMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock, type Message } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
-import { archiveUnderPressure, HISTORY_SOURCE, planArchive, RUNTIME_CONTEXT_SOURCE, SliceBudgetError, type HistoryPolicy } from '../src/context.js'
+import { HISTORY_SOURCE, planSeal, RUNTIME_CONTEXT_SOURCE, sealCompletedTurns, TAPE_PREFIX, type HistoryPolicy } from '../src/context.js'
 import { renderSealedTurn, searchSessionEvents } from '../src/recall.js'
 
 function user(session: Session, text: string, plugin?: string) {
@@ -48,7 +48,8 @@ function textOfEvent(event: SessionEvent<'user/message'>): string {
   return event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
 }
 
-function checkpoints(session: Session): SessionEvent<'user/message'>[] {
+/** Sealed tape entries on the surface, in surface order. */
+function entries(session: Session): SessionEvent<'user/message'>[] {
   return session.surface.nodes.flatMap(seq => {
     const event = session.eventAt(seq)
     return event?.type === 'user/message' && event.data.source.kind === 'plugin'
@@ -56,16 +57,27 @@ function checkpoints(session: Session): SessionEvent<'user/message'>[] {
   })
 }
 
-/** Water marks low enough that any completed history is under pressure; the recent tail is one turn. */
-function forced(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
+/** Seq and bytes of every entry on the surface: an entry is written once and is never re-rendered. */
+function frozen(session: Session): Array<{ seq: SessionSeq; text: string }> {
+  return entries(session).map(event => ({ seq: event.seq, text: textOfEvent(event) }))
+}
+
+/** Index of the first message two consecutive request views disagree on. */
+function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
+  let i = 0
+  while (i < a.length && i < b.length && JSON.stringify(a[i]) === JSON.stringify(b[i])) i += 1
+  return i
+}
+
+/** Default tape policy: seal every completed turn, with a request budget nothing here reaches. */
+function policy(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
   return {
-    highWaterChars: 100, lowWaterChars: 50, keepRecentChars: 1, pinFirstTurn: true, pinUserChars: 1_200,
-    checkpointMaxChars: 8_000, maxRequestChars: 400_000, ...over,
+    keepRecentTurns: 0, pinFirstTurn: true, pinUserChars: 1_200, entryMaxChars: 8_000, ...over,
   }
 }
 
-describe('pressure-triggered conversational archive', () => {
-  it('bounds ten 60,000-character user entries in one checkpoint while retaining exact original recall pages', () => {
+describe('append-only tape sealing', () => {
+  it('bounds nine 60,000-character user entries in one sealed entry while retaining exact original recall pages', () => {
     const session = Session.create(SessionId('context-large-history'))
     const original: string[] = []
     for (let turn = 1; turn <= 10; turn += 1) {
@@ -74,12 +86,13 @@ describe('pressure-triggered conversational archive', () => {
       completedTurn(session, turn, question, `ANSWER_${turn}`)
     }
     const before = structuredClone(session.snapshotEvents())
-    const plan = archiveUnderPressure(session, [], forced({ highWaterChars: 120_000, lowWaterChars: 100_000, pinFirstTurn: false }))
+    // keepRecentTurns holds turn 10 raw; turns 1-9 seal into one entry at their own position.
+    const plan = sealCompletedTurns(session, [], policy({ keepRecentTurns: 1, pinFirstTurn: false }))
     const text = surfaceText(session)
     expect(plan.appends).toHaveLength(1)
     expect(plan.viewChars).toBe(Array.from(JSON.stringify(session.deriveMessages())).length)
     expect(plan.viewChars).toBeLessThanOrEqual(100_000)
-    expect(checkpoints(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(1)
     expect(text).toContain(`ORIGINAL_TURN_10_${'x'.repeat(60_000)}`)
     expect(text).toMatch(/ORIGINAL_TURN_1_x+…\[\+\d+ chars, recall_turn\]…x+/)
     expect(text).not.toContain(`ORIGINAL_TURN_1_${'x'.repeat(60_000)}`)
@@ -89,38 +102,50 @@ describe('pressure-triggered conversational archive', () => {
     original.forEach((question, index) => expect(renderSealedTurn(session.snapshotEvents(), index + 1)?.rendered).toContain(question))
   })
 
-  it('appends nothing under highWater and archives at most once per pressure event, idempotently', () => {
+  it('appends nothing while a turn is open, one entry per completed turn, and nothing on a repeat call', () => {
+    const open = Session.create(SessionId('context-open-turn'))
+    open.append('turn/start', { turn: 1 })
+    user(open, `QUESTION_1 ${'q'.repeat(300)}`)
+    // Nothing has completed yet, so there is nothing to seal.
+    expect(planSeal(open, [], policy()).appends).toEqual([])
+
     const session = Session.create(SessionId('context-repeat-history'))
+    let settled: ReturnType<typeof frozen> = []
     for (let turn = 1; turn <= 6; turn += 1) {
       completedTurn(session, turn, `QUESTION_${turn} ${'q'.repeat(300)}`, `ANSWER_${turn} ${'a'.repeat(300)}`)
-      const policy = forced({ highWaterChars: 2_500, lowWaterChars: 1_800 })
       const before = session.snapshotEvents().length
-      const plan = archiveUnderPressure(session, [], policy)
+      const plan = sealCompletedTurns(session, [], policy())
       expect(session.snapshotEvents().length - before).toBe(plan.appends.length)
-      expect(plan.appends.length).toBeLessThanOrEqual(1)
+      // Exactly one entry per turn, at that turn's own position, leaving every earlier entry byte-identical.
+      expect(plan.appends).toHaveLength(1)
+      expect(frozen(session).slice(0, settled.length)).toEqual(settled)
+      expect(entries(session)).toHaveLength(turn)
+      settled = frozen(session)
       const snapshot = structuredClone(session.snapshotEvents())
       const surface = [...session.surface.nodes]
-      for (let repeat = 0; repeat < 3; repeat += 1) expect(archiveUnderPressure(session, [], policy).appends).toEqual([])
+      for (let repeat = 0; repeat < 3; repeat += 1) expect(sealCompletedTurns(session, [], policy()).appends).toEqual([])
       expect(session.snapshotEvents()).toEqual(snapshot)
       expect(session.surface.nodes).toEqual(surface)
-      expect(checkpoints(session).length).toBeLessThanOrEqual(1)
       expect(surfaceText(session).split(`QUESTION_${turn} `)).toHaveLength(2)
       expect(surfaceText(session).split(`ANSWER_${turn} `)).toHaveLength(2)
     }
-    expect(session.snapshotEvents().filter(event => event.type === 'user/message' && event.surfaceOp !== 'append').length).toBeGreaterThanOrEqual(1)
-    expect(surfaceText(session).split('[slice checkpoint v1')).toHaveLength(2)
+    expect(session.snapshotEvents().filter(event => event.type === 'user/message' && event.surfaceOp !== 'append')).toHaveLength(6)
+    expect(entries(session).map(event => /turns (\d+)-(\d+) · (\d+) turn\(s\) sealed/.exec(textOfEvent(event))![0])).toEqual([
+      'turns 1-1 · 1 turn(s) sealed', 'turns 2-2 · 1 turn(s) sealed', 'turns 3-3 · 1 turn(s) sealed',
+      'turns 4-4 · 1 turn(s) sealed', 'turns 5-5 · 1 turn(s) sealed', 'turns 6-6 · 1 turn(s) sealed',
+    ])
   })
 
-  it('keeps the first turn user message raw when pinned and archives it otherwise', () => {
+  it('keeps the first turn user message raw when pinned and seals it otherwise', () => {
     for (const pinFirstTurn of [true, false]) {
       const session = Session.create(SessionId(`context-pin-${pinFirstTurn}`))
       completedTurn(session, 1, 'FIRST_QUESTION', 'FIRST_ANSWER')
       completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
       completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
       const first = session.surface.nodes[0]!
-      archiveUnderPressure(session, [], forced({ pinFirstTurn }))
+      sealCompletedTurns(session, [], policy({ pinFirstTurn }))
       expect(session.surface.nodes.includes(first)).toBe(pinFirstTurn)
-      expect(checkpoints(session)).toHaveLength(1)
+      expect(entries(session)).toHaveLength(1)
       const text = surfaceText(session)
       expect(text.split('FIRST_QUESTION')).toHaveLength(2)
       expect(text).toContain('FIRST_ANSWER')
@@ -140,10 +165,10 @@ describe('pressure-triggered conversational archive', () => {
     })
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_RESPONSE')
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_RESPONSE')
-    archiveUnderPressure(session, [], forced())
+    sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).toContain(canonical.seq)
-    expect(checkpoints(session)).toHaveLength(1)
-    expect(checkpoints(session)[0]!.sourceEventSeqs).not.toContain(canonical.seq)
+    expect(entries(session)).toHaveLength(1)
+    expect(entries(session)[0]!.sourceEventSeqs).not.toContain(canonical.seq)
     expect(surfaceText(session)).toContain('CANONICAL_FOREIGN_CONTEXT')
     expect(surfaceText(session)).toContain('SECOND_QUESTION')
     expect(surfaceText(session)).not.toContain('SHADOWED_QUESTION')
@@ -163,18 +188,18 @@ describe('pressure-triggered conversational archive', () => {
     completedTurn(session, 2, 'SECOND_USER_QUESTION', 'SECOND_USER_RESPONSE')
     completedTurn(session, 3, 'THIRD_USER_QUESTION', 'THIRD_USER_RESPONSE')
     expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).not.toContain(text)
-    archiveUnderPressure(session, [], forced())
+    sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).toContain(canonical.seq)
     expect(surfaceText(session)).toContain(text)
     expect(surfaceText(session)).not.toContain('ORIGINAL_RAW_QUESTION')
   })
 
-  it('archives closed calls with their results and points at the original result records', () => {
+  it('seals closed calls with their results and points at the original result records', () => {
     const session = Session.create(SessionId('context-closed-tools'))
     const result = toolTurn(session, 1, 'closed-read', 'DURABLE_FILE_BYTES')
     completedTurn(session, 2, 'next question', 'next answer')
-    archiveUnderPressure(session, [], forced())
-    expect(checkpoints(session)).toHaveLength(1)
+    sealCompletedTurns(session, [], policy())
+    expect(entries(session)).toHaveLength(1)
     expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call' || block.type === 'tool-result')).toBe(false)
     const text = surfaceText(session)
     expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq}})]`)
@@ -192,16 +217,17 @@ describe('pressure-triggered conversational archive', () => {
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
     completedTurn(session, 4, 'FOURTH_QUESTION', 'FOURTH_ANSWER')
     expect(session.surface.nodes).toContain(empty.seq)
-    const plan = archiveUnderPressure(session, [], forced())
+    const plan = sealCompletedTurns(session, [], policy())
     expect(plan.appends).toHaveLength(1)
     expect(plan.appends[0]!.sources).toContain(empty.seq)
     expect(session.surface.nodes).not.toContain(empty.seq)
-    expect(checkpoints(session)[0]!.sourceEventSeqs).toContain(empty.seq)
+    expect(entries(session)[0]!.sourceEventSeqs).toContain(empty.seq)
+    expect(textOfEvent(entries(session)[0]!)).toContain(`${TAPE_PREFIX}1-4 · 4 turn(s) sealed`)
     expect(surfaceText(session)).toContain('[turn 2]\nSECOND_QUESTION')
     expect(surfaceText(session)).toContain('FOURTH_QUESTION')
   })
 
-  it('cuts a run at a turn with an unclosed tool call instead of suppressing the whole run', () => {
+  it('cuts a sealed span at a turn with an unclosed tool call instead of suppressing the whole span', () => {
     const session = Session.create(SessionId('context-unclosed-cut'))
     for (let turn = 1; turn <= 4; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     session.append('turn/start', { turn: 5 })
@@ -210,19 +236,20 @@ describe('pressure-triggered conversational archive', () => {
     session.append('turn/end', { turn: 5, reason: { kind: 'aborted', reason: { kind: 'user' } } })
     for (let turn = 6; turn <= 8; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     const warnings: string[] = []
-    const plan = archiveUnderPressure(session, [], forced(), message => warnings.push(message))
+    const plan = sealCompletedTurns(session, [], policy(), message => warnings.push(message))
     expect(plan.appends).toHaveLength(2)
-    // A-RT-05: the cut is reported, naming the call; a silent cut looks like an archive that never shrinks.
+    // A-RT-05: the cut is reported, naming the call; a silent cut looks like a seal that never shrinks.
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toContain('turn 5')
     expect(warnings[0]).toContain('never-closed')
-    expect(warnings[0]).toContain('cut the archive run')
-    expect(checkpoints(session).map(textOfEvent)).toEqual([
-      expect.stringContaining('turns 1-4 · 4 turns archived'), expect.stringContaining('turns 6-7 · 2 turns archived'),
+    expect(warnings[0]).toContain('cut the sealed span')
+    expect(entries(session).map(textOfEvent)).toEqual([
+      expect.stringContaining('turns 1-4 · 4 turn(s) sealed'), expect.stringContaining('turns 6-8 · 3 turn(s) sealed'),
     ])
     expect(session.surface.nodes).toContain(open.seq)
     expect(session.surface.nodes).toContain(call.seq)
-    expect(session.surface.nodes).toHaveLength(7)
+    // pinned turn-1 request, entry 1-4, the raw cut turn (two nodes), entry 6-8.
+    expect(session.surface.nodes).toHaveLength(5)
     const blocks = session.deriveMessages().flatMap(message => message.content)
     expect(blocks.filter(block => block.type === 'tool-call')).toHaveLength(1)
     expect(surfaceText(session)).toContain('QUESTION_8')
@@ -233,23 +260,27 @@ describe('pressure-triggered conversational archive', () => {
     toolTurn(session, 1, 'protected-read', 'UNCHANGED_RESULT', 'PROTECTED_CONTEXT')
     completedTurn(session, 2, 'next question', 'next answer')
     const before = [...session.surface.nodes]
-    expect(archiveUnderPressure(session, [], forced()).appends).toEqual([])
+    const warnings: string[] = []
+    // Turn 1 is inside the seal window (turn 2 is the kept tail): only the unpaired cut keeps it raw.
+    expect(sealCompletedTurns(session, [], policy({ keepRecentTurns: 1 }), message => warnings.push(message)).appends).toEqual([])
     expect(session.surface.nodes).toEqual(before)
+    expect(warnings.every(message => message.includes('turn 1') && message.includes('protected-read'))).toBe(true)
+    expect(warnings.length).toBeGreaterThanOrEqual(1)
     const blocks = session.deriveMessages().flatMap(message => message.content)
     expect(blocks.filter(block => block.type === 'tool-call')).toHaveLength(1)
     expect(blocks.filter(block => block.type === 'tool-result')).toHaveLength(1)
   })
 
-  it('stays silent when every archived turn is call-closed', () => {
+  it('stays silent when every sealed turn is call-closed', () => {
     const session = Session.create(SessionId('context-no-spurious-warn'))
     toolTurn(session, 1, 'closed-one', 'RESULT_ONE')
     for (let turn = 2; turn <= 4; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     const warnings: string[] = []
-    expect(archiveUnderPressure(session, [], forced(), message => warnings.push(message)).appends).toHaveLength(1)
+    expect(sealCompletedTurns(session, [], policy(), message => warnings.push(message)).appends).toHaveLength(1)
     expect(warnings).toEqual([])
   })
 
-  it('archives superseded runtime snapshots into one run and keeps only the live one protected', () => {
+  it('seals superseded runtime snapshots with their own turn and keeps only the live one protected', () => {
     const session = Session.create(SessionId('context-runtime-snapshots'))
     const snapshots: SessionSeq[] = []
     for (let turn = 1; turn <= 8; turn += 1) {
@@ -260,20 +291,20 @@ describe('pressure-triggered conversational archive', () => {
       session.append('turn/end', { turn, reason: { kind: 'completed' } })
     }
     const live = session.eventAt(snapshots[7]!)
-    archiveUnderPressure(session, [], forced())
+    sealCompletedTurns(session, [], policy({ keepRecentTurns: 1 }))
     const text = surfaceText(session)
     // The live snapshot keeps its node, its source and its position.
     expect(session.surface.nodes).toContain(snapshots[7])
     expect(session.eventAt(snapshots[7]!)).toEqual(live)
-    for (const checkpoint of checkpoints(session)) expect(checkpoint.sourceEventSeqs).not.toContain(snapshots[7])
+    for (const entry of entries(session)) expect(entry.sourceEventSeqs).not.toContain(snapshots[7])
     expect(text.split('RUNTIME_SNAPSHOT_8')).toHaveLength(2)
     for (let stale = 1; stale <= 7; stale += 1) {
       expect(session.surface.nodes).not.toContain(snapshots[stale - 1])
       expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
     }
-    // Superseded snapshots no longer split runs: one checkpoint covers turns 1-7.
-    expect(checkpoints(session)).toHaveLength(1)
-    expect(textOfEvent(checkpoints(session)[0]!)).toContain('turns 1-7 · 7 turns archived')
+    // Superseded snapshots do not split a span: one entry covers turns 1-7.
+    expect(entries(session)).toHaveLength(1)
+    expect(textOfEvent(entries(session)[0]!)).toContain('turns 1-7 · 7 turn(s) sealed')
     for (let turn = 1; turn <= 8; turn += 1) expect(text).toContain(`QUESTION_${turn}`)
   })
 
@@ -286,8 +317,8 @@ describe('pressure-triggered conversational archive', () => {
       assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
       session.append('turn/end', { turn, reason: { kind: 'completed' } })
     }
-    archiveUnderPressure(session, [], forced({ pinFirstTurn: false }))
-    const text = textOfEvent(checkpoints(session)[0]!)
+    sealCompletedTurns(session, [], policy({ pinFirstTurn: false, keepRecentTurns: 1 }))
+    const text = textOfEvent(entries(session)[0]!)
     expect(text).toContain('[turn 2]\nQUESTION_2\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"2"})]')
     for (const stale of [1, 2]) {
       expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
@@ -309,26 +340,26 @@ describe('pressure-triggered conversational archive', () => {
     }
     session.append('turn/start', { turn: 4 })
     const pending = createUserMessage({ content: [{ type: 'text', text: 'RUNTIME_SNAPSHOT_4' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
-    const plan = archiveUnderPressure(session, [pending], forced())
-    // Turn 3 is the raw recent tail, so its dead snapshot is shadowed by a one-line note, not a checkpoint.
-    expect(plan.appends).toHaveLength(2)
+    const plan = sealCompletedTurns(session, [pending], policy())
+    // Turn 3's snapshot would be the live one; the pending projection supersedes it, so its own turn absorbs it.
+    expect(plan.appends).toHaveLength(1)
     for (const seq of snapshots) expect(session.surface.nodes).not.toContain(seq)
     const text = surfaceText(session)
     expect(text).not.toContain('RUNTIME_SNAPSHOT_')
-    expect(text).toContain('QUESTION_3\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"3"})]\nANSWER_3')
+    expect(text).toContain('[turn 3]\nQUESTION_3\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"3"})]')
   })
 
-  it('archives a snapshot appended between turns behind a locator that recall actually serves', () => {
+  it('seals a snapshot appended between turns behind a locator that recall actually serves', () => {
     const session = Session.create(SessionId('context-unattributable-runtime'))
     completedTurn(session, 1, 'QUESTION_1', 'ANSWER_1')
     const orphan = user(session, 'BETWEEN_TURNS_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
     completedTurn(session, 2, 'QUESTION_2', 'ANSWER_2')
     completedTurn(session, 3, 'QUESTION_3', 'ANSWER_3')
     const liveSnapshot = user(session, 'LIVE_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
-    archiveUnderPressure(session, [], forced())
+    sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).not.toContain(orphan.seq)
     expect(session.surface.nodes).toContain(liveSnapshot.seq)
-    expect(checkpoints(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(1)
     const text = surfaceText(session)
     expect(text).not.toContain('BETWEEN_TURNS_SNAPSHOT')
     // Generated context between turns belongs to the turn that just ended, in the note and in both recall tools.
@@ -348,161 +379,45 @@ describe('pressure-triggered conversational archive', () => {
     const early = user(session, 'BEFORE_ANY_TURN_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
     for (let turn = 1; turn <= 3; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     user(session, 'LIVE_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
-    archiveUnderPressure(session, [], forced({ pinFirstTurn: false }))
+    sealCompletedTurns(session, [], policy({ pinFirstTurn: false }))
     expect(session.surface.nodes).toContain(early.seq)
     expect(searchSessionEvents(session.snapshotEvents(), 'BEFORE_ANY_TURN_SNAPSHOT', { kinds: ['context'] })).toEqual([])
   })
 
-  it('sheds superseded snapshots of the open turn at a last-resort mid-turn archive', () => {
-    const session = Session.create(SessionId('context-open-turn-runtime'))
-    for (let turn = 1; turn <= 2; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
-    session.append('turn/start', { turn: 3 })
-    user(session, 'QUESTION_3')
-    const dead: SessionSeq[] = []
-    const results: SessionSeq[] = []
-    for (let step = 1; step <= 5; step += 1) {
-      dead.push(user(session, `STEP_SNAPSHOT_${step} ${'s'.repeat(2_000)}`, RUNTIME_CONTEXT_SOURCE).seq)
-      const id = ToolCallId(`c${step}`)
-      session.append('assistant/message', { turn: 3, step, stream: [],
-        message: createMessage({ role: 'assistant', content: [{ type: 'tool-call', id, name: 'read', arguments: '{}' }], source: { kind: 'model', provider: 'mock', model: 'mock' } }),
-      }, { surfaceOp: 'append' })
-      session.append('tool/call', { turn: 3, step, callId: id, name: 'read', arguments: '{}' })
-      results.push(session.append('tool/result', { turn: 3, step,
-        message: createToolResultMessage({ callId: id, isError: false, content: [{ type: 'text', text: `result ${step}` }] }),
-      }, { surfaceOp: 'append' }).seq)
-    }
-    const pending = createUserMessage({ content: [{ type: 'text', text: 'STEP_SNAPSHOT_6' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
-    const plan = archiveUnderPressure(session, [pending], forced({ highWaterChars: 5_000, lowWaterChars: 2_000, maxRequestChars: 6_000 }))
-    expect(plan.viewChars).toBeLessThanOrEqual(6_000)
-    for (const seq of dead) expect(session.surface.nodes).not.toContain(seq)
-    const text = surfaceText(session)
-    expect(text).not.toContain('STEP_SNAPSHOT_')
-    expect(text).toContain('recall_turn({"turn":"3"})')
-    // The open turn's tool calls and results stay raw and paired on the surface.
-    for (const seq of results) expect(session.surface.nodes).toContain(seq)
-    expect(renderSealedTurn(session.snapshotEvents(), 3)?.rendered).toContain('STEP_SNAPSHOT_1 ')
-  })
-
-  it('archives the recent tail too before refusing on maxRequestChars', () => {
-    const session = Session.create(SessionId('context-tail-degradation'))
-    for (let turn = 1; turn <= 3; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn} ${'a'.repeat(3_000)}`)
-    const warnings: string[] = []
-    // keepRecentChars holds the last two turns raw (~6K); the bound only fits once they are archived too.
-    const plan = archiveUnderPressure(session, [], forced({ keepRecentChars: 5_000, maxRequestChars: 5_000, checkpointMaxChars: 1_500 }), message => warnings.push(message))
-    expect(plan.viewChars).toBeLessThanOrEqual(5_000)
-    expect(checkpoints(session)).toHaveLength(1)
-    expect(textOfEvent(checkpoints(session)[0]!)).toContain('turns 1-3 · 3 turns archived')
-    expect(warnings.join('\n')).toContain('archived the recent tail (keepRecentChars) as well')
-  })
-
-  it('drops checkpoint bodies as the last tier before refusing', () => {
-    const session = Session.create(SessionId('context-bare-degradation'))
-    for (let turn = 1; turn <= 40; turn += 1) completedTurn(session, turn, `QUESTION_${turn} ${'q'.repeat(200)}`, `ANSWER_${turn} ${'a'.repeat(200)}`)
-    const warnings: string[] = []
-    const plan = archiveUnderPressure(session, [], forced({ maxRequestChars: 1_000 }), message => warnings.push(message))
-    expect(plan.viewChars).toBeLessThanOrEqual(1_000)
-    const text = textOfEvent(checkpoints(session)[0]!)
-    expect(text.startsWith('[slice checkpoint v1 · turns 1-40 · 40 turns archived')).toBe(true)
-    expect(text).toContain('served verbatim by recall_turn')
-    expect(text).not.toContain('QUESTION_2 ')
-    expect(renderSealedTurn(session.snapshotEvents(), 2)?.rendered).toContain('QUESTION_2 ')
-    expect(warnings.join('\n')).toContain('checkpoint bodies omitted')
-  })
-
-  it('says a refusal repeats until the budget or the session changes', () => {
-    const session = Session.create(SessionId('context-permanent-refusal'))
-    completedTurn(session, 1, 'first question', 'first answer')
-    user(session, 'P'.repeat(500), 'runtime-fixture')
-    completedTurn(session, 2, 'second question', 'second answer')
-    expect(() => archiveUnderPressure(session, [], forced({ maxRequestChars: 300 })))
-      .toThrow(/every later turn of this session fails the same way until maxRequestChars is raised/)
-  })
-
-  it('decides the whole archive before appending and refuses an impossible request budget atomically', () => {
-    const session = Session.create(SessionId('context-atomic-admission'))
-    completedTurn(session, 1, 'a'.repeat(500), 'first answer')
-    user(session, 'protected middle', 'runtime-fixture')
-    completedTurn(session, 2, 'b'.repeat(500), 'second answer')
-    completedTurn(session, 3, 'c'.repeat(500), 'third answer')
-    const before = structuredClone(session.snapshotEvents())
-    const surface = [...session.surface.nodes]
-    expect(() => planArchive(session, [], forced({ maxRequestChars: 150 }))).toThrow(SliceBudgetError)
-    expect(() => archiveUnderPressure(session, [], forced({ maxRequestChars: 150 }))).toThrow(/maxRequestChars/)
-    expect(session.snapshotEvents()).toEqual(before)
-    expect(session.surface.nodes).toEqual(surface)
-  })
-
-  it('treats an explicit maxHistoryChars as an extra cap on rendered history', () => {
-    const session = Session.create(SessionId('context-explicit-history-cap'))
-    for (let turn = 1; turn <= 4; turn += 1) completedTurn(session, turn, `QUESTION_${turn} ${'q'.repeat(400)}`, `ANSWER_${turn}`)
-    const relaxed = forced({ highWaterChars: 300_000, lowWaterChars: 150_000 })
-    expect(archiveUnderPressure(session, [], relaxed).appends).toEqual([])
-    const plan = archiveUnderPressure(session, [], { ...relaxed, maxHistoryChars: 1_500 })
-    expect(plan.appends).toHaveLength(1)
-    expect(checkpoints(session)).toHaveLength(1)
-    expect(surfaceText(session)).toContain(`QUESTION_4 ${'q'.repeat(400)}`)
-  })
-
-  it('stops at the explicit cap when pressure did not fire instead of draining to lowWater', () => {
-    const session = Session.create(SessionId('context-cap-target'))
-    completedTurn(session, 1, 'QUESTION_1', `ANSWER_1 ${'a'.repeat(20_000)}`)
-    completedTurn(session, 2, 'QUESTION_2', `ANSWER_2 ${'a'.repeat(20_000)}`)
-    user(session, 'P'.repeat(5_000), 'runtime-fixture')
-    completedTurn(session, 3, 'QUESTION_3', `ANSWER_3 ${'a'.repeat(5_000)}`)
-    completedTurn(session, 4, 'QUESTION_4', `ANSWER_4 ${'a'.repeat(5_000)}`)
-    completedTurn(session, 5, 'QUESTION_5', `ANSWER_5 ${'a'.repeat(5_000)}`)
-    // History 55K exceeds the 50K cap; the view (~61K) never crossed highWater, so lowWater is not a target.
-    const policy = forced({ highWaterChars: 200_000, lowWaterChars: 10_000, maxHistoryChars: 50_000 })
-    const plan = planArchive(session, [], policy)
-    expect(plan.appends).toHaveLength(1)
-    expect(plan.historyChars).toBeLessThanOrEqual(50_000)
-    expect(plan.viewChars).toBeGreaterThan(10_000)
-    expect(plan.appends[0]!.message.content[0]).toMatchObject({ text: expect.stringContaining('turns 1-2 · 2 turns archived') })
-  })
-
-  it('keeps one water-mark band of append headroom when an un-archivable floor stays above the target', () => {
+  it('seals on every consecutive turn and never re-renders an entry an un-sealable floor sits above', () => {
     const session = Session.create(SessionId('context-floor-headroom'))
     user(session, 'P'.repeat(700), 'runtime-fixture')
-    // Each turn is well under the 300-char band, so two archives can never land on consecutive turns.
-    const policy = forced({ highWaterChars: 600, lowWaterChars: 300 })
     const appends: number[] = []
+    let settled: ReturnType<typeof frozen> = []
     for (let turn = 1; turn <= 8; turn += 1) {
       completedTurn(session, turn, `Q${turn}`, `A${turn}`)
-      appends.push(archiveUnderPressure(session, [], policy).appends.length)
+      const view = session.deriveMessages()
+      appends.push(sealCompletedTurns(session, [], policy()).appends.length)
+      // A seal lands after every entry already written, so the request keeps the previous request's prefix.
+      expect(firstDivergence(view, session.deriveMessages())).toBeGreaterThanOrEqual(settled.length)
+      expect(frozen(session).slice(0, settled.length)).toEqual(settled)
+      settled = frozen(session)
     }
-    expect(appends.every(n => n <= 1)).toBe(true)
-    expect(appends.reduce((n, m) => n + m, 0)).toBeGreaterThanOrEqual(2)
-    expect(appends.some((n, i) => n === 1 && appends[i - 1] === 1)).toBe(false)
-    expect(checkpoints(session)).toHaveLength(1)
+    // Consecutive seals are the point, not a hazard: one entry per turn, and no earlier entry is re-billed.
+    expect(appends).toEqual([1, 1, 1, 1, 1, 1, 1, 1])
+    expect(entries(session)).toHaveLength(8)
   })
 
-  it('does not re-archive every turn under an explicit cap smaller than the recent tail', () => {
-    const session = Session.create(SessionId('context-cap-floor'))
-    const policy = forced({ highWaterChars: 300_000, lowWaterChars: 150_000, maxHistoryChars: 10 })
-    const appends: number[] = []
-    for (let turn = 1; turn <= 6; turn += 1) {
-      completedTurn(session, turn, `QUESTION_${turn} ${'q'.repeat(150)}`, `ANSWER_${turn} ${'a'.repeat(150)}`)
-      appends.push(archiveUnderPressure(session, [], policy).appends.length)
-    }
-    expect(appends).toEqual([0, 1, 0, 0, 0, 0])
-    expect(session.snapshotEvents().filter(event => event.type === 'user/message' && event.surfaceOp !== 'append')).toHaveLength(1)
-  })
-
-  it('caps a checkpoint at checkpointMaxChars by dropping tool lines before shrinking excerpts', () => {
+  it('caps an entry at entryMaxChars by dropping tool lines before shrinking excerpts', () => {
     const session = Session.create(SessionId('context-checkpoint-cap'))
     for (let turn = 1; turn <= 5; turn += 1) toolTurn(session, turn, `cap-${turn}`, 'x'.repeat(200))
     for (let turn = 6; turn <= 10; turn += 1) completedTurn(session, turn, `LONG_${turn} ${'l'.repeat(5_000)}`, `ANSWER_${turn}`)
     completedTurn(session, 11, 'tail', 'tail answer')
-    const plan = archiveUnderPressure(session, [], forced({ pinUserChars: 10_000, checkpointMaxChars: 3_000 }))
+    const plan = sealCompletedTurns(session, [], policy({ pinUserChars: 10_000, entryMaxChars: 3_000 }))
     expect(plan.appends).toHaveLength(1)
     const text = plan.appends[0]!.message.content.map(block => block.type === 'text' ? block.text : '').join('')
     expect(Array.from(text).length).toBeLessThanOrEqual(3_000)
     expect(text).not.toContain('[tool turn')
     expect(text).toContain('…[+')
-    for (let turn = 1; turn <= 10; turn += 1) expect(text).toContain(`[turn ${turn}]`)
+    for (let turn = 1; turn <= 11; turn += 1) expect(text).toContain(`[turn ${turn}]`)
   })
 
-  it('nests an earlier checkpoint as one line and a legacy tape as one unit', () => {
+  it('never nests or re-renders an entry: a legacy tape keeps its bytes and the seal lands after it', () => {
     const session = Session.create(SessionId('context-nesting'))
     const first = completedTurn(session, 1, 'FIRST_QUESTION', 'FIRST_ANSWER')
     const legacy = session.append('user/message', createUserMessage({
@@ -511,28 +426,33 @@ describe('pressure-triggered conversational archive', () => {
     }), { surfaceOp: { op: 'replace', start: first.response.seq, end: first.response.seq }, sourceEventSeqs: [first.response.seq] })
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
-    archiveUnderPressure(session, [], forced())
-    const [one] = checkpoints(session)
-    expect(session.surface.nodes).not.toContain(legacy.seq)
-    expect(one!.sourceEventSeqs).toContain(legacy.seq)
+    sealCompletedTurns(session, [], policy())
+    const [legacyEntry, one] = frozen(session)
+    // The legacy entry is an entry: it is neither thawed into the new one nor re-rendered, so it keeps its bytes.
+    expect(session.surface.nodes).toContain(legacy.seq)
+    expect(legacyEntry).toEqual({ seq: legacy.seq, text: textOfEvent(legacy) })
+    expect(one!.text).toContain(`${TAPE_PREFIX}2-3 · 2 turn(s) sealed`)
+    expect(entries(session)[1]!.sourceEventSeqs).not.toContain(legacy.seq)
     const oneText = surfaceText(session)
-    expect(oneText).toContain('[slice checkpoint v1 · turns 1-2 · 2 turns archived')
-    expect(oneText).toContain('[earlier checkpoint covered turns 1-1; recall_turn for details]')
-    expect(oneText).not.toContain('LEGACY_BODY')
+    expect(oneText).toContain('LEGACY_BODY')
+    expect(oneText).not.toContain('[earlier checkpoint covered')
     expect(oneText).not.toContain('FIRST_ANSWER')
+    expect(oneText).toContain('SECOND_QUESTION')
 
     completedTurn(session, 4, 'FOURTH_QUESTION', 'FOURTH_ANSWER')
-    archiveUnderPressure(session, [], forced())
-    const [two] = checkpoints(session)
-    expect(checkpoints(session)).toHaveLength(1)
-    expect(two!.seq).not.toBe(one!.seq)
-    expect(two!.sourceEventSeqs).toContain(one!.seq)
+    const view = session.deriveMessages()
+    sealCompletedTurns(session, [], policy())
+    const after = frozen(session)
+    expect(after.slice(0, 2)).toEqual([legacyEntry, one])
+    expect(after).toHaveLength(3)
+    expect(after[2]!.text).toContain(`${TAPE_PREFIX}4-4 · 1 turn(s) sealed`)
+    // The pinned request, the legacy entry and the first entry are byte-identical to the previous request.
+    expect(firstDivergence(view, session.deriveMessages())).toBe(3)
     const twoText = surfaceText(session)
-    expect(twoText).toContain('[slice checkpoint v1 · turns 1-3 · 3 turns archived')
-    expect(twoText).toContain('[earlier checkpoint covered turns 1-2; recall_turn for details]')
-    expect(twoText).not.toContain('SECOND_QUESTION')
-    expect(twoText).toContain('THIRD_QUESTION')
-    expect(twoText.split('[slice checkpoint v1')).toHaveLength(2)
+    // Turn 2 and 3 bodies still live in the first entry, written once and never repeated by the second.
+    expect(twoText.split('SECOND_QUESTION')).toHaveLength(2)
+    expect(twoText.split('THIRD_QUESTION')).toHaveLength(2)
+    expect(twoText).toContain('FOURTH_QUESTION')
   })
 })
 
@@ -549,8 +469,8 @@ describe('recall source attribution', () => {
     assistant(session, 2, [{ type: 'text', text: 'SECOND_REAL_ASSISTANT' }])
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
     session.append('turn/start', { turn: 3 })
-    archiveUnderPressure(session, [], forced())
-    expect(checkpoints(session)).toHaveLength(1)
+    sealCompletedTurns(session, [], policy())
+    expect(entries(session)).toHaveLength(1)
     const first = renderSealedTurn(session.snapshotEvents(), 1)!
     const second = renderSealedTurn(session.snapshotEvents(), 2)!
     // Attribution is unchanged: generated context is not a user request.
@@ -559,7 +479,7 @@ describe('recall source attribution', () => {
     const request = first.rendered.slice(first.rendered.indexOf('## User request'), first.rendered.indexOf('## Assistant response'))
     expect(request).toContain('REAL_USER_SENTINEL')
     expect(request).not.toContain('PLUGIN_INPUT_SENTINEL')
-    // Reachability, however, is required: checkpoints omit superseded runtime snapshots and name
+    // Reachability, however, is required: entries omit superseded runtime snapshots and name
     // these tools as the locator, so both must serve plugin-produced context.
     expect(first.rendered).toContain('## Generated context recorded during this turn (verbatim)')
     expect(first.rendered).toContain('PLUGIN_INPUT_SENTINEL')
@@ -569,7 +489,7 @@ describe('recall source attribution', () => {
     expect(second.userMessages).toBe(1)
     expect(second.contextMessages).toBe(0)
     expect(second.rendered).not.toContain('REAL_USER_SENTINEL')
-    expect(second.rendered).not.toContain('[slice checkpoint')
+    expect(second.rendered).not.toContain(TAPE_PREFIX)
     expect(searchSessionEvents(session.snapshotEvents(), 'PLUGIN_INPUT_SENTINEL', { kinds: ['user'] })).toEqual([])
     const hits = searchSessionEvents(session.snapshotEvents(), 'REAL_USER_SENTINEL', { kinds: ['user'] })
     expect(hits).toHaveLength(1)

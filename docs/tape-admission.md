@@ -1,8 +1,10 @@
-> **Status (2026-09-11): not on the live request path.** Since the
-> pressure-archive policy (`planArchive` in `src/context.ts`) the plugin no
-> longer calls `admitTape`; history is archived into frozen
-> `[slice checkpoint v1 …]` nodes instead of per-span tapes with omission
-> markers. This page documents the pure module and its tests only.
+> **Status (2026-09-11, restated 2026-09-12): not on the live request path.**
+> The plugin stopped calling `admitTape` with the pressure-archive policy, and
+> the append-only tape that replaced it (`planSeal` in `src/context.ts`) does
+> not call it either: each completed turn is sealed into one frozen
+> `[slice tape v1 …]` node at its own position, instead of a per-span tape
+> re-selected under a cap with omission markers. This page documents the pure
+> module and its tests only.
 
 # Request tape admission
 
