@@ -1,48 +1,48 @@
 /**
- * Pressure-triggered batch archive on the stock ordered surface.
+ * Append-only session tape on the stock ordered surface.
  *
- * Steady state appends nothing: below `highWaterChars` every request is the
- * stock append-only transcript. Above it, the oldest completed turns are
- * folded into frozen `[slice checkpoint v1 …]` nodes until the view is back
- * under `lowWaterChars`. A checkpoint is a pure function of the nodes it
- * shadows and is never re-rendered; a later archive nests it as one line.
- * Consecutive archives are at least one water-mark band of new history apart,
- * so an un-archivable floor above the target never re-nests every turn.
+ * Every completed turn beyond `keepRecentTurns` is sealed into one frozen
+ * `[slice tape v1 …]` entry at that turn's own position, at the first step of
+ * the next turn. An entry is a pure function of the nodes it shadows and is
+ * NEVER re-rendered or nested: the seal replaces the newest unsealed span, so
+ * every byte before it is identical to the previous request and DeepSeek's
+ * prefix cache keeps hitting. The re-billed suffix is the new entry itself,
+ * not the whole conversation.
  *
- * Superseded runtime-context snapshots are ordinary archivable history here:
- * the host projects one per change and each declares the earlier ones obsolete,
- * so protecting them all would pile up one dead protected node per turn until
- * no archive can bring the view under maxRequestChars. They are still never
- * removed between pressure events (that would break the append-only prefix);
- * an archive absorbs them with the turns around them, and one that no
- * checkpoint covers (the recent tail, or the open turn at a last-resort
- * mid-turn archive) is shadowed by a one-line note naming its recall page.
+ * That is the one property this module exists to protect. The alternative it
+ * replaced — leave history raw, then collapse the OLDEST turns under pressure —
+ * kept more verbatim text but rewrote the prefix at its first message, so each
+ * archive re-billed the entire view. Measured on 14 recorded member sessions of
+ * a live controller: an archive every ~2 turns, ~148K fresh tokens each, ~8.6%
+ * of total weighted cost, against ~0.6K per turn for tail sealing.
+ *
+ * Superseded runtime-context snapshots need no separate shadowing here: the
+ * host projects one per change and each declares the earlier ones obsolete, and
+ * the turn they belong to absorbs them as one note line when it seals. Only the
+ * last-resort tier (a request that cannot fit even with every turn sealed) ever
+ * rewrites existing entries, and it says so through `warn`.
  */
+import { createHash } from 'node:crypto'
 import { createUserMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
 
 export const HISTORY_SOURCE = 'slice:history'
 export const CHECKPOINT_PREFIX = '[slice checkpoint v1 · turns '
-/** Stand-in for superseded runtime snapshots in the raw recent tail, appended only at an archive event. */
+/** Header of a sealed entry. Sessions written by the pressure-archive build carry CHECKPOINT_PREFIX; both parse. */
+export const TAPE_PREFIX = '[slice tape v1 · turns '
+/** Stand-in for a superseded runtime snapshot inside the entry that seals its turn. */
 export const SNAPSHOT_NOTE_PREFIX = '[slice note · '
 /** The host's runtime-context projection (dsh-agent-loop RuntimeContextProjection). */
 export const RUNTIME_CONTEXT_SOURCE = '@deepseek-ai/dsh-system-prompt'
 
-export class SliceBudgetError extends Error {
-  constructor(message: string) { super(message); this.name = 'SliceBudgetError' }
-}
-
 export interface HistoryPolicy {
-  highWaterChars: number
-  lowWaterChars: number
-  keepRecentChars: number
+  /** Completed turns kept raw at the tail; 0 seals a turn as soon as the next one starts. */
+  keepRecentTurns: number
   pinFirstTurn: boolean
   pinUserChars: number
-  checkpointMaxChars: number
-  /** Explicit extra cap on rendered history (checkpoints + retained raw turn text). */
-  maxHistoryChars?: number
-  maxRequestChars: number
+  /** Target for one sealed entry's text; a span of many short turns may exceed it. */
+  entryMaxChars: number
 }
 
 export interface PlannedAppend {
@@ -66,6 +66,12 @@ export type Warn = (message: string) => void
 const USER_HEAD = 600
 const USER_TAIL = 300
 const TOOL_LINES_PER_TURN = 6
+/** Tool names whose targets make up the per-turn read index of a sealed entry. */
+const READ_TOOL_NAMES = new Set(['read', 'read_section', 'read_file'])
+/** Cap for one turn's read index; the tail is summarized as "+N more". */
+const READ_INDEX_PER_TURN = 10
+/** Hex chars of the content digest kept in a read fingerprint (collision-prone by design: it is a hint). */
+const READ_DIGEST_CHARS = 8
 
 function chars(value: unknown): number {
   return Array.from(JSON.stringify(value)).length
@@ -188,7 +194,7 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
     event.type === 'assistant/message' || event.type === 'tool/result' ? event.data.turn : turnAt.get(event.seq) ?? 0
   const rangeOf = (event: SessionEvent): [number, number] => {
     if (ours(event)) {
-      const header = /^\[slice checkpoint v1 · turns (\d+)-(\d+)/.exec(textOf(deriveEventMessage(event)!))
+      const header = /^\[slice (?:checkpoint|tape) v1 · turns (\d+)-(\d+)/.exec(textOf(deriveEventMessage(event)!))
       if (header) return [Number(header[1]), Number(header[2])]
       const turns = originsOf(session, [event.seq]).map(turnOf).filter(t => t >= 1)
       return turns.length ? [Math.min(...turns), Math.max(...turns)] : [0, 0]
@@ -235,7 +241,9 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
 
 interface Run { nodes: Node[]; message: UserMessage }
 
-interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; snapshots: number[] }
+interface ReadMark { digest: string; lines: number; chars: number }
+interface ReadRef { target: string; step: number; mark?: ReadMark }
+interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; reads: ReadRef[]; snapshots: number[] }
 interface EarlierItem { kind: 'earlier'; turns: [number, number] }
 
 function excerpt(text: string, verbatimUpTo: number, head: number, tail: number): string {
@@ -244,14 +252,74 @@ function excerpt(text: string, verbatimUpTo: number, head: number, tail: number)
   return `${all.slice(0, head).join('')}…[+${all.length - head - tail} chars, recall_turn]…${all.slice(all.length - tail).join('')}`
 }
 
+/** The file a read-style tool call targeted, or undefined when its arguments name none. */
+function readTarget(argumentsJson: unknown): string | undefined {
+  if (typeof argumentsJson !== 'string') return undefined
+  try {
+    const parsed = JSON.parse(argumentsJson) as Record<string, unknown>
+    const value = parsed['path'] ?? parsed['file_path'] ?? parsed['filePath']
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+  } catch { return undefined }
+}
+
+/** The text a tool result handed back to the model — the bytes a fingerprint covers. */
+function resultText(blocks: ReadonlyArray<{ content?: ReadonlyArray<{ type: string; text?: string }> }>): string {
+  return blocks
+    .flatMap(block => block.content ?? [])
+    .filter(block => block.type === 'text')
+    .map(block => block.text ?? '')
+    .join('')
+}
+
+/** What one read returned: line count, size and a short content digest. */
+function readMark(text: string): ReadMark {
+  return {
+    digest: createHash('sha256').update(text, 'utf8').digest('hex').slice(0, READ_DIGEST_CHARS),
+    lines: text === '' ? 0 : text.split('\n').length,
+    chars: Array.from(text).length,
+  }
+}
+
+interface PriorRead { turn: number; digest: string }
+
+/**
+ * Every read this session already performed, by target, in event order. Built from the append-only
+ * log (not the surface) so a read stays comparable after its turn, or its result, was sealed away.
+ */
+function readHistory(session: Session): Map<string, PriorRead[]> {
+  const calls = new Map<string, { target: string; turn: number }>()
+  const history = new Map<string, PriorRead[]>()
+  for (const event of session.snapshotEvents()) {
+    if (event.type === 'assistant/message') {
+      for (const block of event.data.message.content) {
+        if (block.type !== 'tool-call' || !READ_TOOL_NAMES.has(block.name)) continue
+        const target = readTarget(block.arguments)
+        if (target !== undefined) calls.set(block.id, { target, turn: event.data.turn })
+      }
+      continue
+    }
+    // A derived replacement carries no new read: only the original append record counts.
+    if (event.type !== 'tool/result' || event.surfaceOp !== 'append') continue
+    for (const block of event.data.message.content) {
+      const call = calls.get(block.toolCallId)
+      if (call === undefined) continue
+      const list = history.get(call.target) ?? []
+      list.push({ turn: call.turn, digest: readMark(resultText(event.data.message.content)).digest })
+      history.set(call.target, list)
+    }
+  }
+  return history
+}
+
 function collectItems(session: Session, run: readonly Node[], toolNames: Map<string, string>): Array<TurnItem | EarlierItem> {
   const items: Array<TurnItem | EarlierItem> = []
+  const readByCall = new Map<string, ReadRef>()
   let current: TurnItem | undefined
   for (const node of run) {
     const { event } = node
     if (ours(event) && !node.superseded) { items.push({ kind: 'earlier', turns: node.turns }); current = undefined; continue }
     const turn = node.turns[0]
-    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', tools: [], snapshots: [] }; items.push(current) }
+    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', tools: [], reads: [], snapshots: [] }; items.push(current) }
     // A superseded snapshot is neither user speech nor current truth: never a request line.
     if (node.superseded) { current.snapshots.push(...node.recallTurns); continue }
     if (!node.message) continue
@@ -259,11 +327,28 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
     else if (event.type === 'assistant/message') {
       const text = textOf(node.message)
       if (text) current.reply = text
+      // The next turn must see which files this turn already read: without the index the sealed span
+      // looks like the file was never opened, and the model re-reads it (c1: S1 rereads 43.5% vs N 23.0%).
+      for (const block of event.data.message.content) {
+        if (block.type !== 'tool-call' || !READ_TOOL_NAMES.has(block.name)) continue
+        const target = readTarget(block.arguments)
+        if (target === undefined) continue
+        let ref = current.reads.find(read => read.target === target)
+        if (ref === undefined) { ref = { target, step: event.data.step }; current.reads.push(ref) }
+        readByCall.set(block.id, ref)
+      }
     } else if (event.type === 'tool/result') {
       // Point at the original append record: that is where the full text lives.
       const origin = event.surfaceOp === 'append' ? event : session.eventAt(event.sourceEventSeqs?.[0] ?? event.seq) ?? event
       const source = origin.type === 'tool/result' ? origin : event
       const blocks = source.data.message.content
+      // Fingerprint the bytes the read returned: a later turn seeing the same digest knows the file is
+      // unchanged, and a different digest is the one honest reason to read it again.
+      const text = resultText(blocks)
+      for (const block of blocks) {
+        const ref = readByCall.get(block.toolCallId)
+        if (ref !== undefined && ref.mark === undefined) ref.mark = readMark(text)
+      }
       const name = blocks.map(block => toolNames.get(block.toolCallId) ?? 'tool').filter((n, i, a) => a.indexOf(n) === i).join(', ')
       const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? Array.from(b.text).length : 0), 0)
       current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq}})]`)
@@ -283,14 +368,26 @@ export function snapshotNote(recallTurns: readonly number[]): string {
   return `${SNAPSHOT_NOTE_PREFIX}${noun} superseded by a later one; not repeated here · verbatim: ${where}]`
 }
 
-interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps; bare?: boolean }
+interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps }
 
-function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink): string {
-  const lines = [`${CHECKPOINT_PREFIX}${range[0]}-${range[1]} · ${count} turns archived · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`]
-  if (shrink.bare) {
-    lines.push('[turn bodies omitted from this request view to fit maxRequestChars; recorded history is unchanged and every turn above is served verbatim by recall_turn]')
-    return lines.join('\n')
-  }
+/**
+ * One pointer line so a later turn knows which files this sealed turn already read — and, with the
+ * fingerprint, whether a file it read later still holds the same bytes (`= turn N`) or changed (`≠ turn N`).
+ * The digest is a hint, not proof: it covers what the read returned, not the file on disk.
+ */
+function readIndexLine(reads: ReadonlyArray<ReadRef>, turn: number, history: ReadonlyMap<string, PriorRead[]>): string {
+  const shown = reads.slice(0, READ_INDEX_PER_TURN).map(read => {
+    if (read.mark === undefined) return `${read.target} (step ${read.step})`
+    const prior = (history.get(read.target) ?? []).filter(entry => entry.turn < turn).at(-1)
+    const change = prior === undefined ? '' : prior.digest === read.mark.digest ? `, = turn ${prior.turn}` : `, ≠ turn ${prior.turn}`
+    return `${read.target} (${read.mark.lines} lines, ${read.mark.digest}, step ${read.step}${change})`
+  })
+  const extra = reads.length - shown.length
+  return `[files read this turn: ${shown.join(', ')}${extra > 0 ? `, +${extra} more` : ''}]`
+}
+
+function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink, history: ReadonlyMap<string, PriorRead[]>): string {
+  const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
     lines.push(`[turn ${item.turn}]`)
@@ -300,6 +397,7 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
     })
     if (item.snapshots.length) lines.push(snapshotNote(item.snapshots))
     if (item.reply) lines.push(renderTapeReply(`slice-turn-${item.turn}`, item.reply, shrink.reply).trimEnd())
+    if (item.reads.length) lines.push(readIndexLine(item.reads, item.turn, history))
     if (shrink.tools && item.tools.length) {
       lines.push(...item.tools.slice(0, TOOL_LINES_PER_TURN))
       if (item.tools.length > TOOL_LINES_PER_TURN) lines.push(`[+${item.tools.length - TOOL_LINES_PER_TURN} more tool results]`)
@@ -309,12 +407,12 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
 }
 
 /**
- * Deterministic checkpoint text: drop tool lines first, then shrink excerpts until it fits.
+ * Deterministic entry text: drop tool lines first, then shrink excerpts until it fits.
  * `maxChars` is a target: the smallest level is returned as is when even it does not fit.
- * `bare` (last-resort degradation only) renders the header and a recall pointer, nothing else.
  */
-export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number, bare = false): string {
+export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number): string {
   const items = collectItems(session, run, toolNames)
+  const history = readHistory(session)
   const covered = new Set<number>()
   for (const item of items) {
     if (item.kind === 'turn') covered.add(item.turn)
@@ -327,26 +425,27 @@ export function renderCheckpoint(session: Session, run: readonly Node[], toolNam
     levels.push({ tools: false, userHead: Math.floor(USER_HEAD / divisor), userTail: Math.floor(USER_TAIL / divisor),
       reply: { cap: Math.floor(2000 / divisor), head: Math.floor(1400 / divisor), tail: Math.floor(500 / divisor) } })
   }
-  if (bare) return renderItems(items, range, covered.size, pinUserChars, { ...levels[levels.length - 1]!, bare: true })
   let text = ''
   for (const level of levels) {
-    text = renderItems(items, range, covered.size, pinUserChars, level)
+    text = renderItems(items, range, covered.size, pinUserChars, level, history)
     if (Array.from(text).length <= maxChars) return text
   }
   return text
 }
 
 /**
- * Decide the whole archive before any append. Returns an empty plan when the
- * final view is under pressure thresholds and fits maxRequestChars.
+ * Decide the whole seal before any append. Returns an empty plan when every
+ * completed turn beyond the keep window is already sealed.
  *
- * When archiving to the water marks still leaves the request above
- * maxRequestChars, it degrades deterministically before refusing: first the
- * recent tail is archived too, then checkpoints drop their turn bodies (recall
- * still serves every turn). It throws SliceBudgetError (with no appends) only
- * when the protected floor plus the current input cannot fit on their own.
+ * The seal lands after every existing entry, so the prefix before it is
+ * byte-identical to the previous request. There is no request budget and no
+ * refusal: this policy bounds the view by construction (one entry per completed
+ * turn, tool results folded within the open turn), and the only hard limit is
+ * the model's own context window, which belongs to the host. A budget that
+ * refused instead — and poisoned every later turn of the session — arrived with
+ * the 2026-09-08 refactor and is gone again.
  */
-export function planArchive(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan {
+export function planSeal(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan {
   const layout = inspectSurface(session, policy.pinFirstTurn, pending)
   const messagesOf = (nodes: readonly Node[]): Message[] => nodes.flatMap(node => node.message ? [node.message] : [])
   const view = (runs: readonly Run[]): { viewChars: number; historyChars: number } => {
@@ -367,40 +466,20 @@ export function planArchive(session: Session, pending: readonly Message[], polic
     }
     return { viewChars: chars([...messages, ...pending]), historyChars }
   }
-  // Three independent triggers: pressure on the view, the explicit cap on history, and the hard request bound.
-  const explicitCap = (measure: { historyChars: number }): boolean =>
-    policy.maxHistoryChars !== undefined && measure.historyChars > policy.maxHistoryChars
-  const fits = (measure: { viewChars: number }): boolean => measure.viewChars <= policy.maxRequestChars
   const initial = view([])
-  const pressure = initial.viewChars > policy.highWaterChars
-  const satisfied = (measure: { viewChars: number; historyChars: number }): boolean =>
-    (!pressure || measure.viewChars <= policy.lowWaterChars) && !explicitCap(measure) && fits(measure)
-  if (!pressure && !explicitCap(initial) && fits(initial)) return { appends: [], ...initial }
-
-  // Headroom: archive again only after one water-mark band of history appended since the newest checkpoint.
-  // An un-archivable floor (protected nodes, the recent tail, a small explicit cap) otherwise re-nests every turn.
-  let newest: Node | undefined
-  for (const node of layout.nodes) if (ours(node.event)) newest = node
-  if (newest && fits(initial)) {
-    const since = newest.seq
-    const growth = chars([...messagesOf(layout.nodes.filter(node => node.seq > since)), ...pending])
-    if (growth < policy.highWaterChars - policy.lowWaterChars) return { appends: [], ...initial }
-  }
-
-  // Recent tail: newest complete turns whose raw records reach keepRecentChars (at least one turn).
-  const perTurn = new Map<number, number>()
-  for (const node of layout.nodes) if (!node.protected) perTurn.set(node.turns[1], (perTurn.get(node.turns[1]) ?? 0) + node.size)
-  let tailStart = layout.lastTurn
-  let kept = perTurn.get(tailStart) ?? 0
-  while (kept < policy.keepRecentChars && tailStart > 1) { tailStart -= 1; kept += perTurn.get(tailStart) ?? 0 }
+  /** An entry already on the surface. Frozen: re-rendering one rewrites the prefix it sits in. */
+  const sealedEntry = (node: Node): boolean => ours(node.event) && !node.superseded
+  // The only trigger. One seal costs the entry it writes, so there is nothing to wait for — and waiting is
+  // exactly what makes the rewrite expensive, because by then the span to replace sits under everything newer.
+  const sealBefore = layout.lastTurn - policy.keepRecentTurns + 1
 
   const cuts = new Map<string, string>()
-  const buildRuns = (before: number, bare: boolean): Run[] => {
+  const buildRuns = (before: number): Run[] => {
     const runs: Run[] = []
     let current: Node[] = []
     const push = (nodes: Node[]): void => {
       if (!nodes.length) return
-      const text = renderCheckpoint(session, nodes, layout.toolNames, policy.pinUserChars, policy.checkpointMaxChars, bare)
+      const text = renderCheckpoint(session, nodes, layout.toolNames, policy.pinUserChars, policy.entryMaxChars)
       runs.push({ nodes, message: createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }) })
     }
     // A turn whose calls are not all closed cuts the run instead of suppressing it (calls close within their turn),
@@ -415,7 +494,7 @@ export function planArchive(session: Session, pending: readonly Message[], polic
         if (!unpaired.length) segment.push(...turn)
         else {
           const key = `${turn[0]!.seq}`
-          if (!cuts.has(key)) cuts.set(key, `slice archive: turn ${turn[0]!.turns[1]} (seq ${turn[0]!.seq}..${turn[turn.length - 1]!.seq}) kept raw and cut the archive run, unpaired tool call/result ${unpaired.join(', ')}`)
+          if (!cuts.has(key)) cuts.set(key, `slice tape: turn ${turn[0]!.turns[1]} (seq ${turn[0]!.seq}..${turn[turn.length - 1]!.seq}) kept raw and cut the sealed span, unpaired tool call/result ${unpaired.join(', ')}`)
           push(segment)
           segment = []
         }
@@ -425,63 +504,15 @@ export function planArchive(session: Session, pending: readonly Message[], polic
       current = []
     }
     for (const node of layout.nodes) {
-      if (!node.protected && node.turns[1] < before) current.push(node)
+      if (!node.protected && node.turns[1] < before && !sealedEntry(node)) current.push(node)
       else flush()
     }
     flush()
     return runs
   }
-  // Superseded runtime snapshots no chosen checkpoint covers (the recent tail, a turn cut by an unclosed
-  // call) are shadowed by a one-line note at the same event: the prefix is rewritten at the first
-  // replacement anyway, so nothing superseded survives an archive and no later turn pays for it.
-  const noteRuns = (covered: ReadonlySet<SessionSeq>): Run[] => {
-    const runs: Run[] = []
-    let group: Node[] = []
-    const push = (): void => {
-      if (!group.length) return
-      const text = snapshotNote(group.flatMap(node => node.recallTurns))
-      runs.push({ nodes: group, message: createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }) })
-      group = []
-    }
-    for (const node of layout.nodes) {
-      if (node.superseded && runtimeSnapshot(node.event) && !covered.has(node.seq)) group.push(node)
-      else push()
-    }
-    push()
-    return runs
-  }
-  const withNotes = (chosen: readonly Run[]): Run[] => {
-    const covered = new Set(chosen.flatMap(run => run.nodes.map(node => node.seq)))
-    return [...chosen, ...noteRuns(covered)].sort((a, b) => a.nodes[0]!.seq - b.nodes[0]!.seq)
-  }
-  const choose = (runs: readonly Run[]): { plan: Run[]; measure: { viewChars: number; historyChars: number } } => {
-    let chosen = 0
-    let plan = withNotes([])
-    let measure = view(plan)
-    while (chosen < runs.length && !satisfied(measure)) { chosen += 1; plan = withNotes(runs.slice(0, chosen)); measure = view(plan) }
-    return { plan, measure }
-  }
-
-  // Degradation tiers, each tried only when the previous one cannot fit maxRequestChars.
-  const everything = layout.lastTurn + 1
-  const tiers: Array<{ before: number; bare: boolean; note?: string }> = [
-    { before: tailStart, bare: false },
-    { before: everything, bare: false, note: 'archived the recent tail (keepRecentChars) as well' },
-    { before: everything, bare: true, note: 'archived every completed turn with checkpoint bodies omitted; recall_turn serves them' },
-  ]
-  let result = { plan: [] as Run[], measure: initial }
-  let used = tiers[0]!
-  for (const tier of tiers) {
-    result = choose(buildRuns(tier.before, tier.bare))
-    used = tier
-    if (fits(result.measure)) break
-  }
+  const plan = buildRuns(sealBefore)
   for (const message of cuts.values()) warn?.(message)
-  const { plan, measure } = result
-  if (!fits(measure)) {
-    throw new SliceBudgetError(`Request messages need ${measure.viewChars} characters even after archiving every archivable turn (${plan.length} history run(s)), above maxRequestChars=${policy.maxRequestChars}: the protected context plus the current input do not fit. Nothing was truncated and the durable record is unchanged, but every later turn of this session fails the same way until maxRequestChars is raised, the protected context shrinks, or a new session is started.`)
-  }
-  if (used.note && plan.length > 0) warn?.(`slice archive: request needed ${initial.viewChars} characters, above maxRequestChars=${policy.maxRequestChars}; ${used.note}`)
+  const measure = plan.length ? view(plan) : initial
   const appends = plan.map(run => ({
     message: run.message,
     start: run.nodes[0]!.seq, end: run.nodes[run.nodes.length - 1]!.seq, sources: run.nodes.map(node => node.seq),
@@ -489,16 +520,16 @@ export function planArchive(session: Session, pending: readonly Message[], polic
   return { appends, ...measure }
 }
 
-export function applyArchive(session: Session, plan: ArchivePlan): void {
+export function applySeal(session: Session, plan: ArchivePlan): void {
   for (const append of plan.appends) {
     session.append('user/message', append.message, { surfaceOp: { op: 'replace', start: append.start, end: append.end }, sourceEventSeqs: append.sources })
   }
 }
 
 /** Plan and apply in one call; the decision is complete before the first append. */
-export function archiveUnderPressure(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan {
-  const plan = planArchive(session, pending, policy, warn)
-  applyArchive(session, plan)
+export function sealCompletedTurns(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan {
+  const plan = planSeal(session, pending, policy, warn)
+  applySeal(session, plan)
   return plan
 }
 
@@ -510,10 +541,4 @@ export function archiveUnderPressure(session: Session, pending: readonly Message
  */
 export function requestChars(session: Session, incoming: readonly Message[] = []): number {
   return chars([...session.deriveMessages(), ...incoming])
-}
-
-/** Serialized message bound, deliberately distinct from tokenizer/model capacity. */
-export function assertRequestBudget(messages: readonly Message[], maxRequestChars: number): void {
-  const size = chars(messages)
-  if (size > maxRequestChars) throw new SliceBudgetError(`Request messages need ${size} characters, above maxRequestChars=${maxRequestChars}. Current input and protected context were preserved; increase the budget or start a smaller task.`)
 }

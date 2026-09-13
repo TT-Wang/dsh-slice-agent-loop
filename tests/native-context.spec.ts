@@ -11,10 +11,11 @@ import {
   nativeFailure, nativeHarness, nativeMessage, nativeSend, nativeText, nativeTool,
   type CapturedRequest, type NativeHarness,
 } from './native-harness.js'
-import { DEFAULT_MAX_REQUEST_CHARS } from '../src/index.js'
+import { TAPE_PREFIX } from '../src/context.js'
+import { type Config } from '../src/index.js'
 
-/** Water marks low enough that a third turn archives the first turn's reply; the recent tail is one turn. */
-const PRESSURE = { history: { highWaterChars: 600, lowWaterChars: 300, keepRecentChars: 1 } }
+/** The default keep window, spelled out: a completed turn seals into one entry at the next turn's first step. */
+const SEAL: Config = { history: { keepRecentTurns: 0 } }
 
 const live: NativeHarness[] = []
 const roots: string[] = []
@@ -38,6 +39,36 @@ async function create(harness: NativeHarness, id: string) {
 
 function textIn(messages: readonly Message[]): string {
   return messages.flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])).join('\n')
+}
+
+/** Sealed tape entries of one dispatched request, in surface order. */
+function entriesIn(messages: readonly Message[]): string[] {
+  return messages.flatMap(message => {
+    const text = message.content.map(block => block.type === 'text' ? block.text : '').join('')
+    return text.startsWith(TAPE_PREFIX) ? [text] : []
+  })
+}
+
+/** The turn range an entry's header declares, e.g. '1-1'. */
+function rangeOf(entry: string): string {
+  return entry.slice(TAPE_PREFIX.length).split(' ')[0]!
+}
+
+function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
+  let i = 0
+  while (i < a.length && i < b.length && JSON.stringify(a[i]) === JSON.stringify(b[i])) i += 1
+  return i
+}
+
+/**
+ * The property the tape exists for: a seal lands after every entry already written, so no request
+ * diverges from its predecessor before them and only the new entry is re-billed.
+ */
+function expectStablePrefix(requests: ReadonlyArray<{ messages: readonly Message[] }>): void {
+  for (let i = 1; i < requests.length; i += 1) {
+    const earlier = requests[i - 1]!.messages
+    expect(firstDivergence(earlier, requests[i]!.messages)).toBeGreaterThanOrEqual(entriesIn(earlier).length)
+  }
 }
 
 /** Reconstruct from a dispatch-time serialized log, without the plugin's projector. */
@@ -67,7 +98,7 @@ function expectReconstructable({ request, events }: CapturedRequest): void {
 
 describe('slice context on the native DSH loop', () => {
   it('reconstructs every request and retains the stock turn projection through positional history replacements', async () => {
-    const h = await boot([nativeText('first durable answer'), nativeText('second answer'), nativeText('third answer')], { config: PRESSURE })
+    const h = await boot([nativeText('first durable answer'), nativeText('second answer'), nativeText('third answer')], { config: SEAL })
     const { agent } = await create(h, 'native-reconstruction')
     await nativeSend(agent, 'first question')
     await nativeSend(agent, 'second question')
@@ -78,9 +109,12 @@ describe('slice context on the native DSH loop', () => {
     for (const captured of h.captured) expectReconstructable(captured)
     expect(agent.session.snapshotEvents().some(isReplacementSurfaceEvent)).toBe(true)
     expect(h.ctx.sessionProjections.stateOf(agent.session, 'turnBoundary')).toMatchObject({ lastTurn: 3, openTurnStartSeq: null })
+    // Turn 1 is already one entry at the first step of turn 2, and its reply text lives inside it.
+    expect(textIn(h.adapter.requests[1]!.messages)).toContain(`${TAPE_PREFIX}1-1`)
     expect(textIn(h.adapter.requests[1]!.messages)).toContain('first durable answer')
-    expect(textIn(h.adapter.requests[2]!.messages)).toContain('[slice checkpoint v1 · turns 1-1')
+    expect(entriesIn(h.adapter.requests[2]!.messages).map(rangeOf)).toEqual(['1-1', '2-2'])
     expect(textIn(h.adapter.requests[2]!.messages)).toContain('first durable answer')
+    expectStablePrefix(h.adapter.requests)
     const originals = agent.session.snapshotEvents().filter(event => event.type === 'user/message' && event.surfaceOp === 'append')
     expect(originals.map(event => event.type === 'user/message' ? event.data.content : [])).toEqual([
       nativeMessage('first question').content,
@@ -89,11 +123,11 @@ describe('slice context on the native DSH loop', () => {
     ])
   })
 
-  it('archives across an empty assistant reply that the stock loop leaves on the surface', async () => {
+  it('seals across an empty assistant reply that the stock loop leaves on the surface', async () => {
     const empty: import('@deepseek-ai/dsh-llm').StreamChunk[] = [
       { type: 'usage', usage: { inputTokens: 10, outputTokens: 0 } }, { type: 'finish', reason: { kind: 'stop' } },
     ]
-    const h = await boot([nativeText('one'), empty, nativeText('three'), nativeText('four'), nativeText('five')], { config: PRESSURE })
+    const h = await boot([nativeText('one'), empty, nativeText('three'), nativeText('four'), nativeText('five')], { config: SEAL })
     const { agent } = await create(h, 'native-empty-reply')
     for (const input of ['first', 'second', 'third', 'fourth', 'fifth']) await nativeSend(agent, input)
 
@@ -105,10 +139,11 @@ describe('slice context on the native DSH loop', () => {
     expect(agent.session.snapshotEvents().some(event => isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(emptyReply.seq))).toBe(true)
     expect([...agent.session.snapshotEvents()].reverse().find(event => event.type === 'turn/end')?.data.reason.kind).toBe('completed')
     for (const captured of h.captured) expectReconstructable(captured)
+    expectStablePrefix(h.adapter.requests)
   })
 
-  it('preserves unchanged runtime and plugin authority nodes through three compacted turns', async () => {
-    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three')], { config: PRESSURE })
+  it('preserves unchanged runtime and plugin authority nodes through three sealed turns', async () => {
+    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three')], { config: SEAL })
     h.ctx.systemPrompt.context({ name: 'native-runtime', order: 50, text: 'UNCHANGED_RUNTIME_SENTINEL' })
     const { agent } = await create(h, 'native-runtime')
     const authority = createUserMessage({
@@ -127,8 +162,8 @@ describe('slice context on the native DSH loop', () => {
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
-  it('keeps a runtime update and clear marker authoritative after history compaction', async () => {
-    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three')], { config: PRESSURE })
+  it('keeps a runtime update and clear marker authoritative after its turn is sealed', async () => {
+    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three')], { config: SEAL })
     let remove = h.ctx.systemPrompt.context({ name: 'native-runtime', order: 50, text: 'RUNTIME_A' })
     const { agent } = await create(h, 'native-runtime-change')
     await nativeSend(agent, 'first')
@@ -144,13 +179,19 @@ describe('slice context on the native DSH loop', () => {
       expect.stringContaining('RUNTIME_A'), expect.stringContaining('RUNTIME_B'),
       'Current runtime context: none. Earlier runtime-context snapshots no longer apply.',
     ])
+    // Each superseded snapshot leaves with the entry of the turn it belongs to, so the text of a
+    // retired runtime context never reaches a later request.
+    expect(textIn(h.adapter.requests[2]!.messages)).not.toContain('RUNTIME_A')
+    expect(textIn(h.adapter.requests[2]!.messages)).not.toContain('RUNTIME_B')
     expect(h.errors).toEqual([])
+    expectStablePrefix(h.adapter.requests)
   })
 
-  it('keeps superseded runtime snapshots stock-identical below highWater and absorbs them at each pressure event', async () => {
+  it('keeps superseded runtime snapshots raw inside the keep window and absorbs each one when its turn seals', async () => {
     const turns = 60
+    const keepRecentTurns = 3
     const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`)), {
-      config: { history: { highWaterChars: 60_000, lowWaterChars: 20_000, keepRecentChars: 4_000 } },
+      config: { history: { keepRecentTurns } },
     })
     let tick = 0
     h.ctx.systemPrompt.variable('tick', () => `${tick}`.padStart(6, '0') + 'x'.repeat(3_000))
@@ -168,77 +209,26 @@ describe('slice context on the native DSH loop', () => {
     }
 
     // On 5149e89 every snapshot stayed protected and the default-config session walled on
-    // maxRequestChars; on main each one was shadowed every turn, rewriting the prefix per turn.
+    // maxRequestChars; on the pressure-archive build each one was shadowed by a note pass that
+    // rewrote the prefix. The tape does neither: a dead snapshot rides along raw while its turn is
+    // still inside the keep window, and is absorbed by that turn's entry when the turn seals.
     expect(h.adapter.requests).toHaveLength(turns)
     expect(h.errors).toEqual([])
-    // Below highWater the plugin appends nothing, so snapshots accumulate exactly as on the stock
-    // loop; a pressure event drops the count back to the single live snapshot.
-    const resets = surfaceSnapshots.flatMap((count, index) => index > 0 && count < surfaceSnapshots[index - 1]! ? [index] : [])
-    expect(resets.length).toBeGreaterThanOrEqual(2)
-    for (const index of resets) expect(surfaceSnapshots[index]).toBe(1)
-    for (let index = 1; index < surfaceSnapshots.length; index += 1) {
-      if (!resets.includes(index)) expect(surfaceSnapshots[index]).toBe(surfaceSnapshots[index - 1]! + 1)
-    }
+    // One per completed turn still held raw, plus the live one, then a flat ceiling: the count
+    // tracks the keep window instead of the length of the session.
+    expect(surfaceSnapshots.slice(0, keepRecentTurns + 1)).toEqual([1, 2, 3, 4])
+    expect([...new Set(surfaceSnapshots.slice(keepRecentTurns + 1))]).toEqual([keepRecentTurns + 1])
     const last = h.adapter.requests.at(-1)!.messages
     const projected = last.filter(message => message.role === 'user' && message.source.kind === 'plugin'
       && message.source.plugin === '@deepseek-ai/dsh-system-prompt')
     expect(textIn([projected.at(-1)!])).toContain(`RUNTIME ${String(turns).padStart(6, '0')}`)
     expect(textIn(last)).not.toContain('RUNTIME 000001')
-    expect(Array.from(JSON.stringify(last)).length).toBeLessThan(DEFAULT_MAX_REQUEST_CHARS)
+    expectStablePrefix(h.adapter.requests)
     for (const captured of h.captured) expectReconstructable(captured)
   }, 60_000)
 
-  it('gives history budget back instead of dying on maxRequestChars', async () => {
-    const turns = 24
-    const maxRequestChars = 120_000
-    const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`.padEnd(1_500, 'y'))), {
-      config: { maxHistoryChars: 90_000, maxRequestChars },
-    })
-    let tick = 0
-    h.ctx.systemPrompt.variable('tick', () => `${tick}`.padStart(6, '0') + 'x'.repeat(30_000))
-    h.ctx.systemPrompt.context({ name: 'big-runtime', order: 50, text: 'RUNTIME {{tick}}' })
-    const { agent } = await create(h, 'native-request-budget')
-    for (let turn = 1; turn <= turns; turn += 1) {
-      tick = turn
-      h.captured.length = 0
-      await nativeSend(agent, `question ${turn}`.padEnd(1_500, 'z'))
-    }
-
-    // The protected floor (one runtime snapshot plus current input) leaves less
-    // room than maxHistoryChars, so spending the whole history budget overflows
-    // the request. Refusing there is permanent -- every later turn throws the
-    // same way with no dispatch -- while the history the plugin is holding is
-    // its own to give back.
-    expect(h.adapter.requests).toHaveLength(turns)
-    expect(h.errors).toEqual([])
-    for (const request of h.adapter.requests) {
-      expect(Array.from(JSON.stringify(request.messages)).length).toBeLessThanOrEqual(maxRequestChars)
-    }
-    const view = textIn(h.adapter.requests.at(-1)!.messages)
-    expect(view).toContain(`question ${turns}`)
-    expect(view).toContain('recall_turn')
-    for (const captured of h.captured) expectReconstructable(captured)
-  })
-
-  it('keeps dispatching every turn under an explicit history cap far below one turn', async () => {
-    const turns = 40
-    const h = await boot(Array.from({ length: turns }, (_, index) => nativeText(`answer ${index + 1}`)), {
-      config: { maxHistoryChars: 800 },
-    })
-    const { agent } = await create(h, 'native-last-resort')
-    for (let turn = 1; turn <= turns; turn += 1) await nativeSend(agent, `question ${turn}`)
-
-    // maxHistoryChars is a target, never a refusal: the default recent tail (keepRecentChars) holds
-    // these short turns raw, archives land a water-mark band apart, and the current input is served.
-    expect(h.adapter.requests).toHaveLength(turns)
-    expect(h.errors).toEqual([])
-    const view = textIn(h.adapter.requests.at(-1)!.messages)
-    expect(view).toContain(`question ${turns}`)
-    for (const captured of h.captured.slice(-3)) expectReconstructable(captured)
-  })
-
-  it('preserves structured image content and its position in current input after earlier turns are compacted', async () => {
-    const h = await boot([nativeText('prior answer'), nativeText('middle answer'), nativeText('image answer')], { config: PRESSURE })
+  it('preserves structured image content and its position in current input after earlier turns are sealed', async () => {
+    const h = await boot([nativeText('prior answer'), nativeText('middle answer'), nativeText('image answer')], { config: SEAL })
     const { agent } = await create(h, 'native-image')
     await nativeSend(agent, 'earliest request')
     await nativeSend(agent, 'prior request')
@@ -256,6 +246,7 @@ describe('slice context on the native DSH loop', () => {
     expect(h.adapter.requests[2]!.messages.find(item => item.id === message.id)).toEqual(message)
     expect(agent.session.snapshotEvents().some(isReplacementSurfaceEvent)).toBe(true)
     expect(h.errors).toEqual([])
+    expectStablePrefix(h.adapter.requests)
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
@@ -304,57 +295,8 @@ describe('slice context on the native DSH loop', () => {
     expect(h.errors).toEqual([])
   })
 
-  it('reports mandatory current input overflow without dispatching or truncating it', async () => {
-    const h = await boot([], { config: { maxRequestChars: 1_000 } })
-    const { agent } = await create(h, 'native-overflow')
-    const message = nativeMessage('CURRENT_INPUT_'.repeat(1_000))
-    agent.followup(message)
-    await agent.whenIdle()
-
-    expect(h.adapter.requests).toHaveLength(0)
-    expect(message.content).toEqual(nativeMessage('CURRENT_INPUT_'.repeat(1_000)).content)
-    expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === message.id)).toBe(true)
-    expect(h.errors).toHaveLength(1)
-    expect(String(h.errors[0])).toMatch(/maxRequestChars|budget|limit|exceed/i)
-    expect([...agent.session.snapshotEvents()].reverse().find(event => event.type === 'turn/end')?.data.reason.kind).toBe('error')
-  })
-
-  it('checks the final admitted context when an outer pre-step contributor adds content', async () => {
-    const h = await boot([nativeText('this response must never be requested')], { config: { maxRequestChars: 2_000 } })
-    const { agent } = await create(h, 'native-late-overflow')
-    const extra = createUserMessage({
-      content: [{ type: 'text', text: 'LATE_CONTEXT_'.repeat(500) }], source: { kind: 'plugin', plugin: 'outer-contributor' },
-    })
-    agent.ctx.on('agent/pre-step', async (_payload, next) => {
-      const decision = await next()
-      return decision.kind === 'enter' ? { ...decision, messages: [...decision.messages, extra] } : decision
-    }, { prepend: true })
-    await nativeSend(agent, 'small current input')
-
-    expect(h.adapter.requests).toHaveLength(0)
-    expect(h.errors).toHaveLength(1)
-    expect(String(h.errors[0])).toMatch(/maxRequestChars|budget|limit|exceed/i)
-    expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === extra.id)).toBe(true)
-  })
-
-  it('serves the current user input when an explicit history cap has no archivable turn to spend', async () => {
-    const h = await boot([nativeText('prior answer'), nativeText('second answer')], { config: { maxHistoryChars: 10 } })
-    const { agent } = await create(h, 'native-history-soft-cap')
-    await nativeSend(agent, 'first input')
-    const current = nativeMessage('second input must remain durably visible')
-    agent.followup(current)
-    await agent.whenIdle()
-
-    expect(h.adapter.requests).toHaveLength(2)
-    expect(h.errors).toEqual([])
-    expect(h.adapter.requests[1]!.messages.find(item => item.id === current.id)).toEqual(current)
-    expect(agent.session.snapshotEvents().some(event => event.type === 'user/message' && event.data.id === current.id)).toBe(true)
-    // The only complete turn is the protected recent tail: the cap is a target, never a refusal.
-    expect(agent.session.snapshotEvents().some(isReplacementSurfaceEvent)).toBe(false)
-  })
-
   it('keeps another producer\'s canonical replacement authoritative across later slice turns', async () => {
-    const h = await boot([nativeText('ORIGINAL_REPLY_MUST_STAY_SHADOWED'), nativeText('second'), nativeText('third'), nativeText('fourth')], { config: PRESSURE })
+    const h = await boot([nativeText('ORIGINAL_REPLY_MUST_STAY_SHADOWED'), nativeText('second'), nativeText('third'), nativeText('fourth')], { config: SEAL })
     const { agent } = await create(h, 'native-external-replacement')
     await nativeSend(agent, 'ORIGINAL_INPUT_MUST_STAY_SHADOWED')
     agent.ctx.on('agent/pre-step', async ({ turn }, next) => {
@@ -378,13 +320,13 @@ describe('slice context on the native DSH loop', () => {
       expect(textIn(request.messages)).not.toContain('ORIGINAL_INPUT_MUST_STAY_SHADOWED')
       expect(textIn(request.messages)).not.toContain('ORIGINAL_REPLY_MUST_STAY_SHADOWED')
     }
-    expect(textIn(h.adapter.requests[3]!.messages)).toContain('[slice checkpoint v1 · turns 2-2')
+    expect(textIn(h.adapter.requests[3]!.messages)).toContain(`${TAPE_PREFIX}2-2`)
     expect(h.errors).toEqual([])
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
   it('keeps tool call and result pairs intact when protected context splits completed history', async () => {
-    const h = await boot([nativeTool('pair-one', 'echo'), nativeText('first completed'), nativeText('second completed'), nativeText('third completed')], { config: PRESSURE })
+    const h = await boot([nativeTool('pair-one', 'echo'), nativeText('first completed'), nativeText('second completed'), nativeText('third completed')], { config: SEAL })
     const { agent } = await create(h, 'native-protected-tool-pair')
     h.ctx.tools.register(defineContentToolFixture({
       name: 'echo', description: 'Add context after one tool pair', parameters: {},
@@ -395,7 +337,7 @@ describe('slice context on the native DSH loop', () => {
     }))
     await nativeSend(agent, 'use the tool')
     await nativeSend(agent, 'continue after protected context')
-    await nativeSend(agent, 'archive the first turn')
+    await nativeSend(agent, 'seal the first turn')
 
     expect(h.adapter.requests).toHaveLength(4)
     for (const request of h.adapter.requests) {
@@ -405,13 +347,18 @@ describe('slice context on the native DSH loop', () => {
     }
     expect(textIn(h.adapter.requests[2]!.messages)).toContain('PROTECTED_AFTER_TOOL')
     expect(textIn(h.adapter.requests[3]!.messages)).toContain('PROTECTED_AFTER_TOOL')
-    expect(textIn(h.adapter.requests[3]!.messages)).toContain('[slice checkpoint v1 · turns 1-1')
+    // The protected node cuts turn 1 in two, so the turn seals as two entries that keep their own
+    // positions around it; the call/result pair stays inside one of them, as a recall pointer.
+    expect(textIn(h.adapter.requests[3]!.messages)).toContain(`${TAPE_PREFIX}1-1`)
+    expect(entriesIn(h.adapter.requests[3]!.messages).map(rangeOf)).toEqual(['1-1', '1-1', '2-2'])
+    expect(entriesIn(h.adapter.requests[3]!.messages)[0]).toContain('[tool turn 1 step 1')
     expect(h.errors).toEqual([])
+    expectStablePrefix(h.adapter.requests)
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
   it('does not append context replacements after cancellation during pre-step contributions', async () => {
-    const h = await boot([nativeText('first answer'), nativeText('second answer')], { config: PRESSURE })
+    const h = await boot([nativeText('first answer'), nativeText('second answer')], { config: SEAL })
     const { agent } = await create(h, 'native-pre-step-cancel')
     await nativeSend(agent, 'first input')
     await nativeSend(agent, 'second input')
@@ -488,7 +435,7 @@ describe('slice context on the native DSH loop', () => {
     roots.push(root)
     const sessionId = SessionId('native-persistence')
     const originalVocabulary = [...KNOWN_SESSION_EVENT_TYPES].sort()
-    const first = await boot([nativeText('PERSISTED_REPLY_SENTINEL'), nativeText('second answer')], { persistenceRoot: root, config: PRESSURE })
+    const first = await boot([nativeText('PERSISTED_REPLY_SENTINEL'), nativeText('second answer')], { persistenceRoot: root, config: SEAL })
     first.ctx.systemPrompt.context({ name: 'native-runtime', order: 50, text: 'PERSISTED_RUNTIME_SENTINEL' })
     const { agent } = await create(first, sessionId)
     await nativeSend(agent, 'remember this')
@@ -497,15 +444,19 @@ describe('slice context on the native DSH loop', () => {
     const beforeDispose = structuredClone(agent.session.snapshotEvents())
     await first.ctx.fiber.dispose()
 
-    const second = await boot([nativeText('resumed with slice')], { persistenceRoot: root, config: PRESSURE })
+    const second = await boot([nativeText('resumed with slice')], { persistenceRoot: root, config: SEAL })
     second.ctx.systemPrompt.context({ name: 'native-runtime', order: 50, text: 'PERSISTED_RUNTIME_SENTINEL' })
     const resumed = await second.ctx.agents.resume({ resumeSessionId: sessionId, agentOptions: { provider: 'native-mock', model: 'deterministic' } })
     expect(resumed.agent.session.snapshotEvents().slice(0, beforeDispose.length)).toEqual(beforeDispose)
     await nativeSend(resumed.agent, 'continue after reload')
     expect(second.adapter.requests).toHaveLength(1)
     expect(textIn(second.adapter.requests[0]!.messages)).toContain('PERSISTED_REPLY_SENTINEL')
-    expect(textIn(second.adapter.requests[0]!.messages)).toContain('[slice checkpoint v1 · turns 1-1')
+    expect(textIn(second.adapter.requests[0]!.messages)).toContain(`${TAPE_PREFIX}1-1`)
     expect(resumed.agent.session.snapshotEvents().slice(beforeDispose.length).some(isReplacementSurfaceEvent)).toBe(true)
+    // A reload does not re-render what the previous process sealed: turn 1's entry comes back byte
+    // for byte, and the resumed turn seals turn 2 after it.
+    expect(entriesIn(second.adapter.requests[0]!.messages).map(rangeOf)).toEqual(['1-1', '2-2'])
+    expect(entriesIn(second.adapter.requests[0]!.messages)[0]).toBe(entriesIn(first.adapter.requests[1]!.messages)[0])
     expect(textIn(second.adapter.requests[0]!.messages).split('PERSISTED_RUNTIME_SENTINEL')).toHaveLength(2)
     expect(second.errors).toEqual([])
     for (const captured of second.captured) expectReconstructable(captured)
