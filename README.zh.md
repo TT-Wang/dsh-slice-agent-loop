@@ -80,6 +80,14 @@
 
 本包已经自带一份工具结果折叠，和独立插件 [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) 同源，也以 `./fold` 导出。**不要在同一个 profile 里再装那个独立插件**：两者都会注册 `expand_result`，第二次注册会在加载时直接失败（`tool "expand_result" is already registered`）。只有想在不装 slice 策略的原生 loop 上单独用折叠时，才单独挂 `./fold`（或那个独立插件）。
 
+## 与 Agent Swarm 配合
+
+[Agent Swarm](https://github.com/TT-Wang/dsh-agent-swarm)（`@dsh-external/dsh-agent-swarm`）是 DSH 的**任务层（mission layer）**：一条指令变成一次 mission——owner 规划任务图，member 各自在独立 worktree 与沙箱里以原生会话运行，每件产物都由**另一个**成员独立复核并验证。本插件是这些 worker 运行的**会话层（session layer）**，两者通常一起挂载：
+
+- Agent Swarm 把工作扇出，本策略把**每一个扇出的会话**都封顶：已完成的轮在只追加磁带的尾部封存，所以每次请求都保住上一次请求的前缀，只为刚写下的那一条重新计费。
+- 召回面是"有界"在 mission 里安全的前提：`recall_turn`、`recall_search`、`expand_result` 能把封存、折叠或恢复替换掉的任何内容取回，所以需要早先某次文件读取或工具结果的 worker 不必重读、更不必猜。
+- 在同一个 profile 里挂两行即可——swarm 的 bundle（或插件包）加上本 patch。两者都是增量 patch、都不 fork Harness 核心，工具面也不重叠（那边是 `swarm_*`，这边是 `recall_turn` / `recall_search` / `recall_step` / `expand_result`）。
+
 ## 前缀行为
 
 每次请求的缓存前缀，就是上一次请求直到刚写下的那条封存为止的全部内容：封存落在尾部，只花掉它新写的那一条，之前的字节一个都不动。前缀只在两处断开：宿主自己的 surface 改写（例如工具结果折叠），以及被未配对工具调用切断的轮。这是结构性质，**不是普适的缓存命中或成本保证**：provider 缓存与运行时上下文的变动频率仍决定账单。

@@ -80,6 +80,14 @@ Install this repository with DSH's plugin installer and apply its `cordis.patch.
 
 This package already mounts its own copy of tool-result folding: the same source as the standalone [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) plugin, also exported here as `./fold`. **Do not install the standalone plugin into the same profile.** Both register `expand_result`, and the second registration fails at load with `tool "expand_result" is already registered`. Mount `./fold` (or the standalone plugin) on its own only when you want folding on the stock loop without the slice policy.
 
+## Pairs with Agent Swarm
+
+[Agent Swarm](https://github.com/TT-Wang/dsh-agent-swarm) (`@dsh-external/dsh-agent-swarm`) is DSH's **mission layer**: one instruction becomes a mission whose owner plans the task graph and whose members run as native sessions in their own worktrees and sandboxes, with every artifact independently reviewed and verified. This plugin is the **session layer** those workers run under, and the two are usually mounted together:
+
+- Agent Swarm fans work out; this policy keeps each fan-out session bounded. Completed turns are sealed at the tail of an append-only tape, so a session's request keeps the previous request's prefix and re-bills only the entry it just wrote.
+- The recall surface is what makes that bound safe inside a mission: `recall_turn`, `recall_search` and `expand_result` retrieve anything a seal, a fold or a resume replaced, so a worker that needs an earlier file read or tool result gets it back instead of re-reading it or guessing.
+- Mount both rows in the same profile — the swarm bundle (or plugin package) plus this patch. Both are additive, neither forks Harness core, and the tool surfaces do not overlap (`swarm_*` there; `recall_turn` / `recall_search` / `recall_step` / `expand_result` here).
+
 ## Prefix behaviour
 
 Each request's cache prefix is the previous request up to the seal just written: a seal lands at the tail, so it costs the entry it writes and nothing before it. The prefix breaks only at host-owned surface rewrites such as tool-result folding, and at a turn cut by an unpaired tool call. That is a structural property, not a universal cache-hit or cost guarantee: provider caching and runtime-context churn still decide the bill.
