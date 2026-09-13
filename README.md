@@ -2,7 +2,7 @@
 
 [中文](README.zh.md)
 
-A conversational-context retention policy for **DeepSeek Harness 0.1.3-alpha.2**. It runs alongside the stock agent loop, keeping the host's lifecycle, scheduler, inbox, persistence, request-series handling and full request-reconstruction invariant. The patch is additive: it adds this plugin and nothing else.
+A conversational-context retention policy for **DeepSeek Harness 0.1.5-rc.2 / 0.1.5-rc.1**. It runs alongside the stock agent loop, keeping the host's lifecycle, scheduler, inbox, persistence, request-series handling and full request-reconstruction invariant. The patch is additive: it adds this plugin and nothing else.
 
 ## History model: an append-only tape
 
@@ -16,10 +16,10 @@ Frozen entries preserve their bytes, but this does **not** guarantee that each r
 
 One entry renders, in order:
 
-- a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`;
+- a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":3}) returns a tool result]`;
 - per sealed turn: `[turn N]`, the user message (verbatim up to `history.pinUserChars`, default 1,200; longer ones keep head 600 / tail 300 with a `recall_turn` marker between), then the reply wrapped in `[reply slice-turn-N @sha256:…] … [end reply @sha256:…]`;
 - the turn's **read index** line (below);
-- the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
+- the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
 
 `history.entryMaxChars` (default 8,000) is the **target** for one entry's text: the renderer drops tool lines first, then shrinks excerpts level by level; required locators and protected content may still exceed it. A turn whose tool calls are not all paired stays raw and cuts the sealed span rather than losing the pairing, logged on the plugin's `warn` channel.
 
@@ -31,7 +31,7 @@ Each sealed turn that successfully read text carries a compact index:
 [files read this turn: src/context.ts (544 lines, ce9f9f98, step 1, seq 12 block 1, read window default, logged result)]
 ```
 
-- Counted tools: `read`, `read_section`, `read_file`, including nested `tool/code-dispatch` calls. Failed reads never enter the successful index or comparison history; a successful retry can replace an earlier success.
+- Counted tools: `read`, `read_section`, `read_file`, including nested `tool/ptc-dispatch` calls. Failed reads never enter the successful index or comparison history; a successful retry can replace an earlier success.
 - The canonical observation is the **latest successful** read per tool, path, argument window and direct/code channel in that turn. At most 10 appear, followed by `+N more` when needed.
 - The digest is the first 8 hex of `sha256` over returned text. Comparisons use the same canonical observation in earlier turns and include its turn, step, seq and result block. Different windows or channels are not labelled as file changes.
 - Direct reads identify the logged result. Nested reads identify the dispatch and explicitly say `code log; model visibility not implied`: text returned to code is not necessarily forwarded to the model.
@@ -39,11 +39,13 @@ Each sealed turn that successfully read text carries a compact index:
 
 ## Recall and expansion tools
 
-`recall_turn` returns a turn: `view: "full"` (default) with original records and tool metadata, or `view: "dialogue"` with each user and assistant text once and tool results as locators. `recall_step` retrieves a step and hydrates spilled result text when available. If storage is unavailable, it labels the result as a preview and provides the exact expansion locator. `expand_result` retrieves an exact tool result by `{seq}` (the durable log id shown on each entry's tool lines), or by turn/step/call ordinal, optionally filtered by lines or a regex. Multi-result events accept a 1-based `block` selector; omitted means all siblings, with each spill hydrated separately.
+`recall_turn` returns a turn: `view: "full"` (default) with original records and tool metadata, or `view: "dialogue"` with each user and assistant text once and tool results as locators. `recall_step` retrieves a step and hydrates spilled result text when available. If storage is unavailable, it labels the result as a preview and provides the exact expansion locator. `expand_result` retrieves an exact tool result by `{seq, formatVersion: 3}` (the durable log id shown on each entry's tool lines), or by turn/step/call ordinal, optionally filtered by lines or a regex. Multi-result events accept a 1-based `block` selector; omitted means all siblings, with each spill hydrated separately.
 
 `recall_search` searches original human and assistant text, generated context (plugin-produced user-role messages such as runtime snapshots, including ones projected between turns, which belong to the turn that just ended), tool inputs and tool errors (`DEFAULT_SEARCH_KINDS` in `src/recall.ts`). Its default `scope: "auto"` also admits ordinary tool **output**, but only through bounded slots (at most `TOOL_OUTPUT_SLOTS` = 3 hits of `TOOL_SNIPPET_CHARS` = 600 characters), because tool output is the session's flood; `scope: "dialogue"` skips it, and explicit `kinds` override the scope. The recall tools' own inputs and output blocks are excluded without dropping ordinary siblings in the same event. Tool-input hits point to the full turn record containing arguments; result hits point to their exact event/block. Every hit names its follow-up call.
 
 Absence from the visible history means unknown or not selected — never false, and never "it did not happen". Recall before denying that something was said.
+
+Numeric locators are qualified with the current session format: `expand_result({"seq":42,"formatVersion":3})`. Bare or mismatched-version `seq` calls are rejected before lookup. DSH's v2→v3 migration inserts events but leaves old tape text untouched, so an old numeric hint can otherwise point at a different result. Refresh the locator with `recall_turn` dialogue / `recall_search`, or use stable `turn`/`step`/`call` coordinates. See [host compatibility and migration](docs/dsh-0.1.5-compatibility.md).
 
 ## Configuration
 

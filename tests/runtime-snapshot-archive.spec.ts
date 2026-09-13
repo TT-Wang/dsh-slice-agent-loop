@@ -130,7 +130,7 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
     const old = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'OLD_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } }), { surfaceOp: 'append' })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     const note = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: `${TAPE_PREFIX}1-1 · snapshot-only legacy entry]` }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }), {
-      surfaceOp: { op: 'replace', start: old.seq, end: old.seq }, sourceEventSeqs: [old.seq],
+      surfaceOp: { op: 'replace', startSeq: old.seq, endSeq: old.seq }, sourceEventSeqs: [old.seq],
     })
     session.append('turn/start', { turn: 2 })
     session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'QUESTION_2' }], source: { kind: 'user' } }), { surfaceOp: 'append' })

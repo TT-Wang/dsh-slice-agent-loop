@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   published-dsh:
-    name: published DSH alpha.2 (node ${{ matrix.node }})
+    name: published DSH 0.1.5-rc.2 (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -30,6 +30,7 @@ jobs:
         with:
           version: '11.7.0'
       - run: pnpm install --frozen-lockfile
+      - run: pnpm peers check
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -37,6 +38,11 @@ jobs:
         run: git diff --exit-code -- lib
       - name: Verify packed plugin through published DSH Loader
         run: npm run verify:packed
+      - name: Verify compatibility with npm latest (0.1.5-rc.1)
+        if: matrix.node == '22.22.3'
+        run: npm run verify:packed
+        env:
+          SLICE_PACKED_DSH_VERSION: 0.1.5-rc.1
       # results/ is a committed evidence archive and 98% of what a Git install
       # downloads. Raising the ceiling should be a deliberate commit.
       - name: Tracked-bytes budget

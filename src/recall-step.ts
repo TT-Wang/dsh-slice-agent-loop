@@ -1,5 +1,6 @@
 /** Original per-step tool records, with spill hydration and honest preview fallback. */
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { originalText, storedTextLocatorOf } from './fold/results.js'
 
@@ -46,7 +47,7 @@ function stepRecord(events: Iterable<LogEvent>, turn: number, step: number): Ste
       for (const [index, block] of blocks.entries()) {
         const parts = (block.content ?? []).flatMap((part) => part.type === 'text' && typeof part.text === 'string'
           ? [{ text: part.text, preview: storedTextLocatorOf(part.text) }] : [])
-        const target = typeof event.seq === 'number' ? `"seq":${event.seq}` : `"turn":${turn},"step":${step},"call":${ordinal}`
+        const target = typeof event.seq === 'number' ? `"seq":${event.seq},"formatVersion":${SESSION_FORMAT_VERSION}` : `"turn":${turn},"step":${step},"call":${ordinal}`
         const locator = `expand_result({${target}${blocks.length > 1 ? `,"block":${index + 1}` : ''}})`
         results.push({ parts, isError: block.isError === true, locator })
       }

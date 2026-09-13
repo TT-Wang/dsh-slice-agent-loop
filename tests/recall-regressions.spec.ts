@@ -1,4 +1,5 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -46,7 +47,7 @@ describe('exact original search locators', () => {
     const events = siblings()
     expect(searchSessionEvents(events, 'RECALL_COPY_ONLY', { scope: 'auto' })).toEqual([])
     const hit = searchSessionEvents(events, 'ORIGINAL_SIBLING_ONLY', { scope: 'auto' })[0]!
-    expect(hit).toMatchObject({ kind: 'tool_output', seq: 3, block: 2, locator: 'expand_result({"seq":3,"block":2})' })
+    expect(hit).toMatchObject({ kind: 'tool_output', seq: 3, block: 2, locator: 'expand_result({"seq":3,"formatVersion":3,"block":2})' })
     expect(searchSessionEvents(events, 'ORIGINAL_SIBLING_ONLY', { kinds: ['tool_error'] })).toEqual([])
     const error = searchSessionEvents(events, 'ERROR_SIBLING_ONLY', { kinds: ['tool_error'] })[0]!
     expect(error).toMatchObject({ kind: 'tool_error', seq: 3, block: 3 })
@@ -63,7 +64,7 @@ describe('exact original search locators', () => {
     // Existing whole-result retrieval remains available, including the recorded recall copy.
     expect(fullResultAt(nativeEvents, 1, 1, 1)?.text).toContain('RECALL_COPY_ONLY=1234')
     expect(() => resultBySeq(nativeEvents, args.seq, 4)).toThrow('no result block 4')
-    expect(renderSealedTurn(events, 1, { view: 'dialogue' })!.rendered).toContain('expand_result({"seq":3,"block":2})')
+    expect(renderSealedTurn(events, 1, { view: 'dialogue' })!.rendered).toContain('expand_result({"seq":3,"formatVersion":3,"block":2})')
   })
 })
 
@@ -112,7 +113,7 @@ describe('spill-aware step recall', () => {
     const nativeEvents = events as unknown as readonly SessionEvent[]
     expect(await originalResultText(nativeEvents, { seq: 3 }, 'inner parts', 2)).toBe(expected)
     const execution = { agent: { session: { snapshotEvents: () => nativeEvents } } } as unknown as ToolRunContext
-    expect(await expandResultToolDefinition().execute({ seq: 3, block: 2 }, execution)).toBe(`[full result of read · seq 3 (turn 1 step 1 call 1) block 2]\n${expected}`)
+    expect(await expandResultToolDefinition().execute({ formatVersion: SESSION_FORMAT_VERSION, seq: 3, block: 2 }, execution)).toBe(`[full result of read · seq 3 (turn 1 step 1 call 1) block 2]\n${expected}`)
     const hydrated = await recallStepToolDefinition().execute({ turn: '1', step: '1' }, execution)
     expect(hydrated).toContain(expected)
     expect(hydrated).toContain('ERROR_SIBLING_ONLY=8754')
@@ -123,7 +124,7 @@ describe('spill-aware step recall', () => {
     const partial = await recallStepToolDefinition().execute({ turn: '1', step: '1' }, execution)
     expect(partial).toContain('FIRST_SPILLED_ORIGINAL\nINDEPENDENT_PLAIN_TEXT')
     expect(partial).toContain('text part 3 preview — NOT full output')
-    expect(partial).toContain('expand_result({"seq":3,"block":2})')
+    expect(partial).toContain('expand_result({"seq":3,"formatVersion":3,"block":2})')
     expect(partial).toContain('PREVIEW_ONLY')
     expect(partial).not.toContain('## Results (verbatim)')
   })
@@ -138,7 +139,7 @@ describe('spill-aware step recall', () => {
     data.message.content[1]!.content[0]!.text = `preview\n\n(Omitted 100 bytes. Full formatted result stored at: ${path}. Use read with offset/limit, or grep this path to search within it.)`
     const page = renderSealedStepPage(events, 1, 1)!
     expect(page).toContain('preview — NOT full output')
-    expect(page).toContain('expand_result({"seq":3,"block":2})')
+    expect(page).toContain('expand_result({"seq":3,"formatVersion":3,"block":2})')
     expect(page).not.toContain('undefined bytes')
     const execution = { agent: { session: { snapshotEvents: () => events } } } as unknown as ToolRunContext
     const hydrated = await recallStepToolDefinition().execute({ turn: '1', step: '1' }, execution)
@@ -151,7 +152,7 @@ describe('spill-aware step recall', () => {
     const { h, agent, logged } = await spilledStep('recall-spill-full')
     const preview = renderSealedStepPage(agent.session.snapshotEvents(), 1, 1)!
     expect(preview).toContain('preview — NOT full output')
-    expect(preview).toContain(`expand_result({"seq":${logged.seq}})`)
+    expect(preview).toContain(`expand_result({"seq":${logged.seq},"formatVersion":3})`)
     expect(preview).not.toContain('## Results (verbatim)')
     await nativeSend(agent, 'recover that whole step')
     const recalled = agent.session.snapshotEvents().find((event) => event.type === 'tool/result' && event.surfaceOp === 'append' && event.data.message.content[0]?.toolCallId === 'recall')!
@@ -168,7 +169,7 @@ describe('spill-aware step recall', () => {
     await nativeSend(agent, 'recover that whole step')
     const recalled = agent.session.snapshotEvents().find((event) => event.type === 'tool/result' && event.surfaceOp === 'append' && event.data.message.content[0]?.toolCallId === 'recall')!
     expect(textOf(recalled)).toContain('preview — NOT full output')
-    expect(textOf(recalled)).toContain(`expand_result({"seq":${logged.seq}})`)
+    expect(textOf(recalled)).toContain(`expand_result({"seq":${logged.seq},"formatVersion":3})`)
     expect(textOf(recalled)).toContain('→ bash(')
     expect(textOf(recalled)).not.toContain('## Results (verbatim)')
     expect(h.errors).toEqual([])

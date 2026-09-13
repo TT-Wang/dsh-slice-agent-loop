@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock, type Message } from '@deepseek-ai/dsh-llm'
+import { createMessage, createSystemMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock, type Message } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { HISTORY_SOURCE, planSeal, RUNTIME_CONTEXT_SOURCE, sealCompletedTurns, TAPE_PREFIX, type HistoryPolicy } from '../src/context.js'
 import { renderSealedTurn, searchSessionEvents } from '../src/recall.js'
@@ -77,6 +77,34 @@ function policy(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
 }
 
 describe('append-only tape sealing', () => {
+  it('preserves the system prompt head, later prompt updates and dormant system nodes', () => {
+    const session = Session.create(SessionId('context-system-surface'))
+    const systemEvents: SessionEvent<'system/message'>[] = []
+    for (const [index, prompt] of ['HEAD_SYSTEM_INSTRUCTION', 'UPDATED_SYSTEM_INSTRUCTION', ''].entries()) {
+      const turn = index + 1
+      session.append('turn/start', { turn })
+      systemEvents.push(session.append('system/message', {
+        turn, step: 1, message: createSystemMessage(prompt, '@deepseek-ai/dsh-system-prompt'),
+      }, { surfaceOp: 'append' }))
+      user(session, `QUESTION_${turn}`)
+      assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
+      session.append('turn/end', { turn, reason: { kind: 'completed' } })
+    }
+    const before = structuredClone(session.snapshotEvents())
+    const plan = sealCompletedTurns(session, [], policy({ pinFirstTurn: false }))
+    expect(plan.appends).toHaveLength(3)
+    expect(session.surface.nodes[0]).toBe(systemEvents[0]!.seq)
+    for (const event of systemEvents) {
+      expect(session.surface.nodes).toContain(event.seq)
+      expect(session.eventAt(event.seq)).toEqual(event)
+      expect(plan.appends.flatMap(append => append.sources)).not.toContain(event.seq)
+    }
+    expect(session.deriveMessages().filter(message => message.role === 'system')).toEqual(systemEvents.slice(0, 2).map(event => event.data.message))
+    expect(session.snapshotEvents().slice(0, before.length)).toEqual(before)
+    expect(surfaceText(session)).toContain('UPDATED_SYSTEM_INSTRUCTION')
+    expect(entries(session).map(textOfEvent).join('\n')).not.toContain('SYSTEM_INSTRUCTION')
+  })
+
   it('bounds nine 60,000-character user entries in one sealed entry while retaining exact original recall pages', () => {
     const session = Session.create(SessionId('context-large-history'))
     const original: string[] = []
@@ -93,6 +121,9 @@ describe('append-only tape sealing', () => {
     expect(plan.viewChars).toBe(Array.from(JSON.stringify(session.deriveMessages())).length)
     expect(plan.viewChars).toBeLessThanOrEqual(100_000)
     expect(entries(session)).toHaveLength(1)
+    expect(entries(session)[0]!.surfaceOp).toEqual({
+      op: 'replace', startSeq: plan.appends[0]!.start, endSeq: plan.appends[0]!.end,
+    })
     expect(text).toContain(`ORIGINAL_TURN_10_${'x'.repeat(60_000)}`)
     expect(text).toMatch(/ORIGINAL_TURN_1_x+…\[\+\d+ chars, recall_turn\]…x+/)
     expect(text).not.toContain(`ORIGINAL_TURN_1_${'x'.repeat(60_000)}`)
@@ -160,7 +191,7 @@ describe('append-only tape sealing', () => {
     const canonical = session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: 'CANONICAL_FOREIGN_CONTEXT' }], source: { kind: 'plugin', plugin: 'foreign-compactor' },
     }), {
-      surfaceOp: { op: 'replace', start: original.request.seq, end: original.response.seq },
+      surfaceOp: { op: 'replace', startSeq: original.request.seq, endSeq: original.response.seq },
       sourceEventSeqs: [original.request.seq, original.response.seq],
     })
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_RESPONSE')
@@ -182,7 +213,7 @@ describe('append-only tape sealing', () => {
     const canonical = session.append('user/message', createUserMessage({
       content: [{ type: 'text', text }], source: { kind: 'user' },
     }), {
-      surfaceOp: { op: 'replace', start: original.request.seq, end: original.response.seq },
+      surfaceOp: { op: 'replace', startSeq: original.request.seq, endSeq: original.response.seq },
       sourceEventSeqs: [original.request.seq, original.response.seq],
     })
     completedTurn(session, 2, 'SECOND_USER_QUESTION', 'SECOND_USER_RESPONSE')
@@ -202,7 +233,7 @@ describe('append-only tape sealing', () => {
     expect(entries(session)).toHaveLength(1)
     expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call' || block.type === 'tool-result')).toBe(false)
     const text = surfaceText(session)
-    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq}})]`)
+    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":3})]`)
     expect(text).not.toContain('DURABLE_FILE_BYTES')
     expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).toContain('DURABLE_FILE_BYTES')
   })
@@ -423,7 +454,7 @@ describe('append-only tape sealing', () => {
     const legacy = session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: '# SESSION TAPE (sealed conversational history; not current-world truth)\nLEGACY_BODY' }],
       source: { kind: 'plugin', plugin: HISTORY_SOURCE },
-    }), { surfaceOp: { op: 'replace', start: first.response.seq, end: first.response.seq }, sourceEventSeqs: [first.response.seq] })
+    }), { surfaceOp: { op: 'replace', startSeq: first.response.seq, endSeq: first.response.seq }, sourceEventSeqs: [first.response.seq] })
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
     sealCompletedTurns(session, [], policy())
@@ -504,7 +535,7 @@ describe('recall source attribution', () => {
     }, { surfaceOp: 'append' })
     const content = [{ ...original.data.message.content[0], content: [{ type: 'text' as const, text: 'GENERATED_RESULT_SENTINEL' }] }] as [typeof original.data.message.content[0]]
     session.append('tool/result', { ...original.data, message: { ...original.data.message, content } }, {
-      surfaceOp: { op: 'replace', start: original.seq, end: original.seq }, sourceEventSeqs: [original.seq],
+      surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq],
     })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     expect(searchSessionEvents(session.snapshotEvents(), 'GENERATED_RESULT_SENTINEL', { kinds: ['tool_output'] })).toEqual([])

@@ -75,7 +75,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
     expect(textsAt(3, 'read-after')).toContain('row 55 payload')
     expect(textsAt(4, 'other-outer')).not.toContain('unrelated 300 ')
     expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: ['read'], folded: 2 })
-    expect(agent.session.snapshotEvents().filter((event) => event.type === 'tool/code-dispatch' && event.data.name === 'expand_result')).toHaveLength(2)
+    expect(agent.session.snapshotEvents().filter((event) => event.type === 'tool/ptc-dispatch' && event.data.name === 'expand_result')).toHaveLength(2)
   })
 
   it('preserves a JSON-wrapped retrieval through both the fold spill arm and native spill-policy', async () => {
@@ -99,7 +99,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
   it('replays successful nested expansion backoff, including a natively spilled dispatch log', async () => {
     const { agent } = await boot('twice', true, LOG)
     const seed = structuredClone(agent.session.snapshotEvents())
-    expect(seed.some((event) => event.type === 'tool/code-dispatch' && JSON.stringify(event.data.content).includes('Full formatted result stored at:'))).toBe(true)
+    expect(seed.some((event) => event.type === 'tool/ptc-dispatch' && JSON.stringify(event.data.content).includes('Full formatted result stored at:'))).toBe(true)
     const h = await nativeHarness([nativeTool('read-resumed', 'read', { file_path: 'again.txt' }), nativeText('done')], { config: { fold: { pinSteps: 0, spillPreviewMinBytes: 0 }, digest: { minChars: 1500 } } })
     live.push(h)
     h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: LOG }] }))

@@ -96,7 +96,7 @@ export function readHistory(session: Session): ReadHistory {
         const read = readRef(call, event.seq, block.content ?? [], { block: index + 1 })
         if (read) reads.push(read)
       })
-    } else if (event.type === 'tool/code-dispatch' && !event.data.isError) {
+    } else if (event.type === 'tool/ptc-dispatch' && !event.data.isError) {
       const root = calls.get(event.data.rootCallId)
       if (!root) continue
       const read = readRef({ ...root, name: event.data.name, arguments: event.data.arguments }, event.seq, event.data.content, { rootCallId: event.data.rootCallId })

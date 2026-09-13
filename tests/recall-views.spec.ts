@@ -93,7 +93,7 @@ describe('recall_turn views', () => {
     expect(text).not.toContain('HIDDEN_REASONING_SENTINEL')
     expect(text).not.toContain('## Original records')
     expect(text).not.toContain('PORT_SENTINEL')
-    expect(text).toContain(`[tool step 1 seq ${read.seq} · read_config · ${CONFIG.length} chars · expand_result({"seq":${read.seq}})]`)
+    expect(text).toContain(`[tool step 1 seq ${read.seq} · read_config · ${CONFIG.length} chars · expand_result({"seq":${read.seq},"formatVersion":3})]`)
     expect(text.split('[tool step')).toHaveLength(2)
     expect(text).toContain('view dialogue')
     expect(text).toContain('recall_turn({"turn":"1","view":"full"})')
@@ -123,7 +123,7 @@ describe('recall_search scope and locators', () => {
     expect(read.text).toContain('PORT_SENTINEL=7443')
     const hits = searchSessionEvents(events, 'PORT_SENTINEL', { scope: 'auto' })
     expect(hits).toHaveLength(1)
-    expect(hits[0]).toMatchObject({ turn: 1, step: 1, kind: 'tool_output', seq: read.seq, locator: `expand_result({"seq":${read.seq}})` })
+    expect(hits[0]).toMatchObject({ turn: 1, step: 1, kind: 'tool_output', seq: read.seq, locator: `expand_result({"seq":${read.seq},"formatVersion":3})` })
     expect(hits[0]!.snippet).toContain('PORT_SENTINEL=7443')
     expect(Array.from(hits[0]!.snippet).length).toBeLessThanOrEqual(TOOL_SNIPPET_CHARS + 2)
     expect(events[read.seq]?.type).toBe('tool/result')
@@ -131,7 +131,7 @@ describe('recall_search scope and locators', () => {
     // The tool's own rendering (default scope auto) named the same locator.
     const searched = toolResultText(h, 'search-auto', 'search-1')
     expect(searched.text).toContain(`seq ${read.seq} [tool_output]`)
-    expect(searched.text).toContain(`→ expand_result({"seq":${read.seq}})`)
+    expect(searched.text).toContain(`→ expand_result({"seq":${read.seq},"formatVersion":3})`)
     // Dialogue hits name the dialogue view of their turn.
     expect(renderSearchHits('q', searchSessionEvents(events, 'ASSISTANT_ONE_SENTINEL'))).toContain('→ recall_turn({"turn":"1","view":"dialogue"})')
   })
@@ -171,7 +171,7 @@ describe('recall_search scope and locators', () => {
     expect(trap.text).toContain('"isError":true')
     const errors = searchSessionEvents(events, 'BOOM_ERROR_SENTINEL', { scope: 'auto' })
     expect(errors.map((hit) => hit.kind)).toEqual(['tool_error'])
-    expect(errors[0]!.locator).toBe(`expand_result({"seq":${errors[0]!.seq}})`)
+    expect(errors[0]!.locator).toBe(`expand_result({"seq":${errors[0]!.seq},"formatVersion":3})`)
     expect(events[errors[0]!.seq!]?.type).toBe('tool/result')
     expect(searchSessionEvents(events, 'BOOM_ERROR_SENTINEL', { kinds: ['tool_output'] })).toEqual([])
     expect(searchSessionEvents(events, 'TRAP_SENTINEL', { scope: 'auto' }).map((hit) => hit.kind)).toEqual(['tool_output'])
@@ -197,7 +197,7 @@ describe('recall_search scope and locators', () => {
     expect(hits.filter((hit) => hit.kind === 'user')).toHaveLength(4)
     for (const hit of toolHits) {
       expect(Array.from(hit.snippet).length).toBeLessThanOrEqual(TOOL_SNIPPET_CHARS + 2)
-      expect(hit.locator).toBe(`expand_result({"seq":${hit.seq}})`)
+      expect(hit.locator).toBe(`expand_result({"seq":${hit.seq},"formatVersion":3})`)
       expect(events[hit.seq!]?.type).toBe('tool/result')
     }
     expect(searchSessionEvents(events, 'NEEDLE', { kinds: ['tool_output'], limit: 6 })).toHaveLength(6)

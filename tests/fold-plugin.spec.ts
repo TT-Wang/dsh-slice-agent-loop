@@ -6,6 +6,7 @@
  *   ④ 原生 loop 的请求重建不变量(request == deriveMessages)在替换后仍成立。
  */
 import { Context } from '@deepseek-ai/cordis'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { describe, expect, it } from 'vitest'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import LlmService, { createUserMessage, createToolResultMessage, ToolCallId } from '@deepseek-ai/dsh-llm'
@@ -87,6 +88,9 @@ describe('tool-result-fold on the stock loop', () => {
     const replacements = events.filter((e) => e.type === 'tool/result' && isReplacementSurfaceEvent(e))
     expect(originals.length).toBeGreaterThanOrEqual(2)  // read + expand_result
     expect(replacements).toHaveLength(1)                // 只有 read 的结果被折
+    expect(replacements[0]!.surfaceOp).toEqual({
+      op: 'replace', startSeq: originals[0]!.seq, endSeq: originals[0]!.seq,
+    })
     expect(JSON.stringify(originals[0])).toContain('row 55 payload')
     expect((replacements[0] as { sourceEventSeqs?: unknown }).sourceEventSeqs).toEqual([originals[0]!.seq])
     // ③ expand_result 返回原文,且它自己的结果不会被折
@@ -158,9 +162,10 @@ describe('the fold affordance states the real grep/glob contract', () => {
     send(handle.agent, 'grep the repo')
     await handle.agent.whenIdle()
     expect(GREP_SMALL.length).toBeLessThan(10_000)
-    const second = requestText(adapter, 1)
-    expect(second).toContain('src/small.ts:15:')                                  // 中段原样
-    expect(second).not.toContain('more matches in')
+    const results = adapter.requests[1]!.messages.flatMap(message => message.content)
+      .filter(block => block.type === 'tool-result')
+    expect(results).toHaveLength(1)
+    expect(results[0]!.content).toEqual([{ type: 'text', text: GREP_SMALL }])
     expect(FOLD_STATS.get(handle.agent.session)?.folded ?? 0).toBe(0)
   })
 })
@@ -365,7 +370,7 @@ describe('fold result identity and replay', () => {
       await bench.run()
       for (let n = 1; n <= 2; n++) {
         const callId = ToolCallId(`block-expansion-${n}`)
-        bench.session.append('tool/call', { turn: 1, step: 2, callId, name: EXPAND_TOOL_NAME, arguments: JSON.stringify({ seq: original.seq, block: 1 }) })
+        bench.session.append('tool/call', { turn: 1, step: 2, callId, name: EXPAND_TOOL_NAME, arguments: JSON.stringify({ formatVersion: SESSION_FORMAT_VERSION, seq: original.seq, block: 1 }) })
         bench.session.append('tool/result', { turn: 1, step: 2, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text: BIG }] }) }, { surfaceOp: 'append' })
         await bench.run()
       }
@@ -380,7 +385,7 @@ describe('fold result identity and replay', () => {
       live.session.append('tool/result', {
         ...original.data,
         message: { ...original.data.message, content: [{ ...original.data.message.content[0], content: [{ type: 'text', text: '[another plugin summary]' }] }] },
-      }, { surfaceOp: { op: 'replace', start: original.seq, end: original.seq }, sourceEventSeqs: [original.seq] })
+      }, { surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq] })
       await live.run()
       expect(FOLD_STATS.get(live.session)?.folded).toBe(0)
       live.session.append('tool/call', { turn: 1, step: 4, callId: ToolCallId('expand-external'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":3,"call":1}' })

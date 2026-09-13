@@ -38,8 +38,12 @@ export function apply(ctx, config) {
       const nodes = sessions.foldSurface(events).nodes
       assert.deepEqual(request.messages, nodes.map(seq => sessions.deriveEventMessage(events[seq])).filter(Boolean))
       const header = sessions.foldRequestHeader(events)
-      assert.equal(request.system, header.system)
       assert.deepEqual(request.tools ?? [], header.tools ?? [])
+      assert.equal(request.messages[0]?.role, 'system', 'the native system prompt must remain at the surface head')
+      assert.equal(request.messages.filter(message => message.role === 'system').length, 1)
+      const system = request.messages[0].content.filter(block => block.type === 'text').map(block => block.text).join('\n')
+      assert.ok(system.includes('Packed plugin validation fixture.'))
+      assert.ok(system.includes('<slice>'))
       const joined = request.messages.flatMap(message => message.content.filter(block => block.type === 'text').map(block => block.text)).join('\n')
       assert.equal(joined.split('PACKED_RUNTIME_SENTINEL').length, 2)
       requests.push({ request: structuredClone({ ...request, signal: undefined }), events })
@@ -96,7 +100,7 @@ export function apply(ctx, config) {
     assert.ok(tapeNodes(finalEvents).includes(firstEntrySeq), 'resume must retain the original sealed entry')
     assert.deepEqual(finalEvents[firstEntrySeq], firstEntry)
     assert.equal(tapeNodes(finalEvents).length, 3, 'resume must seal the previous completed turn')
-    const summary = { status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    const summary = { status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

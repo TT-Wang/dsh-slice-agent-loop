@@ -25,6 +25,7 @@ export interface CapturedRequest {
 /** Small deterministic adapter; both provider and loop requests remain observable. */
 export class NativeAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
+  systemPromptUpdate?: 'in-history'
 
   constructor(private readonly responses: StreamChunk[][]) { super() }
 
@@ -32,6 +33,7 @@ export class NativeAdapter extends LlmAdapter {
     return Promise.resolve({
       provider, id: model, name: model, inputModalities: ['text', 'image'],
       reasoning: { efforts: [{ id: ReasoningEffortId('low'), name: 'Low' }], defaultEffort: ReasoningEffortId('low') },
+      ...this.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: this.systemPromptUpdate },
     })
   }
 

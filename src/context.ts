@@ -23,7 +23,7 @@
  * the whole prefix through their position and are never rewritten here.
  */
 import { createUserMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm'
-import { deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
 import { readHistory, readIndexLine, readsForResult, type ReadHistory, type ReadRef } from './context-reads.js'
 
@@ -208,7 +208,11 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
     let guarded = seq > completedThrough || turns[0] < 1
     let superseded = false
     let recallTurns = [recallAt.get(seq) ?? 0]
-    if (runtimeSnapshot(event)) {
+    if (event.type === 'system/message') {
+      // DSH v3 persists both the prompt head and in-history prompt updates on
+      // the surface. Their system role and placement belong to the host.
+      guarded = true
+    } else if (runtimeSnapshot(event)) {
       // Not the open-turn guard: a dead snapshot of the open turn is still dead.
       guarded = seq === live || recallTurns[0]! < 1
       superseded = !guarded
@@ -268,7 +272,7 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
       current.reads.push(...readsForResult(history, source))
       const name = blocks.map(block => toolNames.get(block.toolCallId) ?? 'tool').filter((n, i, a) => a.indexOf(n) === i).join(', ')
       const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? Array.from(b.text).length : 0), 0)
-      current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq}})]`)
+      current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
     }
   }
   return items
@@ -288,7 +292,7 @@ export function snapshotNote(recallTurns: readonly number[]): string {
 interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps }
 
 function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink, history: ReadHistory): string {
-  const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`]
+  const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":${SESSION_FORMAT_VERSION}}) returns a tool result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
     lines.push(`[turn ${item.turn}]`)
@@ -422,7 +426,7 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
 
 export function applySeal(session: Session, plan: ArchivePlan): void {
   for (const append of plan.appends) {
-    session.append('user/message', append.message, { surfaceOp: { op: 'replace', start: append.start, end: append.end }, sourceEventSeqs: append.sources })
+    session.append('user/message', append.message, { surfaceOp: { op: 'replace', startSeq: append.start, endSeq: append.end }, sourceEventSeqs: append.sources })
   }
 }
 

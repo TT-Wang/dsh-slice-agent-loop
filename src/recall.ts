@@ -34,6 +34,7 @@
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
@@ -166,7 +167,7 @@ function noteCalls(names: Map<string, string>, event: LogEvent): void {
 }
 
 function expandLocator(seq: number, block?: number): string {
-  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq}${block === undefined ? '' : `,"block":${block}`}})`
+  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq},"formatVersion":${SESSION_FORMAT_VERSION}${block === undefined ? '' : `,"block":${block}`}})`
 }
 
 interface SealedTurnPage {
@@ -217,7 +218,7 @@ export function renderSealedTurn(
     const data = event.data as Record<string, unknown>
     const attributedTurn: unknown = event.type === 'user/message' ? ownerOf(data, openTurn, lastEnded) : data.turn
     if (attributedTurn === turn
-      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/code-dispatch'].includes(event.type)) {
+      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/ptc-dispatch'].includes(event.type)) {
       originalRecords.push({ type: event.type, data: event.data })
     }
     switch (event.type) {
@@ -544,7 +545,7 @@ export function renderSearchHits(
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — each hit ends with the exact call that returns `
     + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" for the cheap text-only page) for said text, `
-    + 'recall_turn view "full" for tool inputs, expand_result({"seq": Q,"block": B}) for tool output (block only for multi-result events)]',
+    + `recall_turn view "full" for tool inputs, expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events)]`,
   ]
   for (const hit of hits) {
     const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}${hit.block === undefined ? '' : ` block ${hit.block}`}`
@@ -561,7 +562,7 @@ export function recallSearchToolDefinition(): ToolDefinition {
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits, each with a bounded original snippet and the exact follow-up call: '
       + 'recall_turn view "dialogue" for said text, view "full" for tool inputs, '
-      + 'expand_result({"seq": Q,"block": B}) for tool output (block only for multi-result events). scope "auto" (default) '
+      + `expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events). scope "auto" (default) `
       + 'searches user/assistant text, generated context (runtime snapshots and injected notices), tool inputs '
       + 'and tool errors plus raw tool output through bounded slots '
       + `(at most ${TOOL_OUTPUT_SLOTS} tool-output hits, ${TOOL_SNIPPET_CHARS} chars each); scope "dialogue" `
@@ -616,7 +617,7 @@ export function recallToolDefinition(): ToolDefinition {
       + 'every assistant step, exactly as delivered, plus any generated context (runtime snapshots, injected '
       + 'notices) recorded during it. Use it when a [slice tape v1 …] entry (or legacy checkpoint) names a turn or cuts its text '
       + '(`…[+N chars, recall_turn]…`), or when a recall_search hit names a turn. view "dialogue" returns the said '
-      + 'text once with each tool result reduced to a one-line expand_result({"seq": Q}) locator (cheap); '
+      + `text once with each tool result reduced to a one-line expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION}}) locator (cheap); `
       + 'view "full" (default) also appends every original record as JSON, including reasoning and tool '
       + 'output. Serves from the durable session log, so it works after agent recreation too.',
     parameters: {

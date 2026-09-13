@@ -130,8 +130,8 @@ describe('successful read provenance in tape entries', () => {
     agent.ctx.tools.presentAs('both')
     await nativeSend(agent, 'Read once')
     expect(JSON.stringify(h.adapter.requests[1]!.messages)).not.toContain(body)
-    const dispatched = agent.session.snapshotEvents().find(event => event.type === 'tool/code-dispatch')!
-    expect(dispatched.type).toBe('tool/code-dispatch')
+    const dispatched = agent.session.snapshotEvents().find(event => event.type === 'tool/ptc-dispatch')!
+    expect(dispatched.type).toBe('tool/ptc-dispatch')
     // Reusing a model call id in a later turn cannot attach that later read to
     // the earlier turn, which is still raw until the keep window advances.
     returnedBody = 'LATER_INNER_READ'

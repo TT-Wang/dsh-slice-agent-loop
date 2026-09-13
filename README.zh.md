@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-面向 **DeepSeek Harness 0.1.3-alpha.2** 的对话上下文保留策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。这个 patch 是增量的：它只新增本插件。
+面向 **DeepSeek Harness 0.1.5-rc.2 / 0.1.5-rc.1** 的对话上下文保留策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。这个 patch 是增量的：它只新增本插件。
 
 ## 历史模型：只追加的磁带
 
@@ -16,10 +16,10 @@
 
 一条条目按顺序渲染：
 
-- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>}) returns a tool result]`；
+- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":3}) returns a tool result]`；
 - 每个被封存的轮：`[turn N]`、该轮用户消息（不超过 `history.pinUserChars`（默认 1,200）时逐字保留，超过的保留头 600 / 尾 300，中间留一个 `recall_turn` 标记），然后是回复，包在 `[reply slice-turn-N @sha256:…] … [end reply @sha256:…]` 里；
 - 该轮的**读索引**行（见下）；
-- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
+- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
 
 `history.entryMaxChars`（默认 8,000）是单条条目文本的**目标**：渲染器先丢工具行、再逐级收窄摘录；必要的定位信息与保护内容仍可能超过它。工具调用未全部配对的轮保持原样并切断封存段（不丢配对），走插件的 `warn` 通道打日志。
 
@@ -31,7 +31,7 @@
 [files read this turn: src/context.ts (544 lines, ce9f9f98, step 1, seq 12 block 1, read window default, logged result)]
 ```
 
-- 计入 `read`、`read_section`、`read_file`，包括嵌套的 `tool/code-dispatch`。失败读取不进入成功索引和比较历史；成功重试可以更新之前的成功观察。
+- 计入 `read`、`read_section`、`read_file`，包括嵌套的 `tool/ptc-dispatch`。失败读取不进入成功索引和比较历史；成功重试可以更新之前的成功观察。
 - 每个「工具、路径、参数窗口、直接/代码通道」选择同轮**最后一次成功读取**，最多显示 10 条，多出的用 `+N more` 收尾。
 - 指纹是返回文本的 `sha256` 前 8 位；比较同样规则选出的更早成功观察，标出其 turn、step、seq 与结果块。不同窗口或通道之间不声称文件发生变化。
 - 直接读取定位到日志结果；嵌套读取定位到 dispatch，明确标注 `code log; model visibility not implied`：代码拿到文本，不代表模型看到了全文。
@@ -39,11 +39,13 @@
 
 ## 召回与展开工具
 
-`recall_turn` 返回一整轮：`view: "full"`（默认）含原始记录与工具元数据，`view: "dialogue"` 只给每条用户与助手文本一次、工具结果以定位符表示。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。多结果事件支持从 1 起算的 `block` 选择；省略则取全部兄弟结果，逐块恢复 spill。
+`recall_turn` 返回一整轮：`view: "full"`（默认）含原始记录与工具元数据，`view: "dialogue"` 只给每条用户与助手文本一次、工具结果以定位符表示。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq, formatVersion: 3}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。多结果事件支持从 1 起算的 `block` 选择；省略则取全部兄弟结果，逐块恢复 spill。
 
 `recall_search` 搜索原始的用户与助手文本、生成的上下文（插件产生的 user 角色消息，如运行时快照；两轮之间投影的快照归属刚结束的那一轮）、工具输入与工具错误（见 `src/recall.ts` 的 `DEFAULT_SEARCH_KINDS`）。默认 `scope: "auto"` 也收录普通工具**输出**，但只通过有界槽位（最多 `TOOL_OUTPUT_SLOTS` = 3 条、每条 `TOOL_SNIPPET_CHARS` = 600 字符），因为工具输出是会话里体量最大、信噪比最低的文本；`scope: "dialogue"` 跳过它，显式 `kinds` 优先于 scope。召回工具自己的输入与输出块不入索引，但不会连带丢掉同一事件里的普通兄弟结果。工具输入命中指向含参数的完整轮记录，结果命中指向精确事件与结果块。每条命中都给出后续调用。
 
 可见历史里的缺席意味着"未知"或"未被选中"——**绝不是假**，也绝不是"这件事没发生过"。否认某事说过之前，先召回。
+
+数字定位符必须注明当前会话格式：`expand_result({"seq":42,"formatVersion":3})`。缺少版本或版本不符的 `seq` 调用会在查找前拒绝。宿主 v2→v3 迁移会插入事件，却保留旧磁带文本，因此旧数字可能指向另一条结果。可用 `recall_turn` 的 dialogue 视图或 `recall_search` 获取新定位符，也可使用稳定的 `turn`/`step`/`call` 坐标。见 [宿主兼容与迁移](docs/dsh-0.1.5-compatibility.md)。
 
 ## 配置
 

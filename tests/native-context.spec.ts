@@ -11,7 +11,7 @@ import {
   nativeFailure, nativeHarness, nativeMessage, nativeSend, nativeText, nativeTool,
   type CapturedRequest, type NativeHarness,
 } from './native-harness.js'
-import { TAPE_PREFIX } from '../src/context.js'
+import { HISTORY_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import { type Config } from '../src/index.js'
 
 /** The default keep window, spelled out: a completed turn seals into one entry at the next turn's first step. */
@@ -90,13 +90,59 @@ function expectReconstructable({ request, events }: CapturedRequest): void {
     provider: header?.config.provider, model: header?.config.model, reasoningEffort: header?.config.reasoningEffort,
     temperature: header?.config.temperature, maxTokens: header?.config.maxTokens, stop: header?.config.stop,
   })
-  expect(request.system).toEqual(header?.system)
+  expect(request).not.toHaveProperty('system')
+  expect(header).not.toHaveProperty('system')
+  const system = events[surface.nodes[0]!]
+  expect(system?.type).toBe('system/message')
+  if (system?.type !== 'system/message') throw new Error('request surface must begin with the system prompt')
+  expect(request.messages[0]).toEqual(system.data.message)
+  expect(request.messages[0]!.role).toBe('system')
+  expect(request.messages[0]!.source).toEqual({ kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' })
   expect(request.tools ?? []).toEqual(header?.tools ?? [])
   expect(Object.isFrozen(request)).toBe(true)
   expect(Object.isFrozen(request.messages)).toBe(true)
 }
 
 describe('slice context on the native DSH loop', () => {
+  it('preserves native prompt updates and dormant system nodes when their turns seal', async () => {
+    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three'), nativeText('four')], {
+      config: { history: { keepRecentTurns: 1 } },
+    })
+    h.adapter.systemPromptUpdate = 'in-history'
+    const { agent } = await create(h, 'native-system-update')
+    await nativeSend(agent, 'first question')
+    h.ctx.systemPrompt.section({ name: 'updated-instruction', order: 50, text: 'UPDATED_SYSTEM_INSTRUCTION' })
+    await nativeSend(agent, 'second question')
+    const prompts = agent.session.snapshotEvents().filter(event => event.type === 'system/message')
+    expect(prompts).toHaveLength(2)
+    expect(prompts[1]!.surfaceOp).toBe('append')
+    expect(h.adapter.requests[1]!.messages.filter(message => message.role === 'system')).toEqual(prompts.map(event => event.data.message))
+    const before = structuredClone(agent.session.snapshotEvents())
+
+    await nativeSend(agent, 'third question')
+    await nativeSend(agent, 'fourth question')
+    expect(h.errors).toEqual([])
+    expect(h.adapter.requests).toHaveLength(4)
+    expect(agent.session.snapshotEvents().slice(0, before.length)).toEqual(before)
+    for (const captured of h.captured) expectReconstructable(captured)
+    const systemNodes = agent.session.surface.nodes.flatMap(seq => {
+      const event = agent.session.eventAt(seq)
+      return event?.type === 'system/message' ? [event] : []
+    })
+    expect(systemNodes).toHaveLength(2)
+    expect(systemNodes[1]!.data.message.content).toEqual([])
+    expect(systemNodes[1]!.sourceEventSeqs).toEqual([prompts[1]!.seq])
+    const sources = agent.session.snapshotEvents().flatMap(event => event.type === 'user/message'
+      && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE ? event.sourceEventSeqs ?? [] : [])
+    const allSystem = agent.session.snapshotEvents().filter(event => event.type === 'system/message')
+    for (const event of allSystem) expect(sources).not.toContain(event.seq)
+    const finalSystems = h.adapter.requests[3]!.messages.filter(message => message.role === 'system')
+    expect(finalSystems).toEqual([systemNodes[0]!.data.message])
+    expect(textIn(finalSystems)).toContain('UPDATED_SYSTEM_INSTRUCTION')
+    expect(textIn(h.adapter.requests[3]!.messages.filter(message => message.role === 'user'))).not.toContain('UPDATED_SYSTEM_INSTRUCTION')
+    expect(entriesIn(h.adapter.requests[3]!.messages).map(rangeOf)).toEqual(['1-1', '2-2'])
+  })
+
   it('reconstructs every request and retains the stock turn projection through positional history replacements', async () => {
     const h = await boot([nativeText('first durable answer'), nativeText('second answer'), nativeText('third answer')], { config: SEAL })
     const { agent } = await create(h, 'native-reconstruction')
@@ -107,6 +153,9 @@ describe('slice context on the native DSH loop', () => {
     expect(h.adapter.requests).toHaveLength(3)
     expect(h.errors).toEqual([])
     for (const captured of h.captured) expectReconstructable(captured)
+    const system = h.adapter.requests[0]!.messages[0]!
+    expect(textIn([system])).toContain('Native-context integration fixture.')
+    for (const request of h.adapter.requests) expect(request.messages[0]).toEqual(system)
     expect(agent.session.snapshotEvents().some(isReplacementSurfaceEvent)).toBe(true)
     expect(h.ctx.sessionProjections.stateOf(agent.session, 'turnBoundary')).toMatchObject({ lastTurn: 3, openTurnStartSeq: null })
     // Turn 1 is already one entry at the first step of turn 2, and its reply text lives inside it.
@@ -301,11 +350,11 @@ describe('slice context on the native DSH loop', () => {
     await nativeSend(agent, 'ORIGINAL_INPUT_MUST_STAY_SHADOWED')
     agent.ctx.on('agent/pre-step', async ({ turn }, next) => {
       if (turn === 2) {
-        const source = [...agent.session.surface.nodes]
+        const source = agent.session.surface.nodes.filter(seq => agent.session.eventAt(seq)?.type !== 'system/message')
         agent.session.append('user/message', createUserMessage({
           content: [{ type: 'text', text: 'EXTERNAL_CANONICAL_SUMMARY' }], source: { kind: 'plugin', plugin: 'external-compaction' },
         }), {
-          surfaceOp: { op: 'replace', start: source[0]!, end: source[source.length - 1]! }, sourceEventSeqs: source,
+          surfaceOp: { op: 'replace', startSeq: source[0]!, endSeq: source[source.length - 1]! }, sourceEventSeqs: source,
         })
       }
       return next()
@@ -481,7 +530,13 @@ describe('slice context on the native DSH loop', () => {
     await nativeSend(agent, 'stock request')
 
     expect(h.adapter.requests).toHaveLength(2)
-    expect(agent.session.snapshotEvents().slice(end).some(isReplacementSurfaceEvent)).toBe(false)
+    const replacements = agent.session.snapshotEvents().slice(end).filter(isReplacementSurfaceEvent)
+    // Removing slice changes the assembled prompt; v3 records that host-owned
+    // change as a system-node replacement, while history stays raw.
+    expect(replacements).toHaveLength(1)
+    expect(replacements[0]!.type).toBe('system/message')
+    expect(h.adapter.requests[1]!.messages.filter(message => message.role === 'system')).toHaveLength(1)
+    for (const captured of h.captured) expectReconstructable(captured)
     expect(h.ctx.sessionProjections.stateOf(agent.session, 'turnBoundary')).toMatchObject({ lastTurn: 2 })
     expect(h.errors).toEqual([])
   })

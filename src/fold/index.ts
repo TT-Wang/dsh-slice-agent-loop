@@ -14,7 +14,7 @@
  * 同一个 ctx 里不要再挂独立仓库那一份——两份都会注册 `expand_result`,重名注册直接失败。
  *
  * 定位(2026-09-09):折叠视图首行同时给出 `{turn, step, call}`(步内序号)和 `{seq}`(原结果的日志 seq,跨进程稳定);
- * `expand_result({"seq": N})` 接受折叠视图自己的 seq——顺着 sourceEventSeqs[0] 回到原文。
+ * `expand_result({"seq": N, "formatVersion": V})` 接受当前格式的折叠视图 seq——顺着 sourceEventSeqs[0] 回到原文。
  *
  * spill 臂(tools/post-execute)改写的是**落盘前**的内容,日志里只剩视图;所以视图首行必须带 spill locator,
  * expand_result 从 locator 读回原文。做不到(没有 spill 后端 / 存储失败)就不改写,留给 pre-step 在 surface 上折。
@@ -29,7 +29,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionSeq, ToolResultMessage } from '@deepseek-ai/dsh-session'
-import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type PostToolDecision, type ToolDefinition, type ToolExecution, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { SpillStore } from '@deepseek-ai/dsh-spill'
 import { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, originalText, originalResultText, type ResultLocator } from './results.js'
@@ -65,7 +65,7 @@ const RETRIEVAL_TOOLS = new Set([EXPAND_TOOL_NAME, RECALL_STEP_TOOL_NAME, 'recal
 /** grep/glob 的措辞必须与 digestSearch 的实际契约一致:巨量命中会按文件配额折,并写明丢了多少
  *  (`src/slice/result-digest.ts` 的 searchMinMatches/searchMinChars/searchMaxPerFile 与 maxKeepRatio)。
  *  阈值是可配的,所以这里只说"很多命中"而不写死数字;`tests/fold-plugin.spec.ts` 把措辞钉在行为上。 */
-const FOLD_BODY = `Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code is never condensed; grep/glob results are kept whole unless one search returns very many matches, and then each file keeps its first and last matching lines and an exact \`[... and N more matches in <file>]\` marker names what was dropped. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}) or ${EXPAND_TOOL_NAME}({"seq": N}) (N is the durable log id printed in that line), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.`
+const FOLD_BODY = `Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code is never condensed; grep/glob results are kept whole unless one search returns very many matches, and then each file keeps its first and last matching lines and an exact \`[... and N more matches in <file>]\` marker names what was dropped. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}) or ${EXPAND_TOOL_NAME}({"seq": N, "formatVersion": ${SESSION_FORMAT_VERSION}}) (N is the log id in the named format; use both values from a fresh locator), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.`
 
 /** 整步召回句:只有 ${RECALL_STEP_TOOL_NAME} 真的注册了才加,否则就是在宣告一个不存在的工具。 */
 const RECALL_STEP_CLAUSE = ` The locator stays valid after the turn is sealed; ${RECALL_STEP_TOOL_NAME}({"turn": t, "step": s}) retrieves that step’s recorded calls and results, hydrating available spilled text and explicitly marking any unavailable preview.`
@@ -147,7 +147,7 @@ class SessionFolder {
         this.calls.set(d.callId, { name: d.name, seq: event.seq, path: callPath(parseArgs(d.arguments)), arguments: parseArgs(d.arguments) })
         continue
       }
-      if (event.type === 'tool/code-dispatch') {
+      if (event.type === 'tool/ptc-dispatch') {
         const d = event.data
         if (!d.isError && RETRIEVAL_TOOLS.has(d.name)) {
           const rootSeq = this.calls.get(d.rootCallId)?.seq
@@ -187,9 +187,10 @@ class SessionFolder {
   /** Called after a successful outcome, not when a possibly failing call starts. */
   noteExpansion(args: unknown, callId: string): void {
     if (this.countedExpansions.has(callId)) return
-    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown }
+    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown }
     let key: string
     if (a.seq !== undefined) {
+      if (a.formatVersion !== SESSION_FORMAT_VERSION) return
       let at
       try { at = this.originalAt.get(originalResultAt(this.session.snapshotEvents(), Number(a.seq)).seq) } catch { return }
       if (at === undefined) return
@@ -264,7 +265,7 @@ class SessionFolder {
     let after = 0
     const tools = new Set<string>()
     const blocks = new Map<number, string>()
-    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}})`
+    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}, "formatVersion": ${SESSION_FORMAT_VERSION}})`
     const content = (d.message.content as readonly ToolResultBlock[]).map((block, blockIndex) => {
       if (block.type !== 'tool-result' || block.isError || !block.content) return block
       const callId = String(block.toolCallId ?? d.message.source?.callId ?? '')
@@ -323,7 +324,7 @@ class SessionFolder {
     const view = this.buildFold(d, n, seq)
     if (view === undefined) return
     this.session.append('tool/result', { ...(event.data as object), message: view.message } as never, {
-      surfaceOp: { op: 'replace', start: seq, end: seq },
+      surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
       sourceEventSeqs: [seq],
     })
     this.recordFold(seq, d.turn, d.step, n, view)
@@ -362,9 +363,10 @@ export function partialByLines(text: string, range: string, head: string): strin
 export function expandResultToolDefinition(): ToolDefinition {
   return defineTool({
     name: EXPAND_TOOL_NAME,
-    description: 'Return the text of a tool result that the host condensed on entry. The condensed view\'s first line names the call two ways: `seq` (the durable log id of the result) or turn, step and the result\'s ordinal within that step (1-based). Pass `grep` to get only the lines matching a regex (with 2 lines of context) or `lines` as "start-end" for a line range — both are much cheaper than the whole result; omit both for the full text.',
+    description: 'Return the text of a tool result that the host condensed on entry. The condensed view\'s first line names the call two ways: `seq` (the log id, paired with the formatVersion printed in the same fresh locator) or turn, step and the result\'s ordinal within that step (1-based). Pass `grep` to get only the lines matching a regex (with 2 lines of context) or `lines` as "start-end" for a line range — both are much cheaper than the whole result; omit both for the full text.',
     parameters: {
-      seq: { type: 'number', description: 'Durable log id from the condensed view\'s first line; when given, turn/step/call are ignored.' },
+      formatVersion: { type: 'number', description: `Required with seq: use ${SESSION_FORMAT_VERSION} from a fresh locator. Old-format sequence numbers must not be relabelled; request a fresh recall_turn dialogue or recall_search locator, or use turn/step/call.` },
+      seq: { type: 'number', description: 'Durable log id from the condensed view\'s first line; requires formatVersion from the same fresh locator; when given, turn/step/call are ignored.' },
       turn: { type: 'number', description: 'Turn number from the condensed view\'s first line (required without seq).' },
       step: { type: 'number', description: 'Step number from the condensed view\'s first line (required without seq).' },
       call: { type: 'number', description: 'Which result of that step (1-based; default 1).' },
@@ -379,13 +381,16 @@ export function expandResultToolDefinition(): ToolDefinition {
     execute: async (args: unknown, exec: ToolRunContext): Promise<string> => {
       const agent = exec.agent as Agent | undefined
       if (agent === undefined) throw new Error(`${EXPAND_TOOL_NAME} runs only inside an agent loop`)
-      const a = args as { seq?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown; grep?: unknown; lines?: unknown }
+      const a = args as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown; grep?: unknown; lines?: unknown }
       const events = agent.session.snapshotEvents() as readonly SessionEvent[]
       let locator: ResultLocator
       let head: string
       const block = a.block === undefined ? undefined : Number(a.block)
       if (block !== undefined && (!Number.isInteger(block) || block < 1)) throw new Error(`${EXPAND_TOOL_NAME}: \"block\" must be a positive integer`)
       if (a.seq !== undefined) {
+        if (a.formatVersion !== SESSION_FORMAT_VERSION) {
+          throw new Error(`${EXPAND_TOOL_NAME}: numeric seq requires formatVersion ${SESSION_FORMAT_VERSION} from a fresh locator; sequence numbers can change during format migration. Do not relabel an old locator. Obtain a fresh locator from recall_turn({"turn":"N","view":"dialogue"}) or recall_search, or use the stable {"turn":N,"step":M,"call":K} address.`)
+        }
         const seq = Number(a.seq)
         if (!Number.isInteger(seq) || seq < 0) throw new Error(`${EXPAND_TOOL_NAME}: "seq" must be a non-negative integer`)
         const r = resultBySeq(events, seq, block)
@@ -394,7 +399,7 @@ export function expandResultToolDefinition(): ToolDefinition {
       } else {
         const turn = Number(a.turn); const step = Number(a.step); const call = a.call === undefined ? 1 : Number(a.call)
         if (!Number.isInteger(turn) || !Number.isInteger(step) || turn < 1 || step < 1 || !Number.isInteger(call) || call < 1) {
-          throw new Error(`${EXPAND_TOOL_NAME} needs {"seq": N} or {"turn": N, "step": M} (and optional "call": K), all positive integers`)
+          throw new Error(`${EXPAND_TOOL_NAME} needs {"seq": N, "formatVersion": ${SESSION_FORMAT_VERSION}} or {"turn": N, "step": M} (and optional "call": K), all positive integers`)
         }
         const found = fullResultAt(events, turn, step, call, block)
         if (found === null) throw new Error(`no tool result recorded at turn ${turn} step ${step} call ${call}`)
