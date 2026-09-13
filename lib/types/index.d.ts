@@ -5,8 +5,8 @@ import { type Config as FoldConfig } from './fold/index.js';
 export interface HistoryConfig {
     /**
      * Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn).
-     * Raising it trades prefix-stable bytes for verbatim recency — the kept turns are re-read in full on
-     * every request until they seal, and they seal in one span when they do.
+     * Kept turns remain verbatim and may still hit the provider cache. Sealing an older turn
+     * changes the prefix before the retained raw tail, which can make that tail miss the cache.
      */
     keepRecentTurns?: number;
     /** Keep turn 1's user message as an untouched append node; its assistant/tool run is sealable (default true). */

@@ -107,7 +107,9 @@ export interface RecallHit {
     snippet: string;
     /** Durable tool/result event seq (tool_output / tool_error hits only). */
     seq?: number;
-    /** Copy-paste follow-up: recall_turn dialogue view for dialogue hits, expand_result by seq for tool hits. */
+    /** 1-based original tool-result sibling when the event contains multiple blocks. */
+    block?: number;
+    /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for result blocks. */
     locator: string;
 }
 /** Resolve the searched kinds: explicit kinds win; otherwise the scope (dialogue kinds, "auto" adds bounded tool output). */

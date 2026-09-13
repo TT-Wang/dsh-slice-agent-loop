@@ -330,10 +330,12 @@ describe('fold result identity and replay', () => {
       appendResult(live.session, 'read-one', BIG, 1)
       await live.run()
       live.session.append('tool/call', { turn: 1, step: 2, callId: ToolCallId('expand-one'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":1,"call":1}' })
+      live.session.append('tool/result', { turn: 1, step: 2, message: createToolResultMessage({ callId: ToolCallId('expand-one'), isError: false, content: [{ type: 'text', text: 'recovered evidence' }] }) }, { surfaceOp: 'append' })
       await live.run()
       appendResult(live.session, 'read-two', BIG, 3)
       await live.run()
       live.session.append('tool/call', { turn: 1, step: 4, callId: ToolCallId('expand-two'), name: EXPAND_TOOL_NAME, arguments: '{"turn":1,"step":3,"call":1}' })
+      live.session.append('tool/result', { turn: 1, step: 4, message: createToolResultMessage({ callId: ToolCallId('expand-two'), isError: false, content: [{ type: 'text', text: 'recovered evidence' }] }) }, { surfaceOp: 'append' })
       await live.run()
       const replay = await folderHarness(live.session.snapshotEvents())
       try {
@@ -348,6 +350,27 @@ describe('fold result identity and replay', () => {
         expect(FOLD_STATS.get(replay.session)?.folded).toBe(2)
       } finally { await replay.ctx.fiber.dispose() }
     } finally { await live.ctx.fiber.dispose() }
+  })
+
+  it('charges a block-selected expansion only to that sibling tool', async () => {
+    const bench = await folderHarness()
+    try {
+      for (const [id, name] of [['read-block', 'read'], ['bash-block', 'bash']]) {
+        bench.session.append('tool/call', { turn: 1, step: 1, callId: ToolCallId(id!), name: name!, arguments: '{"file_path":"data.txt"}' })
+      }
+      const read = createToolResultMessage({ callId: ToolCallId('read-block'), isError: false, content: [{ type: 'text', text: BIG }] })
+      const bash = createToolResultMessage({ callId: ToolCallId('bash-block'), isError: false, content: [{ type: 'text', text: BIG }] })
+      const combined = { ...read, content: [...read.content, ...bash.content] } as unknown as ToolResultMessage
+      const original = bench.session.append('tool/result', { turn: 1, step: 1, message: combined }, { surfaceOp: 'append' })
+      await bench.run()
+      for (let n = 1; n <= 2; n++) {
+        const callId = ToolCallId(`block-expansion-${n}`)
+        bench.session.append('tool/call', { turn: 1, step: 2, callId, name: EXPAND_TOOL_NAME, arguments: JSON.stringify({ seq: original.seq, block: 1 }) })
+        bench.session.append('tool/result', { turn: 1, step: 2, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text: BIG }] }) }, { surfaceOp: 'append' })
+        await bench.run()
+      }
+      expect(FOLD_STATS.get(bench.session)).toMatchObject({ expanded: 2, backedOff: ['read'] })
+    } finally { await bench.ctx.fiber.dispose() }
   })
 
   it('does not attribute an unrelated surface replacement to this fold plugin', async () => {

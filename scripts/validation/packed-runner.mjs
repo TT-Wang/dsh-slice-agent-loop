@@ -61,9 +61,24 @@ export function apply(ctx, config) {
     assert.deepEqual(errors, [])
     assert.equal(requests.length, 4)
     const before = structuredClone(handle.agent.session.snapshotEvents())
-    // packed-profile.patch.yml lowers history.highWaterChars, so the third
-    // turn's first step must archive turn 1 into a frozen checkpoint.
-    assert.ok(before.some(event => sessions.isReplacementSurfaceEvent(event) && JSON.stringify(event).includes('[slice checkpoint v1')), 'the packed context plugin must archive under pressure')
+    const tapeNodes = events => sessions.foldSurface(events).nodes.filter(seq => {
+      const event = events[seq]
+      return sessions.isReplacementSurfaceEvent(event)
+        && sessions.deriveEventMessage(event)?.content.some(block => block.type === 'text' && block.text.startsWith('[slice tape v1'))
+    })
+    // Default keepRecentTurns=0 seals turn 1 before turn 2's first request.
+    // Check actual retained content and provenance, not just a marker anywhere
+    // in the log: the same entry must remain visible through turn 3 and resume.
+    const firstTape = tapeNodes(requests[1].events)
+    assert.equal(firstTape.length, 1, 'the shipped default must seal the first completed turn')
+    const firstEntrySeq = firstTape[0]
+    const firstEntry = requests[1].events[firstEntrySeq]
+    assert.ok(JSON.stringify(sessions.deriveEventMessage(firstEntry)).includes('PACKED_FIRST_ANSWER'))
+    for (const { events } of requests.slice(1)) {
+      assert.ok(tapeNodes(events).includes(firstEntrySeq), 'a sealed entry must remain on the surface')
+      assert.deepEqual(events[firstEntrySeq], firstEntry, 'a sealed entry must remain frozen')
+    }
+    assert.equal(tapeNodes(before).length, 2, 'turn 2 must also seal before turn 3')
     assert.ok(before.every(event => sessions.KNOWN_SESSION_EVENT_TYPES.has(event.type)), 'no unknown required plugin events')
     const recallResult = before.find(event => event.type === 'tool/result' && event.data.message.content[0].toolCallId === 'packed-recall')
     assert.ok(recallResult && recallResult.data.message.content[0].isError !== true)
@@ -78,7 +93,10 @@ export function apply(ctx, config) {
     assert.equal(requests.length, 5)
     assert.deepEqual(errors, [])
     const finalEvents = structuredClone(resumed.agent.session.snapshotEvents())
-    const summary = { status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    assert.ok(tapeNodes(finalEvents).includes(firstEntrySeq), 'resume must retain the original sealed entry')
+    assert.deepEqual(finalEvents[firstEntrySeq], firstEntry)
+    assert.equal(tapeNodes(finalEvents).length, 3, 'resume must seal the previous completed turn')
+    const summary = { status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

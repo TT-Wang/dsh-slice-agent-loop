@@ -1,0 +1,43 @@
+{
+  "reviewedBase": "db72621f2897274689f1a3cd5e02e6ec11fb7efd",
+  "date": "2026-09-13",
+  "publishedHostTests": {
+    "dsh": "0.1.3-alpha.2",
+    "files": 30,
+    "passed": 244,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "build": "passed",
+  "sourceHostTests": {
+    "hostCommit": "c389f96bf3a9b6807cb71ed6bdad5849be0df6d8",
+    "passed": 244,
+    "failed": 0
+  },
+  "packed": {
+    "status": "passed",
+    "dsh": "0.1.3-alpha.2",
+    "requests": 5,
+    "turns": 4,
+    "persistenceReload": true,
+    "frozenTapeRetained": true,
+    "tapeEntries": 3,
+    "replacements": 3,
+    "errors": [],
+    "artifactSha256": "3bde9deef742274e4029d28c0096d7b7ee0a040ffd656fc41ee0df942f110e4a",
+    "node": "v22.22.3",
+    "pnpm": "11.7.0",
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "additionalCompatibilityProbe": {
+    "hostVersion": "0.1.5-rc.1",
+    "hostCommit": "183f08e9c6dde7e36cd2318eaee70b0da08fb35e",
+    "status": "failed",
+    "passedAtProbe": 138,
+    "failedAtProbe": 97,
+    "cause": "Host positional replacement contract now requires startSeq/endSeq; plugin targets alpha.2 start/end."
+  },
+  "paidModelEvaluations": 0,
+  "liveProfilesChanged": false
+}

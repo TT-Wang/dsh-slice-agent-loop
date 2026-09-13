@@ -1,3 +1,27 @@
+/**
+ * Append-only session tape on the stock ordered surface.
+ *
+ * Every completed turn beyond `keepRecentTurns` is sealed into one frozen
+ * `[slice tape v1 …]` entry at that turn's own position, at the first step of
+ * the next turn (protected nodes can split one turn into multiple entries).
+ * An entry is rendered once from logged evidence and NEVER re-rendered or
+ * nested. Sealing only touches the unsealed tail after
+ * existing entries. It preserves that established message prefix; it does not
+ * guarantee provider cache hits or an append-only relationship between every
+ * request. The rewritten suffix can include previously shown tool messages and
+ * recent turns kept raw by the policy.
+ *
+ * That is the one property this module exists to protect. The alternative it
+ * replaced — leave history raw, then collapse the OLDEST turns under pressure —
+ * kept more verbatim text but rewrote the prefix at its first replaced message.
+ * The current policy trades some recent detail for a stable older tape prefix.
+ *
+ * Superseded runtime-context snapshots are absorbed only while they remain in
+ * the unsealed tail. Snapshots ahead of an existing entry keep their position:
+ * the host's newest projection already declares earlier snapshots obsolete.
+ * Existing entries, including snapshot-only entries from older builds, freeze
+ * the whole prefix through their position and are never rewritten here.
+ */
 import { type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
 import { type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';
 export declare const HISTORY_SOURCE = "slice:history";
@@ -43,10 +67,7 @@ interface Node {
     /** Turn range the node belongs to (a checkpoint spans several turns). */
     turns: [number, number];
     protected: boolean;
-    /**
-     * A runtime snapshot a newer one supersedes, or our own note standing in for such snapshots:
-     * archivable, and rendered in a checkpoint only as a note, never as a request line.
-     */
+    /** A superseded runtime snapshot still in the unsealed tail. Render only as a note. */
     superseded: boolean;
     /** Turns recall_turn attributes the snapshot(s) to (src/recall.ts ownerOf), 0 for none. */
     recallTurns: number[];
@@ -64,8 +85,7 @@ export declare function renderCheckpoint(session: Session, run: readonly Node[],
  *
  * The seal lands after every existing entry, so the prefix before it is
  * byte-identical to the previous request. There is no request budget and no
- * refusal: this policy bounds the view by construction (one entry per completed
- * turn, tool results folded within the open turn), and the only hard limit is
+ * refusal: entries accumulate with completed turns, and the only hard limit is
  * the model's own context window, which belongs to the host. A budget that
  * refused instead — and poisoned every later turn of the session — arrived with
  * the 2026-09-08 refactor and is gone again.

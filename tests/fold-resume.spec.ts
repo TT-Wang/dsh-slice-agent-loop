@@ -15,7 +15,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import { EXPAND_TOOL_NAME, FOLD_STATS, resultBySeq, spillLocatorOf } from '../src/fold/index.js'
+import { EXPAND_TOOL_NAME, FOLD_STATS, resultBySeq, spillLocatorOf, ToolResultFold } from '../src/fold/index.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
@@ -224,6 +224,31 @@ describe('resume from snapshotEvents', () => {
     expect(folds.map((e) => (e as { sourceEventSeqs?: number[] }).sourceEventSeqs)).toEqual([[fresh.seq]])
     expect(requestText(second, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 2, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${fresh.seq}})`)
     expect(FOLD_STATS.get(two.agent.session)).toMatchObject({ folded: 1, expanded: 0, backedOff: [] })
+  })
+
+  it.each(['error', 'aborted'] as const)('does not refold raw evidence sent in a failed %s continuation', async (kind) => {
+    const failure: StreamChunk[] = [{ type: 'finish', reason: { kind, failure: { code: 'SERVER', message: 'failed continuation fixture' } } }]
+    const first = await boot([nativeTool('old-read', 'read', { file_path: 'a.txt' }), failure], { slice: false })
+    await first.ctx.plugin(ToolResultFold, { pinSteps: 2, digest: { minChars: 1500 }, spillPreviewMinBytes: 0 })
+    tool(first, 'read', () => BIG)
+    const one = await create(first, `resume-attempt-${kind}`)
+    await nativeSend(one.agent, 'read a.txt')
+    const shown = originals(one.agent)[0]!
+    expect(requestText(first, 1)).toContain('row 55 payload')
+    const seed = structuredClone(events(one.agent))
+    expect(seed.some((event) => event.type === 'assistant/attempt' && event.seq > shown.seq)).toBe(true)
+    expect(seed.some((event) => event.type === 'request/header' && event.seq > shown.seq)).toBe(false)
+
+    const second = await boot([nativeTool('new-read', 'read', { file_path: 'b.txt' }), nativeText('done')], { slice: false })
+    await second.ctx.plugin(ToolResultFold, { pinSteps: 0, digest: { minChars: 1500 }, spillPreviewMinBytes: 0 })
+    tool(second, 'read', () => BIG)
+    const two = await create(second, `resume-attempt-${kind}`, seed)
+    await nativeSend(two.agent, 'continue')
+    expect(second.errors).toEqual([])
+    expect(requestText(second, 0)).toContain('row 55 payload')
+    expect(replacements(two.agent).some((event) => event.type === 'tool/result' && event.sourceEventSeqs?.includes(shown.seq))).toBe(false)
+    const fresh = originals(two.agent).at(-1)!
+    expect(replacements(two.agent).map((event) => event.type === 'tool/result' ? event.sourceEventSeqs : undefined)).toEqual([[fresh.seq]])
   })
 
   it('folds a result that landed after the last request in the previous process', async () => {

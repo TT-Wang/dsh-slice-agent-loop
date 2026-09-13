@@ -4,10 +4,10 @@
  * never shadowed, and a seal never rewrites anything already on the surface.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Message, StreamChunk } from '@deepseek-ai/dsh-llm'
-import { deriveEventMessage, foldSurface, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { createMessage, createUserMessage, type Message, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { deriveEventMessage, foldSurface, isReplacementSurfaceEvent, Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import { HISTORY_SOURCE, RUNTIME_CONTEXT_SOURCE, TAPE_PREFIX } from '../src/context.js'
+import { HISTORY_SOURCE, RUNTIME_CONTEXT_SOURCE, TAPE_PREFIX, sealCompletedTurns } from '../src/context.js'
 import type { Config } from '../src/index.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type CapturedRequest, type NativeHarness } from './native-harness.js'
 
@@ -94,6 +94,57 @@ function sealIndices(captured: readonly CapturedRequest[]): number[] {
 }
 
 describe('superseded runtime snapshots on the append-only session tape', () => {
+  it('keeps the entire established tape prefix when context changes after several stable turns', async () => {
+    const h = await nativeHarness(Array.from({ length: 8 }, (_, index) => nativeText(`ANSWER_${index + 1} ${'a'.repeat(1_000)}`)))
+    live.push(h)
+    let value = 'A'
+    h.ctx.systemPrompt.variable('delayed_value', () => value)
+    h.ctx.systemPrompt.context({ name: 'delayed-context', order: 50, text: 'DELAYED_CONTEXT_{{delayed_value}}' })
+    const { agent } = await h.ctx.agents.create({ sessionId: SessionId('delayed-runtime-prefix'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
+    for (let turn = 1; turn <= 8; turn += 1) {
+      if (turn === 6) value = 'B'
+      await nativeSend(agent, `QUESTION_${turn}`)
+    }
+    expect(h.errors).toEqual([])
+    for (let index = 1; index < h.adapter.requests.length; index += 1) {
+      const before = h.adapter.requests[index - 1]!.messages
+      const after = h.adapter.requests[index]!.messages
+      const lastEntry = before.reduce((last, message, position) => entriesIn([message]).length ? position : last, -1)
+      // Check actual message position, not just the number of entries: a raw
+      // snapshot and the pinned first request can precede those entries.
+      expect(after.slice(0, lastEntry + 1)).toEqual(before.slice(0, lastEntry + 1))
+    }
+    const events = agent.session.snapshotEvents()
+    const firstSnapshot = events.find(isSnapshot)!
+    expect(agent.session.surface.nodes).toContain(firstSnapshot.seq)
+    expect(events.filter(isEntry).every(entry => !entry.sourceEventSeqs?.includes(firstSnapshot.seq))).toBe(true)
+    // The still-live snapshot can split its turn into two spans. Each written
+    // entry still advances the frontier rather than retiring an older snapshot.
+    expect(events.filter(isEntry).length).toBeGreaterThanOrEqual(7)
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
+  it('never reseals a snapshot-only entry written by an earlier build', () => {
+    const session = Session.create(SessionId('old-snapshot-entry'))
+    session.append('turn/start', { turn: 1 })
+    const old = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'OLD_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } }), { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const note = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: `${TAPE_PREFIX}1-1 · snapshot-only legacy entry]` }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }), {
+      surfaceOp: { op: 'replace', start: old.seq, end: old.seq }, sourceEventSeqs: [old.seq],
+    })
+    session.append('turn/start', { turn: 2 })
+    session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'QUESTION_2' }], source: { kind: 'user' } }), { surfaceOp: 'append' })
+    session.append('assistant/message', { turn: 2, step: 1, stream: [], message: createMessage({ role: 'assistant', content: [{ type: 'text', text: 'ANSWER_2' }], source: { kind: 'model', provider: 'mock', model: 'mock' } }) }, { surfaceOp: 'append' })
+    session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
+    const pending = createUserMessage({ content: [{ type: 'text', text: 'NEW_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
+    const policy = { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000 }
+    const plan = sealCompletedTurns(session, [pending], policy)
+    expect(plan.appends).toHaveLength(1)
+    expect(plan.appends.flatMap(append => append.sources)).not.toContain(note.seq)
+    expect(session.surface.nodes[0]).toBe(note.seq)
+    expect(sealCompletedTurns(session, [pending], policy).appends).toEqual([])
+  })
+
   it('(a) never walls, seals every completed turn, and leaves only the unshadowed live snapshot after each seal', async () => {
     const h = await churn()
     expect(h.errors).toEqual([])

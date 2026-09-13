@@ -60,7 +60,7 @@ describe('read fingerprints inside a sealed tape entry', () => {
     readTurn(session, 3, ['src/gamma.ts'], { 'src/gamma.ts': 'third' })
     const text = sealedText(session)
     expect(text).toContain(TAPE_PREFIX)
-    expect(text).toContain(`[files read this turn: src/alpha.ts (3 lines, ${DIGEST}, step 1)]`)
+    expect(text).toContain(`[files read this turn: src/alpha.ts (3 lines, ${DIGEST}, step 1, seq `)
     expect(text).not.toContain('= turn')
   })
 
@@ -71,13 +71,13 @@ describe('read fingerprints inside a sealed tape entry', () => {
     readTurn(session, 3, ['src/same.ts'], { 'src/same.ts': `${BODY}\nline four` })
     readTurn(session, 4, ['src/other.ts'], { 'src/other.ts': 'x' })
     const text = sealedText(session)
-    expect(text).toContain(`, ${DIGEST}, step 1)`)
-    expect(text).toContain('= turn 1)')
-    expect(text).toContain('≠ turn 2)')
+    expect(text).toContain(`, ${DIGEST}, step 1, seq `)
+    expect(text).toContain('= turn 1 step 1, seq ')
+    expect(text).toContain('≠ turn 2 step 1, seq ')
     expect(text).toContain('4 lines')
   })
 
-  it('keeps one fingerprint per file, cites the first step, and is absent when a turn read nothing', () => {
+  it('keeps the latest successful fingerprint per file window, and is absent when a turn read nothing', () => {
     const session = Session.create(SessionId('read-digest-dedupe'))
     readTurn(session, 1, ['src/dup.ts', 'src/dup.ts', 'src/other.ts'], { 'src/dup.ts': BODY, 'src/other.ts': 'y' })
     readTurn(session, 2, [], {})

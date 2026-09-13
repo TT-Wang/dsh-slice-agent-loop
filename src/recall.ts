@@ -92,7 +92,7 @@ export function parseTurnId(value: unknown): number | null {
 type LogEvent = { type: string; data: unknown; surfaceOp?: unknown; seq?: unknown }
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
-interface ToolResultData { turn: number; step: number; message: { content: ReadonlyArray<ToolResultBlock> } }
+interface ToolResultData { turn: number; step: number; message: { content: ReadonlyArray<ToolResultBlock>; source?: { callId?: string } } }
 
 /** Join a message's text blocks; non-text blocks (images, tool results) contribute nothing. */
 function textOf(message: UserMessage | { content: ReadonlyArray<{ type: string }> }): string {
@@ -165,8 +165,8 @@ function noteCalls(names: Map<string, string>, event: LogEvent): void {
   }
 }
 
-function expandLocator(seq: number): string {
-  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq}})`
+function expandLocator(seq: number, block?: number): string {
+  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq}${block === undefined ? '' : `,"block":${block}`}})`
 }
 
 interface SealedTurnPage {
@@ -257,10 +257,14 @@ export function renderSealedTurn(
       case 'tool/result':
         if (view === 'dialogue' && (data.turn as number) === turn) {
           const d = data as unknown as ToolResultData
-          const { text, callIds } = resultTextOf(d.message)
-          const name = [...new Set(callIds.map((id) => names.get(id) ?? 'tool'))].join(', ') || 'tool'
           const seq = seqOf(event, index)
-          items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq)}]` })
+          const blocks = d.message.content.filter((block) => block.type === 'tool-result')
+          for (const [blockIndex, block] of blocks.entries()) {
+            const { text } = resultTextOf({ content: [block] })
+            const name = names.get(block.toolCallId ?? d.message.source?.callId ?? '') ?? 'tool'
+            const ordinal = blocks.length > 1 ? blockIndex + 1 : undefined
+            items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq}${ordinal === undefined ? '' : ` block ${ordinal}`} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq, ordinal)}]` })
+          }
         }
         break
       default:
@@ -328,7 +332,9 @@ export interface RecallHit {
   snippet: string
   /** Durable tool/result event seq (tool_output / tool_error hits only). */
   seq?: number
-  /** Copy-paste follow-up: recall_turn dialogue view for dialogue hits, expand_result by seq for tool hits. */
+  /** 1-based original tool-result sibling when the event contains multiple blocks. */
+  block?: number
+  /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for result blocks. */
   locator: string
 }
 
@@ -352,8 +358,8 @@ function snippetAround(text: string, terms: readonly string[], maxChars = 180): 
   return (from > 0 ? '…' : '') + chars.slice(from, to).join('').replace(/\s+/g, ' ').trim() + (to < chars.length ? '…' : '')
 }
 
-function turnLocator(turn: number): string {
-  return `${RECALL_TOOL_NAME}({"turn":"${turn}","view":"dialogue"})`
+function turnLocator(turn: number, view: RecallView = 'dialogue'): string {
+  return `${RECALL_TOOL_NAME}({"turn":"${turn}","view":"${view}"})`
 }
 
 /** Resolve the searched kinds: explicit kinds win; otherwise the scope (dialogue kinds, "auto" adds bounded tool output). */
@@ -397,7 +403,7 @@ export function searchSessionEvents(
   // two tools disagreeing about the same locator (review repro #2). A plugin
   // message between turns now belongs to that ended turn in BOTH tools, so the
   // policy's note for an archived between-turns snapshot resolves.
-  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number }> = []
+  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number; block?: number }> = []
   const names = new Map<string, string>()
   let openTurn: number | null = null
   let lastEnded: number | null = null
@@ -452,11 +458,18 @@ export function searchSessionEvents(
       }
       case 'tool/result': {
         const d = data as unknown as ToolResultData
-        const { text, isError, callIds } = resultTextOf(d.message)
-        // Recall outputs are copies of history, not history: never evidence.
-        if (callIds.some((id) => RECALL_FAMILY.has(names.get(id) ?? ''))) break
-        const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
-        if (kinds.has(kind) && text.trim()) docs.push({ turn: d.turn, step: d.step, kind, text, seq })
+        const blocks = d.message.content.filter((block) => block.type === 'tool-result')
+        for (const [blockIndex, block] of blocks.entries()) {
+          // A copied recall sibling cannot suppress independent original evidence.
+          const callId = block.toolCallId ?? d.message.source?.callId ?? ''
+          if (RECALL_FAMILY.has(names.get(callId) ?? '')) continue
+          const { text, isError } = resultTextOf({ content: [block] })
+          const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
+          if (kinds.has(kind) && text.trim()) docs.push({
+            turn: d.turn, step: d.step, kind, text, seq,
+            ...(blocks.length > 1 ? { block: blockIndex + 1 } : {}),
+          })
+        }
         break
       }
       default:
@@ -497,7 +510,8 @@ export function searchSessionEvents(
       score,
       snippet: snippetAround(doc.text, terms, isTool ? TOOL_SNIPPET_CHARS : 180),
       ...(isTool ? { seq: doc.seq } : {}),
-      locator: isTool ? expandLocator(doc.seq) : turnLocator(doc.turn),
+      ...(doc.block === undefined ? {} : { block: doc.block }),
+      locator: isTool ? expandLocator(doc.seq, doc.block) : turnLocator(doc.turn, doc.kind === 'tool_input' ? 'full' : 'dialogue'),
     })
   }
   hits.sort((a, b) => b.score - a.score || b.turn - a.turn)
@@ -530,10 +544,10 @@ export function renderSearchHits(
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — each hit ends with the exact call that returns `
     + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" for the cheap text-only page) for said text, `
-    + 'expand_result({"seq": Q}) for tool output]',
+    + 'recall_turn view "full" for tool inputs, expand_result({"seq": Q,"block": B}) for tool output (block only for multi-result events)]',
   ]
   for (const hit of hits) {
-    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}`
+    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}${hit.block === undefined ? '' : ` block ${hit.block}`}`
     lines.push(`- ${where} [${hit.kind}] ${hit.snippet} → ${hit.locator}`)
   }
   return lines.join('\n')
@@ -546,7 +560,8 @@ export function recallSearchToolDefinition(): ToolDefinition {
     description:
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits, each with a bounded original snippet and the exact follow-up call: '
-      + 'recall_turn for dialogue hits, expand_result({"seq": Q}) for tool output. scope "auto" (default) '
+      + 'recall_turn view "dialogue" for said text, view "full" for tool inputs, '
+      + 'expand_result({"seq": Q,"block": B}) for tool output (block only for multi-result events). scope "auto" (default) '
       + 'searches user/assistant text, generated context (runtime snapshots and injected notices), tool inputs '
       + 'and tool errors plus raw tool output through bounded slots '
       + `(at most ${TOOL_OUTPUT_SLOTS} tool-output hits, ${TOOL_SNIPPET_CHARS} chars each); scope "dialogue" `
@@ -599,7 +614,7 @@ export function recallToolDefinition(): ToolDefinition {
     description:
       'Retrieve the verbatim text of an earlier turn in THIS session: the complete user request and '
       + 'every assistant step, exactly as delivered, plus any generated context (runtime snapshots, injected '
-      + 'notices) recorded during it. Use it when a [slice checkpoint v1 …] node names a turn or cuts its text '
+      + 'notices) recorded during it. Use it when a [slice tape v1 …] entry (or legacy checkpoint) names a turn or cuts its text '
       + '(`…[+N chars, recall_turn]…`), or when a recall_search hit names a turn. view "dialogue" returns the said '
       + 'text once with each tool result reduced to a one-line expand_result({"seq": Q}) locator (cheap); '
       + 'view "full" (default) also appends every original record as JSON, including reasoning and tool '

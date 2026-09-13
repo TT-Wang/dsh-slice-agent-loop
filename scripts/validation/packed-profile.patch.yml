@@ -37,15 +37,5 @@
       config:
         outputDir: !!js process.env.DSH_VALIDATION_OUTPUT
 
-# The shipped bundle inserts the plugin with its defaults, and the default
-# history.highWaterChars (300000) is never reached by this three-turn fixture,
-# so the plugin would (correctly) append nothing. Profile patches apply after
-# bundle layers, so this id-targeted row lowers the water marks and the smoke
-# drives a real archive event through the published Loader, JSONL persistence
-# and resume.
-- id: slice-agent-loop
-  config:
-    history:
-      highWaterChars: 600
-      lowWaterChars: 300
-      keepRecentChars: 1
+# The installed bundle supplies the current per-turn sealing defaults.
+# Exercise that shipped configuration without overriding its history policy.
