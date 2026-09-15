@@ -18,13 +18,23 @@ import { homedir } from 'node:os'
 import { join } from 'node:path'
 // a4 web 宿主要 cookie 认证:GET /?token=<launch token> 换 cookie,之后每个请求带 Cookie。
 
+/** @typedef {{file:string,start_line:number,end_line:number}} GoldSpan */
+/** @typedef {{instance_id:string,repo:string,repo_url?:string,base_commit:string,problem:string,gold:GoldSpan[]}} Task */
+/** @typedef {{inputTokens?:number,outputTokens?:number,cacheReadTokens?:number,reasoningTokens?:number}} Usage */
+/** This archived runner reads the pre-surface web log shape, not current SDK events.
+ * @typedef {{type:string,data?:{usage?:Usage,call?:{name?:string,arguments?:string},name?:string,arguments?:string}}} LegacyFrame
+ */
+/** @typedef {ReturnType<typeof score> & ReturnType<typeof extractTrajectory>['usage'] & {id:string,price:number,steps:number,wallMs:number,tools:Record<string,number>,edited:string[],sessionId:string}} SuccessRow */
+/** @typedef {{id:string,error:string}} ErrorRow */
 const args = process.argv.slice(2)
+/** @param {string} k @param {string} d */
 const opt = (k, d) => { const i = args.indexOf(k); return i !== -1 ? args[i + 1] : d }
 const BASE = opt('--base', 'http://127.0.0.1:3084')
 const ARM = opt('--arm', 'slice-fold')
+/** @type {string[]} */
 const IDS = JSON.parse(fs.readFileSync(opt('--ids', 'results/20260902-cb20/cb20-ids.json'), 'utf8'))
 const OUT = opt('--out', `results/20260902-cb20/cb20-${ARM}.json`)
-const LIMIT = Number(opt('--n', IDS.length))
+const LIMIT = Number(opt('--n', String(IDS.length)))
 // --py 指向装了 datasets 的解释器(ContextBench 题库要它);默认走 PATH 上的 python3。
 const PY = opt('--py', process.env.CB_PYTHON ?? 'python3')
 // 仓库镜像缓存:默认 ~/.cache/contextbench-repos,可用 --cache / CB_CACHE 覆盖。
@@ -36,6 +46,7 @@ const PRICE = { freshIn: 0.22 / 1e6, cacheIn: 0.007 / 1e6, out: 0.66 / 1e6 }
 const TOKEN = opt('--token', process.env.DSH_LAUNCH_TOKEN ?? '')
 let COOKIE = ''
 
+/** @param {string} base @param {string} token */
 async function mintCookie(base, token) {
   const res = await fetch(`${base}/?token=${encodeURIComponent(token)}`, { redirect: 'manual' })
   const sc = res.headers.get('set-cookie')
@@ -45,6 +56,7 @@ async function mintCookie(base, token) {
 
 // ---------------------------------------------------------------- dataset
 
+/** @param {string[]} ids @returns {Task[]} */
 function loadTasks(ids) {
   const code = `
 import pyarrow.parquet as pq, json, sys
@@ -61,9 +73,10 @@ for i in json.loads(sys.argv[1]):
 print(json.dumps(out))
 `
   const out = execFileSync(PY, ['-c', code, JSON.stringify(ids)], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 900_000 })
-  return JSON.parse(out.trim().split('\n').pop())
+  return JSON.parse(out.trim().split('\n').pop() ?? '[]')
 }
 
+/** @param {Task} task */
 function workdirFor(task) {
   const key = `${task.repo.replace('/', '__')}@${task.base_commit.slice(0, 12)}`
   const dest = `${CACHE}/${key}`
@@ -83,6 +96,7 @@ function workdirFor(task) {
 
 // ---------------------------------------------------------------- dsh driver
 
+/** @param {string} base @param {string} method @param {object} payload @param {string} rpcId @returns {Promise<{sessionId:string}>} */
 async function rpc(base, method, payload, rpcId) {
   const res = await fetch(`${base}/api/${method}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: COOKIE },
@@ -96,6 +110,7 @@ async function rpc(base, method, payload, rpcId) {
   return body.result.value
 }
 
+/** @param {string} base @param {Task} task @param {string} workdir */
 async function runInstance(base, task, workdir) {
   // a4 typert 远程:端点 = namespace/method,POST /api/<endpoint>,body.method 必须与端点一致。
   const { sessionId } = await rpc(base, 'session/create', { cwd: workdir }, `c-${task.instance_id.slice(-8)}`)
@@ -110,6 +125,7 @@ async function runInstance(base, task, workdir) {
   // 事件:直接轮询磁盘上的会话日志(~/.dsh/sessions/<cwd 编码>/session-<id>/session.jsonl.zstd,
   // 宿主实时追加)。session/page 对已结束的会话报 not-found,不可靠。
   const deadline = t0 + TURN_TIMEOUT_MS
+  /** @type {LegacyFrame[]} */
   let frames = []
   let logPath
   while (Date.now() < deadline) {
@@ -142,6 +158,7 @@ async function runInstance(base, task, workdir) {
 const READ_TOOLS = new Set(['read_file', 'read', 'grep', 'search', 'code_grep'])
 const EDIT_TOOLS = new Set(['edit', 'edit_file', 'write_file', 'str_replace', 'append_to_file', 'create_file', 'write'])
 
+/** @param {unknown} command */
 function bashReadSpans(command) {
   const spans = []
   const c = String(command ?? '')
@@ -154,11 +171,16 @@ function bashReadSpans(command) {
   return spans
 }
 
+/** @param {LegacyFrame[]} frames @param {string} workdir */
 function extractTrajectory(frames, workdir) {
+  /** @type {Map<string,Set<number>>} */
   const pulled = new Map()
+  /** @type {Set<string>} */
   const edited = new Set()
   let input = 0, output = 0, cacheRead = 0, reasoning = 0, steps = 0
-  const rel = (p) => { p = String(p ?? ''); if (p.startsWith(workdir)) p = p.slice(workdir.length); return p.replace(/^\//, '') }
+  /** @param {unknown} value */
+  const rel = (value) => { let p = String(value ?? ''); if (p.startsWith(workdir)) p = p.slice(workdir.length); return p.replace(/^\//, '') }
+  /** @type {Record<string,number>} */
   const tools = {}
   for (const e of frames) {
     if (e.type === 'step/start') steps++
@@ -173,6 +195,7 @@ function extractTrajectory(frames, workdir) {
     const call = d.call ?? d
     const name = String(call.name ?? d.name ?? '')
     tools[name] = (tools[name] ?? 0) + 1
+    /** @type {Record<string,unknown>} */
     let args = {}
     try { args = JSON.parse(call.arguments ?? d.arguments ?? '{}') } catch { /* non-json */ }
     const path = args.path ?? args.file_path ?? args.filePath
@@ -181,8 +204,8 @@ function extractTrajectory(frames, workdir) {
       if (!pulled.has(p)) pulled.set(p, new Set())
       const offset = Number(args.offset ?? args.start_line ?? 1)
       const limit = Number(args.limit ?? args.count ?? 0)
-      if (limit > 0) for (let i = offset; i < offset + limit; i++) pulled.get(p).add(i)
-      else pulled.get(p).add(-1)
+      if (limit > 0) for (let i = offset; i < offset + limit; i++) /** @type {Set<number>} */ (pulled.get(p)).add(i)
+      else /** @type {Set<number>} */ (pulled.get(p)).add(-1)
     }
     if (name === 'bash' && typeof args.command === 'string') {
       for (const span of bashReadSpans(args.command)) {
@@ -190,9 +213,9 @@ function extractTrajectory(frames, workdir) {
         if (!p || p.includes('*')) continue
         if (!pulled.has(p)) pulled.set(p, new Set())
         if (span.to === Infinity) {
-          if (span.from === 1 && !span.grepHits) pulled.get(p).add(-1)
-          else for (let i = span.from; i < span.from + 2000; i++) pulled.get(p).add(i)
-        } else for (let i = span.from; i <= span.to; i++) pulled.get(p).add(i)
+          if (span.from === 1 && !span.grepHits) /** @type {Set<number>} */ (pulled.get(p)).add(-1)
+          else for (let i = span.from; i < span.from + 2000; i++) /** @type {Set<number>} */ (pulled.get(p)).add(i)
+        } else for (let i = span.from; i <= span.to; i++) /** @type {Set<number>} */ (pulled.get(p)).add(i)
       }
     }
     if (EDIT_TOOLS.has(name) && path) edited.add(rel(path))
@@ -204,8 +227,10 @@ function extractTrajectory(frames, workdir) {
 
 // ---------------------------------------------------------------- scoring(与旧 runner 逐字相同的数学)
 
+/** @param {ReturnType<typeof extractTrajectory>} traj @param {GoldSpan[]} gold */
 function score(traj, gold) {
   const pulledKeys = [...traj.pulled.keys()]
+  /** @param {string} goldFile */
   const matchPulled = (goldFile) => pulledKeys.find((k) => goldFile.endsWith('/' + k) || goldFile === k)
   const goldFiles = new Set(gold.map((g) => g.file))
   const goldLines = gold.reduce((a, g) => a + (g.end_line - g.start_line + 1), 0)
@@ -215,6 +240,7 @@ function score(traj, gold) {
     const key = matchPulled(g.file)
     if (key === undefined) continue
     const spans = traj.pulled.get(key)
+    if (spans === undefined) continue
     matchedGoldFiles.add(g.file)
     if (spans.has(-1)) { coveredLines += g.end_line - g.start_line + 1; continue }
     for (let line = g.start_line; line <= g.end_line; line++) if (spans.has(line)) coveredLines++
@@ -230,8 +256,9 @@ if (!TOKEN) throw new Error('--token <launch token> required (see host log: dsh 
 await mintCookie(BASE, TOKEN)
 const tasks = loadTasks(IDS).slice(0, LIMIT)
 console.error(`cb20 · ${tasks.length} tasks · arm ${ARM} · ${BASE}`)
+/** @type {(SuccessRow|ErrorRow)[]} */
 const rows = fs.existsSync(OUT) ? JSON.parse(fs.readFileSync(OUT, 'utf8')) : []
-const done = new Set(rows.filter((r) => !r.error).map((r) => r.id))
+const done = new Set(rows.filter((r) => !('error' in r)).map((r) => r.id))
 for (let i = 0; i < tasks.length; i++) {
   const task = tasks[i]
   if (done.has(task.instance_id)) { console.error(`[${ARM}] ${i + 1}/${tasks.length} skip (done)`); continue }
@@ -252,7 +279,10 @@ for (let i = 0; i < tasks.length; i++) {
   }
   fs.writeFileSync(OUT, JSON.stringify(rows, null, 2))
 }
-const ok = rows.filter((r) => !r.error)
+/** @param {SuccessRow|ErrorRow} row @returns {row is SuccessRow} */
+const isSuccess = row => !('error' in row)
+const ok = rows.filter(isSuccess)
+/** @param {keyof ReturnType<typeof score>} k */
 const avg = (k) => ok.reduce((a, r) => a + r[k], 0) / (ok.length || 1)
 console.log(`\n=== CB20 · ${ARM} · ok ${ok.length}/${rows.length} ===`)
 console.log(`fileRecall=${avg('fileRecall').toFixed(3)} spanRecall=${avg('spanRecall').toFixed(3)} precision=${avg('filePrecision').toFixed(3)}`)

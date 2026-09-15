@@ -83,7 +83,7 @@ describe('recorded memory replay', () => {
 
   it('records native and nested code outcomes without inventing nested metadata', () => {
     const nested: RecordedEvent = {
-      type: 'tool/code-dispatch', seq: 8,
+      type: 'tool/ptc-dispatch', seq: 8,
       data: { rootCallId: 'outer', parentCallId: 'outer', subCallId: 'outer:code:1', name: 'read', arguments: { file_path: 'remote://workspace/a.ts' }, isError: false, content: [{ type: 'text', text: 'rendered remote text' }] },
     }
     const events = [start(1), user('Read twice'), ...read(1, 'native'), nested, end(1)]
@@ -104,8 +104,8 @@ describe('recorded memory replay', () => {
   it('does not ingest generated replacement nodes as new human turns or outcomes', () => {
     const events = [start(1), user('Original ask'), assistant(1, 'Original reply'),
       call(1, 'a', 'read', { file_path: 'a' }), result(1, 'a', undefined, true, 'missing'), end(1),
-      { ...user('Generated tape'), surfaceOp: { op: 'replace', start: 0, end: 3 } },
-      start(2), user('Follow up'), { ...result(2, 'synthetic'), surfaceOp: { op: 'replace', start: 2, end: 2 } },
+      { ...user('Generated tape'), surfaceOp: { op: 'replace', startSeq: 0, endSeq: 3 } },
+      start(2), user('Follow up'), { ...result(2, 'synthetic'), surfaceOp: { op: 'replace', startSeq: 2, endSeq: 2 } },
     ]
     const c = reduceContinuityEvents(events, 'session')
     expect(c.turns).toBe(2)

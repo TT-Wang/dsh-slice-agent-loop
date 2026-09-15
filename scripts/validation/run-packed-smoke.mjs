@@ -12,7 +12,10 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 // The fixture pins this repository's package manager (package.json
 // "packageManager"). Evidence from a different pnpm is not comparable, and a
 // silently different install layout is exactly what this smoke exists to catch.
-const packageManager = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8')).packageManager
+const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
+const packageManager = manifest.packageManager
+const hostVersion = process.env.SLICE_PACKED_DSH_VERSION ?? manifest.devDependencies['@deepseek-ai/dsh-agent']
+if (!['0.1.5-rc.1', '0.1.5-rc.2'].includes(hostVersion)) throw new Error(`Unsupported packed validation host: ${hostVersion}`)
 // Budget for each step (install, plugin add, the session run). A cold install of
 // the published host tree over a slow registry link can exceed the default.
 const stepTimeoutMs = Number.parseInt(process.env.SLICE_PACKED_STEP_TIMEOUT_MS ?? '', 10) || 180_000
@@ -45,7 +48,7 @@ copyFileSync(resolve(sourceArtifact), artifact)
 const sha256 = createHash('sha256').update(readFileSync(artifact)).digest('hex')
 writeFileSync(join(directory, 'package.json'), JSON.stringify({
   name: 'dsh-slice-packed-validation', private: true, type: 'module', packageManager,
-  dependencies: { '@deepseek-ai/dsh': '0.1.3-alpha.2' },
+  dependencies: { '@deepseek-ai/dsh': hostVersion },
 }, null, 2) + '\n')
 copyFileSync(join(fixtureSources, 'packed-runner.mjs'), join(directory, 'runner.mjs'))
 copyFileSync(join(fixtureSources, 'packed-profile.patch.yml'), join(profile, 'cordis.patch.yml'))
@@ -58,6 +61,7 @@ writeFileSync(join(profile, 'package.json'), JSON.stringify({
 writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLinker: hoisted\nautoInstallPeers: false\n')
 const env = { ...process.env, DSH_HOME: home, DSH_VALIDATION_OUTPUT: output }
 let commandNumber = 0
+/** @param {string} command @param {string[]} args @param {string} [cwd] */
 function run(command, args, cwd = directory) {
   const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: stepTimeoutMs })
   const filename = `command-${++commandNumber}.log`
@@ -76,16 +80,15 @@ if (wantedPnpm !== undefined && pnpmVersion !== wantedPnpm && process.env.SLICE_
 }
 run('pnpm', ['install', '--ignore-scripts'])
 const host = createRequire(realpathSync(join(directory, 'node_modules', '@deepseek-ai', 'dsh', 'package.json')))
-// Only persistence's declared native addon needs an install script for this
-// composition; do not execute unrelated application dependencies' scripts.
-const persistence = createRequire(host.resolve('@deepseek-ai/dsh-session-persistence-jsonl/package.json'))
-run('npm', ['run', 'install'], dirname(persistence.resolve('fs-ext/package.json')))
+// DSH 0.1.5 ships its platform flock addon as a package dependency; it no
+// longer depends on fs-ext or needs a local native-addon build for this fixture.
 const cli = join(dirname(host.resolve('@deepseek-ai/dsh/package.json')), 'lib', 'bin.js')
 run(process.execPath, [cli, '--version'])
 run(process.execPath, [cli, 'plugin', '--profile', 'slice-packed', 'add', artifact, '--ignore-scripts'])
 run(process.execPath, [cli, '--profile', 'slice-packed', '--dump-config'])
 run(process.execPath, [cli, '--profile', 'slice-packed'])
 const summary = JSON.parse(readFileSync(join(output, 'summary.json'), 'utf8'))
+if (summary.dsh !== hostVersion) throw new Error(`Expected DSH ${hostVersion}, loaded ${summary.dsh}`)
 const verified = { ...summary, artifactSha256: sha256, node: process.version, pnpm: pnpmVersion, platform: process.platform, arch: process.arch }
 writeFileSync(join(output, 'summary.json'), JSON.stringify(verified, null, 2) + '\n')
 console.log(JSON.stringify({ ...verified, evidence: output }, null, 2))

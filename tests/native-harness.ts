@@ -25,6 +25,7 @@ export interface CapturedRequest {
 /** Small deterministic adapter; both provider and loop requests remain observable. */
 export class NativeAdapter extends LlmAdapter {
   readonly requests: GenerateOptions[] = []
+  systemPromptUpdate?: 'in-history'
 
   constructor(private readonly responses: StreamChunk[][]) { super() }
 
@@ -32,6 +33,7 @@ export class NativeAdapter extends LlmAdapter {
     return Promise.resolve({
       provider, id: model, name: model, inputModalities: ['text', 'image'],
       reasoning: { efforts: [{ id: ReasoningEffortId('low'), name: 'Low' }], defaultEffort: ReasoningEffortId('low') },
+      ...this.systemPromptUpdate === undefined ? {} : { systemPromptUpdate: this.systemPromptUpdate },
     })
   }
 
@@ -69,6 +71,10 @@ export async function nativeHarness(responses: StreamChunk[][], options: NativeH
   const adapter = new NativeAdapter(responses)
   const captured: CapturedRequest[] = []
   const errors: unknown[] = []
+  const warns: string[] = []
+  ctx.logger.exporter({ levels: { default: 3 }, export(message) {
+    if (message.type === 'warn') warns.push(message.args.map(String).join(' '))
+  } })
   try {
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
@@ -93,7 +99,7 @@ export async function nativeHarness(responses: StreamChunk[][], options: NativeH
       if (session !== undefined) captured.push({ request, events: structuredClone(session.snapshotEvents()) })
       return next()
     }, { global: true })
-    return { ctx, adapter, captured, errors, sliceFiber }
+    return { ctx, adapter, captured, errors, warns, sliceFiber }
   } catch (error) {
     await ctx.fiber.dispose()
     throw error

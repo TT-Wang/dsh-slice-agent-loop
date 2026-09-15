@@ -55,7 +55,8 @@ describe('fold affordance under the slice loop', () => {
     const { h, handle } = await slice(50)
     try {
       await nativeSend(handle.agent, 'go')
-      const system = String(h.adapter.requests[0]!.system ?? '')
+      const system = h.adapter.requests[0]!.messages.filter(message => message.role === 'system')
+        .flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])).join('\n')
       expect(system).toContain('expand_result({"turn": t, "step": s, "call": n})')
       expect(system).toContain('recall_step({"turn": t, "step": s})')      // 注册了却无人教学 → 已修
       expect(system).toContain('[... and N more matches in <file>]')

@@ -1,5 +1,10 @@
 # Upgrade verification: 2026-09-08
 
+> Historical alpha.2 receipt. Current released-host instructions and evidence are
+> in [DSH 0.1.5 compatibility](dsh-0.1.5-compatibility.md). Source-checkout
+> verification is manual-only, not a scheduled or required CI gate. The native
+> dependency commands below apply only to this historical host.
+
 The upgraded context plugin was checked against both the published Harness
 release and the newer upstream source checkout. The plugin delegates execution
 to the stock loop and uses durable surface replacements for conversational

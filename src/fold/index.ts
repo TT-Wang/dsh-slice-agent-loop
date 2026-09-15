@@ -1,14 +1,12 @@
 /**
  * tool-result-fold — 给 dsh 默认 transcript loop 加"轮内折叠"的独立插件(2026-09-04)。
  *
- * 正式家在独立仓库 https://github.com/TT-Wang/dsh-tool-result-fold(`dsh plugin add github:TT-Wang/dsh-tool-result-fold`);
- * 这里的副本供本仓库的 runner(`--arm transcript-fold`)与契约测试使用,两边源码同源,改动请先改那边。
- *
  * 机制:每步开始前(`agent/pre-step`,`prepend` 挂在最外层、拿到下游的 enter 判定之后才折),把上一步
  * 刚落盘的工具结果按内容路由折成紧凑视图,以 **surface 替换事件**遮蔽原节点(`surfaceOp: replace`,
  * 引用被遮蔽的 seq)——与 dsh 自带的 compaction-tool-result-pruner 同一机制,会话不变量明确允许
  * "引用被替换事件的内容改写"。
- * 原文原样留在日志里,`expand_result` 逐字取回;模型看到的上下文只追加不改写,前缀缓存不受影响。
+ * pre-step 路径把原文留在日志里,spill 路径把原文留在存储里;`expand_result` 逐字取回。
+ * 已经发出的历史结果保持不变;新结果只在首次请求前折叠。检索返回的原文不再折叠。
  *
  * 路由规则复用 slice 的 result-digest(Headroom 式):代码不折,grep/glob 只在巨量命中时按文件配额折,
  * 日志错误优先,文档/数据留头尾与结构行。
@@ -16,25 +14,26 @@
  * 同一个 ctx 里不要再挂独立仓库那一份——两份都会注册 `expand_result`,重名注册直接失败。
  *
  * 定位(2026-09-09):折叠视图首行同时给出 `{turn, step, call}`(步内序号)和 `{seq}`(原结果的日志 seq,跨进程稳定);
- * `expand_result({"seq": N})` 接受折叠视图自己的 seq——顺着 sourceEventSeqs[0] 回到原文。
+ * `expand_result({"seq": N, "formatVersion": V})` 接受当前格式的折叠视图 seq——顺着 sourceEventSeqs[0] 回到原文。
  *
  * spill 臂(tools/post-execute)改写的是**落盘前**的内容,日志里只剩视图;所以视图首行必须带 spill locator,
  * expand_result 从 locator 读回原文。做不到(没有 spill 后端 / 存储失败)就不改写,留给 pre-step 在 surface 上折。
  * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具、钉住步里的小结果,这条路同样不折。
  *
- * 恢复(resume / 插件晚挂):folder 建立时日志里最后一个 request/header 或 assistant/message 之前的追加态结果,
+ * 恢复(resume / 插件晚挂):folder 建立时日志里最后一个 request/header、assistant/message 或 assistant/attempt 之前的追加态结果,
  * 已经原样给模型看过(上一进程发过请求),第一次 pre-step 不再折它们——折了会让整段前缀改写、缓存全失;
  * 只折之后新落盘的结果。之前进程留下的折叠替换仍按 restoreFold 逐个认领计数,退避阈值跨进程一致。
  */
 import { Context, Service } from '@deepseek-ai/cordis'
-import { readFile } from 'node:fs/promises'
 import { isDeepStrictEqual } from 'node:util'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { freezeMessage } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent, SessionSeq, ToolResultMessage } from '@deepseek-ai/dsh-session'
-import { isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type PostToolDecision, type ToolDefinition, type ToolExecution, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { SpillStore } from '@deepseek-ai/dsh-spill'
+import { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, originalText, originalResultText, type ResultLocator } from './results.js'
+export { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, originalText } from './results.js'
 import { digestToolResult, resolveDigestPolicy, type DigestPolicy } from '../slice/result-digest.js'
 
 export const name = 'tool-result-fold'
@@ -61,14 +60,15 @@ export interface Config {
 export const EXPAND_TOOL_NAME = 'expand_result'
 /** slice loop 注册的整步召回工具;独立挂载时它不存在,可供性里就不能提(见 foldAffordance)。 */
 const RECALL_STEP_TOOL_NAME = 'recall_step'
+const RETRIEVAL_TOOLS = new Set([EXPAND_TOOL_NAME, RECALL_STEP_TOOL_NAME, 'recall_turn', 'recall_search'])
 
 /** grep/glob 的措辞必须与 digestSearch 的实际契约一致:巨量命中会按文件配额折,并写明丢了多少
  *  (`src/slice/result-digest.ts` 的 searchMinMatches/searchMinChars/searchMaxPerFile 与 maxKeepRatio)。
  *  阈值是可配的,所以这里只说"很多命中"而不写死数字;`tests/fold-plugin.spec.ts` 把措辞钉在行为上。 */
-const FOLD_BODY = `Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code is never condensed; grep/glob results are kept whole unless one search returns very many matches, and then each file keeps its first and last matching lines and an exact \`[... and N more matches in <file>]\` marker names what was dropped. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}) or ${EXPAND_TOOL_NAME}({"seq": N}) (N is the durable log id printed in that line), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.`
+const FOLD_BODY = `Within the current turn, newly completed large tool results may be condensed before the next model request. Data and document reads keep their first and last lines and every structured line (key = value, key: value, headings, section markers); build/test/log output keeps every error, failure and warning line with surrounding context, stack traces and summary lines; source code is never condensed; grep/glob results are kept whole unless one search returns very many matches, and then each file keeps its first and last matching lines and an exact \`[... and N more matches in <file>]\` marker names what was dropped. Everything else is replaced by exact markers \`…[+N lines / M chars]…\`, and the view's first line names the call that returns the full result: ${EXPAND_TOOL_NAME}({"turn": t, "step": s, "call": n}) or ${EXPAND_TOOL_NAME}({"seq": N, "formatVersion": ${SESSION_FORMAT_VERSION}}) (N is the log id in the named format; use both values from a fresh locator), durable and one call away; add "grep": <regex> or "lines": "a-b" to get just the part you need, which is far cheaper than the whole result. Use the file tool's read limits: a condensed view represents only what the tool actually returned.`
 
 /** 整步召回句:只有 ${RECALL_STEP_TOOL_NAME} 真的注册了才加,否则就是在宣告一个不存在的工具。 */
-const RECALL_STEP_CLAUSE = ` The locator stays valid after the turn is sealed; ${RECALL_STEP_TOOL_NAME}({"turn": t, "step": s}) returns that whole step — every call and every full result — from the same durable log.`
+const RECALL_STEP_CLAUSE = ` The locator stays valid after the turn is sealed; ${RECALL_STEP_TOOL_NAME}({"turn": t, "step": s}) retrieves that step’s recorded calls and results, hydrating available spilled text and explicitly marking any unavailable preview.`
 
 /** 系统提示词里的可供性说明:模型得知道视图是折过的、原文一步可取。 */
 export function foldAffordance(hasRecallStep: boolean): string {
@@ -78,8 +78,8 @@ export function foldAffordance(hasRecallStep: boolean): string {
 export const FOLD_AFFORDANCE = foldAffordance(false)
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
-interface CallInfo { name: string; path?: string }
-interface FoldView { message: ToolResultMessage; tools: string[]; before: number; after: number; condensed: boolean }
+interface CallInfo { name: string; seq: number; path?: string; arguments?: unknown }
+interface FoldView { message: ToolResultMessage; tools: string[]; blocks: ReadonlyMap<number, string>; before: number; after: number; condensed: boolean }
 
 function callPath(args: unknown): string | undefined {
   if (typeof args !== 'object' || args === null) return undefined
@@ -95,23 +95,17 @@ function resultChars(message: ToolResultMessage): number {
   for (const b of message.content as ReadonlyArray<ToolResultBlock>) for (const inner of b.content ?? []) if (inner.type === 'text' && typeof inner.text === 'string') n += inner.text.length
   return n
 }
-function resultText(block: ToolResultBlock): string {
-  return (block.content ?? []).filter((b) => b.type === 'text' && typeof b.text === 'string').map((b) => b.text as string).join('\n')
-}
 function headLine(text: string): { head: string; rest: string } {
   const nl = text.indexOf('\n')
   return nl === -1 ? { head: text, rest: '' } : { head: text.slice(0, nl), rest: text.slice(nl) }
 }
-/** post-execute spill 视图首行 `[… · full text (N bytes) stored at <locator> — <hint>]`:日志里只有视图,原文靠 locator。 */
-export function spillLocatorOf(text: string): { bytes: number; locator: string } | undefined {
-  const m = /^\[.* · full text \((\d+) bytes\) stored at (.+?) — .*\]$/.exec(headLine(text).head)
-  return m ? { bytes: Number(m[1]), locator: m[2]! } : undefined
-}
-
 /** 一个会话的折叠状态:处理游标、callId → 工具名/路径、统计。 */
 class SessionFolder {
   private cursor = 0
   private readonly calls = new Map<string, CallInfo>()
+  private readonly countedExpansions = new Set<string>()
+  /** Successful retrieval bytes keyed by their enclosing model call, never by a whole step/session. */
+  private readonly retrievedByCall = new Map<number, Set<string>>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
   private readonly ordinals = new Map<string, number>()
   private readonly originalAt = new Map<number, { turn: number; step: number; ordinal: number }>()
@@ -119,14 +113,20 @@ class SessionFolder {
   readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[], spilled: 0 }
   /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
   private readonly foldedAt = new Map<string, readonly string[]>()
+  private readonly foldedBlocksAt = new Map<string, ReadonlyMap<number, string>>()
   private readonly perTool = new Map<string, { folded: number; expanded: number }>()
-  /** 建 folder 时最后一个 request/header / assistant/message 的 seq:不晚于它的追加态结果已经原样发给过模型,不折。 */
+  /** 建 folder 时最后一个 request/header / assistant/message / assistant/attempt 的 seq:不晚于它的追加态结果已经原样发给过模型,不折。 */
   private readonly shownThrough: number
   /** 当前步(pre-step 记录);post-execute 的钉住判断用。 */
   step = 0
   constructor(private readonly session: Session, private readonly policy: DigestPolicy, private readonly pinSteps: number, private readonly backoffAfter: number, private readonly pinMaxChars: number) {
     let shown = -1
-    for (const e of session.snapshotEvents()) if (e.type === 'request/header' || e.type === 'assistant/message') shown = e.seq
+    for (const e of session.snapshotEvents()) {
+      if (e.type === 'request/header' || e.type === 'assistant/message' || e.type === 'assistant/attempt') shown = e.seq
+      // Failed/aborted or crash-orphaned turns can lack a settled attempt in
+      // older/truncated logs. Exposure is uncertain: freeze their existing bytes.
+      if (e.type === 'turn/end' && ['error', 'aborted', 'interrupted'].includes(e.data.reason.kind)) shown = e.seq
+    }
     this.shownThrough = shown
   }
 
@@ -135,7 +135,7 @@ class SessionFolder {
   }
 
   /** 把游标之后新落盘的、仍在 surface 上的追加态工具结果折掉。 */
-  fold(): void {
+  async fold(): Promise<void> {
     const session = this.session
     const end = session.seq
     const onSurface = new Set<number>(session.surface.nodes as readonly number[])
@@ -144,8 +144,20 @@ class SessionFolder {
       if (event === undefined) continue
       if (event.type === 'tool/call') {
         const d = event.data as { callId: string; name: string; arguments?: unknown }
-        this.calls.set(d.callId, { name: d.name, path: callPath(parseArgs(d.arguments)) })
-        if (d.name === EXPAND_TOOL_NAME) this.noteExpansion(parseArgs(d.arguments))
+        this.calls.set(d.callId, { name: d.name, seq: event.seq, path: callPath(parseArgs(d.arguments)), arguments: parseArgs(d.arguments) })
+        continue
+      }
+      if (event.type === 'tool/ptc-dispatch') {
+        const d = event.data
+        if (!d.isError && RETRIEVAL_TOOLS.has(d.name)) {
+          const rootSeq = this.calls.get(d.rootCallId)?.seq
+          if (d.name === EXPAND_TOOL_NAME && rootSeq !== undefined) this.noteExpansion(d.arguments, `${rootSeq}:${d.subCallId}`)
+          for (const part of d.content) if (part.type === 'text') {
+            // The durable dispatch copy can be a spill preview. Live observations
+            // already hold the full result; replay hydrates it when available.
+            try { this.rememberRetrieval(rootSeq, await originalText(part.text, `dispatch ${d.subCallId}`)) } catch { /* unavailable spill is not evidence of forwarding */ }
+          }
+        }
         continue
       }
       if (event.type !== 'tool/result') continue
@@ -155,6 +167,11 @@ class SessionFolder {
       }
       if (!isAppendSurfaceEvent(event)) continue
       const d = event.data as { turn: number; step: number; message: ToolResultMessage }
+      for (const block of d.message.content) {
+        const id = String(block.toolCallId ?? d.message.source?.callId ?? '')
+        const info = this.calls.get(id)
+        if (!block.isError && info?.name === EXPAND_TOOL_NAME) this.noteExpansion(info.arguments, `${info.seq}:${id}`)
+      }
       const key = `${d.turn}:${d.step}`
       const n = (this.ordinals.get(key) ?? 0) + 1
       this.ordinals.set(key, n)
@@ -166,18 +183,28 @@ class SessionFolder {
     this.cursor = end
   }
 
-  /** expand_result 被调用:记到被折结果的工具名上;达到退避阈值就把该工具列入不折名单。 */
-  private noteExpansion(args: unknown): void {
-    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; turn?: unknown; step?: unknown; call?: unknown }
+  /** Successful expansion: charge only the selected folded result blocks, then apply tool backoff. */
+  /** Called after a successful outcome, not when a possibly failing call starts. */
+  noteExpansion(args: unknown, callId: string): void {
+    if (this.countedExpansions.has(callId)) return
+    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown }
     let key: string
     if (a.seq !== undefined) {
+      if (a.formatVersion !== SESSION_FORMAT_VERSION) return
       let at
       try { at = this.originalAt.get(originalResultAt(this.session.snapshotEvents(), Number(a.seq)).seq) } catch { return }
       if (at === undefined) return
       key = `${at.turn}:${at.step}:${at.ordinal}`
     } else key = `${Number(a.turn)}:${Number(a.step)}:${a.call === undefined ? 1 : Number(a.call)}`
-    const tools = this.foldedAt.get(key)
+    let tools = this.foldedAt.get(key)
+    if (a.block !== undefined) {
+      const block = Number(a.block)
+      if (!Number.isInteger(block) || block < 1) return
+      const selected = this.foldedBlocksAt.get(key)?.get(block)
+      tools = selected === undefined ? undefined : [selected]
+    }
     if (tools === undefined) return
+    this.countedExpansions.add(callId)
     this.stats.expanded += 1
     for (const tool of tools) {
       const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
@@ -185,6 +212,32 @@ class SessionFolder {
       this.perTool.set(tool, t)
       if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(tool)) this.stats.backedOff.push(tool)
     }
+  }
+
+  /** Resolve the current native model call, whose string id may be reused in later turns. */
+  callSeq(callId: string): number | undefined {
+    for (let i = this.session.seq - 1; i >= 0; i--) {
+      const event = this.session.eventAt(i as SessionSeq)
+      if (event?.type === 'tool/call' && event.data.callId === callId) return event.seq
+    }
+    return undefined
+  }
+
+  rememberRetrieval(callId: number | undefined, text: string): void {
+    if (callId === undefined || !text) return
+    let texts = this.retrievedByCall.get(callId)
+    if (texts === undefined) this.retrievedByCall.set(callId, texts = new Set())
+    texts.add(text)
+  }
+
+  /** A successful nested call alone is insufficient: the outer projection must
+   * actually forward its complete text, either verbatim or as a JSON string. */
+  forwardsRetrieval(callId: number | undefined, text: string): boolean {
+    if (callId === undefined) return false
+    for (const retrieved of this.retrievedByCall.get(callId) ?? []) {
+      if (text.includes(retrieved) || text.includes(JSON.stringify(retrieved))) return true
+    }
+    return false
   }
 
   /**
@@ -211,14 +264,17 @@ class SessionFolder {
     let before = 0
     let after = 0
     const tools = new Set<string>()
-    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}})`
-    const content = (d.message.content as readonly ToolResultBlock[]).map((block) => {
+    const blocks = new Map<number, string>()
+    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}, "formatVersion": ${SESSION_FORMAT_VERSION}})`
+    const content = (d.message.content as readonly ToolResultBlock[]).map((block, blockIndex) => {
       if (block.type !== 'tool-result' || block.isError || !block.content) return block
-      const info = this.calls.get(String(block.toolCallId ?? d.message.source?.callId ?? '')) ?? { name: 'tool' }
-      if (info.name === EXPAND_TOOL_NAME || this.stats.backedOff.includes(info.name)) return block
+      const callId = String(block.toolCallId ?? d.message.source?.callId ?? '')
+      const info = this.calls.get(callId) ?? { name: 'tool', seq: -1 }
+      if (RETRIEVAL_TOOLS.has(info.name) || this.stats.backedOff.includes(info.name)) return block
       let blockChanged = false
       const inner = block.content.map((b) => {
         if (b.type !== 'text' || typeof b.text !== 'string') return b
+        if (this.forwardsRetrieval(info.seq, b.text)) return b
         before += b.text.length
         if (spillLocatorOf(b.text) !== undefined) {
           // post-execute 已把原文存进 spill store、视图落了盘:不再折,只在首行补上 expand_result 定位(此时还没发过,替换零成本)。
@@ -240,10 +296,11 @@ class SessionFolder {
         after += text.length
         return { ...b, text }
       })
+      if (blockChanged) blocks.set(blockIndex + 1, info.name)
       return blockChanged ? { ...block, content: inner } : block
     })
     if (!changed) return undefined
-    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), tools: [...tools], before, after, condensed }
+    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), tools: [...tools], blocks, before, after, condensed }
   }
 
   private recordFold(seq: number, turn: number, step: number, n: number, view: FoldView): void {
@@ -255,6 +312,7 @@ class SessionFolder {
       this.stats.charsAfter += view.after
     }
     this.foldedAt.set(`${turn}:${step}:${n}`, view.tools)
+    this.foldedBlocksAt.set(`${turn}:${step}:${n}`, view.blocks)
     for (const tool of view.tools) {
       const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
       t.folded += 1
@@ -266,76 +324,10 @@ class SessionFolder {
     const view = this.buildFold(d, n, seq)
     if (view === undefined) return
     this.session.append('tool/result', { ...(event.data as object), message: view.message } as never, {
-      surfaceOp: { op: 'replace', start: seq, end: seq },
+      surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq },
       sourceEventSeqs: [seq],
     })
     this.recordFold(seq, d.turn, d.step, n, view)
-  }
-}
-
-function describeResult(calls: ReadonlyMap<string, string>, d: { message: ToolResultMessage }): { name: string; text: string } {
-  const blocks = (d.message.content as readonly ToolResultBlock[]).filter((block) => block.type === 'tool-result')
-  const names = [...new Set(blocks.map((block) => calls.get(String(block.toolCallId ?? d.message.source?.callId ?? '')) ?? 'tool'))]
-  return { name: names.join(', ') || 'tool', text: blocks.map(resultText).join('\n') }
-}
-
-/** 从日志取某步第 n 个追加态工具结果的原文(替换事件不算)。 */
-export function fullResultAt(events: readonly SessionEvent[], turn: number, step: number, call: number): { name: string; text: string } | null {
-  const calls = new Map<string, string>()
-  let n = 0
-  for (const e of events) {
-    if (e.type === 'tool/call') { const d = e.data as { callId: string; name: string }; calls.set(d.callId, d.name); continue }
-    if (e.type !== 'tool/result' || !isAppendSurfaceEvent(e)) continue
-    const d = e.data as { turn: number; step: number; message: ToolResultMessage }
-    if (d.turn !== turn || d.step !== step) continue
-    n += 1
-    if (n === call) return describeResult(calls, d)
-  }
-  return null
-}
-
-function eventAt(events: readonly SessionEvent[], seq: number): SessionEvent | undefined {
-  const direct = events[seq]
-  return direct?.seq === seq ? direct : events.find((e) => e.seq === seq)
-}
-
-/** 顺着替换链(折叠视图 → sourceEventSeqs[0])回到追加态原文事件;不是 tool/result 就明确报错。 */
-export function originalResultAt(events: readonly SessionEvent[], seq: number): SessionEvent<'tool/result'> {
-  const seen = new Set<number>()
-  for (let s = seq; ;) {
-    const e = eventAt(events, s)
-    if (e === undefined) throw new Error(`${EXPAND_TOOL_NAME}: no session event at seq ${s}`)
-    if (e.type !== 'tool/result') throw new Error(`${EXPAND_TOOL_NAME}: seq ${s} is a ${e.type} event, not a tool result`)
-    if (isAppendSurfaceEvent(e)) return e
-    const source = e.sourceEventSeqs?.[0]
-    if (source === undefined || seen.has(source)) throw new Error(`${EXPAND_TOOL_NAME}: the replacement at seq ${s} names no original tool result`)
-    seen.add(s)
-    s = source
-  }
-}
-
-/** 按日志 seq 取结果:seq 可以是原文,也可以是它的折叠视图;附带 turn/step/call 以便两种定位互认。 */
-export function resultBySeq(events: readonly SessionEvent[], seq: number): { name: string; text: string; seq: number; turn: number; step: number; call: number } {
-  const original = originalResultAt(events, seq)
-  const d = original.data as { turn: number; step: number; message: ToolResultMessage }
-  const calls = new Map<string, string>()
-  let call = 0
-  for (const e of events) {
-    if (e.seq > original.seq) break
-    if (e.type === 'tool/call') { const c = e.data as { callId: string; name: string }; calls.set(c.callId, c.name); continue }
-    if (e.type !== 'tool/result' || !isAppendSurfaceEvent(e)) continue
-    const x = e.data as { turn: number; step: number }
-    if (x.turn === d.turn && x.step === d.step) call += 1
-  }
-  return { ...describeResult(calls, d), seq: original.seq, turn: d.turn, step: d.step, call }
-}
-
-/** 日志里的文本若是 spill 视图(原文在 post-execute 就被换掉了),从 locator 读回原文。 */
-export async function originalText(logged: string, where: string): Promise<string> {
-  const spill = spillLocatorOf(logged)
-  if (spill === undefined) return logged
-  try { return await readFile(spill.locator, 'utf8') } catch (error) {
-    throw new Error(`${EXPAND_TOOL_NAME}: the full text of ${where} (${spill.bytes} bytes) was stored at ${spill.locator} and cannot be read from here (${String(error)}); read that locator with the file tools instead`)
   }
 }
 
@@ -371,12 +363,14 @@ export function partialByLines(text: string, range: string, head: string): strin
 export function expandResultToolDefinition(): ToolDefinition {
   return defineTool({
     name: EXPAND_TOOL_NAME,
-    description: 'Return the text of a tool result that the host condensed on entry. The condensed view\'s first line names the call two ways: `seq` (the durable log id of the result) or turn, step and the result\'s ordinal within that step (1-based). Pass `grep` to get only the lines matching a regex (with 2 lines of context) or `lines` as "start-end" for a line range — both are much cheaper than the whole result; omit both for the full text.',
+    description: 'Return the text of a tool result that the host condensed on entry. The condensed view\'s first line names the call two ways: `seq` (the log id, paired with the formatVersion printed in the same fresh locator) or turn, step and the result\'s ordinal within that step (1-based). Pass `grep` to get only the lines matching a regex (with 2 lines of context) or `lines` as "start-end" for a line range — both are much cheaper than the whole result; omit both for the full text.',
     parameters: {
-      seq: { type: 'number', description: 'Durable log id from the condensed view\'s first line; when given, turn/step/call are ignored.' },
+      formatVersion: { type: 'number', description: `Required with seq: use ${SESSION_FORMAT_VERSION} from a fresh locator. Old-format sequence numbers must not be relabelled; request a fresh recall_turn dialogue or recall_search locator, or use turn/step/call.` },
+      seq: { type: 'number', description: 'Durable log id from the condensed view\'s first line; requires formatVersion from the same fresh locator; when given, turn/step/call are ignored.' },
       turn: { type: 'number', description: 'Turn number from the condensed view\'s first line (required without seq).' },
       step: { type: 'number', description: 'Step number from the condensed view\'s first line (required without seq).' },
       call: { type: 'number', description: 'Which result of that step (1-based; default 1).' },
+      block: { type: 'number', description: 'Optional 1-based result block within a combined result event; omit to retrieve every sibling.' },
       grep: { type: 'string', description: 'Case-insensitive regex: return only matching lines, each with 2 lines of context, and a count of matches.' },
       lines: { type: 'string', description: 'Line range "start-end" (1-based, inclusive), e.g. "120-180".' },
     },
@@ -387,27 +381,33 @@ export function expandResultToolDefinition(): ToolDefinition {
     execute: async (args: unknown, exec: ToolRunContext): Promise<string> => {
       const agent = exec.agent as Agent | undefined
       if (agent === undefined) throw new Error(`${EXPAND_TOOL_NAME} runs only inside an agent loop`)
-      const a = args as { seq?: unknown; turn?: unknown; step?: unknown; call?: unknown; grep?: unknown; lines?: unknown }
+      const a = args as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown; grep?: unknown; lines?: unknown }
       const events = agent.session.snapshotEvents() as readonly SessionEvent[]
-      let hit: { name: string; text: string }
+      let locator: ResultLocator
       let head: string
+      const block = a.block === undefined ? undefined : Number(a.block)
+      if (block !== undefined && (!Number.isInteger(block) || block < 1)) throw new Error(`${EXPAND_TOOL_NAME}: \"block\" must be a positive integer`)
       if (a.seq !== undefined) {
+        if (a.formatVersion !== SESSION_FORMAT_VERSION) {
+          throw new Error(`${EXPAND_TOOL_NAME}: numeric seq requires formatVersion ${SESSION_FORMAT_VERSION} from a fresh locator; sequence numbers can change during format migration. Do not relabel an old locator. Obtain a fresh locator from recall_turn({"turn":"N","view":"dialogue"}) or recall_search, or use the stable {"turn":N,"step":M,"call":K} address.`)
+        }
         const seq = Number(a.seq)
         if (!Number.isInteger(seq) || seq < 0) throw new Error(`${EXPAND_TOOL_NAME}: "seq" must be a non-negative integer`)
-        const r = resultBySeq(events, seq)
-        hit = r
+        const r = resultBySeq(events, seq, block)
+        locator = { seq }
         head = `${r.name} · seq ${r.seq} (turn ${r.turn} step ${r.step} call ${r.call})`
       } else {
         const turn = Number(a.turn); const step = Number(a.step); const call = a.call === undefined ? 1 : Number(a.call)
         if (!Number.isInteger(turn) || !Number.isInteger(step) || turn < 1 || step < 1 || !Number.isInteger(call) || call < 1) {
-          throw new Error(`${EXPAND_TOOL_NAME} needs {"seq": N} or {"turn": N, "step": M} (and optional "call": K), all positive integers`)
+          throw new Error(`${EXPAND_TOOL_NAME} needs {"seq": N, "formatVersion": ${SESSION_FORMAT_VERSION}} or {"turn": N, "step": M} (and optional "call": K), all positive integers`)
         }
-        const found = fullResultAt(events, turn, step, call)
+        const found = fullResultAt(events, turn, step, call, block)
         if (found === null) throw new Error(`no tool result recorded at turn ${turn} step ${step} call ${call}`)
-        hit = found
+        locator = { turn, step, call }
         head = `${found.name} · turn ${turn} step ${step} call ${call}`
       }
-      const text = await originalText(hit.text, head)
+      if (block !== undefined) head += ` block ${block}`
+      const text = await originalResultText(events, locator, head, block)
       if (typeof a.grep === 'string' && a.grep.trim()) return partialByGrep(text, a.grep, head)
       if (typeof a.lines === 'string' && /^\d+\s*-\s*\d+$/.test(a.lines.trim())) return partialByLines(text, a.lines, head)
       return `[full result of ${head}]\n${text}`
@@ -454,21 +454,38 @@ export class ToolResultFold extends Service {
     }
     const spillMin = config.spillPreviewMinBytes ?? 50_000
     if (!(spillMin >= 0)) throw new Error('spillPreviewMinBytes must be >= 0')
-    if (spillMin > 0) {
+    // Observe final successes so nested retrievals affect backoff even before
+    // their enclosing run_code settles. Durable replay deduplicates by call id.
+    ctx.on('tools/result', (exec, result) => {
+      if (result.isError || !RETRIEVAL_TOOLS.has(exec.name) || exec.agent === undefined) return
+      const folder = folderFor(exec.agent.session)
+      const rootSeq = folder.callSeq(exec.rootCallId)
+      if (exec.name === EXPAND_TOOL_NAME && rootSeq !== undefined) folder.noteExpansion(exec.arguments, `${rootSeq}:${exec.callId}`)
+      if (exec.parent !== undefined) for (const part of result.content) if (part.type === 'text') folder.rememberRetrieval(rootSeq, part.text)
+    })
+    {
       // 跑在 spill-policy 的 next() 里(它是 prepend 的):我们先把超大结果换成折叠视图 + 定位,它再看到的就是小结果,不会二次 spill。
       // 这里改写的是落盘前的内容,所以只有 saveText 成功、视图首行带上 locator 才改写;否则原样放行,留给 pre-step 在 surface 上折。
       ctx.on('tools/post-execute', async (exec: ToolExecution, result: Readonly<ToolExecutionResult>, next: () => Promise<PostToolDecision>): Promise<PostToolDecision> => {
         const downstream = await next()
-        if (downstream.kind !== 'accept' || downstream.value !== undefined || downstream.content !== undefined) return downstream
-        if (result.isError || exec.name === 'read' || exec.name === 'read_file' || exec.name === EXPAND_TOOL_NAME) return downstream
-        const store = ctx.get('spillStore') as SpillStore | undefined
+        if (downstream.kind !== 'accept' || Object.hasOwn(downstream, 'value') || Object.hasOwn(downstream, 'content')) return downstream
+        if (result.isError) return downstream
         const agent = exec.agent as Agent | undefined
-        if (store === undefined || agent === undefined) return downstream
+        if (agent === undefined) return downstream
+        const folder = folderFor(agent.session)
+        // Preserve the successful canonical value through generic spill-policy's
+        // documented value-replacement path. This re-renders the same content;
+        // errors and downstream content/value decisions remain untouched.
+        if (RETRIEVAL_TOOLS.has(exec.name) || result.content.some((part) => part.type === 'text' && folder.forwardsRetrieval(folder.callSeq(exec.rootCallId), part.text))) {
+          return { kind: 'accept', value: result.value, ...(downstream.additionalContexts ? { additionalContexts: downstream.additionalContexts } : {}) }
+        }
+        if (spillMin === 0 || exec.parent !== undefined || exec.name === 'read' || exec.name === 'read_file') return downstream
+        const store = ctx.get('spillStore') as SpillStore | undefined
+        if (store === undefined) return downstream
         const texts = result.content.filter((b): b is { type: 'text'; text: string } => b.type === 'text' && typeof (b as { text?: unknown }).text === 'string')
         const full = texts.map((b) => b.text).join('\n')
         if (Buffer.byteLength(full, 'utf8') < spillMin) return downstream
         // 与 pre-step 同一份退避/钉住状态:模型已经把这个工具的折叠视图逐一取回,这条路也不再折。
-        const folder = folderFor(agent.session)
         if (folder.stats.backedOff.includes(exec.name) || folder.pinned(folder.step, full.length)) return downstream
         const path = callPath(parseArgs(exec.arguments))
         const r = digestToolResult(full, { tool: exec.name, ...(path ? { path } : {}) }, policy)
@@ -492,7 +509,7 @@ export class ToolResultFold extends Service {
       const decision = await next()
       if (decision.kind !== 'enter') return decision
       folder.step = step
-      folder.fold()
+      await folder.fold()
       return decision
     }, { prepend: true })
   }

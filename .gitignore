@@ -23,3 +23,6 @@ __pycache__/
 .DS_Store
 *.log
 results/replay-worktrees/
+
+# Local unit-coverage reports; CI reproduces these from source.
+coverage/

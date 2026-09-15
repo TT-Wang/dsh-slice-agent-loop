@@ -49,6 +49,11 @@ describe('checkConfigKeys', () => {
 })
 
 describe('history section keys', () => {
+  it('requires enough space for a complete recall-only entry', async () => {
+    await expect(load({ entryMaxChars: 255 })).rejects.toThrow('history.entryMaxChars must be at least 256')
+    await load({ entryMaxChars: 256 })
+  })
+
   it('accepts every documented history key', async () => {
     await load({ keepRecentTurns: 1, pinFirstTurn: false, pinUserChars: 600, entryMaxChars: 4_000 })
   })

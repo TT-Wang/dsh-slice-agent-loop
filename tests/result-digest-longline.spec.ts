@@ -4,8 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_DIGEST_POLICY, digestToolResult } from '../src/slice/result-digest.js'
 
-const word = () => Math.random().toString(36).slice(2, 8)
-const blobLine = (n: number) => Array.from({ length: n }, word).join(' ')
+const blobLine = (n: number) => Array.from({ length: n }, (_, i) => i.toString(36).padStart(6, 'x')).join(' ')
 
 describe('long lines in data results', () => {
   it('cuts a 3-line 9K blob to head/tail chars per line and marks it digested', () => {

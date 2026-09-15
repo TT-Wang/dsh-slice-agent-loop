@@ -1,36 +1,18 @@
 /**
- * recall_turn — the slice loop's memory-recall tool.
+ * recall_turn and recall_search read original events from the durable DSH log.
+ * The current tape policy (src/context.ts) may shorten requests, replies and
+ * read indexes to fit a new entry. Its recall locators resolve to these events;
+ * no second archive or virtual context filesystem is involved.
  *
- * The tape truncates every sealed reply at REPLY_CAP_CHARS (2,000 code points:
- * 1,400 head + 500 tail, src/slice/tape.ts) and marks the cut with
- * `…[+N chars in sealed turn]`; the online history policy's archive
- * checkpoints (src/context.ts) cut long text as `…[+N chars, recall_turn]…`
- * and name recall_turn / expand_result locators. Until this tool, the
- * marker was a dead end: the Python engine pages the full text back through
- * its virtual context filesystem (`@sliceagent/history/...`), but that
- * filesystem has no DSH counterpart — DSH has no path interception, no read
- * middleware, and no resolver hook, so no spelling of a virtual path can ever
- * be served here. The 20-step/35-search runaway documented in
- * docs/modification-spec.md was a model hunting for exactly that promise.
+ * Full pages preserve original records as JSON; dialogue pages show user and
+ * assistant text once, with tool-result locators. Both distinguish generated
+ * context from human input and work after session recreation.
  *
- * This is the same capability rebuilt on the DSH-native seam instead: a real
- * registered tool. The substrate is not a new store — the dsh Agent contract
- * already obliges this loop to append every user/message and assistant/message
- * to the session log verbatim and durably, which is also the source
- * restoreContinuity rebuilds from. Serving recall from those events means:
- *
- *  - zero new persistence, zero bytes added to the log;
- *  - recreation-safe by construction (the log is what an agent is rebuilt
- *    from, so anything a rebuilt agent can be is something recall can read);
- *  - verbatim by construction (the log holds the exact delivered bytes, not a
- *    reconstruction — same rule as the Python engine's sealed artifacts).
- *
- * The turn is attributed the way restoreContinuity attributes it: an
- * assistant/message carries its turn number explicitly; a user/message is
- * owned by the turn that was open when it was appended (step-1 input and
- * mid-turn steering alike), so the scan tracks turn/start. A plugin-produced
- * message appended while no turn is open (a runtime snapshot projected between
- * turns) belongs to the turn that just ended — see ownerOf.
+ * Assistant messages carry their turn explicitly. User-role messages share
+ * userMessageTurn with surface sealing: the open turn owns step-1 input and
+ * mid-turn steering; the last ended turn owns between-turn messages. Before
+ * the first turn there is no recall page, so the surface policy retains the
+ * original message. Recall records what was said, not present world state.
  */
 import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 export declare const RECALL_TOOL_NAME = "recall_turn";
@@ -107,7 +89,9 @@ export interface RecallHit {
     snippet: string;
     /** Durable tool/result event seq (tool_output / tool_error hits only). */
     seq?: number;
-    /** Copy-paste follow-up: recall_turn dialogue view for dialogue hits, expand_result by seq for tool hits. */
+    /** 1-based original tool-result sibling when the event contains multiple blocks. */
+    block?: number;
+    /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for result blocks. */
     locator: string;
 }
 /** Resolve the searched kinds: explicit kinds win; otherwise the scope (dialogue kinds, "auto" adds bounded tool output). */

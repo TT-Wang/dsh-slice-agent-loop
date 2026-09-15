@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url'
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const args = process.argv.slice(2)
+/** @param {string} flag @param {string} [fallback] */
 const opt = (flag, fallback) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : fallback }
 
 const LIMIT_MIB = Number(opt('--limit', process.env.REPO_SIZE_LIMIT_MIB ?? '64'))
@@ -31,6 +32,7 @@ const files = execFileSync('git', ['-C', REPO, 'ls-files', '-z'], { encoding: 'u
 
 let total = 0
 const byTop = new Map()
+/** @type {[string,number][]} */
 const sizes = []
 for (const file of files) {
   let size
@@ -41,6 +43,7 @@ for (const file of files) {
   byTop.set(top, (byTop.get(top) ?? 0) + size)
 }
 
+/** @param {number} bytes */
 const mib = (bytes) => (bytes / 1048576).toFixed(2)
 console.log(`tracked: ${mib(total)} MiB across ${sizes.length} files (limit ${LIMIT_MIB} MiB)`)
 for (const [top, bytes] of [...byTop].sort((a, b) => b[1] - a[1]).slice(0, TOP)) {

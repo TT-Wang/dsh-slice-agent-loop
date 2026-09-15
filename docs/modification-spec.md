@@ -1,6 +1,6 @@
 > ⚠️ **已被取代（2026-09-10）——本文是 2026-09-08 原生重构**之前**的修改 spec，
 > 仅作历史记录保留。**
-> - 基线不再成立:本文自述基线 `HEAD caa4d9f` / 154 门;当前 `main` 为 153 个测试。
+> - 本文基线固定为历史 `HEAD caa4d9f` / 154 门；不要把它当作当前测试数量。现役验证见 `docs/dsh-0.1.5-compatibility.md`。
 > - 它规划的改动面大半已随重构消失。逐条核对(2026-09-10):`../src/driver.ts`、
 >   `../src/slice/regions.ts` 与 `../src/system-prompt.ts` **三个文件都已不存在**
 >   (前两个随原生迁移删除，`system-prompt.ts` 由本次 A-RT-07 修复删除)，因此文中
@@ -8,10 +8,10 @@
 >   `../src/slice/regions.ts:396`、`../src/slice/regions.ts:634`、
 >   `src/system-prompt.ts:19-68`(见 `:159` B5 一节)的定位都是坏链;
 >   `../src/continuity.ts`(519 行)与 `../src/slice/tape.ts`(573 行)文件仍在——
->   `tape.ts` 更是现役渲染器(`src/context.ts` 直接 import)——但它们经历过重写，
+>   现役 `src/context.ts` 仅复用 `tape.ts` 的回复摘录助手——但它们经历过重写，
 >   文中的**行号**(`continuity.ts:136/336`、`tape.ts:410`)不再指向所述代码。
 >   保留原文只为不篡改历史，不要按这些定位去找代码。
-> - 当前架构的对应文档:上下文装配见 `src/context.ts` 与 `docs/tape-admission.md`，
+> - 当前架构的对应文档:上下文封存见 `src/context.ts` 与 `CONTEXT.md`（`docs/tape-admission.md` 仅记离线模块），
 >   工具结果折叠见 `docs/tool-result-fold.md`、`docs/fold-content-routing.md`。
 
 # 修改 Spec(综合版)— dsh-slice-agent-loop
@@ -58,7 +58,7 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 | **停滞判据 4/8 阈值** | ❌ **会砍掉 31% 的步** | 全轨迹模拟,见 §2 |
 | **B1 的 `sealedArtifactBase` 方案** | ❌ **有更好的底座** | 见 §3 |
 
-判据本身**是活的**:`assistantText` 只收 `type === 'text'`,reasoning 被排除([driver.ts:982](../src/driver.ts:982))。所以 turn 16 的 20 步「可见文本为零」是真的,判据会触发。问题不在它触不触发,在**它分不清好坏**。
+判据本身**是活的**:`assistantText` 只收 `type === 'text'`,reasoning 被排除(`driver.ts:982`)。所以 turn 16 的 20 步「可见文本为零」是真的,判据会触发。问题不在它触不触发,在**它分不清好坏**。
 
 ---
 
@@ -127,7 +127,7 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 
 ### B1 — VIRTUAL 类:删除,不是配置化
 
-三处渲染 `@sliceagent/` 路径的站点([continuity.ts:136](../src/continuity.ts:136) `recall:`、[continuity.ts:336](../src/continuity.ts:336) epoch、[tape.ts:410](../src/slice/tape.ts:410) GC 标记):
+三处渲染 `@sliceagent/` 路径的站点(`continuity.ts:136` `recall:`、`continuity.ts:336` epoch、`tape.ts:410` GC 标记):
 
 - 删掉路径,保留**截断事实**。`…[+351 chars in sealed turn]` 这个标记本身是诚实且有用的 —— 它告诉模型"这里被截了、截了多少"。
 - 不要写成"全文只在日志里"这类无法行动的句子 —— 那仍然占字节且不可执行。
@@ -137,7 +137,7 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 
 ### B2 — REAL-PATH 类:去掉调用名,只留路径
 
-[driver.ts:1196](../src/driver.ts:1196) 的 OPEN FILES 索引行(每轮 × 每个锚定文件)与 [regions.ts:634/638](../src/slice/regions.ts:634) 的定位符替代:
+`driver.ts:1196` 的 OPEN FILES 索引行(每轮 × 每个锚定文件)与 `regions.ts:634/638` 的定位符替代:
 
 调研的结论很硬 —— **三个选项里选"不渲染调用名"**:
 
@@ -147,7 +147,7 @@ s8  bash   grep -rn "source artifact" ~/.dsh/source/current ...
 
 ### B3 — PROSE 类
 
-[regions.ts:396/430/482](../src/slice/regions.ts:396) 三处散文常量:说动词不说调用(`re-read the file` 而非 `read_file(...)`)。
+`regions.ts:396/430/482` 三处散文常量:说动词不说调用(`re-read the file` 而非 `read_file(...)`)。
 
 **但它们被黄金钉死(2/2/15 个输出),不能和 B2 同批走** —— 见下方「黄金约束」。留后,与 `tape.ts:410` 一起走重生成路线。定位器已经删了,所以这三处散文暂时的不一致是"散文提到一个没人给出定位器的动作",比反过来(给出假定位器)安全得多。
 

@@ -1,127 +1,120 @@
 #!/usr/bin/env node
-/**
- * Link the DeepSeek Harness peer packages into node_modules for local development.
- *
- * The peers are provided by the HOST at runtime, so they are declared only as
- * `peerDependencies` — never as `dependencies`. Publishing a manifest whose
- * `dependencies` point at `file:/Users/<someone>/...` makes the package
- * uninstallable for everyone else, which is exactly what this script replaces.
- *
- * Resolution order for the harness checkout:
- *   1. $DSH_SOURCE          — explicit override
- *   2. $DSH_HOME/source/current
- *   3. ~/.dsh/source/current — the default `dsh` install layout
- *
- * Usage: npm run link:dsh
+/** Link every declared DSH dependency to one source checkout, validated first.
+ * DSH_SOURCE overrides DSH_HOME/source/current and ~/.dsh/source/current.
+ * Example-only imports are listed in package.json's sliceDevelopment section.
  */
-import { existsSync, mkdirSync, rmSync, symlinkSync, lstatSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { existsSync, mkdirSync, rmSync, symlinkSync, lstatSync, readFileSync, readdirSync, realpathSync, renameSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-
-/** Peer package name → its path inside the harness checkout. */
-const PEERS = {
-  '@deepseek-ai/dsh-agent': 'packages/core/agent',
-  '@deepseek-ai/dsh-session': 'packages/core/session',
-  '@deepseek-ai/dsh-llm': 'packages/llm/llm',
-  '@deepseek-ai/dsh-system-prompt': 'packages/core/system-prompt',
-  '@deepseek-ai/dsh-tools': 'packages/core/tools',
-  '@deepseek-ai/dsh-scope': 'packages/core/scope',
-  // Moved from packages/session-persistence/* in the 20260810 snapshot.
-  '@deepseek-ai/dsh-session-persistence': 'packages/session/session-persistence',
-  // Rescoped in the 20260811 snapshot (scripts/rescope-vendor.ts); the tree
-  // ships it under vendor/ and every package reaches it by that symlink.
-  '@deepseek-ai/cordis': 'vendor/cordis',
-  // Test-only: the incompatibility gate mounts the stock loop's invariant
-  // companion to prove this plugin refuses it at load time (评审 D).
-  '@deepseek-ai/dsh-invariants': 'packages/support/invariants',
-  '@deepseek-ai/dsh-agent-loop': 'packages/core/agent-loop',
-  // Test-only: the Code Mode anchoring gate needs a CodeRuntime to mount run_code.
-  '@deepseek-ai/dsh-code-runtime': 'packages/code-runtime/code-runtime',
-  // driver.ts 自 a4 迁移起用它(SessionSeq 等品牌类型工具)。
-  '@deepseek-ai/dsh-util-values': 'packages/util/values',
-  '@deepseek-ai/dsh-token-meter': 'packages/llm/token-meter',
-  // 原生 AgentLoop 的依赖:tool-result-fold 插件的契约测试要挂原生 loop。
-  '@deepseek-ai/dsh-session-projection': 'packages/session/session-projection',
-  // tool-result-fold 的 spill 预览臂:类型来自 dsh-spill,契约测试挂真实的 spill-local + spill-policy。
-  '@deepseek-ai/dsh-spill': 'packages/spill/spill',
-  '@deepseek-ai/dsh-spill-local': 'packages/spill/spill-local',
-  '@deepseek-ai/dsh-spill-policy': 'packages/spill/spill-policy',
-  '@deepseek-ai/dsh-output-retention': 'packages/util/output-retention',
-  // examples/ 用它起真实的 DeepSeek 适配器;它不在本仓已发布的 alpha 闭包里。
-  '@deepseek-ai/dsh-llm-deepseek': 'packages/llm/llm-deepseek',
+/** @typedef {{ name?: string, dependencies?: Record<string,string>, devDependencies?: Record<string,string>, peerDependencies?: Record<string,string>, sliceDevelopment?: {sourceOnlyPackages?: string[]} }} Manifest */
+/** @param {string} file @returns {Manifest} */
+function manifestAt(file) { return JSON.parse(readFileSync(file, 'utf8')) }
+/** @param {Manifest} manifest */
+export function sourcePackages(manifest) {
+  return [...new Set([
+    ...Object.keys({ ...manifest.dependencies, ...manifest.devDependencies, ...manifest.peerDependencies }),
+    ...manifest.sliceDevelopment?.sourceOnlyPackages ?? [],
+  ].filter(name => name.startsWith('@deepseek-ai/')))].sort()
 }
-
-/** Older harness snapshots that moved a package keep a fallback path here. */
-const FALLBACKS = {
-  '@deepseek-ai/dsh-session-persistence': ['packages/session-persistence/session-persistence'],
-}
-
-function resolveHarness() {
-  const candidates = [
-    process.env.DSH_SOURCE,
-    process.env.DSH_HOME ? join(process.env.DSH_HOME, 'source', 'current') : undefined,
-    join(homedir(), '.dsh', 'source', 'current'),
-  ].filter(Boolean)
-  for (const candidate of candidates) {
-    if (existsSync(join(candidate, 'packages', 'core', 'agent', 'package.json'))) return candidate
-  }
-  console.error(
-    'Could not find a DeepSeek Harness checkout.\n'
-    + 'Set DSH_SOURCE to the harness repo root, or install dsh so that\n'
-    + `${join(homedir(), '.dsh', 'source', 'current')} exists.\n`
-    + `Tried:\n${candidates.map(c => `  ${c}`).join('\n')}`,
-  )
-  process.exit(1)
-}
-
-const harness = resolveHarness()
-const modules = join(REPO, 'node_modules')
-let linked = 0
-
-// Discover every workspace package by its manifest name, so a snapshot that
-// moves a directory (support/invariants → runtime-diagnostics/invariants in
-// 20260812) cannot silently break a hardcoded path.
-import { readFileSync, readdirSync } from 'node:fs'
-const byName = new Map()
-for (const root of ['packages', 'vendor']) {
-  const rootDir = join(harness, root)
-  if (!existsSync(rootDir)) continue
-  for (const lvl1 of readdirSync(rootDir)) {
-    for (const dir of [join(rootDir, lvl1), ...(() => {
-      const d = join(rootDir, lvl1)
-      try { return readdirSync(d).map(x => join(d, x)) } catch { return [] }
-    })()]) {
-      const manifest = join(dir, 'package.json')
-      if (!existsSync(manifest)) continue
-      try {
-        const name = JSON.parse(readFileSync(manifest, 'utf8')).name
-        if (name && !byName.has(name)) byName.set(name, dir)
-      } catch { /* unparseable manifest — skip */ }
+/** Discover by manifest name so upstream directory moves do not create mixed graphs.
+ * @param {string} harness
+ */
+function discover(harness) {
+  /** @type {Map<string,string>} */
+  const packages = new Map()
+  /** @param {string} dir @param {number} depth */
+  function visit(dir, depth) {
+    if (!existsSync(dir)) return
+    const file = join(dir, 'package.json')
+    if (existsSync(file)) {
+      const { name } = manifestAt(file)
+      if (name?.startsWith('@deepseek-ai/')) {
+        const previous = packages.get(name)
+        if (previous && realpathSync(previous) !== realpathSync(dir)) throw new Error(`Duplicate source package ${name}: ${previous}, ${dir}`)
+        packages.set(name, dir)
+      }
+    }
+    if (depth === 0) return
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.isDirectory() && !['node_modules', 'lib', '.git'].includes(entry.name)) visit(join(dir, entry.name), depth - 1)
     }
   }
+  for (const root of ['packages', 'vendor']) visit(join(harness, root), 4)
+  return packages
 }
-
-for (const [name, subpath] of Object.entries(PEERS)) {
-  const options = [subpath, ...(FALLBACKS[name] ?? [])]
-  const target = byName.get(name)
-    ?? options.map(p => join(harness, p)).find(p => existsSync(join(p, 'package.json')))
-  if (target === undefined) {
-    console.error(`✗ ${name}: not found under ${harness} (scanned by name; tried ${options.join(', ')})`)
-    process.exitCode = 1
-    continue
-  }
-  const link = join(modules, name)
-  mkdirSync(dirname(link), { recursive: true })
+/** Preflight all packages before changing any local link.
+ * @param {string} repo @param {string} harness
+ */
+export function linkDsh(repo, harness) {
+  // Resolve macOS /var aliases and user symlinked checkouts before relative links.
+  repo = realpathSync(repo)
+  harness = realpathSync(harness)
+  const byName = discover(harness)
+  const links = sourcePackages(manifestAt(join(repo, 'package.json'))).map(name => {
+    const target = byName.get(name)
+    if (!target) throw new Error(`Source package ${name} is missing from ${harness}; no links changed`)
+    return { name, target: realpathSync(target), link: join(repo, 'node_modules', name) }
+  })
+  const nonce = randomUUID()
+  const transaction = links.map(item => ({
+    ...item, stage: `${item.link}.slice-stage-${nonce}`, backup: `${item.link}.slice-backup-${nonce}`,
+    backedUp: false, installed: false,
+  }))
   try {
-    if (lstatSync(link, { throwIfNoEntry: false }) !== undefined) rmSync(link, { recursive: true, force: true })
-  } catch { /* nothing to remove */ }
-  // Relative links keep the tree portable if the repo itself moves.
-  symlinkSync(relative(dirname(link), target), link, 'dir')
-  linked += 1
-  console.log(`✓ ${name} -> ${relative(REPO, target)}`)
+    // Prepare and verify every link before touching existing package directories.
+    // Staging beside the destination preserves relative-link resolution on rename.
+    for (const item of transaction) {
+      mkdirSync(dirname(item.link), { recursive: true })
+      symlinkSync(relative(dirname(item.link), item.target), item.stage, 'dir')
+      if (realpathSync(item.stage) !== item.target || manifestAt(join(item.stage, 'package.json')).name !== item.name) {
+        throw new Error(`Source link verification failed for ${item.name}`)
+      }
+    }
+    for (const item of transaction) {
+      if (lstatSync(item.link, { throwIfNoEntry: false })) {
+        renameSync(item.link, item.backup)
+        item.backedUp = true
+      }
+      renameSync(item.stage, item.link)
+      item.installed = true
+    }
+    for (const item of transaction) {
+      if (realpathSync(item.link) !== item.target) throw new Error(`Installed source link verification failed for ${item.name}`)
+    }
+  } catch (error) {
+    const failures = [error]
+    for (const item of transaction.reverse()) {
+      try {
+        if (item.installed) rmSync(item.link, { recursive: true, force: true })
+        if (item.backedUp) renameSync(item.backup, item.link)
+      } catch (rollback) { failures.push(rollback) }
+    }
+    if (failures.length > 1) throw new AggregateError(failures, 'Source linking failed and rollback was incomplete; preserved .slice-backup files require inspection')
+    throw error
+  } finally {
+    for (const item of transaction) rmSync(item.stage, { recursive: true, force: true })
+  }
+  for (const item of transaction) {
+    if (!item.backedUp) continue
+    try { rmSync(item.backup, { recursive: true, force: true }) } catch (error) {
+      process.emitWarning(`Source link installed, but old backup could not be removed: ${item.backup}`, { detail: String(error) })
+    }
+  }
+  return links.map(({ name, target }) => `${name} -> ${target}`)
 }
-
-console.log(`\nlinked ${linked}/${Object.keys(PEERS).length} harness peers from ${harness}`)
+function resolveHarness() {
+  const explicit = process.env.DSH_SOURCE
+  const candidates = explicit !== undefined ? [explicit] : [
+    ...process.env.DSH_HOME ? [join(process.env.DSH_HOME, 'source', 'current')] : [],
+    join(homedir(), '.dsh', 'source', 'current'),
+  ]
+  const harness = candidates.find(candidate => existsSync(join(candidate, 'package.json')) && existsSync(join(candidate, 'packages')))
+  if (!harness) throw new Error(`No DSH source checkout found. Set DSH_SOURCE. Tried:\n${candidates.join('\n')}`)
+  return realpathSync(harness)
+}
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
+  console.log(linkDsh(fileURLToPath(new URL('../', import.meta.url)), resolveHarness()).join('\n'))
+}

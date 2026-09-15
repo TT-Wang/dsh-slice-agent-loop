@@ -5,9 +5,9 @@
 > - `../src/slice/assemble.ts` —— 该文件已作为非现役模块移到
 >   [`../src/lab/assemble.ts`](../src/lab/assemble.ts)（下面正文 `:14`、`:116` 的
 >   旧路径按此换算）；即使还在，它也不在插件的现役调用图上，不再是本文所说的
->   "实现"。注意同目录的 `src/slice/tape.ts`、`src/slice/admission.ts`、
->   `src/slice/result-digest.ts` **仍是现役代码**，由 `src/context.ts` 与
->   `src/fold/` 直接 import。
+>   "实现"。现役 `src/context.ts` 仍复用 `src/slice/tape.ts` 的回复摘录助手，
+>   `src/fold/` 使用 `src/slice/result-digest.ts`；`src/slice/admission.ts`
+>   属于离线模块，不再承担现役准入。
 > - 「没有区表、没有 `Region` 类型、没有 `zone` 字段」这条目标形态**没有实现**：
 >   `assemble.ts` 最终导出了带 `zone` 字段的 `ZONE_HEADERS`（7 项）。
 >
@@ -82,7 +82,7 @@ assemble(ctx, systemPrefix, hints) =>
 
 | 删 | 位置 |
 |---|---|
-| 两段式重投影 | [driver.ts:900–919](../src/driver.ts:900) |
+| 两段式重投影 | `driver.ts:900–919` |
 | `sliceCapacityChars` + `CHARS_PER_TOKEN` / `CAPACITY_SAFETY` / `MIN_SLICE_CAPACITY_CHARS` | driver.ts |
 | `ContextUnfitError` 导入与兜底分支 | driver.ts |
 
@@ -92,7 +92,7 @@ assemble(ctx, systemPrefix, hints) =>
 
 | 位置 | 问题 |
 |---|---|
-| OPEN FILES header | 承诺一个 `· read call` 列，而 `openFilesIndex` 早就不发了（[driver.ts:1216](../src/driver.ts:1216) 注释解释了原因） |
+| OPEN FILES header | 承诺一个 `· read call` 列，而 `openFilesIndex` 早就不发了（`driver.ts:1216` 注释解释了原因） |
 | task objective header | 引用 `RETAINED USER CORRECTIONS section`，那个区本方案删除；其第二分支依赖无生产者的 `objectiveStatus` |
 
 ## 生产者现状

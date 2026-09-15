@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-13",
+  "upgradeBase": "2b557828788f6b19f6e50a7618f87a27cfb18c1a",
+  "registryTags": {
+    "next": "0.1.5-rc.2",
+    "latest": "0.1.5-rc.1",
+    "alpha": "0.1.5-alpha.2"
+  },
+  "publishedHostSuite": {
+    "dsh": "0.1.5-rc.2",
+    "files": 31,
+    "passed": 250,
+    "failed": 0
+  },
+  "sourceHostSuite": {
+    "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+    "passed": 250,
+    "failed": 0
+  },
+  "typecheck": "passed",
+  "peerDependencies": "no issues",
+  "packed": [
+    {
+      "status": "passed",
+      "dsh": "0.1.5-rc.2",
+      "requests": 5,
+      "turns": 4,
+      "persistenceReload": true,
+      "nativeSystemMessageRetained": true,
+      "frozenTapeRetained": true,
+      "tapeEntries": 3,
+      "replacements": 3,
+      "errors": [],
+      "artifactSha256": "9bac66586cdebedaf0342c03056cce3e52fbc4fd5c2aa63195400ea20d8e3a21",
+      "node": "v22.22.3",
+      "pnpm": "11.7.0",
+      "platform": "darwin",
+      "arch": "arm64"
+    },
+    {
+      "status": "passed",
+      "dsh": "0.1.5-rc.1",
+      "requests": 5,
+      "turns": 4,
+      "persistenceReload": true,
+      "nativeSystemMessageRetained": true,
+      "frozenTapeRetained": true,
+      "tapeEntries": 3,
+      "replacements": 3,
+      "errors": [],
+      "artifactSha256": "9bac66586cdebedaf0342c03056cce3e52fbc4fd5c2aa63195400ea20d8e3a21",
+      "node": "v22.22.3",
+      "pnpm": "11.7.0",
+      "platform": "darwin",
+      "arch": "arm64"
+    }
+  ],
+  "legacyMigration": {
+    "physicalSourceVersion": 2,
+    "targetVersion": 3,
+    "tests": 3,
+    "predecessorPreserved": true,
+    "frozenTapePreserved": true,
+    "staleSeqRejected": true,
+    "freshSeqAndOrdinalRecall": "exact original bytes"
+  },
+  "paidModelEvaluations": 0,
+  "liveProfilesChanged": false
+}

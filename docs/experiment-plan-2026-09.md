@@ -17,18 +17,14 @@
 >   `/Users/tongtao/code/dsh-tool-result-fold/bench/scenarios`. None of these
 >   exist inside the checkout. Reproducing it requires that external workspace.
 >
-> **Still accurate and worth keeping:** the plugin baseline row in §0
-> (`maxHistoryChars 120000`, `maxRequestChars 400000`, `pinSteps 2`,
-> `pinMaxChars 8000`, `backoffAfterExpansions 2`, `spillPreviewMinBytes 50000`)
-> matches `src/index.ts` and `src/fold/index.ts`; and the "Old-architecture
-> results ... NOT comparable" note in §5 is the repo's clearest statement of
-> that boundary.
+> **Historical configuration:** `maxHistoryChars` and `maxRequestChars` are now
+> accepted but ignored; the pressure/admission design below is retired. The fold
+> settings remain recognizable, but this table is not a current profile template.
+> The old-architecture comparison boundary in §5 still applies.
 >
-> **Repo status of this file:** it is untracked on `main`. It was reviewed from
-> the frozen snapshot `e8427a8` (byte-identical to the maintainer's working
-> copy) and restored here with this header so the correction has somewhere to
-> live. If you do not want an unstarted plan tracked, delete the file rather
-> than reverting the header.
+> **Archive status:** this file is tracked as an unexecuted historical plan. Its
+> earlier "untracked on main" note described the working copy before archival.
+> See `CONTEXT.md` for the current policy; do not execute the profiles below as-is.
 
 Original plan follows unchanged.
 

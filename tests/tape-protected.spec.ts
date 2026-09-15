@@ -147,7 +147,7 @@ describe('what a seal leaves untouched', () => {
     })
 
     // Each pointer resolves to the untouched append record that still holds the full result.
-    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(/expand_result\(\{"seq":(\d+)\}\)/g)].map(match => Number(match[1])))
+    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(/expand_result\(\{"seq":(\d+),"formatVersion":3\}\)/g)].map(match => Number(match[1])))
     expect(seqs).toHaveLength(4)
     for (const seq of seqs) {
       const event = agent.session.eventAt(seq as SessionSeq)
@@ -200,7 +200,7 @@ describe('what a seal leaves untouched', () => {
         const source = events.filter(event => (event.type === 'assistant/message' || event.type === 'tool/result') && event.data.turn === 2).map(event => event.seq)
         foreign = agent.session.append('user/message', createUserMessage({
           content: [{ type: 'text', text: 'FOREIGN_CANONICAL_SENTINEL' }], source: { kind: 'plugin', plugin: 'external-compaction' },
-        }), { surfaceOp: { op: 'replace', start: source[0]!, end: source[source.length - 1]! }, sourceEventSeqs: source }).seq
+        }), { surfaceOp: { op: 'replace', startSeq: source[0]!, endSeq: source[source.length - 1]! }, sourceEventSeqs: source }).seq
       }
       return next()
     }, { prepend: true })
@@ -283,7 +283,7 @@ describe('what a seal leaves untouched', () => {
     const run = events.filter(event => (event.type === 'assistant/message' || event.type === 'tool/result') && event.data.turn === 1).map(event => event.seq)
     const legacy = agent.session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: legacyText }], source: { kind: 'plugin', plugin: HISTORY_SOURCE },
-    }), { surfaceOp: { op: 'replace', start: run[0]!, end: run[run.length - 1]! }, sourceEventSeqs: run })
+    }), { surfaceOp: { op: 'replace', startSeq: run[0]!, endSeq: run[run.length - 1]! }, sourceEventSeqs: run })
     await flood(agent, 2, 6)
 
     expect(h.errors).toEqual([])

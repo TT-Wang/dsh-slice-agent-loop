@@ -1,43 +1,27 @@
 /**
- * recall_turn — the slice loop's memory-recall tool.
+ * recall_turn and recall_search read original events from the durable DSH log.
+ * The current tape policy (src/context.ts) may shorten requests, replies and
+ * read indexes to fit a new entry. Its recall locators resolve to these events;
+ * no second archive or virtual context filesystem is involved.
  *
- * The tape truncates every sealed reply at REPLY_CAP_CHARS (2,000 code points:
- * 1,400 head + 500 tail, src/slice/tape.ts) and marks the cut with
- * `…[+N chars in sealed turn]`; the online history policy's archive
- * checkpoints (src/context.ts) cut long text as `…[+N chars, recall_turn]…`
- * and name recall_turn / expand_result locators. Until this tool, the
- * marker was a dead end: the Python engine pages the full text back through
- * its virtual context filesystem (`@sliceagent/history/...`), but that
- * filesystem has no DSH counterpart — DSH has no path interception, no read
- * middleware, and no resolver hook, so no spelling of a virtual path can ever
- * be served here. The 20-step/35-search runaway documented in
- * docs/modification-spec.md was a model hunting for exactly that promise.
+ * Full pages preserve original records as JSON; dialogue pages show user and
+ * assistant text once, with tool-result locators. Both distinguish generated
+ * context from human input and work after session recreation.
  *
- * This is the same capability rebuilt on the DSH-native seam instead: a real
- * registered tool. The substrate is not a new store — the dsh Agent contract
- * already obliges this loop to append every user/message and assistant/message
- * to the session log verbatim and durably, which is also the source
- * restoreContinuity rebuilds from. Serving recall from those events means:
- *
- *  - zero new persistence, zero bytes added to the log;
- *  - recreation-safe by construction (the log is what an agent is rebuilt
- *    from, so anything a rebuilt agent can be is something recall can read);
- *  - verbatim by construction (the log holds the exact delivered bytes, not a
- *    reconstruction — same rule as the Python engine's sealed artifacts).
- *
- * The turn is attributed the way restoreContinuity attributes it: an
- * assistant/message carries its turn number explicitly; a user/message is
- * owned by the turn that was open when it was appended (step-1 input and
- * mid-turn steering alike), so the scan tracks turn/start. A plugin-produced
- * message appended while no turn is open (a runtime snapshot projected between
- * turns) belongs to the turn that just ended — see ownerOf.
+ * Assistant messages carry their turn explicitly. User-role messages share
+ * userMessageTurn with surface sealing: the open turn owns step-1 input and
+ * mid-turn steering; the last ended turn owns between-turn messages. Before
+ * the first turn there is no recall page, so the surface policy retains the
+ * original message. Recall records what was said, not present world state.
  */
 
 import type { Agent } from '@deepseek-ai/dsh-agent'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { UserMessage } from '@deepseek-ai/dsh-llm'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { RECALL_STEP_TOOL_NAME } from './recall-step.js'
+import { userMessageTurn } from './turn-ownership.js'
 
 export const RECALL_TOOL_NAME = 'recall_turn'
 export const RECALL_SEARCH_TOOL_NAME = 'recall_search'
@@ -92,7 +76,7 @@ export function parseTurnId(value: unknown): number | null {
 type LogEvent = { type: string; data: unknown; surfaceOp?: unknown; seq?: unknown }
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
-interface ToolResultData { turn: number; step: number; message: { content: ReadonlyArray<ToolResultBlock> } }
+interface ToolResultData { turn: number; step: number; message: { content: ReadonlyArray<ToolResultBlock>; source?: { callId?: string } } }
 
 /** Join a message's text blocks; non-text blocks (images, tool results) contribute nothing. */
 function textOf(message: UserMessage | { content: ReadonlyArray<{ type: string }> }): string {
@@ -128,18 +112,6 @@ function contextSource(data: Record<string, unknown>): string {
   return typeof source?.plugin === 'string' ? source.plugin : String(source?.kind ?? 'generated')
 }
 
-/**
- * Turn that owns a user/message: the open turn; with none open, a plugin-
- * produced message goes to the turn that just ended (the history policy
- * archives a between-turns runtime snapshot with that turn and names its page
- * as the locator, src/context.ts), while anything else stays unattributed. The
- * page renderer and the search index share this so their locators always agree.
- */
-function ownerOf(data: Record<string, unknown>, openTurn: number | null, lastEnded: number | null): number | null {
-  if (openTurn !== null) return openTurn
-  return (data.source as { kind?: unknown } | undefined)?.kind === 'plugin' ? lastEnded : null
-}
-
 function isOriginalEvent(event: { surfaceOp?: unknown }): boolean {
   return event.surfaceOp === undefined || event.surfaceOp === 'append'
 }
@@ -165,8 +137,8 @@ function noteCalls(names: Map<string, string>, event: LogEvent): void {
   }
 }
 
-function expandLocator(seq: number): string {
-  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq}})`
+function expandLocator(seq: number, block?: number): string {
+  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq},"formatVersion":${SESSION_FORMAT_VERSION}${block === undefined ? '' : `,"block":${block}`}})`
 }
 
 interface SealedTurnPage {
@@ -215,9 +187,9 @@ export function renderSealedTurn(
     index += 1
     if (!isOriginalEvent(event)) continue
     const data = event.data as Record<string, unknown>
-    const attributedTurn: unknown = event.type === 'user/message' ? ownerOf(data, openTurn, lastEnded) : data.turn
+    const attributedTurn: unknown = event.type === 'user/message' ? userMessageTurn(openTurn, lastEnded) : data.turn
     if (attributedTurn === turn
-      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/code-dispatch'].includes(event.type)) {
+      && ['user/message', 'assistant/message', 'tool/call', 'tool/result', 'tool/ptc-dispatch'].includes(event.type)) {
       originalRecords.push({ type: event.type, data: event.data })
     }
     switch (event.type) {
@@ -231,10 +203,10 @@ export function renderSealedTurn(
         lastEnded = data.turn as number
         break
       case 'user/message': {
-        // data IS the UserMessage; ownership = the turn open at append time (ownerOf).
+        // data IS the UserMessage; the surface policy shares this ownership.
         if (attributedTurn !== turn) break
+        seen = true
         const text = textOf(data as unknown as UserMessage)
-        if (!text.trim()) break
         // Generated context is never folded into the human's request, but it is
         // still served: the history policy archives superseded runtime
         // snapshots out of the request view naming exactly this page as their
@@ -248,7 +220,10 @@ export function renderSealedTurn(
         if ((data.turn as number) === turn) {
           seen = true
           const text = textOf((data as { message: { content: ReadonlyArray<{ type: string }> } }).message)
-          if (text.trim()) { steps += 1; items.push({ kind: 'step', step: data.step as number, text }) }
+          if (text.length > 0) { steps += 1; items.push({ kind: 'step', step: data.step as number, text }) }
+          else if (!(data as { message: { content: ReadonlyArray<{ type: string }> } }).message.content.some(block => block.type === 'tool-call')) {
+            items.push({ kind: 'step', step: data.step as number, text: '' })
+          }
         }
         break
       case 'tool/call':
@@ -257,10 +232,14 @@ export function renderSealedTurn(
       case 'tool/result':
         if (view === 'dialogue' && (data.turn as number) === turn) {
           const d = data as unknown as ToolResultData
-          const { text, callIds } = resultTextOf(d.message)
-          const name = [...new Set(callIds.map((id) => names.get(id) ?? 'tool'))].join(', ') || 'tool'
           const seq = seqOf(event, index)
-          items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq)}]` })
+          const blocks = d.message.content.filter((block) => block.type === 'tool-result')
+          for (const [blockIndex, block] of blocks.entries()) {
+            const { text } = resultTextOf({ content: [block] })
+            const name = names.get(block.toolCallId ?? d.message.source?.callId ?? '') ?? 'tool'
+            const ordinal = blocks.length > 1 ? blockIndex + 1 : undefined
+            items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq}${ordinal === undefined ? '' : ` block ${ordinal}`} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq, ordinal)}]` })
+          }
         }
         break
       default:
@@ -281,7 +260,7 @@ export function renderSealedTurn(
     + ` · ${steps} assistant step(s) with text · ${frame} · historical record: establishes what was said, not current world state]`,
     '',
     '## User request (verbatim)',
-    users.length > 0 ? users.join('\n\n') : '(no user text recorded for this turn)',
+    users.length > 0 ? users.map(text => text.length > 0 ? text : '(no user text recorded in this message)').join('\n\n') : '(no user text recorded for this turn)',
     '',
     '## Assistant response (verbatim)',
   ]
@@ -289,7 +268,7 @@ export function renderSealedTurn(
     lines.push('(no assistant text recorded for this turn)')
   } else {
     for (const item of items) {
-      if (item.kind === 'step') lines.push(`[step ${item.step}]`, item.text, '')
+      if (item.kind === 'step') lines.push(`[step ${item.step}]`, item.text.length > 0 ? item.text : '(no assistant text recorded for this step)', '')
       else lines.push(item.line)
     }
   }
@@ -328,7 +307,9 @@ export interface RecallHit {
   snippet: string
   /** Durable tool/result event seq (tool_output / tool_error hits only). */
   seq?: number
-  /** Copy-paste follow-up: recall_turn dialogue view for dialogue hits, expand_result by seq for tool hits. */
+  /** 1-based original tool-result sibling when the event contains multiple blocks. */
+  block?: number
+  /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for result blocks. */
   locator: string
 }
 
@@ -352,8 +333,8 @@ function snippetAround(text: string, terms: readonly string[], maxChars = 180): 
   return (from > 0 ? '…' : '') + chars.slice(from, to).join('').replace(/\s+/g, ' ').trim() + (to < chars.length ? '…' : '')
 }
 
-function turnLocator(turn: number): string {
-  return `${RECALL_TOOL_NAME}({"turn":"${turn}","view":"dialogue"})`
+function turnLocator(turn: number, view: RecallView = 'dialogue'): string {
+  return `${RECALL_TOOL_NAME}({"turn":"${turn}","view":"${view}"})`
 }
 
 /** Resolve the searched kinds: explicit kinds win; otherwise the scope (dialogue kinds, "auto" adds bounded tool output). */
@@ -390,14 +371,10 @@ export function searchSessionEvents(
   const terms = tokenize(query)
   if (terms.length === 0) return []
 
-  // Corpus assembly mirrors renderSealedTurn's turn attribution EXACTLY
-  // (ownerOf) — including the turn/end clearing this function originally
-  // lacked. Without it, anything injected between turns was attributed to the
-  // turn that had just ENDED while the recall_turn page did not contain it:
-  // two tools disagreeing about the same locator (review repro #2). A plugin
-  // message between turns now belongs to that ended turn in BOTH tools, so the
-  // policy's note for an archived between-turns snapshot resolves.
-  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number }> = []
+  // The surface policy and both recall tools share userMessageTurn, including
+  // human input and generated context appended between turns. Their locators
+  // must resolve to the page containing the exact original event.
+  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number; block?: number }> = []
   const names = new Map<string, string>()
   let openTurn: number | null = null
   let lastEnded: number | null = null
@@ -419,7 +396,7 @@ export function searchSessionEvents(
         noteCalls(names, event)
         break
       case 'user/message': {
-        const owner = ownerOf(data, openTurn, lastEnded)
+        const owner = userMessageTurn(openTurn, lastEnded)
         if (owner === null) break
         const kind: SearchKind = isUserInput(data) ? 'user' : 'context'
         if (!kinds.has(kind)) break
@@ -452,11 +429,18 @@ export function searchSessionEvents(
       }
       case 'tool/result': {
         const d = data as unknown as ToolResultData
-        const { text, isError, callIds } = resultTextOf(d.message)
-        // Recall outputs are copies of history, not history: never evidence.
-        if (callIds.some((id) => RECALL_FAMILY.has(names.get(id) ?? ''))) break
-        const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
-        if (kinds.has(kind) && text.trim()) docs.push({ turn: d.turn, step: d.step, kind, text, seq })
+        const blocks = d.message.content.filter((block) => block.type === 'tool-result')
+        for (const [blockIndex, block] of blocks.entries()) {
+          // A copied recall sibling cannot suppress independent original evidence.
+          const callId = block.toolCallId ?? d.message.source?.callId ?? ''
+          if (RECALL_FAMILY.has(names.get(callId) ?? '')) continue
+          const { text, isError } = resultTextOf({ content: [block] })
+          const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
+          if (kinds.has(kind) && text.trim()) docs.push({
+            turn: d.turn, step: d.step, kind, text, seq,
+            ...(blocks.length > 1 ? { block: blockIndex + 1 } : {}),
+          })
+        }
         break
       }
       default:
@@ -497,7 +481,8 @@ export function searchSessionEvents(
       score,
       snippet: snippetAround(doc.text, terms, isTool ? TOOL_SNIPPET_CHARS : 180),
       ...(isTool ? { seq: doc.seq } : {}),
-      locator: isTool ? expandLocator(doc.seq) : turnLocator(doc.turn),
+      ...(doc.block === undefined ? {} : { block: doc.block }),
+      locator: isTool ? expandLocator(doc.seq, doc.block) : turnLocator(doc.turn, doc.kind === 'tool_input' ? 'full' : 'dialogue'),
     })
   }
   hits.sort((a, b) => b.score - a.score || b.turn - a.turn)
@@ -530,10 +515,10 @@ export function renderSearchHits(
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — each hit ends with the exact call that returns `
     + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" for the cheap text-only page) for said text, `
-    + 'expand_result({"seq": Q}) for tool output]',
+    + `recall_turn view "full" for tool inputs, expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events)]`,
   ]
   for (const hit of hits) {
-    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}`
+    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}${hit.block === undefined ? '' : ` block ${hit.block}`}`
     lines.push(`- ${where} [${hit.kind}] ${hit.snippet} → ${hit.locator}`)
   }
   return lines.join('\n')
@@ -546,7 +531,8 @@ export function recallSearchToolDefinition(): ToolDefinition {
     description:
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits, each with a bounded original snippet and the exact follow-up call: '
-      + 'recall_turn for dialogue hits, expand_result({"seq": Q}) for tool output. scope "auto" (default) '
+      + 'recall_turn view "dialogue" for said text, view "full" for tool inputs, '
+      + `expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events). scope "auto" (default) `
       + 'searches user/assistant text, generated context (runtime snapshots and injected notices), tool inputs '
       + 'and tool errors plus raw tool output through bounded slots '
       + `(at most ${TOOL_OUTPUT_SLOTS} tool-output hits, ${TOOL_SNIPPET_CHARS} chars each); scope "dialogue" `
@@ -599,9 +585,9 @@ export function recallToolDefinition(): ToolDefinition {
     description:
       'Retrieve the verbatim text of an earlier turn in THIS session: the complete user request and '
       + 'every assistant step, exactly as delivered, plus any generated context (runtime snapshots, injected '
-      + 'notices) recorded during it. Use it when a [slice checkpoint v1 …] node names a turn or cuts its text '
+      + 'notices) recorded during it. Use it when a [slice tape v1 …] entry (or legacy checkpoint) names a turn or cuts its text '
       + '(`…[+N chars, recall_turn]…`), or when a recall_search hit names a turn. view "dialogue" returns the said '
-      + 'text once with each tool result reduced to a one-line expand_result({"seq": Q}) locator (cheap); '
+      + `text once with each tool result reduced to a one-line expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION}}) locator (cheap); `
       + 'view "full" (default) also appends every original record as JSON, including reasoning and tool '
       + 'output. Serves from the durable session log, so it works after agent recreation too.',
     parameters: {

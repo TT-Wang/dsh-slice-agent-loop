@@ -54,17 +54,17 @@ describe('per-turn read index inside a sealed tape entry', () => {
     const text = sealedText(session)
     expect(text).toContain(TAPE_PREFIX)
     // Turn 1 is sealed inside turn 2's entry... each sealed turn names its own read with a fingerprint.
-    expect(text).toMatch(/\[files read this turn: src\/alpha\.ts \(\d+ lines, [0-9a-f]{8}, step 1\)\]/u)
-    expect(text).toMatch(/\[files read this turn: src\/beta\.ts \(\d+ lines, [0-9a-f]{8}, step 1\)\]/u)
+    expect(text).toMatch(/\[files read this turn: src\/alpha\.ts \(\d+ lines, [0-9a-f]{8}, step 1, seq \d+ block 1, read window default, logged result\)\]/u)
+    expect(text).toMatch(/\[files read this turn: src\/beta\.ts \(\d+ lines, [0-9a-f]{8}, step 1, seq \d+ block 1, read window default, logged result\)\]/u)
   })
 
-  it('keeps one entry per file, cites the first step, and is absent when a turn read nothing', () => {
+  it('keeps the latest successful entry per file window, and is absent when a turn read nothing', () => {
     const session = Session.create(SessionId('read-index-dedupe'))
     readTurn(session, 1, ['src/dup.ts', 'src/dup.ts', 'src/other.ts'])
     readTurn(session, 2, []) // a turn with no read at all
     readTurn(session, 3, ['src/last.ts'])
     const text = sealedText(session)
-    expect(text).toMatch(/\[files read this turn: src\/dup\.ts \(\d+ lines, [0-9a-f]{8}, step 1\), src\/other\.ts \(\d+ lines, [0-9a-f]{8}, step 3\)\]/u)
+    expect(text).toMatch(/\[files read this turn: src\/dup\.ts \(\d+ lines, [0-9a-f]{8}, step 2, seq \d+ block 1, read window default, logged result\), src\/other\.ts \(\d+ lines, [0-9a-f]{8}, step 3, seq \d+ block 1, read window default, logged result\)\]/u)
     expect((text.match(/src\/dup\.ts \(/g) ?? [])).toHaveLength(1)
     expect(text).not.toContain('[files read this turn:]')
   })
@@ -78,6 +78,6 @@ describe('per-turn read index inside a sealed tape entry', () => {
     expect(text).toContain('src/f0.ts (')
     expect(text).toContain('src/f9.ts (')
     expect(text).not.toContain('src/f10.ts')
-    expect(text).toContain('+3 more]')
+    expect(text).toContain('+3 more; recall_turn({"turn":"1","view":"full"})]')
   })
 })

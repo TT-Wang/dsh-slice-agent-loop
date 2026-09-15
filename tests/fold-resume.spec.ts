@@ -7,6 +7,7 @@
  *      a result left unshown by a blocked turn is folded when the tape's keep window still holds that turn raw, and sealed with it otherwise.
  */
 import { mkdtemp, rm } from 'node:fs/promises'
+import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
@@ -15,7 +16,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
-import { EXPAND_TOOL_NAME, FOLD_STATS, resultBySeq, spillLocatorOf } from '../src/fold/index.js'
+import { EXPAND_TOOL_NAME, FOLD_STATS, resultBySeq, spillLocatorOf, ToolResultFold } from '../src/fold/index.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
@@ -82,24 +83,55 @@ async function unshownSeed(id: string): Promise<readonly SessionEvent[]> {
 }
 
 describe('expand_result by durable seq', () => {
+  it('rejects unversioned and mismatched seq hints before returning any aliased evidence', async () => {
+    const h = await boot([nativeTool('read-original', 'read', { file_path: 'notes.md' })], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
+    tool(h, 'read', () => BIG)
+    const { agent } = await create(h, 'seq-format-boundary')
+    scriptAt(agent, 2, () => nativeTool('bare-seq', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq }), h.responses)
+    scriptAt(agent, 3, () => nativeTool('old-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: SESSION_FORMAT_VERSION - 1 }), h.responses)
+    scriptAt(agent, 4, () => nativeTool('fresh-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: SESSION_FORMAT_VERSION }), h.responses)
+    scriptAt(agent, 5, () => nativeTool('stable-address', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }), h.responses)
+    scriptAt(agent, 6, () => nativeText('done'), h.responses)
+    await nativeSend(agent, 'retrieve the evidence')
+    expect(h.errors).toEqual([])
+    for (const id of ['bare-seq', 'old-format']) {
+      const error = originals(agent).find(event => event.type === 'tool/result' && event.data.message.source?.callId === id)!
+      expect(error.type === 'tool/result' && error.data.message.content[0].isError).toBe(true)
+      expect(resultTextOf(error)).toContain(`numeric seq requires formatVersion ${SESSION_FORMAT_VERSION}`)
+      expect(resultTextOf(error)).toContain('Do not relabel an old locator')
+      expect(resultTextOf(error)).toContain('recall_turn')
+      expect(resultTextOf(error)).not.toContain('row 55 payload')
+    }
+    for (const id of ['fresh-format', 'stable-address']) {
+      const result = originals(agent).find(event => event.type === 'tool/result' && event.data.message.source?.callId === id)!
+      expect(result.type === 'tool/result' && result.data.message.content[0].isError).toBe(false)
+      expect(resultTextOf(result)).toContain('row 55 payload')
+    }
+    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: ['read'] })
+  })
+
   it('returns the original for a folded result through the view\'s own seq, and turn/step/call still works', async () => {
     const h = await boot([nativeTool('c1', 'read', { file_path: 'notes.md' })], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
     tool(h, 'read', () => BIG)
     const { agent } = await create(h, 'seq-folded')
     let viewSeq = -1
+    let badSeq = -1
     scriptAt(agent, 2, () => {
       viewSeq = replacements(agent)[0]!.seq
-      return nativeTool('c2', EXPAND_TOOL_NAME, { seq: viewSeq })
+      return nativeTool('c2', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: viewSeq })
     }, h.responses)
     scriptAt(agent, 3, () => nativeTool('c3', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1, lines: '2-3' }), h.responses)
-    scriptAt(agent, 4, () => nativeTool('c4', EXPAND_TOOL_NAME, { seq: 4 }), h.responses)   // seq 4 is the user/message
+    scriptAt(agent, 4, () => {
+      badSeq = events(agent).find(event => event.type === 'user/message' && event.data.source.kind === 'user')!.seq
+      return nativeTool('c4', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: badSeq })
+    }, h.responses)
     scriptAt(agent, 5, () => nativeText('done'), h.responses)
     await nativeSend(agent, 'summarize notes.md')
 
     expect(h.errors).toEqual([])
     const original = originals(agent)[0]!
     // the view names both locators
-    expect(requestText(h, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 1, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${original.seq}})`)
+    expect(requestText(h, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 1, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${original.seq}, \\"formatVersion\\": 3})`)
     expect(requestText(h, 1)).not.toContain('row 55 payload')
     // seq of the replacement resolves to the original through sourceEventSeqs[0]
     expect(viewSeq).toBeGreaterThan(original.seq)
@@ -111,7 +143,7 @@ describe('expand_result by durable seq', () => {
     expect(requestText(h, 3)).toContain('2: row 1 payload')
     // a seq that is not a tool result is a clear error, not a silent miss
     const bad = originals(agent).find((e) => e.type === 'tool/result' && e.data.message.content[0]?.toolCallId === 'c4')!
-    expect(resultTextOf(bad)).toContain('seq 4 is a user/message event, not a tool result')
+    expect(resultTextOf(bad)).toContain(`seq ${badSeq} is a user/message event, not a tool result`)
     expect(bad.type === 'tool/result' && bad.data.message.content[0]?.isError).toBe(true)
     // both expansions count against the folded read (seq and turn/step/call name the same fold)
     const stats = FOLD_STATS.get(agent.session)!
@@ -127,8 +159,8 @@ describe('post-execute spill arm', () => {
     await spillStore(h)
     tool(h, 'bash', () => LOG)
     const { agent } = await create(h, 'seq-spilled')
-    scriptAt(agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { seq: replacements(agent)[0]!.seq }), h.responses)
-    scriptAt(agent, 3, () => nativeTool('c3', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, grep: 'worker 7' }), h.responses)
+    scriptAt(agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: replacements(agent)[0]!.seq }), h.responses)
+    scriptAt(agent, 3, () => nativeTool('c3', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: originals(agent)[0]!.seq, grep: 'worker 7' }), h.responses)
     scriptAt(agent, 4, () => nativeText('done'), h.responses)
     await nativeSend(agent, 'run it')
 
@@ -139,7 +171,7 @@ describe('post-execute spill arm', () => {
     expect(spillLocatorOf(resultTextOf(logged))).toMatchObject({ bytes: Buffer.byteLength(LOG, 'utf8') })
     // pre-step adds both expand_result locators to the spilled view before it is first sent; that is not counted as a fold
     expect(requestText(h, 1)).toContain(`stored at`)
-    expect(requestText(h, 1)).toContain(`or ${EXPAND_TOOL_NAME}({\\"seq\\": ${logged.seq}}) returns the full text]`)
+    expect(requestText(h, 1)).toContain(`or ${EXPAND_TOOL_NAME}({\\"seq\\": ${logged.seq}, \\"formatVersion\\": 3}) returns the full text]`)
     expect(requestText(h, 1)).toContain('ERROR worker 7 failed')
     expect(requestText(h, 1)).not.toContain('tick 300 ')
     // the original comes back from the locator, whole or filtered
@@ -160,7 +192,7 @@ describe('post-execute spill arm', () => {
     await spillStore(h)
     tool(h, 'bash', () => (calls += 1) <= 2 ? MID : LOG)
     const { agent } = await create(h, 'spill-backoff')
-    scriptAt(agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq }), h.responses)
+    scriptAt(agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: originals(agent)[0]!.seq }), h.responses)
     scriptAt(agent, 3, () => nativeTool('c3', 'bash', { file_path: 'run' }), h.responses)
     scriptAt(agent, 4, () => nativeTool('c4', EXPAND_TOOL_NAME, { turn: 1, step: 3, call: 1 }), h.responses)
     scriptAt(agent, 5, () => nativeTool('c5', 'bash', { file_path: 'run' }), h.responses)   // 60K after back-off
@@ -222,8 +254,33 @@ describe('resume from snapshotEvents', () => {
     const fresh = originals(two.agent).at(-1)!
     expect(fresh.seq).toBeGreaterThan(seed.length - 1)
     expect(folds.map((e) => (e as { sourceEventSeqs?: number[] }).sourceEventSeqs)).toEqual([[fresh.seq]])
-    expect(requestText(second, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 2, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${fresh.seq}})`)
+    expect(requestText(second, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 2, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${fresh.seq}, \\"formatVersion\\": 3})`)
     expect(FOLD_STATS.get(two.agent.session)).toMatchObject({ folded: 1, expanded: 0, backedOff: [] })
+  })
+
+  it.each(['error', 'aborted'] as const)('does not refold raw evidence sent in a failed %s continuation', async (kind) => {
+    const failure: StreamChunk[] = [{ type: 'finish', reason: { kind, failure: { code: 'SERVER', message: 'failed continuation fixture' } } }]
+    const first = await boot([nativeTool('old-read', 'read', { file_path: 'a.txt' }), failure], { slice: false })
+    await first.ctx.plugin(ToolResultFold, { pinSteps: 2, digest: { minChars: 1500 }, spillPreviewMinBytes: 0 })
+    tool(first, 'read', () => BIG)
+    const one = await create(first, `resume-attempt-${kind}`)
+    await nativeSend(one.agent, 'read a.txt')
+    const shown = originals(one.agent)[0]!
+    expect(requestText(first, 1)).toContain('row 55 payload')
+    const seed = structuredClone(events(one.agent))
+    expect(seed.some((event) => event.type === 'assistant/attempt' && event.seq > shown.seq)).toBe(true)
+    expect(seed.some((event) => event.type === 'request/header' && event.seq > shown.seq)).toBe(false)
+
+    const second = await boot([nativeTool('new-read', 'read', { file_path: 'b.txt' }), nativeText('done')], { slice: false })
+    await second.ctx.plugin(ToolResultFold, { pinSteps: 0, digest: { minChars: 1500 }, spillPreviewMinBytes: 0 })
+    tool(second, 'read', () => BIG)
+    const two = await create(second, `resume-attempt-${kind}`, seed)
+    await nativeSend(two.agent, 'continue')
+    expect(second.errors).toEqual([])
+    expect(requestText(second, 0)).toContain('row 55 payload')
+    expect(replacements(two.agent).some((event) => event.type === 'tool/result' && event.sourceEventSeqs?.includes(shown.seq))).toBe(false)
+    const fresh = originals(two.agent).at(-1)!
+    expect(replacements(two.agent).map((event) => event.type === 'tool/result' ? event.sourceEventSeqs : undefined)).toEqual([[fresh.seq]])
   })
 
   it('folds a result that landed after the last request in the previous process', async () => {
@@ -254,7 +311,7 @@ describe('resume from snapshotEvents', () => {
     await nativeSend(two.agent, 'continue')
 
     expect(second.errors).toEqual([])
-    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq}})`)
+    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq},\\"formatVersion\\":3})`)
     expect(requestText(second, 0)).not.toContain('row 55 payload')
   })
 
@@ -264,7 +321,7 @@ describe('resume from snapshotEvents', () => {
     const one = await create(first, 'resume-counts')
     scriptAt(one.agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }), first.responses)
     scriptAt(one.agent, 3, () => nativeTool('c3', 'read', { file_path: 'b.txt' }), first.responses)
-    scriptAt(one.agent, 4, () => nativeTool('c4', EXPAND_TOOL_NAME, { seq: replacements(one.agent)[1]!.seq }), first.responses)
+    scriptAt(one.agent, 4, () => nativeTool('c4', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: replacements(one.agent)[1]!.seq }), first.responses)
     scriptAt(one.agent, 5, () => nativeText('done'), first.responses)
     await nativeSend(one.agent, 'read twice')
     expect(first.errors).toEqual([])
