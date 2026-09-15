@@ -61,6 +61,7 @@ writeFileSync(join(profile, 'package.json'), JSON.stringify({
 writeFileSync(join(profile, 'pnpm-workspace.yaml'), 'packages:\n  - .\nnodeLinker: hoisted\nautoInstallPeers: false\n')
 const env = { ...process.env, DSH_HOME: home, DSH_VALIDATION_OUTPUT: output }
 let commandNumber = 0
+/** @param {string} command @param {string[]} args @param {string} [cwd] */
 function run(command, args, cwd = directory) {
   const result = spawnSync(command, args, { cwd, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: stepTimeoutMs })
   const filename = `command-${++commandNumber}.log`

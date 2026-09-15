@@ -1,6 +1,6 @@
 > ⚠️ **状态（2026-09-10）：与 `SEAMS.md` / `MAP.md` 同批，属 2026-09-08 原生迁移
-> 之前的方案文档。** 坏链两处：`[schema.ts](schema.ts)` —— `plan/schema.ts` 从未落地
-> （提案稿被 `assemble.ts` 取代后删除）；`[PORT-REPORT.md](../PORT-REPORT.md)` ——
+> 之前的方案文档。** 坏链两处：`schema.ts` —— `plan/schema.ts` 从未落地
+> （提案稿被 `assemble.ts` 取代后删除）；`PORT-REPORT.md` ——
 > 该文件不在本仓库。本页的 build 裁决讲的是已退役的自建渲染器，不适用于现役的
 > `src/context.ts` 路径。
 
@@ -16,11 +16,11 @@
 |---|---|
 | **Verdict** | **build**（走独立演化） |
 | **现状** | `src/slice/` 是 `sliceagent` Python 引擎 @ `tape-graduation-w1` 的字节级移植，44 golden case 逐字节钉住 |
-| **借的代价** | 19 区里 16 个恒空、7 个 mandatory 区活 1 个、5 个 `ContextBlock` 字段只写不读、4 档 Fidelity 用 2 档、2 个 `locatorRegion` 分支被 `mandatory` 挡死不可达。**全部是"照抄了渲染层但没抄生产层"的直接后果**（见 [PORT-REPORT.md](../PORT-REPORT.md) §4） |
+| **借的代价** | 19 区里 16 个恒空、7 个 mandatory 区活 1 个、5 个 `ContextBlock` 字段只写不读、4 档 Fidelity 用 2 档、2 个 `locatorRegion` 分支被 `mandatory` 挡死不可达。**全部是"照抄了渲染层但没抄生产层"的直接后果**（见 `PORT-REPORT.md` §4） |
 | **Precedent** | 无可引 —— 上游是私有引擎，没有公开的生产案例可查。**按默认怀疑规则，这本来就不该按 borrow 计价** |
 | **Counter-example** | 不适用（不是第三方库） |
 | **Exit condition** | 如果将来需要与 Python 引擎双向对齐（例如共享 golden、或把 TS 侧改动回灌），独立演化就是错的 —— 但那需要上游先有这个诉求 |
-| **Build cost** | 远低于初估。降级机制删除（[SEAMS.md](SEAMS.md) S2）、区表塌成数组字面量之后，新 schema 的**结构部分约 25 行**（见 [schema.ts](schema.ts)），其余是原样搬过来的 header 文本。真正的工作量在别处：从 parity 改成行为测试（S6 未决），以及 driver 侧连带删除 |
+| **Build cost** | 远低于初估。降级机制删除（[SEAMS.md](SEAMS.md) S2）、区表塌成数组字面量之后，新 schema 的**结构部分约 25 行**（见 `schema.ts`），其余是原样搬过来的 header 文本。真正的工作量在别处：从 parity 改成行为测试（S6 未决），以及 driver 侧连带删除 |
 
 ---
 

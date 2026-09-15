@@ -13,7 +13,7 @@ export interface HistoryConfig {
     pinFirstTurn?: boolean;
     /** Sealed user messages at or below this length are kept verbatim in the entry; longer ones keep head 600 / tail 300 (default 1,200). */
     pinUserChars?: number;
-    /** Target for one entry's text (default 8,000); a span of many short turns may exceed it. */
+    /** Hard code-point cap for new entry text (default 8,000, minimum 256); existing frozen entries are unchanged. */
     entryMaxChars?: number;
 }
 export interface Config {

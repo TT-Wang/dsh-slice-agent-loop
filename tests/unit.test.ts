@@ -6,7 +6,7 @@
  * src/lab/assemble.ts 取代，随之删除。tape 与 continuity 部分原样保留。
  */
 import { describe, expect, it } from "vitest";
-import { searchSessionEvents, renderSearchHits } from "../src/recall.js";
+import { searchSessionEvents, renderSearchHits, renderSealedTurn } from "../src/recall.js";
 import {
   TapeEntry, composeAfter, baseEntry, patchEntry, tapeChars, applyUnified, unifiedPatch, _h,
 } from "../src/slice/tape.js";
@@ -267,8 +267,9 @@ describe("recall_search 评审修复三门(2026-08-12 复审)", () => {
     expect(hits2.every(h => h.kind !== "tool_input")).toBe(true);
   });
 
-  it("②turn/end 之后注入的消息不归属已封存轮(与 renderSealedTurn 同规)", () => {
+  it("②turn/end 之后的历史消息由上一轮召回页服务，检索定位与页内容一致", () => {
     const events = [
+      ev("user/message", { content: [{ type: "text", text: "BEFORE FIRST TURN" }] }),
       ev("turn/start", { turn: 1 }),
       ev("assistant/message", { turn: 1, step: 1, message: { content: [{ type: "text", text: "real turn one" }] } }),
       ev("turn/end", { turn: 1, reason: { kind: "completed" } }),
@@ -276,7 +277,16 @@ describe("recall_search 评审修复三门(2026-08-12 复审)", () => {
       ev("turn/start", { turn: 2 }),
       ev("turn/end", { turn: 2, reason: { kind: "completed" } }),
     ];
-    expect(searchSessionEvents(events as never, "INJECTED BETWEEN")).toEqual([]);
+    // Current sealing and recall share ownership regardless of source metadata.
+    // Source-less historical records are generated context, not human speech;
+    // between-turn records belong to the ended turn, pre-first records to none.
+    const hits = searchSessionEvents(events, "INJECTED BETWEEN");
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ turn: 1, kind: "context", locator: 'recall_turn({"turn":"1","view":"dialogue"})' });
+    expect(renderSealedTurn(events, 1, { view: "dialogue" })!.rendered).toContain("INJECTED BETWEEN TURNS");
+    expect(renderSealedTurn(events, 2)!.rendered).not.toContain("INJECTED BETWEEN TURNS");
+    expect(searchSessionEvents(events, "BEFORE FIRST")).toEqual([]);
+    expect(renderSealedTurn(events, 1)!.rendered).not.toContain("BEFORE FIRST TURN");
   });
 
   it("③零命中文案报告实际搜过的 kinds,不建议重复已做的事", () => {
@@ -285,4 +295,3 @@ describe("recall_search 评审修复三门(2026-08-12 复审)", () => {
     expect(renderSearchHits("x", [])).toContain('kinds: ["tool_output"]');
   });
 });
-

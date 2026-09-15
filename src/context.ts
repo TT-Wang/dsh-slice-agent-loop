@@ -26,6 +26,7 @@ import { createUserMessage, type Message, type UserMessage } from '@deepseek-ai/
 import { SESSION_FORMAT_VERSION, deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
 import { readHistory, readIndexLine, readsForResult, type ReadHistory, type ReadRef } from './context-reads.js'
+import { userMessageTurn } from './turn-ownership.js'
 
 export const HISTORY_SOURCE = 'slice:history'
 export const CHECKPOINT_PREFIX = '[slice checkpoint v1 · turns '
@@ -35,13 +36,15 @@ export const TAPE_PREFIX = '[slice tape v1 · turns '
 export const SNAPSHOT_NOTE_PREFIX = '[slice note · '
 /** The host's runtime-context projection (dsh-agent-loop RuntimeContextProjection). */
 export const RUNTIME_CONTEXT_SOURCE = '@deepseek-ai/dsh-system-prompt'
+/** Enough space for the range header and an intact recall command. */
+export const MIN_ENTRY_MAX_CHARS = 256
 
 export interface HistoryPolicy {
   /** Completed turns kept raw at the tail; 0 seals a turn as soon as the next one starts. */
   keepRecentTurns: number
   pinFirstTurn: boolean
   pinUserChars: number
-  /** Target for one sealed entry's text; a span of many short turns may exceed it. */
+  /** Hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
   entryMaxChars: number
 }
 
@@ -54,7 +57,7 @@ export interface PlannedAppend {
 
 export interface ArchivePlan {
   appends: PlannedAppend[]
-  /** Serialized final view (history + pending messages) after the plan. */
+  /** Lazily measured serialized final view (history + pending messages) after the plan. */
   viewChars: number
   /** Serialized rendered history after the plan. */
   historyChars: number
@@ -68,7 +71,16 @@ const USER_TAIL = 300
 const TOOL_LINES_PER_TURN = 6
 
 function chars(value: unknown): number {
-  return Array.from(JSON.stringify(value)).length
+  return textChars(JSON.stringify(value))
+}
+
+function textChars(text: string): number {
+  let count = text.length
+  // Count surrogate pairs without allocating an array of every character;
+  // native regexp scanning also keeps large ASCII tool payloads cheap.
+  const pairs = /[\uD800-\uDBFF][\uDC00-\uDFFF]/g
+  while (pairs.exec(text)) count -= 1
+  return count
 }
 
 function textOf(message: Message): string {
@@ -134,13 +146,12 @@ interface Node {
   event: SessionEvent
   /** Null for surface nodes that derive no message (an empty assistant reply); they still occupy the range. */
   message: Message | null
-  size: number
   /** Turn range the node belongs to (a checkpoint spans several turns). */
   turns: [number, number]
   protected: boolean
   /** A superseded runtime snapshot still in the unsealed tail. Render only as a note. */
   superseded: boolean
-  /** Turns recall_turn attributes the snapshot(s) to (src/recall.ts ownerOf), 0 for none. */
+  /** Turns recall_turn attributes the snapshot(s) to (userMessageTurn), 0 for none. */
   recallTurns: number[]
 }
 
@@ -159,8 +170,8 @@ interface Layout { nodes: Node[]; completedThrough: number; lastTurn: number; to
  */
 function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readonly Message[]): Layout {
   const turnAt = new Map<SessionSeq, number>()
-  // Recall owner at append time, as src/recall.ts ownerOf attributes a runtime
-  // snapshot (a plugin message): the open turn, else the turn that just ended, else 0.
+  // Share recall's userMessageTurn attribution for both human input and runtime
+  // snapshots: the open turn, else the turn that just ended, else 0.
   const recallAt = new Map<SessionSeq, number>()
   const toolNames = new Map<string, string>()
   let turn = 0
@@ -172,7 +183,7 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
     if (event.type === 'turn/start') { turn = event.data.turn; open = event.data.turn }
     if (event.type === 'tool/call') toolNames.set(event.data.callId, event.data.name)
     turnAt.set(event.seq, turn)
-    recallAt.set(event.seq, open || ended)
+    recallAt.set(event.seq, userMessageTurn(open || null, ended || null) ?? 0)
     if (event.type === 'turn/end') {
       completedThrough = event.seq
       lastTurn = Math.max(lastTurn, event.data.turn)
@@ -181,7 +192,8 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
     }
   }
   const turnOf = (event: SessionEvent): number =>
-    event.type === 'assistant/message' || event.type === 'tool/result' ? event.data.turn : turnAt.get(event.seq) ?? 0
+    event.type === 'assistant/message' || event.type === 'tool/result' ? event.data.turn
+      : event.type === 'user/message' ? recallAt.get(event.seq) ?? 0 : turnAt.get(event.seq) ?? 0
   const rangeOf = (event: SessionEvent): [number, number] => {
     if (ours(event)) {
       const header = /^\[slice (?:checkpoint|tape) v1 · turns (\d+)-(\d+)/.exec(textOf(deriveEventMessage(event)!))
@@ -221,7 +233,7 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
       if (!own) guarded = true
       else if (pinFirstTurn && !pinned && turns[0] === 1) { pinned = true; guarded = true }
     }
-    nodes.push({ seq, event, message, size: message ? chars(message) : 0, turns, protected: guarded,
+    nodes.push({ seq, event, message, turns, protected: guarded,
       superseded: superseded && !guarded, recallTurns })
   }
   // The surface order, not event seq, defines the paid prefix: replacements are
@@ -239,7 +251,7 @@ function inspectSurface(session: Session, pinFirstTurn: boolean, pending: readon
 
 interface Run { nodes: Node[]; message: UserMessage }
 
-interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; tools: string[]; reads: ReadRef[]; snapshots: number[] }
+interface TurnItem { kind: 'turn'; turn: number; users: string[]; reply: string; emptyReplies: number; tools: string[]; reads: ReadRef[]; snapshots: number[] }
 interface EarlierItem { kind: 'earlier'; turns: [number, number] }
 
 function excerpt(text: string, verbatimUpTo: number, head: number, tail: number): string {
@@ -255,14 +267,14 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
     const { event } = node
     if (ours(event) && !node.superseded) { items.push({ kind: 'earlier', turns: node.turns }); current = undefined; continue }
     const turn = node.turns[0]
-    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', tools: [], reads: [], snapshots: [] }; items.push(current) }
+    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, users: [], reply: '', emptyReplies: 0, tools: [], reads: [], snapshots: [] }; items.push(current) }
     // A superseded snapshot is neither user speech nor current truth: never a request line.
     if (node.superseded) { current.snapshots.push(...node.recallTurns); continue }
-    if (!node.message) continue
-    if (event.type === 'user/message') current.users.push(textOf(node.message))
+    if (event.type === 'user/message') current.users.push(node.message ? textOf(node.message) : '')
     else if (event.type === 'assistant/message') {
-      const text = textOf(node.message)
-      if (text) current.reply = text
+      const text = node.message ? textOf(node.message) : ''
+      if (text.trim()) current.reply = text
+      else if (!event.data.message.content.some(block => block.type === 'tool-call')) current.emptyReplies += 1
     } else if (event.type === 'tool/result') {
       // Point at the original append record: it contains the logged text or a
       // spill locator, rather than a later surface digest.
@@ -271,7 +283,7 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
       const blocks = source.data.message.content
       current.reads.push(...readsForResult(history, source))
       const name = blocks.map(block => toolNames.get(block.toolCallId) ?? 'tool').filter((n, i, a) => a.indexOf(n) === i).join(', ')
-      const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? Array.from(b.text).length : 0), 0)
+      const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? textChars(b.text) : 0), 0)
       current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
     }
   }
@@ -289,20 +301,30 @@ export function snapshotNote(recallTurns: readonly number[]): string {
   return `${SNAPSHOT_NOTE_PREFIX}${noun} superseded by a later one; not repeated here · verbatim: ${where}]`
 }
 
-interface Shrink { tools: boolean; userHead: number; userTail: number; reply: ReplyCaps }
+interface Shrink { tools: boolean; readChars: number; userHead: number; userTail: number; reply: ReplyCaps; compact?: boolean }
 
 function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink, history: ReadHistory): string {
-  const lines = [`${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":${SESSION_FORMAT_VERSION}}) returns a tool result]`]
+  const lines = [shrink.compact
+    ? `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · full details: recall_turn({"turn":"${range[0]}","view":"full"}); repeat for each turn through ${range[1]}]`
+    : `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":${SESSION_FORMAT_VERSION}}) returns a tool result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
     lines.push(`[turn ${item.turn}]`)
     item.users.forEach((text, index) => {
-      const body = excerpt(text, shrink.userHead >= USER_HEAD ? pinUserChars : 0, shrink.userHead, shrink.userTail)
+      const body = text.trim() ? excerpt(text, shrink.userHead >= USER_HEAD ? pinUserChars : 0, shrink.userHead, shrink.userTail) : '[user message contained no visible text]'
       lines.push(index === 0 ? body : `[user]\n${body}`)
     })
-    if (item.snapshots.length) lines.push(snapshotNote(item.snapshots))
-    if (item.reply) lines.push(renderTapeReply(`slice-turn-${item.turn}`, item.reply, shrink.reply).trimEnd())
-    if (item.reads.length) lines.push(readIndexLine(item.reads, item.turn, history))
+    if (item.snapshots.length) lines.push(shrink.compact
+      ? `[${item.snapshots.length} runtime-context snapshot(s) superseded; recall_turn({"turn":"${item.turn}","view":"full"})]`
+      : snapshotNote(item.snapshots))
+    if (item.reply) lines.push(shrink.compact
+      ? `[reply] ${excerpt(item.reply, 0, shrink.reply.head, shrink.reply.tail)}`
+      : renderTapeReply(`slice-turn-${item.turn}`, item.reply, shrink.reply).trimEnd())
+    if (item.emptyReplies) lines.push(`[${item.emptyReplies} assistant message(s) contained no visible text or tool calls]`)
+    if (item.reads.length && shrink.readChars) {
+      const index = readIndexLine(item.reads, item.turn, history, shrink.readChars)
+      if (index) lines.push(index)
+    }
     if (shrink.tools && item.tools.length) {
       lines.push(...item.tools.slice(0, TOOL_LINES_PER_TURN))
       if (item.tools.length > TOOL_LINES_PER_TURN) lines.push(`[+${item.tools.length - TOOL_LINES_PER_TURN} more tool results]`)
@@ -312,10 +334,12 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
 }
 
 /**
- * Deterministic entry text: drop tool lines first, then shrink excerpts until it fits.
- * `maxChars` is a target: the smallest level is returned as is when even it does not fit.
+ * Deterministic entry text: drop tool lines first, then shrink indexes and
+ * excerpts. A very large backlog falls back to a complete range/recall marker;
+ * never cut JSON locators or rewrite a previously sealed entry to make it fit.
  */
 export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number): string {
+  checkEntryLimit(maxChars)
   const history = readHistory(session)
   const items = collectItems(session, run, toolNames, history)
   const covered = new Set<number>()
@@ -324,19 +348,27 @@ export function renderCheckpoint(session: Session, run: readonly Node[], toolNam
     else for (let t = item.turns[0]; t <= item.turns[1]; t += 1) covered.add(t)
   }
   const range: [number, number] = [Math.min(...covered), Math.max(...covered)]
-  const levels: Shrink[] = [{ tools: true, userHead: USER_HEAD, userTail: USER_TAIL, reply: { cap: 2000, head: 1400, tail: 500 } }]
+  const levels: Shrink[] = [{ tools: true, readChars: Math.min(2_000, maxChars), userHead: USER_HEAD, userTail: USER_TAIL, reply: { cap: 2000, head: 1400, tail: 500 } }]
   levels.push({ ...levels[0]!, tools: false })
   for (let divisor = 2; divisor <= 16; divisor *= 2) {
-    levels.push({ tools: false, userHead: Math.floor(USER_HEAD / divisor), userTail: Math.floor(USER_TAIL / divisor),
+    levels.push({ tools: false, readChars: Math.floor(2_000 / divisor), userHead: Math.floor(USER_HEAD / divisor), userTail: Math.floor(USER_TAIL / divisor),
       reply: { cap: Math.floor(2000 / divisor), head: Math.floor(1400 / divisor), tail: Math.floor(500 / divisor) } })
   }
+  levels.push({ tools: false, readChars: 128, userHead: 24, userTail: 12, reply: { cap: 48, head: 32, tail: 16 }, compact: true })
+  levels.push({ ...levels.at(-1)!, readChars: 0 })
   let text = ''
   for (const level of levels) {
     text = renderItems(items, range, covered.size, pinUserChars, level, history)
-    if (Array.from(text).length <= maxChars) return text
+    if (textChars(text) <= maxChars) return text
   }
-  return text
+  return `${TAPE_PREFIX}${range[0]}-${range[1]} · ${covered.size} turn(s) sealed]\n[details omitted to fit entry; recall_turn({"turn":"${range[0]}","view":"full"}); repeat for each turn through ${range[1]}]`
 }
+
+function checkEntryLimit(maxChars: number): void {
+  if (!Number.isSafeInteger(maxChars) || maxChars < MIN_ENTRY_MAX_CHARS) throw new RangeError(`history.entryMaxChars must be a safe integer >= ${MIN_ENTRY_MAX_CHARS}`)
+}
+
+const warnedCuts = new WeakMap<Session, Set<string>>()
 
 /**
  * Decide the whole seal before any append. Returns an empty plan when every
@@ -350,7 +382,9 @@ export function renderCheckpoint(session: Session, run: readonly Node[], toolNam
  * the 2026-09-08 refactor and is gone again.
  */
 export function planSeal(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan {
+  checkEntryLimit(policy.entryMaxChars)
   const layout = inspectSurface(session, policy.pinFirstTurn, pending)
+  const incoming = [...pending]
   const messagesOf = (nodes: readonly Node[]): Message[] => nodes.flatMap(node => node.message ? [node.message] : [])
   const view = (runs: readonly Run[]): { viewChars: number; historyChars: number } => {
     const messages: Message[] = []
@@ -366,11 +400,10 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
       if (run) { messages.push(run.message); historyChars += chars(run.message); continue }
       if (shadowed.has(node.seq)) continue
       if (node.message) messages.push(node.message)
-      if (!node.protected) historyChars += node.size
+      if (!node.protected && node.message) historyChars += chars(node.message)
     }
-    return { viewChars: chars([...messages, ...pending]), historyChars }
+    return { viewChars: chars([...messages, ...incoming]), historyChars }
   }
-  const initial = view([])
   /** An entry already on the surface. Frozen: re-rendering one rewrites the prefix it sits in. */
   const sealedEntry = (node: Node): boolean => ours(node.event)
   // Seal completed turns beyond the configured raw tail. Never backfill a seal
@@ -397,7 +430,7 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
         const unpaired = unpairedCalls(messagesOf(turn))
         if (!unpaired.length) segment.push(...turn)
         else {
-          const key = `${turn[0]!.seq}`
+          const key = JSON.stringify([turn[0]!.seq, [...unpaired].sort()])
           if (!cuts.has(key)) cuts.set(key, `slice tape: turn ${turn[0]!.turns[1]} (seq ${turn[0]!.seq}..${turn[turn.length - 1]!.seq}) kept raw and cut the sealed span, unpaired tool call/result ${unpaired.join(', ')}`)
           push(segment)
           segment = []
@@ -415,13 +448,24 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
     return runs
   }
   const plan = buildRuns(sealBefore)
-  for (const message of cuts.values()) warn?.(message)
-  const measure = plan.length ? view(plan) : initial
+  if (warn && cuts.size) {
+    let emitted = warnedCuts.get(session)
+    if (!emitted) { emitted = new Set(); warnedCuts.set(session, emitted) }
+    for (const [key, message] of cuts) {
+      if (emitted.has(key)) continue
+      warn(message)
+      emitted.add(key)
+    }
+  }
   const appends = plan.map(run => ({
     message: run.message,
     start: run.nodes[0]!.seq, end: run.nodes[run.nodes.length - 1]!.seq, sources: run.nodes.map(node => node.seq),
   }))
-  return { appends, ...measure }
+  // Normal sealing needs no request-size scan. Preserve diagnostic fields for
+  // callers that ask, measured against this plan's immutable layout exactly once.
+  let measure: { viewChars: number; historyChars: number } | undefined
+  const measured = () => measure ??= view(plan)
+  return { appends, get viewChars() { return measured().viewChars }, get historyChars() { return measured().historyChars } }
 }
 
 export function applySeal(session: Session, plan: ArchivePlan): void {

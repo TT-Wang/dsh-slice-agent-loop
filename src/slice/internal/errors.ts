@@ -11,30 +11,3 @@ export class ValueError extends Error {
     this.name = "ValueError";
   }
 }
-
-export class PyTypeError extends Error {
-  readonly pyName = "TypeError";
-  constructor(message: string) {
-    super(message);
-    this.name = "TypeError";
-  }
-}
-
-/** context.ContextUnfitError — subclasses ValueError in Python too. */
-export class ContextUnfitError extends ValueError {
-  readonly pyName: string = "ContextUnfitError";
-  readonly requiredChars: number;
-  readonly capacityChars: number;
-  readonly mandatoryItems: readonly string[];
-
-  constructor(requiredChars: number, capacityChars: number, mandatoryItems: readonly string[]) {
-    super(
-      `mandatory context needs ${requiredChars} chars but capacity is ${capacityChars}; ` +
-      `items=${mandatoryItems.join(", ") || "(none)"}`,
-    );
-    this.name = "ContextUnfitError";
-    this.requiredChars = requiredChars;
-    this.capacityChars = capacityChars;
-    this.mandatoryItems = mandatoryItems;
-  }
-}

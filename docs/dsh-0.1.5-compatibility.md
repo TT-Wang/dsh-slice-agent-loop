@@ -1,6 +1,6 @@
 # DSH 0.1.5 compatibility
 
-The plugin now targets the newest published release, **0.1.5-rc.2**, and also supports **0.1.5-rc.1**. On 2026-09-13, npm's `next` tag resolved to rc.2 while `latest` still resolved to rc.1. Dependencies and packed checks use exact versions; the supported peer range is limited to those two verified releases.
+The plugin targets **0.1.5-rc.2** and also supports **0.1.5-rc.1**. On 2026-09-13, npm's `next` tag resolved to rc.2 while `latest` still resolved to rc.1. Dependencies and packed checks use exact versions; the supported peer range is limited to those two verified releases.
 
 The native tape, fold and recall policy is retained. The compatibility update changes four host contracts:
 
@@ -19,7 +19,9 @@ This plugin rejects bare or mismatched-version numeric locators. Obtain a curren
 
 This build does not support the old alpha.2 runtime API. Existing running profiles and directories were not switched during the upgrade.
 
-## Verification
+## Verification recorded on 2026-09-13
+
+This historical compatibility receipt predates the September 16 audit fixes. The updated verification is recorded in [the audit cross-check](reviews/2026-09-16-crosscheck.md).
 
 Local verification passed: **250/250 tests across 31 files**, typechecks, clean peer dependencies, and **250/250** tests against exact rc.2 source `fb2c4b9e698e30edb738bca4cf0618587db7d203`. The same tarball passed both rc.2 and rc.1 CLI installations: each ran five model requests over four turns, retained the native system message and three frozen tape entries, reloaded JSONL persistence, and reported zero agent errors. SHA-256: `9bac66586cdebedaf0342c03056cce3e52fbc4fd5c2aa63195400ea20d8e3a21`. See the [machine-readable receipt](dsh-0.1.5-verification.json). Checks cover the published rc.2 dependency graph, exact release source, packed CLI installation on rc.2 and rc.1, native system-message reconstruction, PTC retrieval, JSONL resume, and migration of an actual alpha.2 mock session. No paid model evaluation or new benchmark campaign was run, and compatibility tests do not measure cost or model success rate.
 

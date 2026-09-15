@@ -1,0 +1,180 @@
+{
+  "date": "2026-09-16",
+  "baselineCommit": "023385f6ae3f7bb3f91babef2058708298590777",
+  "auditBaseCommit": "db72621f2897274689f1a3cd5e02e6ec11fb7efd",
+  "sourceAuditSha256": "15bc5189040479dc8f80dbee3a8f7025c3369c8d2cd4a6e953cc07a4aa02414a",
+  "publishedSuite": {
+    "files": 37,
+    "tests": 285,
+    "passed": 285,
+    "skipped": 0
+  },
+  "typechecks": [
+    "tsconfig.json --noEmit",
+    "tsconfig.test.json",
+    "tsconfig.scripts.json",
+    "tsconfig.gates.json"
+  ],
+  "coverage": {
+    "lines": {
+      "total": 2234,
+      "covered": 2038,
+      "skipped": 0,
+      "pct": 91.22
+    },
+    "statements": {
+      "total": 2956,
+      "covered": 2574,
+      "skipped": 0,
+      "pct": 87.07
+    },
+    "functions": {
+      "total": 394,
+      "covered": 348,
+      "skipped": 0,
+      "pct": 88.32
+    },
+    "branches": {
+      "total": 2347,
+      "covered": 1873,
+      "skipped": 0,
+      "pct": 79.8
+    },
+    "branchesTrue": {
+      "total": 0,
+      "covered": 0,
+      "skipped": 0,
+      "pct": 100
+    }
+  },
+  "coverageFloors": {
+    "statements": 85,
+    "branches": 78,
+    "functions": 86,
+    "lines": 90
+  },
+  "hostSource": {
+    "commit": "fb2c4b9e698e30edb738bca4cf0618587db7d203",
+    "tests": 285,
+    "passed": 285,
+    "skipped": 0,
+    "evidence": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/dsh-slice-master-O2IJ9g"
+  },
+  "packed": [
+    {
+      "invariantSubpathLoaded": true,
+      "status": "passed",
+      "dsh": "0.1.5-rc.2",
+      "requests": 5,
+      "turns": 4,
+      "persistenceReload": true,
+      "nativeSystemMessageRetained": true,
+      "frozenTapeRetained": true,
+      "tapeEntries": 3,
+      "replacements": 3,
+      "errors": [],
+      "artifactSha256": "492fd9e4e4ae460ccc52e43e858953ebdc284f12d0b38b2e98ea41012bf3b1a3",
+      "node": "v22.22.3",
+      "pnpm": "11.7.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "evidence": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/dsh-slice-packed-j7PKM1/evidence"
+    },
+    {
+      "invariantSubpathLoaded": true,
+      "status": "passed",
+      "dsh": "0.1.5-rc.1",
+      "requests": 5,
+      "turns": 4,
+      "persistenceReload": true,
+      "nativeSystemMessageRetained": true,
+      "frozenTapeRetained": true,
+      "tapeEntries": 3,
+      "replacements": 3,
+      "errors": [],
+      "artifactSha256": "492fd9e4e4ae460ccc52e43e858953ebdc284f12d0b38b2e98ea41012bf3b1a3",
+      "node": "v22.22.3",
+      "pnpm": "11.7.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "evidence": "/var/folders/ln/zfd8s4v510529zt2t3wnshsr0000gn/T/dsh-slice-packed-4dM0go/evidence"
+    }
+  ],
+  "longLabels": {
+    "baselineCommit": "023385f6ae3f7bb3f91babef2058708298590777",
+    "turns": 13,
+    "readsPerTurn": 10,
+    "entryMaxChars": 2000,
+    "baselineEntryChars": 191431,
+    "currentEntryChars": 1596,
+    "currentText": "[slice tape v1 · turns 1-13 · 13 turn(s) sealed · full details: recall_turn({\"turn\":\"1\",\"view\":\"full\"}); repeat for each turn through 13]\n[turn 1]\nQUESTION_1\n[reply] ANSWER_1\n[files read this turn: +10 more; recall_turn({\"turn\":\"1\",\"view\":\"full\"})]\n[turn 2]\nQUESTION_2\n[reply] ANSWER_2\n[files read this turn: +10 more; recall_turn({\"turn\":\"2\",\"view\":\"full\"})]\n[turn 3]\nQUESTION_3\n[reply] ANSWER_3\n[files read this turn: +10 more; recall_turn({\"turn\":\"3\",\"view\":\"full\"})]\n[turn 4]\nQUESTION_4\n[reply] ANSWER_4\n[files read this turn: +10 more; recall_turn({\"turn\":\"4\",\"view\":\"full\"})]\n[turn 5]\nQUESTION_5\n[reply] ANSWER_5\n[files read this turn: +10 more; recall_turn({\"turn\":\"5\",\"view\":\"full\"})]\n[turn 6]\nQUESTION_6\n[reply] ANSWER_6\n[files read this turn: +10 more; recall_turn({\"turn\":\"6\",\"view\":\"full\"})]\n[turn 7]\nQUESTION_7\n[reply] ANSWER_7\n[files read this turn: +10 more; recall_turn({\"turn\":\"7\",\"view\":\"full\"})]\n[turn 8]\nQUESTION_8\n[reply] ANSWER_8\n[files read this turn: +10 more; recall_turn({\"turn\":\"8\",\"view\":\"full\"})]\n[turn 9]\nQUESTION_9\n[reply] ANSWER_9\n[files read this turn: +10 more; recall_turn({\"turn\":\"9\",\"view\":\"full\"})]\n[turn 10]\nQUESTION_10\n[reply] ANSWER_10\n[files read this turn: +10 more; recall_turn({\"turn\":\"10\",\"view\":\"full\"})]\n[turn 11]\nQUESTION_11\n[reply] ANSWER_11\n[files read this turn: +10 more; recall_turn({\"turn\":\"11\",\"view\":\"full\"})]\n[turn 12]\nQUESTION_12\n[reply] ANSWER_12\n[files read this turn: +10 more; recall_turn({\"turn\":\"12\",\"view\":\"full\"})]\n[turn 13]\nQUESTION_13\n[reply] ANSWER_13\n[files read this turn: +10 more; recall_turn({\"turn\":\"13\",\"view\":\"full\"})]"
+  },
+  "performance": {
+    "turns": 400,
+    "payloadCharsEach": 50000,
+    "results": [
+      {
+        "rep": 0,
+        "name": "before",
+        "firstSealMs": 1047.5559580000001,
+        "entryChars": 106099,
+        "unchangedReads20Ms": 1800.580209,
+        "appendedReadMs": 78.0079169999999
+      },
+      {
+        "rep": 0,
+        "name": "after",
+        "firstSealMs": 101.1835000000001,
+        "entryChars": 156,
+        "unchangedReads20Ms": 0.016208000000005995,
+        "appendedReadMs": 0.16166699999985212
+      },
+      {
+        "rep": 1,
+        "name": "before",
+        "firstSealMs": 908.2906659999999,
+        "entryChars": 106099,
+        "unchangedReads20Ms": 1803.0469169999997,
+        "appendedReadMs": 92.3832910000001
+      },
+      {
+        "rep": 1,
+        "name": "after",
+        "firstSealMs": 88.1024580000003,
+        "entryChars": 156,
+        "unchangedReads20Ms": 0.016749999999774445,
+        "appendedReadMs": 0.177958000000217
+      },
+      {
+        "rep": 2,
+        "name": "before",
+        "firstSealMs": 915.0508330000002,
+        "entryChars": 106099,
+        "unchangedReads20Ms": 1860.5856249999997,
+        "appendedReadMs": 78.57966599999963
+      },
+      {
+        "rep": 2,
+        "name": "after",
+        "firstSealMs": 86.24591700000019,
+        "entryChars": 156,
+        "unchangedReads20Ms": 0.0028750000001309672,
+        "appendedReadMs": 0.24308399999972607
+      }
+    ],
+    "interpretation": "Informational local timings, three repetitions with concurrent verification. No wall-time CI threshold; deterministic regression checks suffix-only indexing and exactly 400 hashes for 400 reads."
+  },
+  "preserved": [
+    "running profiles",
+    "original checkout",
+    "original untracked audit report",
+    "existing results archive",
+    "previous frozen tape bytes"
+  ],
+  "limitations": [
+    "No paid model evaluation",
+    "No claim of unchanged model accuracy or measured provider billing savings",
+    "No new aggregate request budget",
+    "Source verification is manual, not scheduled master CI"
+  ]
+}

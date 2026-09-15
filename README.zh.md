@@ -21,7 +21,7 @@
 - 该轮的**读索引**行（见下）；
 - 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
 
-`history.entryMaxChars`（默认 8,000）是单条条目文本的**目标**：渲染器先丢工具行、再逐级收窄摘录；必要的定位信息与保护内容仍可能超过它。工具调用未全部配对的轮保持原样并切断封存段（不丢配对），走插件的 `warn` 通道打日志。
+`history.entryMaxChars`（默认 8,000，最小 256）是**新封存条目文本的 Unicode 码点硬上限**：限制读索引标签及整行长度，先丢工具行，再收窄摘录与索引；积压仍装不下时，用完整的逐轮召回指引代替正文，不截断定位符。旧冻结条目与受保护的原始消息保持不变，这不是请求总量上限。未配对工具调用所在段保留原样，在同一 Session 实例中每段只告警一次。
 
 ### 读索引与读指纹
 
@@ -65,7 +65,7 @@
 | 配置项 | 含义 |
 |---|---|
 | `history.keepRecentTurns` | 尾部保持原样的已完成轮数（默认 0：一轮在下一轮第一步就被封存）。调大它会保留更多逐字历史。未变动的原始轮仍可能命中缓存；封存更早的轮会改变该尾部之前的前缀，使尾部重新计费。封存是无条件的：没有要跨过的阈值，也没有要回落到的目标大小。 |
-| `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | 第 1 轮的用户消息保持为未经改动的追加节点（默认 true；该轮的 assistant／工具运行仍可封存）。`pinUserChars`（默认 1,200）是被封存用户消息的逐字预算。`entryMaxChars`（默认 8,000）是单条条目的文本目标。 |
+| `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | 第 1 轮的用户消息保持为未经改动的追加节点（默认 true；该轮的 assistant／工具运行仍可封存）。`pinUserChars`（默认 1,200）是被封存用户消息的逐字预算。`entryMaxChars`（默认 8,000，最小 256）限制新条目的文本，不限制整个 tape。 |
 | `maxStepsPerTurn` | 超过这么多模型步就停止派发；默认 50。 |
 | `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`；宿主／模型的显式选择优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
 | `digest` | 内容路由选项，见 `src/slice/result-digest.ts`。 |

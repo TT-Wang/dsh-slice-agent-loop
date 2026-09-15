@@ -1,9 +1,10 @@
-# Recorded memory on Harness 0.1.3-alpha.2
+# Recorded memory: offline reducer
 
-`buildContinuity(session, policy)` in `src/state/reducer.ts` is the continuity
-reducer supplying sealed-turn metadata to the positional context renderer. Live
-compaction and resumption both reduce the same durable session snapshot. It reuses the existing conversation ring, turn digest,
-reply caps, and tape compaction from `continuity.ts`.
+`buildContinuity(session, policy)` in `src/state/reducer.ts` is an offline / analysis
+reducer, retained with historical tests. It is not called by live sealing or resume.
+The current path is `planSeal` / `sealCompletedTurns` in `src/context.ts`, with
+successful read observations in `src/context-reads.ts`. The offline reducer reuses
+the conversation ring, turn digest, reply caps, and tape compaction from `continuity.ts`.
 
 Only append-origin human messages enter the human conversation ring. Steering
 adds to the current turn's request. Append-origin assistant and tool outcomes
@@ -12,7 +13,7 @@ summaries. Generated replacement messages never become additional conversations.
 Runtime and other plugin messages remain the stock surface policy's responsibility.
 
 `recordedFileObservations(events)` reads existing `tool/call`, `tool/result`, and
-`tool/code-dispatch` records. It preserves native read windows and applied diff
+`tool/ptc-dispatch` records (named `tool/code-dispatch` on the historical alpha.2 host). It preserves native read windows and applied diff
 hunks, operation kind, call identity, root call identity, and native/nested
 provenance. Read and touch counts are based on successful observed addresses once
 per turn, independent of whether content was admitted to the tape. JSON reload

@@ -1,9 +1,8 @@
 name: Peer compatibility
-# peerDependencies declare `^0.1.3-alpha.2`, but CI installs exactly one
-# closure (pnpm-lock pins 0.1.3-alpha.2). This job tests the rest of the range
-# the manifest promises: resolve the DSH peers to their newest published
-# versions and run the same gates. It is expected to be the first thing that
-# breaks when the host publishes an incompatible alpha — that is the point.
+# The regular CI pins one supported DSH release. This job probes npm latest,
+# first checking that it remains inside our explicitly declared peer ranges.
+# A newer unsupported release must fail rather than produce a misleading green.
+# Supporting it requires a reviewed manifest and runtime compatibility change.
 #
 # It never touches the committed lockfile: the upgrade happens in the runner's
 # working copy and is thrown away with it.
@@ -35,6 +34,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Upgrade DSH peers to latest
         run: pnpm up "@deepseek-ai/*" --latest
+      - run: pnpm peers check
+      - run: npm run check:peers
+      - run: npm run check:docs
       - name: Record what actually resolved
         run: |
           {
@@ -45,6 +47,6 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - run: npm run test:coverage
+      - run: npm run check:build
       - run: npm run verify:packed

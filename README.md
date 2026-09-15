@@ -21,7 +21,7 @@ One entry renders, in order:
 - the turn's **read index** line (below);
 - the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
 
-`history.entryMaxChars` (default 8,000) is the **target** for one entry's text: the renderer drops tool lines first, then shrinks excerpts level by level; required locators and protected content may still exceed it. A turn whose tool calls are not all paired stays raw and cuts the sealed span rather than losing the pairing, logged on the plugin's `warn` channel.
+`history.entryMaxChars` (default 8,000, minimum 256) is a **hard code-point cap on newly sealed entry text**. The renderer bounds read labels and index lines, drops tool lines, then shrinks excerpts and indexes. If a large backlog still cannot fit, a compact span marker names full-turn recall instead of cutting a locator. Old frozen entries and protected raw messages are unchanged; this is not a total request bound. An unpaired tool call keeps its segment raw; the plugin warns once per retained segment during that session instance.
 
 ### Read index and read fingerprints
 
@@ -65,7 +65,7 @@ Numeric locators are qualified with the current session format: `expand_result({
 | Setting | Meaning |
 |---|---|
 | `history.keepRecentTurns` | Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn). Raising it retains more verbatim history. Unchanged raw turns may still hit the cache; sealing an older turn can invalidate the prefix before that retained tail. Sealing is unconditional: there is no threshold to cross and no size target to fall back to. |
-| `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | Keep turn 1's user message as an untouched append node (default true; its assistant/tool run is still sealable). `pinUserChars` (default 1,200) is the verbatim budget for a sealed user message. `entryMaxChars` (default 8,000) is one entry's text target. |
+| `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | Keep turn 1's user message as an untouched append node (default true; its assistant/tool run is still sealable). `pinUserChars` (default 1,200) is the verbatim budget for a sealed user message. `entryMaxChars` (default 8,000, minimum 256) caps each new entry's text; it does not cap the whole tape. |
 | `maxStepsPerTurn` | Stop before dispatching beyond this many model steps; default 50. |
 | `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit`; an explicit host/model choice wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
 | `digest` | Content-routing options from `src/slice/result-digest.ts`. |

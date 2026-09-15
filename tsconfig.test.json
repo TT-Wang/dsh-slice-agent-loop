@@ -5,7 +5,8 @@
   "rootDir": ".",
   "types": [
    "node"
-  ]
+  ],
+  "allowJs": true
  },
  "include": [
   "src",

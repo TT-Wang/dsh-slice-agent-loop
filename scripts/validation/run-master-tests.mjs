@@ -12,10 +12,11 @@ const host = resolve(sourceArgument)
 const plugin = fileURLToPath(new URL('../../', import.meta.url))
 const requireHost = createRequire(join(host, 'package.json'))
 const requirePlugin = createRequire(join(plugin, 'package.json'))
+/** @type {typeof import('typescript')} */
 const ts = requireHost('typescript')
 const parsed = ts.parseConfigFileTextToJson('tsconfig.base.json', readFileSync(join(host, 'tsconfig.base.json'), 'utf8'))
 if (parsed.error !== undefined) throw new Error('Cannot read source checkout tsconfig.base.json')
-const aliases = Object.entries(parsed.config.compilerOptions.paths).map(([name, targets]) => ({
+const aliases = Object.entries(/** @type {Record<string,string[]>} */ (parsed.config.compilerOptions.paths)).map(([name, targets]) => ({
   pattern: '^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace('\\*', '(.*)') + '$',
   replacement: resolve(host, targets[0]).replace('*', '$1'),
 }))

@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # engines allows ^22.19.0 || >=24.0.0 — verify both ends of that claim.
-        node: ['22.22.3', '24.x']
+        # Verify the declared Node 22 floor, the current Node 22 patch, and Node 24.
+        node: ['22.19.0', '22.22.3', '24.x']
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,11 +31,12 @@ jobs:
           version: '11.7.0'
       - run: pnpm install --frozen-lockfile
       - run: pnpm peers check
+      - run: npm run check:peers
+      - run: npm run check:docs
       - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
-      - name: Verify Git-install artifacts
-        run: git diff --exit-code -- lib
+      - run: npm run test:coverage
+      - name: Rebuild and verify Git-install artifacts
+        run: npm run check:build
       - name: Verify packed plugin through published DSH Loader
         run: npm run verify:packed
       - name: Verify compatibility with npm latest (0.1.5-rc.1)

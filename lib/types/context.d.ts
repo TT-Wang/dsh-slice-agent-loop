@@ -32,12 +32,14 @@ export declare const TAPE_PREFIX = "[slice tape v1 \u00B7 turns ";
 export declare const SNAPSHOT_NOTE_PREFIX = "[slice note \u00B7 ";
 /** The host's runtime-context projection (dsh-agent-loop RuntimeContextProjection). */
 export declare const RUNTIME_CONTEXT_SOURCE = "@deepseek-ai/dsh-system-prompt";
+/** Enough space for the range header and an intact recall command. */
+export declare const MIN_ENTRY_MAX_CHARS = 256;
 export interface HistoryPolicy {
     /** Completed turns kept raw at the tail; 0 seals a turn as soon as the next one starts. */
     keepRecentTurns: number;
     pinFirstTurn: boolean;
     pinUserChars: number;
-    /** Target for one sealed entry's text; a span of many short turns may exceed it. */
+    /** Hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
     entryMaxChars: number;
 }
 export interface PlannedAppend {
@@ -48,7 +50,7 @@ export interface PlannedAppend {
 }
 export interface ArchivePlan {
     appends: PlannedAppend[];
-    /** Serialized final view (history + pending messages) after the plan. */
+    /** Lazily measured serialized final view (history + pending messages) after the plan. */
     viewChars: number;
     /** Serialized rendered history after the plan. */
     historyChars: number;
@@ -63,20 +65,20 @@ interface Node {
     event: SessionEvent;
     /** Null for surface nodes that derive no message (an empty assistant reply); they still occupy the range. */
     message: Message | null;
-    size: number;
     /** Turn range the node belongs to (a checkpoint spans several turns). */
     turns: [number, number];
     protected: boolean;
     /** A superseded runtime snapshot still in the unsealed tail. Render only as a note. */
     superseded: boolean;
-    /** Turns recall_turn attributes the snapshot(s) to (src/recall.ts ownerOf), 0 for none. */
+    /** Turns recall_turn attributes the snapshot(s) to (userMessageTurn), 0 for none. */
     recallTurns: number[];
 }
 /** One line for every superseded runtime snapshot of a turn; the text stays on its recall page. */
 export declare function snapshotNote(recallTurns: readonly number[]): string;
 /**
- * Deterministic entry text: drop tool lines first, then shrink excerpts until it fits.
- * `maxChars` is a target: the smallest level is returned as is when even it does not fit.
+ * Deterministic entry text: drop tool lines first, then shrink indexes and
+ * excerpts. A very large backlog falls back to a complete range/recall marker;
+ * never cut JSON locators or rewrite a previously sealed entry to make it fit.
  */
 export declare function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number): string;
 /**

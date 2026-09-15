@@ -33,12 +33,16 @@
   },
   "scripts": {
     "build": "node scripts/clean-build.mjs && tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.scripts.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.test.json && tsc -p tsconfig.scripts.json && tsc -p tsconfig.gates.json",
     "test": "vitest run",
     "check:size": "node scripts/check-repo-size.mjs",
     "link:dsh": "node scripts/link-dsh.mjs",
     "verify:packed": "node scripts/validation/run-packed-smoke.mjs",
-    "verify:master": "node scripts/validation/run-master-tests.mjs"
+    "verify:master": "node scripts/validation/run-master-tests.mjs",
+    "check:build": "npm run build && node scripts/check-build.mjs",
+    "check:peers": "node scripts/check-peer-ranges.mjs",
+    "check:docs": "node scripts/check-doc-anchors.mjs",
+    "test:coverage": "vitest run --coverage"
   },
   "license": "BSD-3-Clause",
   "peerDependencies": {
@@ -89,7 +93,11 @@
     "@deepseek-ai/dsh-sandbox-policy": "0.1.5-rc.2",
     "@deepseek-ai/dsh-user-approval": "0.1.5-rc.2",
     "@deepseek-ai/dsh-commands": "0.1.5-rc.2",
-    "@deepseek-ai/dsh-util-crypto": "0.1.5-rc.2"
+    "@deepseek-ai/dsh-util-crypto": "0.1.5-rc.2",
+    "@types/semver": "^7.8.0",
+    "@vitest/coverage-v8": "4.1.11",
+    "semver": "^7.8.5",
+    "yaml": "^2.9.1"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/dsh-invariants": {
@@ -105,5 +113,10 @@
   "engines": {
     "node": "^22.19.0 || >=24.0.0"
   },
-  "packageManager": "pnpm@11.7.0"
+  "packageManager": "pnpm@11.7.0",
+  "sliceDevelopment": {
+    "sourceOnlyPackages": [
+      "@deepseek-ai/dsh-llm-deepseek"
+    ]
+  }
 }

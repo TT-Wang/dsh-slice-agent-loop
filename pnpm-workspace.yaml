@@ -2,6 +2,8 @@ allowBuilds:
   esbuild: true
   fs-ext: true
   koffi: true
+# These exceptions only take effect when minimumReleaseAge is enabled by a
+# user/global pnpm configuration; this repository does not enable an age policy.
 minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-agent-loop@0.1.5-rc.2'
   - '@deepseek-ai/dsh-agent@0.1.5-rc.2'

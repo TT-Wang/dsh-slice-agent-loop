@@ -13,6 +13,8 @@ import {
 } from './native-harness.js'
 import { HISTORY_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import { type Config } from '../src/index.js'
+import { multiToolCallResponse } from './mock-adapter.js'
+import { renderSealedTurn } from '../src/recall.js'
 
 /** The default keep window, spelled out: a completed turn seals into one entry at the next turn's first step. */
 const SEAL: Config = { history: { keepRecentTurns: 0 } }
@@ -62,7 +64,7 @@ function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
 
 /**
  * The property the tape exists for: a seal lands after every entry already written, so no request
- * diverges from its predecessor before them and only the new entry is re-billed.
+ * diverges from its predecessor before them. The new entry and its raw tail may miss.
  */
 function expectStablePrefix(requests: ReadonlyArray<{ messages: readonly Message[] }>): void {
   for (let i = 1; i < requests.length; i += 1) {
@@ -332,6 +334,42 @@ describe('slice context on the native DSH loop', () => {
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
+  it('pairs multiple calls and a failed tool through native dispatch, sealing, and recall', async () => {
+    const h = await boot([
+      multiToolCallResponse([
+        { id: 'multi-ok', name: 'echo', args: {} },
+        { id: 'multi-failed', name: 'fails', args: {} },
+      ]),
+      nativeText('handled both results'), nativeText('second answer'), nativeText('third answer'),
+    ], { config: { history: { pinFirstTurn: false } } })
+    h.ctx.tools.register(defineContentToolFixture({
+      name: 'echo', description: 'Success fixture', parameters: {},
+      execute: async () => [{ type: 'text', text: 'MULTI_SUCCESS_SENTINEL' }],
+    }))
+    h.ctx.tools.register(defineContentToolFixture({
+      name: 'fails', description: 'Failure fixture', parameters: {},
+      execute: async () => { throw new Error('MULTI_FAILURE_SENTINEL') },
+    }))
+    const { agent } = await create(h, 'native-multi-result')
+    await nativeSend(agent, 'dispatch both tools')
+    await nativeSend(agent, 'next turn')
+    await nativeSend(agent, 'another turn')
+
+    const continued = h.adapter.requests[1]!.messages
+    const calls = continued.flatMap(message => message.content.flatMap(block => block.type === 'tool-call' ? [block.id] : []))
+    const results = continued.flatMap(message => message.content.flatMap(block => block.type === 'tool-result' ? [block] : []))
+    expect(calls).toEqual(['multi-ok', 'multi-failed'])
+    expect(results.map(block => block.toolCallId)).toEqual(calls)
+    expect(results.map(block => block.isError ?? false)).toEqual([false, true])
+    const recalled = renderSealedTurn(agent.session.snapshotEvents(), 1)!.rendered
+    expect(recalled).toContain('MULTI_SUCCESS_SENTINEL')
+    expect(recalled).toContain('MULTI_FAILURE_SENTINEL')
+    expect(entriesIn(h.adapter.requests[2]!.messages)).toHaveLength(1)
+    expect(entriesIn(h.adapter.requests[3]!.messages)[0]).toBe(entriesIn(h.adapter.requests[2]!.messages)[0])
+    expect(h.errors).toEqual([])
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
   it('honors the step limit without dispatching another model call', async () => {
     const h = await boot([nativeTool('limit-one', 'echo'), nativeTool('limit-two', 'echo')], { config: { maxStepsPerTurn: 2 } })
     h.ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'Return a result', parameters: {}, execute: async () => [{ type: 'text', text: 'ok' }] }))
@@ -341,6 +379,7 @@ describe('slice context on the native DSH loop', () => {
     expect(h.adapter.requests).toHaveLength(2)
     expect(agent.session.snapshotEvents().filter(event => event.type === 'step/start')).toHaveLength(2)
     expect([...agent.session.snapshotEvents()].reverse().find(event => event.type === 'turn/end')?.data.reason.kind).toBe('blocked')
+    expect(h.warns.filter(message => message.startsWith('slice maxStepsPerTurn='))).toEqual(['slice maxStepsPerTurn=2 reached'])
     expect(h.errors).toEqual([])
   })
 

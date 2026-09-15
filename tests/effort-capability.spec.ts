@@ -55,6 +55,9 @@ describe('reasoning effort capability guard', () => {
     expect(adapter.requests).toHaveLength(2)
     // Nothing injected, so the adapter's own default is materialized downstream.
     expect(adapter.requests.map(request => request.reasoningEffort)).toEqual(['high', 'high'])
+    expect(harness.warns.filter(message => message.startsWith('slice defaultReasoningEffort='))).toEqual([
+      'slice defaultReasoningEffort=low is not declared by high-only/audited (declared: high); inheriting the adapter default',
+    ])
   })
 
   it('dispatches under factory defaults on a model that declares no reasoning', async () => {
@@ -68,6 +71,7 @@ describe('reasoning effort capability guard', () => {
     const { harness, adapter } = await dispatch('declares-low', ['high', 'low'], { defaultReasoningEffort: 'low' })
     expect(harness.errors).toEqual([])
     expect(adapter.requests.map(request => request.reasoningEffort)).toEqual(['low', 'low'])
+    expect(harness.warns.filter(message => message.startsWith('slice defaultReasoningEffort='))).toEqual([])
   })
 
   it('inherits rather than failing when an explicitly configured effort is undeclared', async () => {

@@ -78,6 +78,6 @@ describe('per-turn read index inside a sealed tape entry', () => {
     expect(text).toContain('src/f0.ts (')
     expect(text).toContain('src/f9.ts (')
     expect(text).not.toContain('src/f10.ts')
-    expect(text).toContain('+3 more]')
+    expect(text).toContain('+3 more; recall_turn({"turn":"1","view":"full"})]')
   })
 })

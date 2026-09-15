@@ -1,7 +1,7 @@
 /** Slice context policy for the stock DSH agent loop. */
 import { Context, Service } from '@deepseek-ai/cordis'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
-import { sealCompletedTurns, type HistoryPolicy } from './context.js'
+import { MIN_ENTRY_MAX_CHARS, sealCompletedTurns, type HistoryPolicy } from './context.js'
 import { applyEffortDefault, declaredEfforts, DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS, type ReasoningEffortDefault } from './effort-default.js'
 import { recallToolDefinition, recallSearchToolDefinition } from './recall.js'
 import { recallStepToolDefinition } from './recall-step.js'
@@ -18,7 +18,7 @@ export interface HistoryConfig {
   pinFirstTurn?: boolean
   /** Sealed user messages at or below this length are kept verbatim in the entry; longer ones keep head 600 / tail 300 (default 1,200). */
   pinUserChars?: number
-  /** Target for one entry's text (default 8,000); a span of many short turns may exceed it. */
+  /** Hard code-point cap for new entry text (default 8,000, minimum 256); existing frozen entries are unchanged. */
   entryMaxChars?: number
 }
 
@@ -128,6 +128,7 @@ function resolveHistory(config: Config): HistoryPolicy {
     entryMaxChars: positive(history.entryMaxChars, DEFAULT_HISTORY.entryMaxChars, 'history.entryMaxChars'),
   }
   if (typeof policy.pinFirstTurn !== 'boolean') throw new Error('history.pinFirstTurn must be a boolean')
+  if (policy.entryMaxChars < MIN_ENTRY_MAX_CHARS) throw new Error(`history.entryMaxChars must be at least ${MIN_ENTRY_MAX_CHARS} to preserve complete recall locators`)
   return policy
 }
 

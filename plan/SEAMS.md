@@ -1,6 +1,6 @@
 > ⚠️ **状态（2026-09-10）：本文是 2026-09-08 原生迁移之前的 slice schema 契约，
 > 已不再是现役契约，仅作设计史保留。** 逐条核对的漂移：
-> - **`[schema.ts](schema.ts)` 是坏链** —— `plan/schema.ts` 从未落地，提案稿被
+> - **`schema.ts` 是坏链** —— `plan/schema.ts` 从未落地，提案稿被
 >   `assemble.ts` 取代后删除（`plan/MAP.md` 开头已记录这一点）。
 > - **「没有区表、没有 `Region` 类型、没有 `zone` 字段」与实现相反** ——
 >   `assemble.ts` 导出了带 `zone` 字段的 `ZONE_HEADERS`（7 项，供离线 miss 归因把
@@ -8,13 +8,12 @@
 > - **本文所设想的 `src/slice/` 形状已经不成立** —— 那台自建渲染器
 >   （`assemble.ts` / `SliceCtx` / `assemble()`）在原生迁移后不在现役调用图上，
 >   文件已移到 `src/lab/assemble.ts`；现役上下文装配是 `src/context.ts`
->   （压力归档控制律：`planArchive` / `applyArchive` / `archiveUnderPressure`，
->   高水位时把最旧的完整轮替换成一个冻结的 `[slice checkpoint v1 …]` 节点，
->   低于高水位什么都不追加），它没有区、没有 `SliceCtx`、也没有 `assemble()`。
+>   （`planSeal` / `applySeal` / `sealCompletedTurns`：每轮第一步封存已完成轮，
+>   生成冻结的 `[slice tape v1 …]`；没有压力阈值），它没有区、没有 `SliceCtx`、也没有 `assemble()`。
 >   `compactHistory` / `HISTORY_HEADER` / `admitTape` 已不存在。S1/S2/S4 里关于"driver 每轮全量构造"、
 >   "缓存边界 = system + 上一轮结束时的 tape"的决策，讲的都是那台已退役的驱动器。
 >   **注意 `src/slice/` 目录本身仍然现役**：`src/context.ts` import
->   `slice/tape.ts` 的 `renderTapeReply`（checkpoint 里的回复摘录），
+>   `slice/tape.ts` 的 `renderTapeReply`（tape 里的回复摘录），
 >   `src/continuity.ts` 用 `slice/tape.ts` 与 `slice/internal/`，`src/fold/` 用
 >   `slice/result-digest.ts`——它们是现役渲染代码，别当死代码删。本文的范围行（下面「范围：
 >   `src/slice/`。不含 `tape.ts` 内部逻辑」）本来就把 `tape.ts` 排除在外。
@@ -32,7 +31,7 @@
 2. 空区不该存在 —— 私有模块，不为将来可能的功能留槽。
 3. ~~超窗会发生~~ —— **已证伪**（S2）。降级机制整体删除。
 
-具体形状见 [schema.ts](schema.ts)：一个 `SliceCtx` 接口 + 一个 `assemble()` 函数，结构部分约 25 行。**没有区表、没有 `Region` 类型、没有 `zone` 字段** —— 私有模块、固定 4 项、不动态注册、除渲染外无第二种遍历，那张表不承重，数组字面量就是它。
+具体形状见 `schema.ts`：一个 `SliceCtx` 接口 + 一个 `assemble()` 函数，结构部分约 25 行。**没有区表、没有 `Region` 类型、没有 `zone` 字段** —— 私有模块、固定 4 项、不动态注册、除渲染外无第二种遍历，那张表不承重，数组字面量就是它。
 
 范围：`src/slice/`。不含 `tape.ts` 内部逻辑（独立模块，只在 S3 交界）。
 
