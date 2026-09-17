@@ -18,16 +18,21 @@ concurrency:
   cancel-in-progress: true
 jobs:
   newest-peers:
-    name: newest published DSH peers
+    name: newest published DSH peers (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Verify the declared Node 22 floor, the current Node 22 patch, and Node 24.
+        node: ['22.19.0', '22.22.3', '24.x']
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
-          node-version: '22.22.3'
+          node-version: ${{ matrix.node }}
       - uses: pnpm/action-setup@v4
         with:
           version: '11.7.0'

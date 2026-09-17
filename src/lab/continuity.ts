@@ -1,3 +1,6 @@
+// offline/experimental — not on the runtime path. Nothing under src/lab is reachable
+// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /**
  * continuity.ts — sliceagent 跨轮连续性语义（record_user + 对话环 + tape 封存）
  * 的 TS 实现，移植自 sliceagent-core（pfc.record_user / tape.tape_seal_update /
@@ -27,9 +30,9 @@ import {
   DEFAULT_REPLY_CAPS,
   type ReplyCaps,
   gcSupersededFileHistory,
-} from './slice/tape.js'
-import { pyStrip } from './slice/internal/pytext.js'
-import { redactText } from './slice/internal/safety.js'
+} from '../slice/tape.js'
+import { pyStrip } from '../slice/internal/pytext.js'
+import { redactText } from '../slice/internal/safety.js'
 
 // ---------------------------------------------------------------- ring bounds
 

@@ -19,6 +19,7 @@ import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import InvariantService from '@deepseek-ai/dsh-invariants'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import fold, { EXPAND_TOOL_NAME, FOLD_AFFORDANCE, FOLD_STATS, foldAffordance, fullResultAt } from '../src/fold/index.js'
+import { DEFAULT_DIGEST_POLICY, digestData } from '../src/slice/result-digest.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
@@ -167,6 +168,66 @@ describe('the fold affordance states the real grep/glob contract', () => {
     expect(results).toHaveLength(1)
     expect(results[0]!.content).toEqual([{ type: 'text', text: GREP_SMALL }])
     expect(FOLD_STATS.get(handle.agent.session)?.folded ?? 0).toBe(0)
+  })
+})
+
+/**
+ * P2-7:可供性曾写 "Data and document reads keep … every structured line",而 digestData 对每个结构块只留
+ * 前 structuredBlockMin 行 + 键没出现过的行(并受 structuredBlockCap 约束),同键的 300 行只剩 17 行。
+ * 这里把措辞钉在默认策略的实际行为上:结构行会被丢,所以文案不能承诺"全留",丢掉的部分由标记 + expand_result 兜底。
+ * 两条分支都要盖住:整份结构化时 `cap = Infinity`(只有键新颖性在起作用),散文夹结构块时 structuredBlockCap 生效,
+ * 键全新的行照样被丢——只写"新键都留"同样是假话,所以文案还得写出上限。
+ */
+describe('the fold affordance states the real data/document contract', () => {
+  /** 整份都是结构行、键始终是 `item`:结构行占比 1.0 ≥ 0.8,块上限不生效,只有头尾区与块起始的几行留下。 */
+  const REPEATED_KEYS = Array.from({ length: 300 }, (_, i) => `item: value_${i} ${'y'.repeat(20)}`).join('\n')
+  /** 混合文档:结构行占比 < 80%,块上限真的生效——80 条互不相同的变更条目只留 structuredBlockCap 条。 */
+  const MIXED_PROSE = [
+    ...Array.from({ length: 50 }, (_, i) => `Narrative line ${i} ${'w'.repeat(40)}`),
+    ...Array.from({ length: 80 }, (_, i) => `- CHANGE_${i}: rewrote handler ${i} ${'z'.repeat(40)}`),
+    ...Array.from({ length: 20 }, (_, i) => `Closing line ${i} ${'w'.repeat(40)}`),
+  ].join('\n')
+
+  it('condenses an all-structured result whose keys repeat, so the text cannot promise every structured line', () => {
+    const r = digestData(REPEATED_KEYS, DEFAULT_DIGEST_POLICY)
+    expect(r.kind).toBe('data')
+    expect(r.digested).toBe(true)
+    expect(r.keptLines).toBeLessThan(r.totalLines / 10)   // 300 行 → 17 行
+    expect(r.text).toContain('…[+')                       // 丢掉的整段由标记说明
+    expect(r.text).not.toContain('item: value_150')       // 重复键的中段确实没留下
+
+    expect(FOLD_AFFORDANCE).not.toContain('every structured line')
+    expect(FOLD_AFFORDANCE).toContain('keeps only its first few lines, later lines whose key has not appeared yet')
+    // 取回路径必须同时写明:丢的是行,不是内容。
+    expect(FOLD_AFFORDANCE).toContain('…[+N lines / M chars]…')
+    expect(FOLD_AFFORDANCE).toContain('"grep": <regex> or "lines": "a-b"')
+  })
+
+  it('caps a run of all-new keys inside prose, so the text cannot promise every new key either', () => {
+    const r = digestData(MIXED_PROSE, DEFAULT_DIGEST_POLICY)
+    expect(r.kind).toBe('data')
+    expect(r.digested).toBe(true)
+    // 结构行 80 / 150 < 80%,所以 result-digest 走 cap = structuredBlockCap 这一支。
+    const kept = Array.from({ length: 80 }, (_, i) => i).filter(i => r.text.includes(`CHANGE_${i}:`))
+    expect(kept).toHaveLength(DEFAULT_DIGEST_POLICY.structuredBlockCap)   // 80 条全新键只留 12 条
+    expect(r.text).toContain('CHANGE_0:')
+    expect(r.text).not.toContain('CHANGE_12:')                            // 键从没出现过,仍被块上限丢掉
+    expect(r.text).toContain('…[+')
+
+    expect(FOLD_AFFORDANCE).toContain('at most a dozen or so lines per run')
+  })
+
+  it('condenses such a result end to end and leaves the full text one expand_result away', async () => {
+    const adapter = new MockAdapter([toolCallResponse('c1', 'read', { file_path: 'inventory.txt' }), textResponse('done')])
+    const ctx = await harness(adapter, [{ name: 'read', text: REPEATED_KEYS }])
+    const handle = await ctx.agents.create({ sessionId: SessionId('fold-repeated-keys'), agentOptions: { provider: 'mock', model: 'mock' } })
+    send(handle.agent, 'read the inventory')
+    await handle.agent.whenIdle()
+    const second = requestText(adapter, 1)
+    expect(second).toContain('item: value_0')
+    expect(second).not.toContain('item: value_150')
+    expect(second).toContain(EXPAND_TOOL_NAME)
+    expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
   })
 })
 

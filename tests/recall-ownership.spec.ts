@@ -29,7 +29,7 @@ function complete(session: Session, turn: number) {
 }
 
 function originalRecords(session: Session, turn: number): unknown[] {
-  const page = renderSealedTurn(session.snapshotEvents(), turn)!.rendered
+  const page = renderSealedTurn(session.snapshotEvents(), turn, { view: 'full' })!.rendered
   return JSON.parse(page.split('## Original records (including reasoning, tool output and recorded file metadata)\n')[1]!) as unknown[]
 }
 

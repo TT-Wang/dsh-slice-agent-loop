@@ -1,3 +1,6 @@
+// offline/experimental — not on the runtime path. Nothing under src/lab is reachable
+// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /** Durable log input. No plugin event vocabulary is added to Harness. */
 export interface RecordedEvent {
   type: string

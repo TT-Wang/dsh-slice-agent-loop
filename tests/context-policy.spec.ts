@@ -235,7 +235,7 @@ describe('append-only tape sealing', () => {
     const text = surfaceText(session)
     expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":3})]`)
     expect(text).not.toContain('DURABLE_FILE_BYTES')
-    expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).toContain('DURABLE_FILE_BYTES')
+    expect(renderSealedTurn(session.snapshotEvents(), 1, { view: 'full' })?.rendered).toContain('DURABLE_FILE_BYTES')
   })
 
   it('shadows and cites a surface node that derives no message', () => {
@@ -540,8 +540,8 @@ describe('recall source attribution', () => {
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     expect(searchSessionEvents(session.snapshotEvents(), 'GENERATED_RESULT_SENTINEL', { kinds: ['tool_output'] })).toEqual([])
     expect(searchSessionEvents(session.snapshotEvents(), 'ORIGINAL_RESULT_SENTINEL', { kinds: ['tool_output'] })).toHaveLength(1)
-    expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).toContain('ORIGINAL_RESULT_SENTINEL')
-    expect(renderSealedTurn(session.snapshotEvents(), 1)?.rendered).not.toContain('GENERATED_RESULT_SENTINEL')
+    expect(renderSealedTurn(session.snapshotEvents(), 1, { view: 'full' })?.rendered).toContain('ORIGINAL_RESULT_SENTINEL')
+    expect(renderSealedTurn(session.snapshotEvents(), 1, { view: 'full' })?.rendered).not.toContain('GENERATED_RESULT_SENTINEL')
   })
 
   it('uses explicit assistant and tool turns when recording raw historical provenance', () => {

@@ -1,9 +1,12 @@
+// offline/experimental — not on the runtime path. Nothing under src/lab is reachable
+// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /**
  * Admission selects a bounded request view; it never compacts durable history.
  * A caller may authorize omission only when an existing recall tool serves the
  * entry's recorded content. File paths alone are not recall sources.
  */
-import { TapeEntry, tapeChars } from './tape.js'
+import { TapeEntry, tapeChars } from '../slice/tape.js'
 
 export type TapeRecallSource =
   | { readonly kind: 'turn'; readonly turn: number }

@@ -39,7 +39,7 @@
 
 ## 召回与展开工具
 
-`recall_turn` 返回一整轮：`view: "full"`（默认）含原始记录与工具元数据，`view: "dialogue"` 只给每条用户与助手文本一次、工具结果以定位符表示。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq, formatVersion: 3}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。多结果事件支持从 1 起算的 `block` 选择；省略则取全部兄弟结果，逐块恢复 spill。
+`recall_turn` 返回一整轮：`view: "dialogue"`（默认）只给每条用户与助手文本一次、工具结果以定位符表示；`view: "full"` 另附全部原始记录（reasoning、工具元数据、每一条原始工具输出），在有工作量的一轮里要大两个数量级，只在需要工具输入或原始 reasoning 时才要。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq, formatVersion: 3}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。多结果事件支持从 1 起算的 `block` 选择；省略则取全部兄弟结果，逐块恢复 spill。
 
 `recall_search` 搜索原始的用户与助手文本、生成的上下文（插件产生的 user 角色消息，如运行时快照；两轮之间投影的快照归属刚结束的那一轮）、工具输入与工具错误（见 `src/recall.ts` 的 `DEFAULT_SEARCH_KINDS`）。默认 `scope: "auto"` 也收录普通工具**输出**，但只通过有界槽位（最多 `TOOL_OUTPUT_SLOTS` = 3 条、每条 `TOOL_SNIPPET_CHARS` = 600 字符），因为工具输出是会话里体量最大、信噪比最低的文本；`scope: "dialogue"` 跳过它，显式 `kinds` 优先于 scope。召回工具自己的输入与输出块不入索引，但不会连带丢掉同一事件里的普通兄弟结果。工具输入命中指向含参数的完整轮记录，结果命中指向精确事件与结果块。每条命中都给出后续调用。
 

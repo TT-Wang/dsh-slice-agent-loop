@@ -4,7 +4,7 @@
  * 同轮既读又改的文件只锚定一次(走编辑路径);读到的内容经 codeFile 脱敏。
  */
 import { describe, expect, it } from 'vitest'
-import { createContinuity, sealTurn, trackEdit, trackRead } from '../src/continuity.js'
+import { createContinuity, sealTurn, trackEdit, trackRead } from '../src/lab/continuity.js'
 
 const seal = (c: ReturnType<typeof createContinuity>, turn: number) => sealTurn(c, { turnId: `slice-turn-${turn}`, status: 'completed', userRequest: 'u', assistantReply: 'a', sessionId: 's' })
 

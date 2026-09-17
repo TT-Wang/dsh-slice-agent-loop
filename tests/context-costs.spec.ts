@@ -81,7 +81,9 @@ describe('bounded tape entries and incremental read evidence', () => {
     const [text] = entryText(plan)
     expect([...text!].length).toBeLessThanOrEqual(MIN_ENTRY_MAX_CHARS)
     expect(text).toContain('turns 1-80 · 80 turn(s) sealed')
-    expect(text).toContain('recall_turn({"turn":"1","view":"full"}); repeat for each turn through 80')
+    // 兜底行只在积压最大时出现,给的必须是默认视图:full 大两个数量级,不该对范围内每一轮都取。
+    expect(text).toContain('recall_turn({"turn":"1"}); repeat for each turn through 80')
+    expect(text).not.toContain('"view":"full"')
     expect(renderSealedTurn(session.snapshotEvents(), 80)?.rendered).toContain('ANSWER_80')
     expect(() => planSeal(session, [], { ...policy, entryMaxChars: MIN_ENTRY_MAX_CHARS - 1 })).toThrow('>= 256')
   })

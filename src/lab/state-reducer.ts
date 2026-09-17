@@ -1,11 +1,14 @@
+// offline/experimental — not on the runtime path. Nothing under src/lab is reachable
+// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 import type { Session } from '@deepseek-ai/dsh-session'
 import {
   createContinuity, fillAssistant, recordUser, sealTurn, trackCheck, trackReasoning, trackToolOutcome,
-} from '../continuity.js'
-import type { Continuity } from '../continuity.js'
-import { recordedFileObservations } from '../observations/files.js'
-import { asRecord } from './events.js'
-import type { RecordedEvent } from './events.js'
+} from './continuity.js'
+import type { Continuity } from './continuity.js'
+import { recordedFileObservations } from './observations-files.js'
+import { asRecord } from './state-events.js'
+import type { RecordedEvent } from './state-events.js'
 
 export type ContinuityPolicy = Omit<Parameters<typeof sealTurn>[1],
   'turnId' | 'status' | 'userRequest' | 'assistantReply' | 'sessionId'> & {

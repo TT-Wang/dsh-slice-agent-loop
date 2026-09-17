@@ -4,7 +4,7 @@ import type { StreamChunk } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
-import { renderSealedTurn, renderSearchHits, searchSessionEvents, TOOL_OUTPUT_SLOTS, TOOL_SNIPPET_CHARS } from '../src/recall.js'
+import { recallToolDefinition, renderSealedTurn, renderSearchHits, searchSessionEvents, TOOL_OUTPUT_SLOTS, TOOL_SNIPPET_CHARS } from '../src/recall.js'
 
 const live: NativeHarness[] = []
 afterEach(async () => {
@@ -103,16 +103,66 @@ describe('recall_turn views', () => {
     expect(recalled.text).toBe(text)
   })
 
-  it('full view is the default and still carries reasoning and the original records JSON', async () => {
+  it('full view still carries reasoning and the original records JSON, but only when asked for', async () => {
     const { events } = await session('views-full')
-    const full = renderSealedTurn(events, 1)!
-    expect(renderSealedTurn(events, 1, { view: 'full' })!.rendered).toBe(full.rendered)
+    const full = renderSealedTurn(events, 1, { view: 'full' })!
+    expect(renderSealedTurn(events, 1)!.rendered).toBe(renderSealedTurn(events, 1, { view: 'dialogue' })!.rendered)
     expect(full.rendered).toContain('## Original records (including reasoning, tool output and recorded file metadata)')
     expect(full.rendered).toContain('HIDDEN_REASONING_SENTINEL')
     expect(full.rendered).toContain('PORT_SENTINEL=7443')
     expect(full.rendered).not.toContain('[tool step')
     const records = JSON.parse(full.rendered.split('## Original records (including reasoning, tool output and recorded file metadata)\n')[1]!) as Array<{ type: string }>
     expect(records.map((r) => r.type)).toEqual(['user/message', 'assistant/message', 'tool/call', 'tool/result', 'assistant/message'])
+  })
+})
+
+describe('recall_turn default view', () => {
+  /**
+   * The default used to be "full": one call returned every original record as
+   * JSON, two orders of magnitude more characters than the said text. The
+   * cheap page is the default now; "full" is served only when named.
+   */
+  it('defaults to dialogue through the real tool, and still serves the records on explicit view "full"', async () => {
+    const h = await boot([
+      nativeTool('read-1', 'read_config', { path: 'app.toml' }),
+      reasonedText('HIDDEN_REASONING_SENTINEL', 'ASSISTANT_ONE_SENTINEL the config is loaded'),
+      nativeTool('recall-default', 'recall_turn', { turn: '1' }), nativeText('recalled by default'),
+      nativeTool('recall-full', 'recall_turn', { turn: '1', view: 'full' }), nativeText('recalled in full'),
+    ])
+    // A working turn's tool output is what makes "full" expensive: the said
+    // text is a few hundred chars, the records are tens of thousands.
+    const document = `PORT_SENTINEL=7443\n${'row = stable value\n'.repeat(2_000)}`
+    h.ctx.tools.register(defineContentToolFixture({
+      name: 'read_config', description: 'Read config', parameters: { path: { type: 'string', required: true } },
+      execute: async () => [{ type: 'text', text: document }],
+    }))
+    const { agent } = await h.ctx.agents.create({ sessionId: SessionId('views-default'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
+    await nativeSend(agent, 'USER_ONE_SENTINEL read the config')
+    await nativeSend(agent, 'recall the first turn')
+    await nativeSend(agent, 'now recall it in full')
+    expect(h.errors).toEqual([])
+
+    const byDefault = toolResultText(h, 'views-default', 'recall-default').text
+    expect(byDefault).toBe(renderSealedTurn(agent.session.snapshotEvents(), 1, { view: 'dialogue' })!.rendered)
+    expect(byDefault).toContain('view dialogue (default')
+    expect(byDefault).toContain('USER_ONE_SENTINEL')
+    expect(byDefault).not.toContain('## Original records')
+    expect(byDefault).not.toContain('HIDDEN_REASONING_SENTINEL')
+    expect(byDefault).not.toContain('PORT_SENTINEL')
+
+    const full = toolResultText(h, 'views-default', 'recall-full').text
+    expect(full).toContain('## Original records (including reasoning, tool output and recorded file metadata)')
+    expect(full).toContain('HIDDEN_REASONING_SENTINEL')
+    expect(full).toContain('PORT_SENTINEL=7443')
+    expect(full.length).toBeGreaterThan(byDefault.length * 50)
+  })
+
+  it('tells the model in the tool description that dialogue is the default and what full costs', () => {
+    const definition = recallToolDefinition()
+    expect(definition.description).toContain('view "dialogue" (default)')
+    expect(definition.description).toContain('two orders of magnitude larger')
+    expect(definition.description).not.toContain('view "full" (default)')
+    expect(JSON.stringify(definition.parameters)).toContain('\\"dialogue\\" (default)')
   })
 })
 

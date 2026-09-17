@@ -154,11 +154,12 @@ interface SealedTurnPage {
  * gate suite can drive it without an agent. Returns null when the log holds
  * nothing for that turn.
  *
- * view "full" (default): user text, assistant text, then every original
- * record of the turn as JSON (reasoning, tool calls, tool output, metadata).
- * view "dialogue": the same user and assistant text, each exactly once, with
- * every tool result reduced to one locator line — the cheap page for "what
- * was said", with the tool output one expand_result call away.
+ * view "dialogue" (default): user text and assistant text, each exactly once,
+ * with every tool result reduced to one locator line — the cheap page for
+ * "what was said", with the tool output one expand_result call away.
+ * view "full": the same text, then every original record of the turn as JSON
+ * (reasoning, tool calls, tool output, metadata). Two orders of magnitude
+ * larger on a working turn, so it is served only when asked for by name.
  *
  * Both views serve generated context (runtime snapshots, injected notices) in
  * its own section, never folded into the human's request: an archived or
@@ -169,7 +170,7 @@ export function renderSealedTurn(
   turn: number,
   opts?: { view?: RecallView },
 ): SealedTurnPage | null {
-  const view: RecallView = opts?.view ?? 'full'
+  const view: RecallView = opts?.view ?? 'dialogue'
   const users: string[] = []
   const contexts: string[] = []
   const originalRecords: unknown[] = []
@@ -250,8 +251,8 @@ export function renderSealedTurn(
   if (!seen) return null
 
   const frame = view === 'dialogue'
-    ? `view dialogue (text once, tool results as locators; full record with reasoning and tool output: ${RECALL_TOOL_NAME}({"turn":"${turn}","view":"full"}))`
-    : 'view full (text plus every original record; cheaper text-only page: view "dialogue")'
+    ? `view dialogue (default: text once, tool results as locators; full record with reasoning and tool output: ${RECALL_TOOL_NAME}({"turn":"${turn}","view":"full"}))`
+    : 'view full (text plus every original record; the default text-only page is view "dialogue")'
   const lines = [
     // Epistemic frame, aligned with the kernel's evidence tiers: a sealed turn
     // establishes what was SAID, never current world state. Verbatim, but old.
@@ -514,7 +515,7 @@ export function renderSearchHits(
   }
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — each hit ends with the exact call that returns `
-    + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" for the cheap text-only page) for said text, `
+    + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" is the default: the cheap text-only page) for said text, `
     + `recall_turn view "full" for tool inputs, expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events)]`,
   ]
   for (const hit of hits) {
@@ -531,7 +532,7 @@ export function recallSearchToolDefinition(): ToolDefinition {
     description:
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits, each with a bounded original snippet and the exact follow-up call: '
-      + 'recall_turn view "dialogue" for said text, view "full" for tool inputs, '
+      + 'recall_turn view "dialogue" (its default) for said text, view "full" for tool inputs, '
       + `expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events). scope "auto" (default) `
       + 'searches user/assistant text, generated context (runtime snapshots and injected notices), tool inputs '
       + 'and tool errors plus raw tool output through bounded slots '
@@ -586,10 +587,12 @@ export function recallToolDefinition(): ToolDefinition {
       'Retrieve the verbatim text of an earlier turn in THIS session: the complete user request and '
       + 'every assistant step, exactly as delivered, plus any generated context (runtime snapshots, injected '
       + 'notices) recorded during it. Use it when a [slice tape v1 …] entry (or legacy checkpoint) names a turn or cuts its text '
-      + '(`…[+N chars, recall_turn]…`), or when a recall_search hit names a turn. view "dialogue" returns the said '
+      + '(`…[+N chars, recall_turn]…`), or when a recall_search hit names a turn. view "dialogue" (default) returns the said '
       + `text once with each tool result reduced to a one-line expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION}}) locator (cheap); `
-      + 'view "full" (default) also appends every original record as JSON, including reasoning and tool '
-      + 'output. Serves from the durable session log, so it works after agent recreation too.',
+      + 'view "full" additionally appends every original record as JSON — reasoning and every original tool '
+      + 'output included — which on a working turn is two orders of magnitude larger (tens of thousands of '
+      + 'characters against a few hundred), so ask for it only when you need the tool inputs or the raw '
+      + 'reasoning. Serves from the durable session log, so it works after agent recreation too.',
     parameters: {
       turn: {
         type: 'string',
@@ -599,7 +602,7 @@ export function recallToolDefinition(): ToolDefinition {
       view: {
         type: 'string',
         enum: ['dialogue', 'full'],
-        description: '"dialogue": text once, tool results as locators. "full" (default): text plus all original records.',
+        description: '"dialogue" (default): text once, tool results as locators. "full": text plus all original records (reasoning and every tool output; can be ~100x larger).',
       },
     },
     output: {
@@ -616,7 +619,7 @@ export function recallToolDefinition(): ToolDefinition {
       if (turn === null) {
         throw new Error('recall_turn needs {"turn": "slice-turn-N"} (or just "N")')
       }
-      const view: RecallView = a?.view === 'dialogue' ? 'dialogue' : 'full'
+      const view: RecallView = a?.view === 'full' ? 'full' : 'dialogue'
       const page = renderSealedTurn(agent.session.snapshotEvents(), turn, { view })
       if (page === null) {
         const known = sealedTurns(agent.session.snapshotEvents())

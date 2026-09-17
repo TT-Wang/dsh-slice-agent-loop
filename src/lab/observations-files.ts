@@ -1,9 +1,20 @@
+// offline/experimental — not on the runtime path. Nothing under src/lab is reachable
+// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /**
  * Read evidence already present in Harness's durable tool records. This module
  * never resolves a path, reads a file, or guesses an FsTarget/version token.
+ *
+ * Offline only, and three known defects are left unfixed here on purpose: it
+ * reads `content[0]` alone, it accepts `block.toolCallId` alone, and it drops a
+ * tool/result whose `surfaceOp` is undefined. Before this module is ever put
+ * back on a live path it must first adopt src/recall.ts's handling: iterate
+ * every tool-result block, take the call id as
+ * `block.toolCallId ?? message.source?.callId`, and treat an undefined
+ * `surfaceOp` as an original event the way recall's isOriginalEvent does.
  */
-import { asRecord } from '../state/events.js'
-import type { RecordedEvent, RecordedFileObservation } from '../state/events.js'
+import { asRecord } from './state-events.js'
+import type { RecordedEvent, RecordedFileObservation } from './state-events.js'
 
 interface Call {
   name: string

@@ -6,8 +6,8 @@
 >   [`../src/lab/assemble.ts`](../src/lab/assemble.ts)（下面正文 `:14`、`:116` 的
 >   旧路径按此换算）；即使还在，它也不在插件的现役调用图上，不再是本文所说的
 >   "实现"。现役 `src/context.ts` 仍复用 `src/slice/tape.ts` 的回复摘录助手，
->   `src/fold/` 使用 `src/slice/result-digest.ts`；`src/slice/admission.ts`
->   属于离线模块，不再承担现役准入。
+>   `src/fold/` 使用 `src/slice/result-digest.ts`；准入模块属于离线代码，
+>   已于 2026-09-17 移到 `src/lab/tape-admission.ts`，不再承担现役准入。
 > - 「没有区表、没有 `Region` 类型、没有 `zone` 字段」这条目标形态**没有实现**：
 >   `assemble.ts` 最终导出了带 `zone` 字段的 `ZONE_HEADERS`（7 项）。
 >

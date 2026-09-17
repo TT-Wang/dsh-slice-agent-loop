@@ -8,7 +8,7 @@
 
 # Request tape admission
 
-`admitTape` in `src/slice/admission.ts` selects a request view from recorded
+`admitTape` in `src/lab/tape-admission.ts` selects a request view from recorded
 tape entries. It does not replace `compactTape` or mutate continuity state.
 The caller retains the original tape and supplies `maxTapeChars` explicitly;
 this module changes no configured defaults or prompt headers.

@@ -303,9 +303,11 @@ export function snapshotNote(recallTurns: readonly number[]): string {
 
 interface Shrink { tools: boolean; readChars: number; userHead: number; userTail: number; reply: ReplyCaps; compact?: boolean }
 
+/** 条目里的每个 recall 指针都走默认视图(dialogue):`view:"full"` 大两个数量级,按 KERNEL 与工具描述只在
+ *  真的要工具输入或原始推理时才取——压到最狠的 compact 档同样如此,那恰好是积压最大、最不该整轮取 full 的时候。 */
 function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, pinUserChars: number, shrink: Shrink, history: ReadHistory): string {
   const lines = [shrink.compact
-    ? `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · full details: recall_turn({"turn":"${range[0]}","view":"full"}); repeat for each turn through ${range[1]}]`
+    ? `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · details: recall_turn({"turn":"${range[0]}"}); repeat for each turn through ${range[1]}]`
     : `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":${SESSION_FORMAT_VERSION}}) returns a tool result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
@@ -315,7 +317,7 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
       lines.push(index === 0 ? body : `[user]\n${body}`)
     })
     if (item.snapshots.length) lines.push(shrink.compact
-      ? `[${item.snapshots.length} runtime-context snapshot(s) superseded; recall_turn({"turn":"${item.turn}","view":"full"})]`
+      ? `[${item.snapshots.length} runtime-context snapshot(s) superseded; recall_turn({"turn":"${item.turn}"})]`
       : snapshotNote(item.snapshots))
     if (item.reply) lines.push(shrink.compact
       ? `[reply] ${excerpt(item.reply, 0, shrink.reply.head, shrink.reply.tail)}`
@@ -361,7 +363,7 @@ export function renderCheckpoint(session: Session, run: readonly Node[], toolNam
     text = renderItems(items, range, covered.size, pinUserChars, level, history)
     if (textChars(text) <= maxChars) return text
   }
-  return `${TAPE_PREFIX}${range[0]}-${range[1]} · ${covered.size} turn(s) sealed]\n[details omitted to fit entry; recall_turn({"turn":"${range[0]}","view":"full"}); repeat for each turn through ${range[1]}]`
+  return `${TAPE_PREFIX}${range[0]}-${range[1]} · ${covered.size} turn(s) sealed]\n[details omitted to fit entry; recall_turn({"turn":"${range[0]}"}); repeat for each turn through ${range[1]}]`
 }
 
 function checkEntryLimit(maxChars: number): void {
@@ -481,12 +483,3 @@ export function sealCompletedTurns(session: Session, pending: readonly Message[]
   return plan
 }
 
-/**
- * Size of the request this step will build: the current surface plus the
- * messages pre-step's decision is about to append. The loop derives its
- * messages before agent/request runs, so pre-step is the last point at which
- * the session may still be edited.
- */
-export function requestChars(session: Session, incoming: readonly Message[] = []): number {
-  return chars([...session.deriveMessages(), ...incoming])
-}

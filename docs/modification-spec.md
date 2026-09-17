@@ -7,7 +7,8 @@
 >   所有形如 `../src/driver.ts:982`、`../src/driver.ts:1196`、
 >   `../src/slice/regions.ts:396`、`../src/slice/regions.ts:634`、
 >   `src/system-prompt.ts:19-68`(见 `:159` B5 一节)的定位都是坏链;
->   `../src/continuity.ts`(519 行)与 `../src/slice/tape.ts`(573 行)文件仍在——
+>   `../src/slice/tape.ts`(573 行)文件仍在，`continuity.ts` 已于 2026-09-17 作为
+>   离线模块移到 `../src/lab/continuity.ts`——
 >   现役 `src/context.ts` 仅复用 `tape.ts` 的回复摘录助手——但它们经历过重写，
 >   文中的**行号**(`continuity.ts:136/336`、`tape.ts:410`)不再指向所述代码。
 >   保留原文只为不篡改历史，不要按这些定位去找代码。
