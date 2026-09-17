@@ -5,7 +5,7 @@
  *   rebaseAfterPatches —— auto 锚定下同一文件累积 N 个 patch 就重落完整基线。
  */
 import { describe, expect, it } from 'vitest'
-import { createContinuity, sealTurn, trackCheck, trackEdit, trackRead } from '../src/continuity.js'
+import { createContinuity, sealTurn, trackCheck, trackEdit, trackRead } from '../src/lab/continuity.js'
 
 const seal = (c: ReturnType<typeof createContinuity>, turn: number, reply: string, extra: Record<string, unknown> = {}) =>
   sealTurn(c, { turnId: `slice-turn-${turn}`, status: 'completed', userRequest: 'u', assistantReply: reply, sessionId: 's', ...extra })

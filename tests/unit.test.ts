@@ -10,7 +10,7 @@ import { searchSessionEvents, renderSearchHits, renderSealedTurn } from "../src/
 import {
   TapeEntry, composeAfter, baseEntry, patchEntry, tapeChars, applyUnified, unifiedPatch, _h,
 } from "../src/slice/tape.js";
-import { createContinuity, recordUser, fillAssistant, sealTurn, compactTurn, compactTurnSpan } from "../src/continuity.js";
+import { createContinuity, recordUser, fillAssistant, sealTurn, compactTurn, compactTurnSpan } from "../src/lab/continuity.js";
 
 
 describe("tape entry semantics (test_session_tape.py)", () => {

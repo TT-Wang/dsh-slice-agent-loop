@@ -361,7 +361,8 @@ describe('slice context on the native DSH loop', () => {
     expect(calls).toEqual(['multi-ok', 'multi-failed'])
     expect(results.map(block => block.toolCallId)).toEqual(calls)
     expect(results.map(block => block.isError ?? false)).toEqual([false, true])
-    const recalled = renderSealedTurn(agent.session.snapshotEvents(), 1)!.rendered
+    // Tool output lives in the original records, so this needs the explicit full view.
+    const recalled = renderSealedTurn(agent.session.snapshotEvents(), 1, { view: 'full' })!.rendered
     expect(recalled).toContain('MULTI_SUCCESS_SENTINEL')
     expect(recalled).toContain('MULTI_FAILURE_SENTINEL')
     expect(entriesIn(h.adapter.requests[2]!.messages)).toHaveLength(1)
@@ -467,7 +468,7 @@ describe('slice context on the native DSH loop', () => {
     const original = `DOCUMENT_START\n${'row = stable value\n'.repeat(4_000)}EXACT_LAST_LINE\n`
     const h = await boot([
       nativeTool('large-result', 'large_document'), nativeText('document read'),
-      nativeTool('recall-original', 'recall_turn', { turn: '1' }), nativeText('original recalled'),
+      nativeTool('recall-original', 'recall_turn', { turn: '1', view: 'full' }), nativeText('original recalled'),
     ])
     h.ctx.tools.register(defineContentToolFixture({
       name: 'large_document', description: 'Return a large document', parameters: {},

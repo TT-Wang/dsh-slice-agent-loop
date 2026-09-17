@@ -67,11 +67,12 @@ interface SealedTurnPage {
  * gate suite can drive it without an agent. Returns null when the log holds
  * nothing for that turn.
  *
- * view "full" (default): user text, assistant text, then every original
- * record of the turn as JSON (reasoning, tool calls, tool output, metadata).
- * view "dialogue": the same user and assistant text, each exactly once, with
- * every tool result reduced to one locator line — the cheap page for "what
- * was said", with the tool output one expand_result call away.
+ * view "dialogue" (default): user text and assistant text, each exactly once,
+ * with every tool result reduced to one locator line — the cheap page for
+ * "what was said", with the tool output one expand_result call away.
+ * view "full": the same text, then every original record of the turn as JSON
+ * (reasoning, tool calls, tool output, metadata). Two orders of magnitude
+ * larger on a working turn, so it is served only when asked for by name.
  *
  * Both views serve generated context (runtime snapshots, injected notices) in
  * its own section, never folded into the human's request: an archived or

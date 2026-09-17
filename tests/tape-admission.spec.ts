@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { admitTape, type TapeRecallSource } from '../src/slice/admission.js'
+import { admitTape, type TapeRecallSource } from '../src/lab/tape-admission.js'
 import {
   baseEntry, digestEntry, patchEntry, renderTapeReply, replyEntry,
   tapeChars, tapeRender, type TapeEntry,

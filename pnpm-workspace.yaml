@@ -2,8 +2,21 @@ allowBuilds:
   esbuild: true
   fs-ext: true
   koffi: true
-# These exceptions only take effect when minimumReleaseAge is enabled by a
-# user/global pnpm configuration; this repository does not enable an age policy.
+# pnpm 11 defaults minimum-release-age to 1440 minutes (one day); restated here
+# so the policy is explicit rather than inherited, without changing behaviour.
+# Re-verified on the pinned pnpm@11.7.0 (2026-09-17): a bare project with no pnpm
+# configuration at all still gates a package published an hour earlier, and the
+# defaults table in its dist carries `"minimum-release-age": 24 * 60`.
+# Before this key existed, `pnpm config get minimum-release-age` printed
+# undefined: it reports explicit settings only, never built-in defaults, so
+# that output must not be read as "no policy".
+minimumReleaseAge: 1440
+# The age policy would otherwise refuse the freshly published @deepseek-ai/dsh
+# release this repository pins. Every package below is exempted from the wait so
+# `pnpm install` resolves it on the day it ships. Update this list in the same
+# change as any DSH version bump, or the install starts failing the age check.
+# The policy covers transitive dependencies too; with minimumReleaseAgeStrict off
+# pnpm appends those names here by itself, so keep what it writes.
 minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-agent-loop@0.1.5-rc.2'
   - '@deepseek-ai/dsh-agent@0.1.5-rc.2'

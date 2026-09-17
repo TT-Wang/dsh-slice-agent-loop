@@ -1,10 +1,11 @@
 # Recorded memory: offline reducer
 
-`buildContinuity(session, policy)` in `src/state/reducer.ts` is an offline / analysis
+`buildContinuity(session, policy)` in `src/lab/state-reducer.ts` is an offline / analysis
 reducer, retained with historical tests. It is not called by live sealing or resume.
 The current path is `planSeal` / `sealCompletedTurns` in `src/context.ts`, with
 successful read observations in `src/context-reads.ts`. The offline reducer reuses
-the conversation ring, turn digest, reply caps, and tape compaction from `continuity.ts`.
+the conversation ring, turn digest, reply caps, and tape compaction from
+`src/lab/continuity.ts`.
 
 Only append-origin human messages enter the human conversation ring. Steering
 adds to the current turn's request. Append-origin assistant and tool outcomes

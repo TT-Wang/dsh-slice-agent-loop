@@ -14,7 +14,8 @@
 >   "缓存边界 = system + 上一轮结束时的 tape"的决策，讲的都是那台已退役的驱动器。
 >   **注意 `src/slice/` 目录本身仍然现役**：`src/context.ts` import
 >   `slice/tape.ts` 的 `renderTapeReply`（tape 里的回复摘录），
->   `src/continuity.ts` 用 `slice/tape.ts` 与 `slice/internal/`，`src/fold/` 用
+>   离线的 `src/lab/continuity.ts`（2026-09-17 前在 `src/continuity.ts`）用
+>   `slice/tape.ts` 与 `slice/internal/`，`src/fold/` 用
 >   `slice/result-digest.ts`——它们是现役渲染代码，别当死代码删。本文的范围行（下面「范围：
 >   `src/slice/`。不含 `tape.ts` 内部逻辑」）本来就把 `tape.ts` 排除在外。
 > - S6「迁移」标为 **OPEN** 且从未闭合；真正发生的迁移是另一件事（迁到 DSH 原生

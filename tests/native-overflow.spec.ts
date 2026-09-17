@@ -18,7 +18,7 @@ describe('host context overflow contract', () => {
     const overflow: StreamChunk[] = [{ type: 'finish', reason: { kind: 'error', failure } }]
     const h = await nativeHarness([
       nativeTool('large-result', 'large_fixture'), overflow,
-      nativeTool('recall-failed-turn', 'recall_turn', { turn: '1' }), nativeText('continued after recall'),
+      nativeTool('recall-failed-turn', 'recall_turn', { turn: '1', view: 'full' }), nativeText('continued after recall'),
     ], { config: { history: { pinFirstTurn: false }, fold: { enabled: false } } })
     live.push(h)
     const exactInput = 'OVERFLOW_USER_SENTINEL\n' + 'original request line\n'.repeat(200)
@@ -40,7 +40,8 @@ describe('host context overflow contract', () => {
     for (const event of failedEvents.filter(event => event.surfaceOp === 'append')) {
       expect(agent.session.surface.nodes).toContain(event.seq)
     }
-    const failedPage = renderSealedTurn(failedEvents, 1)!.rendered
+    // The exact failed result bytes live in the original records: the full view.
+    const failedPage = renderSealedTurn(failedEvents, 1, { view: 'full' })!.rendered
     expect(failedPage).toContain('status error')
     expect(failedPage).toContain(exactInput)
     expect(failedPage).toContain(JSON.stringify(exactResult))

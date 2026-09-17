@@ -96,11 +96,4 @@ export declare function planSeal(session: Session, pending: readonly Message[], 
 export declare function applySeal(session: Session, plan: ArchivePlan): void;
 /** Plan and apply in one call; the decision is complete before the first append. */
 export declare function sealCompletedTurns(session: Session, pending: readonly Message[], policy: HistoryPolicy, warn?: Warn): ArchivePlan;
-/**
- * Size of the request this step will build: the current surface plus the
- * messages pre-step's decision is about to append. The loop derives its
- * messages before agent/request runs, so pre-step is the last point at which
- * the session may still be edited.
- */
-export declare function requestChars(session: Session, incoming?: readonly Message[]): number;
 export {};
