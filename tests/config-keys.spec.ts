@@ -76,3 +76,12 @@ describe('history section keys', () => {
     await expect(load({ keepRecent: 2 })).rejects.not.toThrow('Retired history configuration')
   })
 })
+
+describe('optional step cap', () => {
+  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, null, '50'])(
+    'rejects an invalid explicit cap: %s', async value => {
+      await expect(nativeHarness([], { config: { maxStepsPerTurn: value } as never }))
+        .rejects.toThrow('maxStepsPerTurn must be a positive safe integer')
+    },
+  )
+})
