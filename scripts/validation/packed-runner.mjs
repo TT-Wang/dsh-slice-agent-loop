@@ -28,6 +28,11 @@ const tool = (id, name, args) => [
   { type: 'usage', usage: { inputTokens: 10, outputTokens: 3 } },
   { type: 'finish', reason: { kind: 'tool-calls' } },
 ]
+// Exceed both former excerpt defaults and put evidence in the middle, where
+// a head/tail renderer would silently remove it. No network/model call needed.
+const secondUser = `Recall the first turn\n${'u'.repeat(5_000)}\nPACKED_USER_MIDDLE\n${'v'.repeat(5_000)}`
+const secondAnswer = `  PACKED_SECOND_ANSWER\n${'a'.repeat(5_000)}\nPACKED_ASSISTANT_MIDDLE\n${'b'.repeat(5_000)}\n  `
+const intermediateAnswer = 'PACKED_INTERMEDIATE_ASSISTANT'
 /** @param {import('@deepseek-ai/cordis').Context} ctx @param {{outputDir:string}} config */
 export function apply(ctx, config) {
   const appExit = /** @type {((code:number)=>void)|undefined} */ (ctx.get('appExit'))
@@ -37,7 +42,15 @@ export function apply(ctx, config) {
   const requests = []
   /** @type {string[]} */
   const errors = []
-  const responses = [text('PACKED_FIRST_ANSWER'), tool('packed-recall', 'recall_turn', { turn: '1' }), text('PACKED_SECOND_ANSWER'), text('PACKED_THIRD_ANSWER'), text('PACKED_RESUMED_ANSWER')]
+  const recallResponse = tool('packed-recall', 'recall_turn', { turn: '1' })
+  // Text followed by a tool call in the same model response, then another
+  // assistant response in that turn: both texts must survive sealing.
+  recallResponse.unshift(
+    { type: 'block-start', index: 1, blockType: 'text' },
+    { type: 'text-delta', index: 1, text: intermediateAnswer },
+    { type: 'block-end', index: 1, block: { type: 'text', text: intermediateAnswer } },
+  )
+  const responses = [text('PACKED_FIRST_ANSWER'), recallResponse, text(secondAnswer), text('PACKED_THIRD_ANSWER'), text('PACKED_RESUMED_ANSWER')]
   class Adapter extends llm.LlmAdapter {
     /** @param {string} provider @param {string} model @returns {Promise<import('@deepseek-ai/dsh-llm').LlmResolvedModelInfo>} */
     async resolveModel(provider, model) { return { provider, id: model, name: model, inputModalities: ['text', 'image'], reasoning: { efforts: [{ id: llm.ReasoningEffortId('high'), name: 'High' }, { id: llm.ReasoningEffortId('low'), name: 'Low' }], defaultEffort: llm.ReasoningEffortId('high') } } }
@@ -72,7 +85,7 @@ export function apply(ctx, config) {
   async function run() {
     await (/** @type {{await(): Promise<void>}|undefined} */ (ctx.get('loader')))?.await()
     const handle = await ctx.agents.create({ sessionId: sessions.SessionId('packed-loader-session'), meta: { cwd: process.cwd() }, agentOptions: { provider: 'packed-mock', model: 'deterministic' } })
-    for (const value of ['First packed request', 'Recall the first turn', 'Third packed request']) {
+    for (const value of ['First packed request', secondUser, 'Third packed request']) {
       handle.agent.followup(llm.createUserMessage({ content: [{ type: 'text', text: value }], source: { kind: 'user' } }))
       await handle.agent.whenIdle()
     }
@@ -98,6 +111,26 @@ export function apply(ctx, config) {
       assert.deepEqual(events[firstEntrySeq], firstEntry, 'a sealed entry must remain frozen')
     }
     assert.equal(tapeNodes(before).length, 2, 'turn 2 must also seal before turn 3')
+    const originalUser = requests[1].events.find(event => {
+      const message = sessions.deriveEventMessage(event)
+      return message?.role === 'user' && message.content.some(block => block.type === 'text' && block.text === secondUser)
+    })
+    assert.ok(originalUser, 'turn 2 must have an original long user node')
+    /** @param {readonly import('@deepseek-ai/dsh-session').SessionEvent[]} events */
+    const checkDialogue = events => {
+      const nodes = sessions.foldSurface(events).nodes
+      assert.ok(nodes.includes(originalUser.seq), 'the later long user message must remain at its original node')
+      assert.deepEqual(events[originalUser.seq], originalUser)
+      const texts = nodes.flatMap(seq => sessions.deriveEventMessage(events[seq])?.content.flatMap(block => block.type === 'text' ? [block.text] : []) ?? [])
+      assert.equal(texts.filter(value => value.includes(secondUser)).length, 1, 'the user text must not be copied into tape')
+      const entryTexts = tapeNodes(events).map(seq => sessions.deriveEventMessage(events[seq])?.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('\n') ?? '')
+      const secondEntry = entryTexts.find(value => value.includes('PACKED_SECOND_ANSWER'))
+      assert.ok(secondEntry, 'turn 2 must have a sealed entry')
+      assert.ok(secondEntry.includes(secondAnswer), 'the complete assistant text including its middle and whitespace must survive sealing')
+      assert.ok(secondEntry.includes(intermediateAnswer), 'earlier assistant text in the same turn must survive sealing')
+      assert.ok(secondEntry.indexOf(intermediateAnswer) < secondEntry.indexOf(secondAnswer), 'assistant texts must retain their order')
+    }
+    checkDialogue(before)
     assert.ok(before.every(event => sessions.KNOWN_SESSION_EVENT_TYPES.has(event.type)), 'no unknown required plugin events')
     const recallResult = before.find(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'tool-result' && block.toolCallId === 'packed-recall'))
     assert.ok(recallResult?.type === 'tool/result' && recallResult.data.message.content.some(block => block.type === 'tool-result' && block.toolCallId === 'packed-recall' && block.isError !== true))
@@ -115,9 +148,10 @@ export function apply(ctx, config) {
     assert.ok(tapeNodes(finalEvents).includes(firstEntrySeq), 'resume must retain the original sealed entry')
     assert.deepEqual(finalEvents[firstEntrySeq], firstEntry)
     assert.equal(tapeNodes(finalEvents).length, 3, 'resume must seal the previous completed turn')
+    checkDialogue(finalEvents)
     const shim = await import(pathToFileURL(createRequire(new URL('./home/profiles/slice-packed/package.json', import.meta.url)).resolve('@dsh-external/dsh-slice-agent-loop/invariant')).href)
     assert.equal(typeof shim.apply, 'function', 'the exported invariant compatibility shim must load')
-    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, originalUserNodeRetained: true, completeAssistantTextsRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

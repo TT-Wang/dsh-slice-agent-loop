@@ -6,9 +6,9 @@ A conversational-context retention policy for **DeepSeek Harness 0.1.5-rc.2 / 0.
 
 ## History model: an append-only tape
 
-At the first step of a turn, completed turns beyond `history.keepRecentTurns` (default 0) are sealed into frozen `[slice tape v1 …]` `user/message` surface replacements at their original positions. Existing entries are never re-rendered or nested. Sealing preserves the surface prefix through the last existing entry; newly eligible older nodes are left in place rather than backfilled ahead of that prefix. Protected nodes can split a turn into several entries.
+At the first step of a turn, eligible assistant/tool spans from completed turns beyond `history.keepRecentTurns` (default 0) are sealed into frozen `[slice tape v1 …]` `user/message` surface replacements at their original positions. Existing entries are never re-rendered or nested. Sealing preserves the surface prefix through the last existing entry; newly eligible older nodes are left in place rather than backfilled ahead of that prefix. Protected nodes can split a turn into several entries.
 
-Instruction messages, current user input, multimodal user messages, turn 1's user message and the **newest** runtime-context snapshot keep their original sources and positions. Superseded snapshots can be absorbed with their turn only after the frozen prefix. A snapshot that becomes superseded later, before an existing entry, stays raw at its original position. Snapshot text is never rendered as a human request. Raw events remain in the session log and can be recalled after sealing, folding or resume.
+Every original human user message still present on the host surface stays verbatim at its original node, in every turn. User text is not copied into the tape. Instruction messages, multimodal input and the **newest** runtime-context snapshot also keep their original sources and positions. Superseded snapshots can be absorbed with their turn only after the frozen prefix. A snapshot that becomes superseded later, before an existing entry, stays raw at its original position. Snapshot text is never rendered as a human request. Raw events remain in the session log and can be recalled after sealing, folding or resume.
 
 Frozen entries preserve their bytes, but this does **not** guarantee that each request bills only one new entry: a seal can make everything after its position miss the provider cache, including retained raw turns. See [Prefix behaviour](#prefix-behaviour).
 
@@ -17,11 +17,13 @@ Frozen entries preserve their bytes, but this does **not** guarantee that each r
 One entry renders, in order:
 
 - a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":3}) returns a tool result]`;
-- per sealed turn: `[turn N]`, the user message (verbatim up to `history.pinUserChars`, default 1,200; longer ones keep head 600 / tail 300 with a `recall_turn` marker between), then the reply wrapped in `[reply slice-turn-N @sha256:…] … [end reply @sha256:…]`;
+- per sealed turn: `[turn N]`, then every visible assistant text message in that span, in source order, each with a reply wrapper and its source locator; by default the entire text is preserved, including whitespace and messages preceding a tool call;
 - the turn's **read index** line (below);
 - the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
 
-`history.entryMaxChars` (default 8,000, minimum 256) is a **hard code-point cap on newly sealed entry text**. The renderer bounds read labels and index lines, drops tool lines, then shrinks excerpts and indexes. If a large backlog still cannot fit, a compact span marker names full-turn recall instead of cutting a locator. Old frozen entries and protected raw messages are unchanged; this is not a total request bound. An unpaired tool call keeps its segment raw; the plugin warns once per retained segment during that session instance.
+**There is no default entry or assistant-text cap.** Reasoning and tool-result bodies remain in the original log and are accessed through recall; navigation metadata still has display limits. User messages stay outside the entry and cannot be shortened by its renderer.
+
+`history.entryMaxChars` is an **opt-in hard code-point cap on newly sealed entry text**. An explicit value must be a positive safe integer of at least 256. With that setting, the renderer can drop tool lines, shorten assistant text and indexes, and ultimately emit a compact span marker with a complete `recall_turn` instruction. Omit the setting to preserve assistant text in full. This cap never changes original user nodes or old frozen entries and is not a total request bound. An unpaired tool call keeps its segment raw; the plugin warns once per retained segment during that session instance.
 
 ### Read index and read fingerprints
 
@@ -32,7 +34,7 @@ Each sealed turn that successfully read text carries a compact index:
 ```
 
 - Counted tools: `read`, `read_section`, `read_file`, including nested `tool/ptc-dispatch` calls. Failed reads never enter the successful index or comparison history; a successful retry can replace an earlier success.
-- The canonical observation is the **latest successful** read per tool, path, argument window and direct/code channel in that turn. At most 10 appear, followed by `+N more` when needed.
+- The canonical observation is the **latest successful** read per tool, path, argument window and direct/code channel in that turn. The navigation line shows at most 10 observations within 2,000 code points, with bounded labels; omitted observations are counted with a full-turn recall hint. These display limits do not truncate the underlying read records.
 - The digest is the first 8 hex of `sha256` over returned text. Comparisons use the same canonical observation in earlier turns and include its turn, step, seq and result block. Different windows or channels are not labelled as file changes.
 - Direct reads identify the logged result. Nested reads identify the dispatch and explicitly say `code log; model visibility not implied`: text returned to code is not necessarily forwarded to the model.
 - No file content is copied into the entry. These are historical returned windows, not proof of the whole file or its current state.
@@ -58,15 +60,12 @@ Numeric locators are qualified with the current session format: `expand_result({
       pinSteps: 0
     history:
       keepRecentTurns: 0
-      pinFirstTurn: true
-      pinUserChars: 1200
-      entryMaxChars: 8000
 ```
 
 | Setting | Meaning |
 |---|---|
-| `history.keepRecentTurns` | Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn). Raising it retains more verbatim history. Unchanged raw turns may still hit the cache; sealing an older turn can invalidate the prefix before that retained tail. Sealing is unconditional: there is no threshold to cross and no size target to fall back to. |
-| `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | Keep turn 1's user message as an untouched append node (default true; its assistant/tool run is still sealable). `pinUserChars` (default 1,200) is the verbatim budget for a sealed user message. `entryMaxChars` (default 8,000, minimum 256) caps each new entry's text; it does not cap the whole tape. |
+| `history.keepRecentTurns` | Completed turns whose eligible assistant/tool spans stay raw at the tail (default 0: seal at the first step of the next turn). All original human user messages stay raw regardless of this value. Raising it retains more original assistant/tool structure; unchanged raw turns may still hit the cache, but sealing an older turn can invalidate the prefix before that tail. There is no pressure threshold or fallback size target. |
+| `history.entryMaxChars` | Optional cap on each new entry, in Unicode code points; omitted by default. Explicit values must be safe integers of at least 256. Enabling it permits assistant-text/index reduction with recall markers. It cannot shorten original user nodes and does not cap the whole tape. |
 | `maxStepsPerTurn` | Optional positive step cap. Omit it to let the stock loop control termination; set it explicitly to stop before dispatching beyond that many model steps. |
 | `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit` (default). By default, the host/model chooses the reasoning budget; an explicit request choice always wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
 | `digest` | Content-routing options from `src/slice/result-digest.ts`. |
@@ -81,12 +80,15 @@ Updating the plugin does not remove explicit values from your profile. To adopt 
 1. Remove `maxStepsPerTurn: 50` (or another existing cap) to let the stock loop control termination. Keep a positive integer only if you want an explicit step limit; `0` and `null` are invalid.
 2. Remove `defaultReasoningEffort: low` or change it to `inherit` to use the host/model choice. Explicit request-level choices still take precedence.
 3. Remove `fold.pinSteps: 2` or set it to `0` to apply content-based folding from the first step. Recognized source code, error results and recalled originals retain their existing protections. Resource-scoped backoff applies automatically.
-4. Remove `maxRequestChars` and `maxHistoryChars`; these retired keys now prevent the plugin from loading.
+4. Remove `history.pinFirstTurn` and `history.pinUserChars`; both are retired and now prevent loading with migration guidance. Every original human user node is preserved, so neither a first-turn switch nor a user-excerpt budget applies.
+5. Remove `history.entryMaxChars: 8000` (or another explicit cap) to preserve all assistant text in future entries. Retain a valid value only if you deliberately want bounded entry text and recall-based recovery.
+6. Remove `maxRequestChars` and `maxHistoryChars`; these retired keys now prevent the plugin from loading.
 
-Keep any supported override you intentionally want. Existing frozen tape entries are not rewritten when these defaults change.
+Keep any supported override you intentionally want. Existing frozen tape entries are not rewritten: previously clipped content is still available through recall, but upgrading does not automatically restore it to the surface. The new preservation rules apply to future seals and the text then present on the host surface; they do not resurrect content already hidden by host compaction or another plugin.
 
-**The request budget is gone.** Entries reduce historical detail but accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. The tape alone does not prevent overflow. The plugin does not reject requests based on their character count or shrink the tape by rewriting existing entries.
+**The request budget is gone.** Entries replace tool-result/reasoning bodies with recallable records while keeping visible dialogue by default, and accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. Preserving longer dialogue can increase context use and input cost; the tape alone does not prevent overflow. The plugin does not reject requests based on their character count or shrink the tape by rewriting existing entries.
 
+- **Retired user-retention keys now fail at load:** remove `history.pinFirstTurn` and `history.pinUserChars`. All original human user messages stay in place; there is no replacement user-text budget.
 - **Retired budget keys now fail at load:** remove `maxRequestChars` and `maxHistoryChars`. They previously parsed without enforcing a limit; accepting them silently suggested protection that did not exist. Configure context-window handling in the host.
 - **Fail at load, naming where each went:** `history.highWaterChars`, `history.lowWaterChars`, `history.keepRecentChars`, `history.checkpointMaxChars` (`Retired history configuration <key>: …` — replacements are `history.keepRecentTurns`, counted in turns, and `history.entryMaxChars`; the two water marks have no counterpart, because there is no pressure threshold left to cross), plus the retired driver keys `maxParallelToolCalls`, `inTurnSeal`, `tape`, `state` (`Retired slice configuration <key>: …`).
 - `mode` accepts only `slice`; `state` and `stream` fail at load. An unrecognised key in either section fails with the valid-key list.
@@ -103,7 +105,7 @@ This package already mounts its own copy of tool-result folding: originally deri
 
 [Agent Swarm](https://github.com/TT-Wang/dsh-agent-swarm) (`@dsh-external/dsh-agent-swarm`) is DSH's **mission layer**: one instruction becomes a mission whose owner plans the task graph and whose members run as native sessions in their own worktrees and sandboxes, with every artifact independently reviewed and verified. This plugin is the **session layer** those workers run under, and the two are usually mounted together:
 
-- Agent Swarm fans work out; this policy reduces historical detail within each worker session while retaining frozen entries and recall locators. Total tape size still grows with the session.
+- Agent Swarm fans work out; this policy replaces historical tool/reasoning bodies with recall locators within each worker session while retaining frozen entries and recall locators. Total tape size still grows with the session.
 - The recall surface preserves access to original records inside a mission: `recall_turn`, `recall_search` and `expand_result` retrieve anything a seal, a fold or a resume replaced, so a worker that needs an earlier file read or tool result gets it back instead of re-reading it or guessing.
 - Mount both rows in the same profile — the swarm bundle (or plugin package) plus this patch. Both are additive, neither forks Harness core, and the tool surfaces do not overlap (`swarm_*` there; `recall_turn` / `recall_search` / `recall_step` / `expand_result` here).
 
@@ -117,8 +119,6 @@ Implementation fixes and their verification scope: [2026-09-13 review fixes](doc
 
 ## Verification and compatibility
 
-The current policy changes passed 307 tests across 37 files, coverage gates, and packed installation/recall/resume checks on DSH **0.1.5-rc.1 and 0.1.5-rc.2**. CI covers Node 22.19.0, 22.22.3 and 24.x.
+The current change passed **322 tests across 37 files**, coverage gates, type checks and packed installation/recall/resume on DSH **0.1.5-rc.1 and 0.1.5-rc.2**. The same 322 tests passed against the available **0.1.6-alpha.2 source** checkout at `ddefc45fbc7f8e46dd73185e68295696d1297887`. CI covers Node 22.19.0, 22.22.3 and 24.x. A source probe does not extend the package's declared peer range or establish packed installation support for that version. No new paid model evaluation was added; cost savings and task accuracy must not be inferred from content-preservation tests.
 
-The same 307 tests also passed against **0.1.6-alpha.2 source** at `ddefc45fbc7f8e46dd73185e68295696d1297887`. This source probe does not extend the package's declared peer range or establish packed installation support for 0.1.6. No new paid model evaluation was run; cost savings and task accuracy were not remeasured.
-
-See [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md) for the changes, migration details and verification scope.
+See [preserve dialogue by default](docs/adr/0003-preserve-dialogue-defaults.md) for the current history decision and migration, and [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md) for the earlier loop/folding changes and their recorded validation results.

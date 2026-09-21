@@ -12,7 +12,7 @@ vi.mock('node:crypto', async importOriginal => {
 })
 afterEach(() => { vi.restoreAllMocks(); vi.clearAllMocks() })
 
-const policy: HistoryPolicy = { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 2_000 }
+const policy: HistoryPolicy = { keepRecentTurns: 0, entryMaxChars: 2_000 }
 function start(session: Session, turn: number, question = `QUESTION_${turn}`) {
   session.append('turn/start', { turn })
   return session.append('user/message', createUserMessage({ content: [{ type: 'text', text: question }], source: { kind: 'user' } }), { surfaceOp: 'append' })
@@ -51,18 +51,19 @@ describe('bounded tape entries and incremental read evidence', () => {
       end(session, turn)
     }
     const plan = sealCompletedTurns(session, [], policy)
-    expect(plan.appends).toHaveLength(1)
+    expect(plan.appends).toHaveLength(13)
     const [text] = entryText(plan)
-    expect([...text!].length).toBeLessThanOrEqual(policy.entryMaxChars)
-    expect(text).toContain('turns 1-13 · 13 turn(s) sealed')
+    expect(entryText(plan).every(entry => [...entry].length <= policy.entryMaxChars!)).toBe(true)
+    expect(text).toContain('turns 1-1 · 1 turn(s) sealed')
     const commands = [...text!.matchAll(/recall_turn\((\{[^\n]*?\})\)/g)].map(match => JSON.parse(match[1]!))
     expect(commands).toContainEqual({ turn: '1', view: 'full' })
-    expect(renderSealedTurn(session.snapshotEvents(), Number(commands[0].turn), { view: 'full' })?.rendered).toContain('BODY_1_1')
+    const readPage = commands.find(command => command.turn === '1' && command.view === 'full')!
+    expect(renderSealedTurn(session.snapshotEvents(), Number(readPage.turn), { view: 'full' })?.rendered).toContain('BODY_1_1')
     for (const original of originals) expect(session.eventAt(original.seq)).toEqual(original)
 
     // Later seals may use a different cap; the previous entry stays byte-identical.
     const frozen = plan.appends[0]!.message
-    const frozenSeq = session.surface.nodes[0]!
+    const frozenSeq = session.surface.nodes[1]!
     start(session, 14)
     read(session, 14, 1, `src/${'path'.repeat(500)}.ts`, 'LATER')
     end(session, 14)
@@ -71,12 +72,13 @@ describe('bounded tape entries and incremental read evidence', () => {
     const prior = session.eventAt(frozenSeq)
     expect(prior?.type).toBe('user/message')
     if (prior?.type === 'user/message') expect(prior.data).toEqual(frozen)
-    expect(session.surface.nodes[0]).toBe(frozenSeq)
+    expect(session.surface.nodes[1]).toBe(frozenSeq)
   })
 
   it('uses an intact range marker when even tiny per-turn traces cannot fit', () => {
     const session = Session.create(SessionId('bounded-minimum-entry'))
-    for (let turn = 1; turn <= 80; turn += 1) { start(session, turn); end(session, turn) }
+    // A resumed assistant-only backlog has no human boundaries between turns.
+    for (let turn = 1; turn <= 80; turn += 1) { session.append('turn/start', { turn }); end(session, turn) }
     const plan = sealCompletedTurns(session, [], { ...policy, entryMaxChars: MIN_ENTRY_MAX_CHARS })
     const [text] = entryText(plan)
     expect([...text!].length).toBeLessThanOrEqual(MIN_ENTRY_MAX_CHARS)
@@ -148,19 +150,22 @@ describe('bounded tape entries and incremental read evidence', () => {
     expect(readHistory(session).reads).toHaveLength(2)
   })
 
-  it('keeps explicit empty-message traces without calling a pinned user message empty', () => {
+  it('keeps empty assistant traces and retains even whitespace-only user nodes unchanged', () => {
     const session = Session.create(SessionId('empty-tape-evidence'))
-    start(session, 1, 'PINNED_QUESTION')
+    const first = start(session, 1, 'PINNED_QUESTION')
     end(session, 1)
-    start(session, 2, '  \n\t ')
+    const blank = start(session, 2, '  \n\t ')
     end(session, 2, [])
-    start(session, 3, '')
+    const empty = start(session, 3, '')
     end(session, 3, [{ type: 'text', text: ' \n ' }])
-    const [text] = entryText(sealCompletedTurns(session, [], { ...policy, pinFirstTurn: true }))
-    expect(text?.split('[turn 2]')[0]).not.toContain('[user message contained no visible text]')
-    expect(text?.match(/\[user message contained no visible text\]/g)).toHaveLength(2)
-    expect(text?.match(/\[1 assistant message\(s\) contained no visible text or tool calls\]/g)).toHaveLength(2)
-    expect(text).toContain('3 turn(s) sealed')
+    const text = entryText(sealCompletedTurns(session, [], { keepRecentTurns: 0 })).join('\n')
+    expect(text).not.toContain('[user message contained no visible text]')
+    expect(text.match(/\[1 assistant message\(s\) contained no visible text or tool calls\]/g)).toHaveLength(1)
+    expect(text).toContain('\n \n \n[end reply')
+    for (const original of [first, blank, empty]) {
+      expect(session.surface.nodes).toContain(original.seq)
+      expect(session.eventAt(original.seq)).toEqual(original)
+    }
   })
 
   it('emits each unpaired-cut warning once and retains the unmatched native blocks', () => {

@@ -9,7 +9,7 @@ import { FixtureCodeRuntime } from './fixture-code-runtime.js'
 
 const live: NativeHarness[] = []
 afterEach(async () => { for (const harness of live.splice(0).reverse()) await harness.ctx.fiber.dispose() })
-const policy = { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000 }
+const policy = { keepRecentTurns: 0 }
 const digest = (text: string) => createHash('sha256').update(text).digest('hex').slice(0, 8)
 
 function assistant(session: Session, turn: number, step: number, content: ContentBlock[]) {

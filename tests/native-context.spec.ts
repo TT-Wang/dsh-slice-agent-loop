@@ -3,8 +3,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { createUserMessage, freezeMessage, markAgentLoopRequest } from '@deepseek-ai/dsh-llm'
-import type { ImageBlock, Message } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, freezeMessage, markAgentLoopRequest, ToolCallId } from '@deepseek-ai/dsh-llm'
+import type { ImageBlock, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, foldRequestHeader, foldSurface, isReplacementSurfaceEvent, KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import {
@@ -106,6 +106,98 @@ function expectReconstructable({ request, events }: CapturedRequest): void {
 }
 
 describe('slice context on the native DSH loop', () => {
+  it('retains later human requirements and every assistant message beyond the old caps through sealing and resume', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-native-fidelity-'))
+    roots.push(root)
+    const sessionId = SessionId('native-dialogue-fidelity')
+    const progress = `  FIRST_ASSISTANT_MESSAGE\n${'analysis result before tools\n'.repeat(400)}PROGRESS_MIDDLE_REQUIREMENT\n${'retained detail after tools\n'.repeat(400)}  `
+    const answer = `  FINAL_ASSISTANT_MESSAGE\n${'decision detail\n'.repeat(600)}ANSWER_MIDDLE_REQUIREMENT\n${'follow-through detail\n'.repeat(600)}  `
+    const laterUsers = [2, 3].map(turn => nativeMessage(`USER_${turn}_START\n${'prior constraint\n'.repeat(500)}USER_${turn}_MIDDLE_REQUIREMENT\n${'following constraint\n'.repeat(500)}USER_${turn}_END`))
+    const progressThenTool: StreamChunk[] = [
+      { type: 'block-start', index: 0, blockType: 'text' },
+      { type: 'text-delta', index: 0, text: progress },
+      { type: 'block-end', index: 0, block: { type: 'text', text: progress } },
+      { type: 'block-start', index: 1, blockType: 'tool-call' },
+      { type: 'block-end', index: 1, block: { type: 'tool-call', id: ToolCallId('fidelity-echo'), name: 'echo', arguments: '{}' } },
+      { type: 'usage', usage: { inputTokens: 10, outputTokens: 3 } },
+      { type: 'finish', reason: { kind: 'tool-calls' } },
+    ]
+    const first = await boot([nativeText('first answer'), progressThenTool, nativeText(answer), nativeText('third answer')], { persistenceRoot: root })
+    first.ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'Return one observation', parameters: {}, execute: async () => [{ type: 'text', text: 'observation' }] }))
+    const { agent } = await create(first, sessionId)
+    await nativeSend(agent, 'first request')
+    for (const message of laterUsers) { agent.followup(message); await agent.whenIdle() }
+
+    expect(first.errors).toEqual([])
+    expect(first.adapter.requests).toHaveLength(4)
+    const shown = first.adapter.requests.at(-1)!.messages
+    const entries = entriesIn(shown)
+    const secondEntry = entries.find(entry => rangeOf(entry) === '2-2')!
+    expect(secondEntry.length).toBeGreaterThan(8_000)
+    expect(secondEntry).toContain(progress)
+    expect(secondEntry).toContain(answer)
+    expect(secondEntry.indexOf(progress)).toBeLessThan(secondEntry.indexOf(answer))
+    expect(secondEntry.split('FIRST_ASSISTANT_MESSAGE')).toHaveLength(2)
+    expect(secondEntry.split('FINAL_ASSISTANT_MESSAGE')).toHaveLength(2)
+    const events = agent.session.snapshotEvents()
+    const written = events.filter(event => event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE)
+    const sources = written.flatMap(event => event.sourceEventSeqs ?? [])
+    const assistantSources = events.filter(event => event.type === 'assistant/message' && event.data.turn === 2)
+    expect(assistantSources).toHaveLength(2)
+    for (const original of assistantSources) expect(sources).toContain(original.seq)
+    for (const message of laterUsers) {
+      expect(shown.filter(candidate => candidate.id === message.id)).toEqual([message])
+      const original = events.find(event => event.type === 'user/message' && event.data.id === message.id)!
+      expect(agent.session.surface.nodes).toContain(original.seq)
+      expect(sources).not.toContain(original.seq)
+      for (const entry of entries) expect(entry).not.toContain(textIn([message]))
+    }
+    const fullPage = renderSealedTurn(events, 2, { view: 'full' })!.rendered
+    expect(fullPage).toContain(progress)
+    expect(fullPage).toContain(answer)
+    expect(fullPage).toContain(textIn([laterUsers[0]!]))
+    for (const captured of first.captured) expectReconstructable(captured)
+    expectStablePrefix(first.adapter.requests)
+    const before = structuredClone(events)
+    const beforeMessages = structuredClone(agent.session.deriveMessages())
+    const lastEntryPosition = beforeMessages.reduce((last, message, index) => entriesIn([message]).length ? index : last, -1)
+    await first.ctx.fiber.dispose()
+    live.splice(live.indexOf(first), 1)
+
+    const second = await boot([nativeText('resumed')], { persistenceRoot: root })
+    const resumed = await second.ctx.agents.resume({ resumeSessionId: sessionId, agentOptions: { provider: 'native-mock', model: 'deterministic' } })
+    expect(resumed.agent.session.deriveMessages()).toEqual(beforeMessages)
+    await nativeSend(resumed.agent, 'continue after restart')
+    expect(second.errors).toEqual([])
+    expect(resumed.agent.session.snapshotEvents().slice(0, before.length)).toEqual(before)
+    const after = second.adapter.requests[0]!.messages
+    expect(after.slice(0, lastEntryPosition + 1)).toEqual(beforeMessages.slice(0, lastEntryPosition + 1))
+    expect(entriesIn(after).find(entry => rangeOf(entry) === '2-2')).toBe(secondEntry)
+    for (const message of laterUsers) expect(after.filter(candidate => candidate.id === message.id)).toEqual([message])
+    for (const captured of second.captured) expectReconstructable(captured)
+  })
+
+  it('applies an explicit entry budget only to assistant and tool history, never to a later human node', async () => {
+    const longInput = nativeMessage(`LONG_USER_START\n${'human constraint\n'.repeat(400)}LONG_USER_MIDDLE\n${'human requirement\n'.repeat(400)}LONG_USER_END`)
+    const h = await boot([nativeText('first answer'), nativeText('assistant detail\n'.repeat(1_000)), nativeText('next answer')], { config: { history: { entryMaxChars: 256 } } })
+    const { agent } = await create(h, 'native-user-outside-entry-budget')
+    await nativeSend(agent, 'first request')
+    agent.followup(longInput)
+    await agent.whenIdle()
+    await nativeSend(agent, 'continue')
+
+    expect(h.errors).toEqual([])
+    const shown = h.adapter.requests.at(-1)!.messages
+    expect(shown.filter(message => message.id === longInput.id)).toEqual([longInput])
+    const entries = entriesIn(shown)
+    expect(entries).toHaveLength(2)
+    for (const entry of entries) expect([...entry].length).toBeLessThanOrEqual(256)
+    const original = agent.session.snapshotEvents().find(event => event.type === 'user/message' && event.data.id === longInput.id)!
+    expect(agent.session.surface.nodes).toContain(original.seq)
+    expect(agent.session.snapshotEvents().filter(isReplacementSurfaceEvent).flatMap(event => event.sourceEventSeqs ?? [])).not.toContain(original.seq)
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
   it('preserves native prompt updates and dormant system nodes when their turns seal', async () => {
     const h = await boot([nativeText('one'), nativeText('two'), nativeText('three'), nativeText('four')], {
       config: { history: { keepRecentTurns: 1 } },
@@ -341,7 +433,7 @@ describe('slice context on the native DSH loop', () => {
         { id: 'multi-failed', name: 'fails', args: {} },
       ]),
       nativeText('handled both results'), nativeText('second answer'), nativeText('third answer'),
-    ], { config: { history: { pinFirstTurn: false } } })
+    ], { config: SEAL })
     h.ctx.tools.register(defineContentToolFixture({
       name: 'echo', description: 'Success fixture', parameters: {},
       execute: async () => [{ type: 'text', text: 'MULTI_SUCCESS_SENTINEL' }],

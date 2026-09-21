@@ -13,8 +13,8 @@
  *
  * That is the one property this module exists to protect. The alternative it
  * replaced — leave history raw, then collapse the OLDEST turns under pressure —
- * kept more verbatim text but rewrote the prefix at its first replaced message.
- * The current policy trades some recent detail for a stable older tape prefix.
+ * kept more verbatim tool output but rewrote the prefix at its first replaced
+ * message. User nodes stay raw; assistant visible text is complete by default.
  *
  * Superseded runtime-context snapshots are absorbed only while they remain in
  * the unsealed tail. Snapshots ahead of an existing entry keep their position:
@@ -37,10 +37,8 @@ export declare const MIN_ENTRY_MAX_CHARS = 256;
 export interface HistoryPolicy {
     /** Completed turns kept raw at the tail; 0 seals a turn as soon as the next one starts. */
     keepRecentTurns: number;
-    pinFirstTurn: boolean;
-    pinUserChars: number;
-    /** Hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
-    entryMaxChars: number;
+    /** Optional hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
+    entryMaxChars?: number;
 }
 export interface PlannedAppend {
     message: UserMessage;
@@ -76,11 +74,12 @@ interface Node {
 /** One line for every superseded runtime snapshot of a turn; the text stays on its recall page. */
 export declare function snapshotNote(recallTurns: readonly number[]): string;
 /**
- * Deterministic entry text: drop tool lines first, then shrink indexes and
- * excerpts. A very large backlog falls back to a complete range/recall marker;
- * never cut JSON locators or rewrite a previously sealed entry to make it fit.
+ * Deterministic entry text keeps all assistant visible text by default. Only an
+ * explicit cap drops tool lines, then shrinks indexes and replies; a large
+ * backlog falls back to a complete range/recall marker. User nodes are never
+ * part of the entry. Never cut locators or rewrite an existing sealed entry.
  */
-export declare function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, pinUserChars: number, maxChars: number): string;
+export declare function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, maxChars?: number): string;
 /**
  * Decide the whole seal before any append. Returns an empty plan when every
  * completed turn beyond the keep window is already sealed.

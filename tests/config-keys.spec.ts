@@ -1,7 +1,7 @@
 /** 配置键校验:退役键给迁移说明,拼错/未知键给最近的合法键——拼错不是退役。
  *  顶层键由 checkConfigKeys 纯函数校验;history 小节的键在装载插件时校验,所以那几例走原生 harness。 */
 import { afterEach, describe, expect, it } from 'vitest'
-import { checkConfigKeys } from '../src/index.js'
+import { checkConfigKeys, DEFAULT_HISTORY } from '../src/index.js'
 import { nativeHarness, type NativeHarness } from './native-harness.js'
 
 const live: NativeHarness[] = []
@@ -61,7 +61,26 @@ describe('history section keys', () => {
   })
 
   it('accepts every documented history key', async () => {
-    await load({ keepRecentTurns: 1, pinFirstTurn: false, pinUserChars: 600, entryMaxChars: 4_000 })
+    await load({ keepRecentTurns: 1, entryMaxChars: 4_000 })
+  })
+
+  it('does not impose an entry cap when omitted', async () => {
+    expect(DEFAULT_HISTORY).toEqual({ keepRecentTurns: 0 })
+    await load({})
+    await load({ entryMaxChars: undefined })
+  })
+
+  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, null, '8000'])(
+    'rejects an invalid explicit entry cap: %s', async value => {
+      await expect(load({ entryMaxChars: value })).rejects.toThrow('history.entryMaxChars must be a positive safe integer')
+    },
+  )
+
+  it('rejects retired user clipping controls with removal guidance', async () => {
+    await expect(load({ pinFirstTurn: true }))
+      .rejects.toThrow('Retired history configuration pinFirstTurn: all human user messages now remain at their original nodes; remove this key')
+    await expect(load({ pinUserChars: 1200 }))
+      .rejects.toThrow('Retired history configuration pinUserChars: human user messages are no longer excerpted or copied into tape entries; remove this key')
   })
 
   it('names each retired water-mark knob as retired and says where it went', async () => {
@@ -77,7 +96,7 @@ describe('history section keys', () => {
 
   it('reports anything else in the section as unknown and lists the valid keys', async () => {
     await expect(load({ keepRecent: 2 }))
-      .rejects.toThrow('Unknown history configuration keepRecent; valid keys: keepRecentTurns, pinFirstTurn, pinUserChars, entryMaxChars')
+      .rejects.toThrow('Unknown history configuration keepRecent; valid keys: keepRecentTurns, entryMaxChars')
     // 退役键与未知键是两种错:未知键不冒充迁移说明。
     await expect(load({ keepRecent: 2 })).rejects.not.toThrow('Retired history configuration')
   })

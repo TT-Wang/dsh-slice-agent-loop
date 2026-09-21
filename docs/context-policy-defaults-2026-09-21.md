@@ -1,5 +1,7 @@
 # Context policy defaults — 2026-09-21
 
+This records the loop/folding change merged in PR #10, before the subsequent [dialogue-preservation decision](adr/0003-preserve-dialogue-defaults.md). The validation counts below belong to that baseline. The later history change preserves all original human user nodes, retains all visible assistant text by default and makes `history.entryMaxChars` opt-in; do not infer the old history defaults from this report.
+
 Slice now leaves termination and reasoning budgets to the stock loop unless explicitly configured. Its automatic interventions concern context retention and folding.
 
 ## Behavior changes

@@ -4,7 +4,7 @@
  * The append-only tape is gated by tests/tape-seal.spec.ts: one entry per
  * completed turn, written at the first step of the next turn, never re-rendered.
  * This file gates the other half — the nodes a seal may not swallow and the bytes
- * it may not rewrite: the pinned first user message, the live runtime snapshot, a
+ * it may not rewrite: all human messages, the live runtime snapshot, a
  * replacement another plugin owns, multimodal user content, the open turn, an
  * entry an older build wrote, and the durable log a session resumes from. A seal
  * that ate any of them would still look like a working tape from the outside.
@@ -92,7 +92,7 @@ async function flood(agent: Agent, from: number, to: number): Promise<void> {
 }
 
 describe('what a seal leaves untouched', () => {
-  it('seals a turn between the next turn start and its first step, and never the pinned first user message', async () => {
+  it('seals a turn between the next turn start and its first step, and never any human message', async () => {
     const h = await boot(5)
     const agent = await create(h, 'tape-pinned')
     const perTurn: number[] = []
@@ -113,10 +113,13 @@ describe('what a seal leaves untouched', () => {
       expect(entry.seq).toBeLessThan(firstStep(sealed + 1))
     })
 
-    // pinFirstTurn: turn 1's user message stays its own append node, so it is verbatim in every request.
-    const firstUser = events.find(event => event.type === 'user/message' && event.surfaceOp === 'append')!
-    expect(agent.session.surface.nodes).toContain(firstUser.seq)
-    for (const entry of written) expect(entry.sourceEventSeqs).not.toContain(firstUser.seq)
+    // Every human message keeps its original append node, including later turns.
+    const users = events.filter(event => event.type === 'user/message' && event.data.source.kind === 'user')
+    expect(users).toHaveLength(5)
+    for (const user of users) {
+      expect(agent.session.surface.nodes).toContain(user.seq)
+      for (const entry of written) expect(entry.sourceEventSeqs).not.toContain(user.seq)
+    }
     expect(textOfEvent(written[0]!)).toContain('[turn 1]')
     expect(textOfEvent(written[0]!)).not.toContain(request(1))
     expect(textIn(h.adapter.requests.at(-1)!.messages)).toContain(request(1))
@@ -141,8 +144,9 @@ describe('what a seal leaves untouched', () => {
       const text = textOfEvent(entry)
       expect(text).toContain(`[turn ${turn}]`)
       expect(text).toContain(`REPLY_${turn} done`)
-      // Turn 1's request is pinned on the surface instead; every later one is quoted in its own entry.
-      if (turn > 1) expect(text).toContain(request(turn))
+      // Every request remains its original node instead of being duplicated inside the entry.
+      expect(text).not.toContain(request(turn))
+      expect(textIn(h.adapter.requests.at(-1)!.messages)).toContain(request(turn))
       expect(text).not.toContain('r'.repeat(100))
     })
 
@@ -220,8 +224,10 @@ describe('what a seal leaves untouched', () => {
     const imageSeq = events.find(event => event.type === 'user/message' && event.data.id === imageMessage.id)!.seq
     const guarded = [runtime.seq, foreign!, imageSeq]
     const written = sealedEvents(events)
+    // Turn 2's assistant/tool span belongs to the foreign replacement, while its
+    // human node stays raw; Slice has no remaining turn-2 span to seal.
     expect(written.map(event => range(textOfEvent(event))))
-      .toEqual(['turns 1-1', 'turns 2-2', 'turns 3-3', 'turns 4-4', 'turns 5-5'])
+      .toEqual(['turns 1-1', 'turns 3-3', 'turns 4-4', 'turns 5-5'])
     for (const entry of written) for (const seq of guarded) expect(entry.sourceEventSeqs).not.toContain(seq)
     // A seal around them never reorders them either.
     const positions = guarded.map(seq => agent.session.surface.nodes.indexOf(seq))

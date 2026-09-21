@@ -14,9 +14,9 @@ function assistant(session: S, turn: number, step: number, content: ContentBlock
     message: createMessage({ role: 'assistant', content, source: { kind: 'model', provider: 'mock', model: 'mock' } }) }, { surfaceOp: 'append' })
 }
 
-/** Default tape policy: every completed turn seals, with a budget no fixture here reaches. */
+/** Default tape policy: seal completed assistant/tool spans without clipping their entries. */
 function policy(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
-  return { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000, ...over }
+  return { keepRecentTurns: 0, ...over }
 }
 
 function surfaceText(session: S): string {
@@ -53,7 +53,7 @@ describe('per-turn read index inside a sealed tape entry', () => {
     readTurn(session, 3, ['src/gamma.ts']) // gives turn 2 its sealing opportunity
     const text = sealedText(session)
     expect(text).toContain(TAPE_PREFIX)
-    // Turn 1 is sealed inside turn 2's entry... each sealed turn names its own read with a fingerprint.
+    // Human nodes separate the turns; each sealed turn names its own read with a fingerprint.
     expect(text).toMatch(/\[files read this turn: src\/alpha\.ts \(\d+ lines, [0-9a-f]{8}, step 1, seq \d+ block 1, read window default, logged result\)\]/u)
     expect(text).toMatch(/\[files read this turn: src\/beta\.ts \(\d+ lines, [0-9a-f]{8}, step 1, seq \d+ block 1, read window default, logged result\)\]/u)
   })

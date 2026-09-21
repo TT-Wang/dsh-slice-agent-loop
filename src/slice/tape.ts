@@ -234,10 +234,11 @@ export const REPLY_TAIL_CHARS = 500;
 export interface ReplyCaps { cap: number; head: number; tail: number }
 export const DEFAULT_REPLY_CAPS: ReplyCaps = { cap: REPLY_CAP_CHARS, head: REPLY_HEAD_CHARS, tail: REPLY_TAIL_CHARS };
 
-export function renderTapeReply(artifactId: string, text: string, caps: ReplyCaps = DEFAULT_REPLY_CAPS): string {
-  let body = pyStrip(String(text ?? ""));
-  const chars = Array.from(body);
-  if (chars.length > caps.cap) {
+/** null preserves the complete text, including leading/trailing whitespace. */
+export function renderTapeReply(artifactId: string, text: string, caps: ReplyCaps | null = DEFAULT_REPLY_CAPS): string {
+  let body = caps === null ? String(text ?? "") : pyStrip(String(text ?? ""));
+  const chars = caps === null ? undefined : Array.from(body);
+  if (caps && chars && chars.length > caps.cap) {
     body = chars.slice(0, caps.head).join("")
       + ` …[+${chars.length - caps.head - caps.tail} chars in sealed turn]… `
       + (caps.tail > 0 ? chars.slice(-caps.tail).join("") : "");
