@@ -18,7 +18,7 @@
  *
  * spill 臂(tools/post-execute)改写的是**落盘前**的内容,日志里只剩视图;所以视图首行必须带 spill locator,
  * expand_result 从 locator 读回原文。做不到(没有 spill 后端 / 存储失败)就不改写,留给 pre-step 在 surface 上折。
- * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具、钉住步里的小结果,这条路同样不折。
+ * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具资源、显式钉住步里的小结果,这条路同样不折。
  *
  * 恢复(resume / 插件晚挂):folder 建立时日志里最后一个 request/header、assistant/message 或 assistant/attempt 之前的追加态结果,
  * 已经原样给模型看过(上一进程发过请求),第一次 pre-step 不再折它们——折了会让整段前缀改写、缓存全失;
@@ -35,17 +35,16 @@ export interface Config {
     enabled?: boolean;
     /** 折叠策略(阈值、头尾行数、日志上下文行数……),见 result-digest.ts。 */
     digest?: Partial<DigestPolicy>;
-    /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
+    /** 可选的轮首位置保护(默认 0):显式指定时,前这么多步里的小结果保持原文。默认只按内容与体量判断。 */
     pinSteps?: number;
-    /** 钉住步里仍然要折的体量(默认 8000 字符):规则/说明文档只有几 K(l1 的 MANIFEST 3K、l2 的规则 3.7K),而开头两步
-     *  整页抓回来的 10–14K 文档、170K 的测试输出不是规则;f9 实测模型把 6 页都放在第 2 步抓,20000 的阈值让它们全被钉住。 */
+    /** 显式钉住步骤中,仅保护少于此字符数的结果(默认 8000);更大结果仍按内容规则折叠。 */
     pinMaxChars?: number;
     /** spill 预览臂(默认 50000 字节,与 dsh-base 的 spill-policy maxInlineBytes 对齐;0 = 关):结果达到这个体量时,在 tools/post-execute
      *  就把原文存进 ctx.spillStore(有 spill 后端时),模型看到的是按内容路由的折叠视图 + 文件定位,而不是 spill-policy 的头尾预览。
      *  没挂 spill 后端时此臂不生效。read 结果与 spill-policy 同样跳过(它靠 pre-step 的 surface 替换折叠,原文留日志)。 */
     spillPreviewMinBytes?: number;
-    /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
-     *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
+    /** 展开退避(默认 2):同一工具/资源下这么多个不同的折叠结果块被完整取回、且取回率 ≥ 一半,
+     *  本会话不再折该资源。资源为精确 file_path/path,没有路径则用键排序后的参数;局部与重复取回不触发退避。 */
     backoffAfterExpansions?: number;
 }
 export declare const EXPAND_TOOL_NAME = "expand_result";

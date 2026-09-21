@@ -232,6 +232,25 @@ describe('the fold affordance states the real data/document contract', () => {
 })
 
 describe('pinned early steps', () => {
+  it('applies content rules from the first step by default while preserving small results', async () => {
+    const document = Array.from({ length: 150 }, (_, i) => `row ${i} payload ${'x'.repeat(30)}`).join('\n')
+    expect(document.length).toBeGreaterThan(6000)
+    expect(document.length).toBeLessThan(8000)
+    const adapter = new MockAdapter([
+      toolCallResponse('large', 'read', { file_path: 'notes.md' }),
+      toolCallResponse('small', 'small_read', { file_path: 'RULES.md' }), textResponse('done'),
+    ])
+    const ctx = await harness(adapter, [{ name: 'read', text: document }, { name: 'small_read', text: BIG }], {})
+    try {
+      const handle = await ctx.agents.create({ sessionId: SessionId('fold-default-pin'), agentOptions: { provider: 'mock', model: 'mock' } })
+      send(handle.agent, 'read both')
+      await handle.agent.whenIdle()
+      expect(requestText(adapter, 1)).not.toContain('row 55 payload')
+      expect(requestText(adapter, 2)).toContain('row 55 payload')
+      expect(FOLD_STATS.get(handle.agent.session)!.folded).toBe(1)
+    } finally { await ctx.fiber.dispose() }
+  })
+
   it('never folds results that land in the first pinSteps steps of a turn (spec and rules reads)', async () => {
     const adapter = new MockAdapter([
       toolCallResponse('c1', 'read', { file_path: 'RULES.md' }),   // step 1: pinned
@@ -251,13 +270,14 @@ describe('pinned early steps', () => {
 })
 
 describe('expansion back-off', () => {
-  it('stops folding a tool\'s results once the model has expanded them twice', async () => {
+  it('backs off only the resource whose distinct folded results were fully recovered', async () => {
     const adapter = new MockAdapter([
       toolCallResponse('c1', 'read', { file_path: 'a.txt' }),                       // step 1: folded
       toolCallResponse('c2', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }),      // step 2: expand #1
-      toolCallResponse('c3', 'read', { file_path: 'b.txt' }),                       // step 3: folded
-      toolCallResponse('c4', EXPAND_TOOL_NAME, { turn: 1, step: 3, call: 1 }),      // step 4: expand #2 → back off `read`
-      toolCallResponse('c5', 'read', { file_path: 'c.txt' }),                       // step 5: NOT folded
+      toolCallResponse('c3', 'read', { file_path: 'a.txt' }),                       // step 3: same resource, different original
+      toolCallResponse('c4', EXPAND_TOOL_NAME, { turn: 1, step: 3, call: 1 }),      // step 4: full recovery #2 → back off a.txt
+      toolCallResponse('c5', 'read', { file_path: 'a.txt' }),                       // step 5: NOT folded
+      toolCallResponse('c6', 'read', { file_path: 'other.txt' }),                   // step 6: still folded
       textResponse('done'),
     ])
     const ctx = await harness(adapter, [{ name: 'read', text: BIG }], { pinSteps: 0, digest: { minChars: 1500 } })
@@ -265,11 +285,12 @@ describe('expansion back-off', () => {
     send(handle.agent, 'go')
     await handle.agent.whenIdle()
     const stats = FOLD_STATS.get(handle.agent.session)!
-    expect(stats.folded).toBe(2)
+    expect(stats.folded).toBe(3)
     expect(stats.expanded).toBe(2)
-    expect(stats.backedOff).toEqual(['read'])
+    expect(stats.backedOff).toEqual(['["read","path","a.txt"]'])
     expect(requestText(adapter, 5)).toContain('row 55 payload')                    // 第 5 步的结果原样进了第 6 个请求
     expect(requestText(adapter, 5)).not.toContain('"step\\": 5')
+    expect(requestText(adapter, 6)).toContain('read other.txt · data')
   })
 })
 
@@ -333,15 +354,76 @@ async function folderHarness(seed?: readonly import('@deepseek-ai/dsh-session').
   return { ctx, session, run }
 }
 
-function appendResult(session: Session, id: string, text: string, step = 3) {
+function appendResult(session: Session, id: string, text: string, step = 3, name = 'read', args: unknown = { file_path: 'data.txt' }) {
   const callId = ToolCallId(id)
-  session.append('tool/call', { turn: 1, step, callId, name: 'read', arguments: '{"file_path":"data.txt"}' })
+  session.append('tool/call', { turn: 1, step, callId, name, arguments: JSON.stringify(args) })
   return session.append('tool/result', {
     turn: 1, step, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text }] }),
   }, { surfaceOp: 'append' })
 }
 
+function appendExpansion(session: Session, id: string, args: unknown, step = 4) {
+  const callId = ToolCallId(id)
+  session.append('tool/call', { turn: 1, step, callId, name: EXPAND_TOOL_NAME, arguments: JSON.stringify(args) })
+  session.append('tool/result', {
+    turn: 1, step, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text: 'retrieved evidence' }] }),
+  }, { surfaceOp: 'append' })
+}
+
 describe('fold result identity and replay', () => {
+  it('does not back off for partial recoveries or repeated full locator aliases', async () => {
+    const bench = await folderHarness()
+    try {
+      const one = appendResult(bench.session, 'one', BIG, 1)
+      const two = appendResult(bench.session, 'two', BIG, 2)
+      await bench.run()
+      const view = bench.session.snapshotEvents().find(event => isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(one.seq))!
+      appendExpansion(bench.session, 'grep-one', { seq: one.seq, formatVersion: SESSION_FORMAT_VERSION, grep: 'row 55' })
+      appendExpansion(bench.session, 'lines-two', { seq: two.seq, formatVersion: SESSION_FORMAT_VERSION, lines: '10-12' })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)).toMatchObject({ expanded: 2, backedOff: [] })
+
+      appendResult(bench.session, 'three', BIG, 3)
+      await bench.run()
+      for (const [index, locator] of [
+        { seq: one.seq, formatVersion: SESSION_FORMAT_VERSION },
+        { seq: view.seq, formatVersion: SESSION_FORMAT_VERSION, block: 1 },
+        { turn: 1, step: 1, call: 1 },
+      ].entries()) appendExpansion(bench.session, `full-one-${index}`, locator)
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)).toMatchObject({ folded: 3, expanded: 5, backedOff: [] })
+
+      appendExpansion(bench.session, 'full-two', { seq: two.seq, formatVersion: SESSION_FORMAT_VERSION })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.backedOff).toEqual(['["read","path","data.txt"]'])
+      appendResult(bench.session, 'four', BIG, 5)
+      appendResult(bench.session, 'other-file', BIG, 6, 'read', { path: 'other.txt' })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.folded).toBe(4)
+    } finally { await bench.ctx.fiber.dispose() }
+  })
+
+  it('scopes pathless calls by canonical arguments without disabling unrelated commands', async () => {
+    const bench = await folderHarness()
+    try {
+      const args = { command: 'report', options: { cwd: '/repo', flags: ['a', 'b'] } }
+      const reordered = { options: { flags: ['a', 'b'], cwd: '/repo' }, command: 'report' }
+      const one = appendResult(bench.session, 'one', BIG, 1, 'bash', args)
+      const two = appendResult(bench.session, 'two', BIG, 2, 'bash', reordered)
+      await bench.run()
+      // Empty grep and malformed lines both take execute's full-result fallback.
+      appendExpansion(bench.session, 'full-one', { seq: one.seq, formatVersion: SESSION_FORMAT_VERSION, grep: ' ' })
+      appendExpansion(bench.session, 'full-two', { seq: two.seq, formatVersion: SESSION_FORMAT_VERSION, lines: 'not-a-range' })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.backedOff).toEqual(['["bash","arguments",{"command":"report","options":{"cwd":"/repo","flags":["a","b"]}}]'])
+      appendResult(bench.session, 'same', BIG, 5, 'bash', reordered)
+      appendResult(bench.session, 'other-command', BIG, 6, 'bash', { ...args, command: 'test' })
+      appendResult(bench.session, 'other-flags', BIG, 7, 'bash', { command: 'report', options: { cwd: '/repo', flags: ['b', 'a'] } })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.folded).toBe(4)
+    } finally { await bench.ctx.fiber.dispose() }
+  })
+
   it('keeps exact expansion ordinals across cursors after more than 64 earlier events of the same step', async () => {
     const bench = await folderHarness()
     try {
@@ -407,7 +489,7 @@ describe('fold result identity and replay', () => {
       try {
         await replay.run()
         expect(FOLD_STATS.get(replay.session)).toEqual(FOLD_STATS.get(live.session))
-        expect(FOLD_STATS.get(replay.session)?.backedOff).toEqual(['read'])
+        expect(FOLD_STATS.get(replay.session)?.backedOff).toEqual(['["read","path","data.txt"]'])
         appendResult(live.session, 'after-backoff', BIG, 5)
         appendResult(replay.session, 'after-backoff', BIG, 5)
         await live.run()
@@ -418,7 +500,7 @@ describe('fold result identity and replay', () => {
     } finally { await live.ctx.fiber.dispose() }
   })
 
-  it('charges a block-selected expansion only to that sibling tool', async () => {
+  it('deduplicates repeated block selections and does not charge their siblings', async () => {
     const bench = await folderHarness()
     try {
       for (const [id, name] of [['read-block', 'read'], ['bash-block', 'bash']]) {
@@ -435,7 +517,21 @@ describe('fold result identity and replay', () => {
         bench.session.append('tool/result', { turn: 1, step: 2, message: createToolResultMessage({ callId, isError: false, content: [{ type: 'text', text: BIG }] }) }, { surfaceOp: 'append' })
         await bench.run()
       }
-      expect(FOLD_STATS.get(bench.session)).toMatchObject({ expanded: 2, backedOff: ['read'] })
+      expect(FOLD_STATS.get(bench.session)).toMatchObject({ expanded: 2, backedOff: [] })
+      appendExpansion(bench.session, 'all-first', { seq: original.seq, formatVersion: SESSION_FORMAT_VERSION })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)).toMatchObject({ expanded: 3, backedOff: [] })
+
+      // A new original has independent blocks; recovering its read sibling
+      // must not charge bash, including the read already returned above.
+      const second = bench.session.append('tool/result', { turn: 1, step: 3, message: combined }, { surfaceOp: 'append' })
+      await bench.run()
+      appendExpansion(bench.session, 'read-second', { seq: second.seq, formatVersion: SESSION_FORMAT_VERSION, block: 1 })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.backedOff).toEqual(['["read","path","data.txt"]'])
+      appendExpansion(bench.session, 'all-second', { seq: second.seq, formatVersion: SESSION_FORMAT_VERSION })
+      await bench.run()
+      expect(FOLD_STATS.get(bench.session)?.backedOff).toEqual(['["read","path","data.txt"]', '["bash","path","data.txt"]'])
     } finally { await bench.ctx.fiber.dispose() }
   })
 

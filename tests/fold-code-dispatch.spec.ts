@@ -68,13 +68,53 @@ async function boot(program: string, spill: boolean, body = BIG) {
 }
 
 describe('nested recovery preserves only forwarded evidence', () => {
-  it('counts two successful code-dispatch expansions and preserves the returned result before the next request', async () => {
+  it('backs off after nested full recovery of distinct originals and retains that resource scope on replay', async () => {
+    class DistinctRuntime extends RetrievalRuntime {
+      async run(request: CodeRunRequest): Promise<CodeRunResult> {
+        const tools = request.bindings.find(binding => binding.global === 'tools')!.functions
+        const first = await tools.expand_result(ROOT)
+        await tools.expand_result({ ...ROOT, step: 2 })
+        return { value: first, logs: [] }
+      }
+    }
+    const h = await nativeHarness([
+      nativeTool('read-one', 'read', { file_path: 'data.txt' }),
+      nativeTool('read-two', 'read', { file_path: 'data.txt' }),
+      code('outer', 'distinct'), nativeTool('read-three', 'read', { file_path: 'data.txt' }), nativeText('done'),
+    ], { config: { digest: { minChars: 1500 }, fold: { spillPreviewMinBytes: 0 } } })
+    live.push(h)
+    await h.ctx.plugin(DistinctRuntime)
+    h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: BIG }] }))
+    const { agent } = await h.ctx.agents.create({ sessionId: SessionId('distinct-nested'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
+    agent.ctx.tools.presentAs('both')
+    await nativeSend(agent, 'recover both originals')
+    expect(h.errors).toEqual([])
+    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, folded: 2, backedOff: ['["read","path","data.txt"]'] })
+
+    const resumed = await nativeHarness([
+      nativeTool('same-file', 'read', { file_path: 'data.txt' }),
+      nativeTool('other-file', 'read', { file_path: 'other.txt' }), nativeText('done'),
+    ], { config: { digest: { minChars: 1500 }, fold: { spillPreviewMinBytes: 0 } } })
+    live.push(resumed)
+    resumed.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: BIG }] }))
+    const replay = await resumed.ctx.agents.create({ sessionId: SessionId('distinct-nested-replay'), seed: structuredClone(agent.session.snapshotEvents()), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
+    await nativeSend(replay.agent, 'read the same file and a different file')
+    expect(resumed.errors).toEqual([])
+    expect(FOLD_STATS.get(replay.agent.session)).toMatchObject({ expanded: 2, folded: 3, backedOff: ['["read","path","data.txt"]'] })
+    const events = replay.agent.session.snapshotEvents()
+    for (const [callId, folded] of [['same-file', false], ['other-file', true]] as const) {
+      const original = events.find(event => event.type === 'tool/result' && isAppendSurfaceEvent(event) && event.data.message.source?.callId === callId)!
+      expect(events.some(event => isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(original.seq))).toBe(folded)
+    }
+  })
+
+  it('counts repeated code-dispatch retrievals without backing off and preserves forwarded evidence', async () => {
     const { h, agent, textsAt } = await boot('twice', false)
     expect(textsAt(1, 'read-first')).not.toContain('row 55 payload')
     expect(textsAt(2, 'outer')).toContain('row 55 payload')
-    expect(textsAt(3, 'read-after')).toContain('row 55 payload')
+    expect(textsAt(3, 'read-after')).not.toContain('row 55 payload')
     expect(textsAt(4, 'other-outer')).not.toContain('unrelated 300 ')
-    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: ['read'], folded: 2 })
+    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: [], folded: 3 })
     expect(agent.session.snapshotEvents().filter((event) => event.type === 'tool/ptc-dispatch' && event.data.name === 'expand_result')).toHaveLength(2)
   })
 
@@ -96,7 +136,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
     expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 1, backedOff: [] })
   })
 
-  it('replays successful nested expansion backoff, including a natively spilled dispatch log', async () => {
+  it('deduplicates replayed nested expansions, including a natively spilled dispatch log', async () => {
     const { agent } = await boot('twice', true, LOG)
     const seed = structuredClone(agent.session.snapshotEvents())
     expect(seed.some((event) => event.type === 'tool/ptc-dispatch' && JSON.stringify(event.data.content).includes('Full formatted result stored at:'))).toBe(true)
@@ -106,10 +146,10 @@ describe('nested recovery preserves only forwarded evidence', () => {
     const resumed = await h.ctx.agents.create({ sessionId: SessionId('replayed-code'), seed, agentOptions: { provider: 'native-mock', model: 'deterministic' } })
     await nativeSend(resumed.agent, 'read once more')
     expect(h.errors).toEqual([])
-    expect(FOLD_STATS.get(resumed.agent.session)).toMatchObject({ expanded: 2, backedOff: ['read'] })
+    expect(FOLD_STATS.get(resumed.agent.session)).toMatchObject({ expanded: 2, backedOff: [] })
     const last = [...resumed.agent.session.snapshotEvents()].reverse().find((event) => event.type === 'tool/result' && isAppendSurfaceEvent(event))!
-    expect(resumed.agent.session.snapshotEvents().some((event) => isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(last.seq))).toBe(false)
-    expect(JSON.stringify(h.adapter.requests[1]!.messages)).toContain('tick 300 ')
+    expect(resumed.agent.session.snapshotEvents().some((event) => isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(last.seq))).toBe(true)
+    expect(JSON.stringify(h.adapter.requests[1]!.messages)).not.toContain('tick 300 ')
   })
 
   it('scopes reused model call ids and nested sub-call ids to their durable call event', async () => {

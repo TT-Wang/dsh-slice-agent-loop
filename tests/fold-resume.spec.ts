@@ -107,7 +107,7 @@ describe('expand_result by durable seq', () => {
       expect(result.type === 'tool/result' && result.data.message.content[0].isError).toBe(false)
       expect(resultTextOf(result)).toContain('row 55 payload')
     }
-    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: ['read'] })
+    expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: [] })
   })
 
   it('returns the original for a folded result through the view\'s own seq, and turn/step/call still works', async () => {
@@ -145,11 +145,11 @@ describe('expand_result by durable seq', () => {
     const bad = originals(agent).find((e) => e.type === 'tool/result' && e.data.message.content[0]?.toolCallId === 'c4')!
     expect(resultTextOf(bad)).toContain(`seq ${badSeq} is a user/message event, not a tool result`)
     expect(bad.type === 'tool/result' && bad.data.message.content[0]?.isError).toBe(true)
-    // both expansions count against the folded read (seq and turn/step/call name the same fold)
+    // Both retrieval calls are counted, but a partial alias is not a second full recovery.
     const stats = FOLD_STATS.get(agent.session)!
     expect(stats.folded).toBe(1)
     expect(stats.expanded).toBe(2)
-    expect(stats.backedOff).toEqual(['read'])
+    expect(stats.backedOff).toEqual([])
   })
 })
 
@@ -183,10 +183,10 @@ describe('post-execute spill arm', () => {
     expect(stats.spilled).toBe(1)
     expect(stats.folded).toBe(0)
     expect(stats.expanded).toBe(2)
-    expect(stats.backedOff).toEqual(['bash'])
+    expect(stats.backedOff).toEqual([])
   })
 
-  it('stops spilling a tool once the pre-step fold has backed off from it', async () => {
+  it('stops spilling the same resource once the pre-step fold has backed off from it', async () => {
     let calls = 0
     const h = await boot([nativeTool('c1', 'bash', { file_path: 'run' })], { config: { fold: { pinSteps: 0, spillPreviewMinBytes: 50_000 }, digest: { minChars: 1500 } } })
     await spillStore(h)
@@ -203,13 +203,20 @@ describe('post-execute spill arm', () => {
     const stats = FOLD_STATS.get(agent.session)!
     expect(stats.folded).toBe(2)
     expect(stats.expanded).toBe(2)
-    expect(stats.backedOff).toEqual(['bash'])
+    expect(stats.backedOff).toEqual(['["bash","path","run"]'])
     expect(stats.spilled).toBe(0)
     const last = originals(agent).at(-1)!
     expect(resultTextOf(last)).toContain('tick 300 ')            // logged raw: neither path rewrote it
     expect(spillLocatorOf(resultTextOf(last))).toBeUndefined()
     expect(requestText(h, 5)).toContain('tick 300 ')             // and sent raw
     expect(replacements(agent)).toHaveLength(2)
+
+    h.responses.push(nativeTool('other-run', 'bash', { file_path: 'different-run' }), nativeText('done again'))
+    await nativeSend(agent, 'run a different resource')
+    expect(h.errors).toEqual([])
+    expect(stats.spilled).toBe(1)
+    expect(spillLocatorOf(resultTextOf(originals(agent).at(-1)!))).toBeDefined()
+    expect(resultTextOf(originals(agent).at(-1)!)).not.toContain('tick 300 ')
   })
 
   it('honors pinned steps like the pre-step fold', async () => {
@@ -320,18 +327,18 @@ describe('resume from snapshotEvents', () => {
     tool(first, 'read', () => BIG)
     const one = await create(first, 'resume-counts')
     scriptAt(one.agent, 2, () => nativeTool('c2', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }), first.responses)
-    scriptAt(one.agent, 3, () => nativeTool('c3', 'read', { file_path: 'b.txt' }), first.responses)
+    scriptAt(one.agent, 3, () => nativeTool('c3', 'read', { file_path: 'a.txt' }), first.responses)
     scriptAt(one.agent, 4, () => nativeTool('c4', EXPAND_TOOL_NAME, { formatVersion: SESSION_FORMAT_VERSION, seq: replacements(one.agent)[1]!.seq }), first.responses)
     scriptAt(one.agent, 5, () => nativeText('done'), first.responses)
     await nativeSend(one.agent, 'read twice')
     expect(first.errors).toEqual([])
     const before = structuredClone(FOLD_STATS.get(one.agent.session)!)
-    expect(before).toMatchObject({ folded: 2, expanded: 2, backedOff: ['read'] })
+    expect(before).toMatchObject({ folded: 2, expanded: 2, backedOff: ['["read","path","a.txt"]'] })
     const seed = structuredClone(events(one.agent))
     await first.ctx.fiber.dispose()
     live.pop()
 
-    const second = await boot([nativeTool('c5', 'read', { file_path: 'c.txt' }), nativeText('done again')], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
+    const second = await boot([nativeTool('c5', 'read', { file_path: 'a.txt' }), nativeText('done again')], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
     tool(second, 'read', () => BIG)
     const two = await create(second, 'resume-counts', seed)
     await nativeSend(two.agent, 'read once more')
