@@ -53,8 +53,9 @@
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
   config:
-    maxStepsPerTurn: 50
-    defaultReasoningEffort: low
+    defaultReasoningEffort: inherit
+    fold:
+      pinSteps: 0
     history:
       keepRecentTurns: 0
       pinFirstTurn: true
@@ -66,14 +67,27 @@
 |---|---|
 | `history.keepRecentTurns` | 尾部保持原样的已完成轮数（默认 0：一轮在下一轮第一步就被封存）。调大它会保留更多逐字历史。未变动的原始轮仍可能命中缓存；封存更早的轮会改变该尾部之前的前缀，使尾部重新计费。封存是无条件的：没有要跨过的阈值，也没有要回落到的目标大小。 |
 | `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | 第 1 轮的用户消息保持为未经改动的追加节点（默认 true；该轮的 assistant／工具运行仍可封存）。`pinUserChars`（默认 1,200）是被封存用户消息的逐字预算。`entryMaxChars`（默认 8,000，最小 256）限制新条目的文本，不限制整个 tape。 |
-| `maxStepsPerTurn` | 超过这么多模型步就停止派发；默认 50。 |
-| `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`；宿主／模型的显式选择优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
+| `maxStepsPerTurn` | 可选的正整数步数上限。默认不设上限，由原生 loop 控制终止；显式设置后，超过该步数就停止派发。 |
+| `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`（默认）。默认由宿主／模型选择推理预算；请求中的显式选择始终优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
 | `digest` | 内容路由选项，见 `src/slice/result-digest.ts`。 |
 | `fold` | 工具结果折叠选项：`enabled`、`pinSteps`、`pinMaxChars`、`spillPreviewMinBytes`、`backoffAfterExpansions`。 |
+| `fold.pinSteps` / `pinMaxChars` | 位置保护须显式启用（`pinSteps` 默认 0）。启用后，前若干步里小于 `pinMaxChars`（默认 8,000）的结果保留原文。内容保护在所有步骤都生效。 |
+| `fold.backoffAfterExpansions` | 默认同一工具／资源下至少 2 个不同折叠结果块被完整取回，且完整取回率至少 50%，就在该会话中停止折叠该资源。资源标识为精确的 `file_path`／`path`；没有路径时，使用对象键排序后的完整参数。局部 `grep`／`lines` 查询和同块重复取回不累计退避，其他资源继续按原规则折叠；spill 路径遵循同一规则。 |
 
-**请求预算已经删除。** 条目减少历史细节，但会随会话累积；本插件不对总历史或当前轮提供硬上限。需要在宿主组合中配置上下文窗口处理，单靠磁带不能避免溢出。插件侧没有上限、没有拒绝，也没有任何"重写条目"的降级层级。
+### 升级现有 profile
 
-- **接受但无效**：`maxRequestChars` 与 `maxHistoryChars` 仍能作为合法键通过解析，但已经没有任何代码读取它们——它们过去施加的字符上限与历史上限都不存在了。迁移配置时请删除；留着不会改变行为，也不会告警。
+更新插件不会删除 profile 中已经显式写入的配置。采用当前默认行为时：
+
+1. 删除 `maxStepsPerTurn: 50`（或已有的其他步数上限），由原生 loop 控制终止。只有需要明确限步时才保留正整数；`0` 和 `null` 都不是合法的关闭方式。
+2. 删除 `defaultReasoningEffort: low`，或改成 `inherit`，沿用宿主／模型选择。请求中的显式档位仍然优先。
+3. 删除 `fold.pinSteps: 2`，或改成 `0`，从第一步就按内容决定是否折叠。识别出的源代码、错误结果与召回原文继续受保护；按资源区分的退避规则自动生效。
+4. 删除 `maxRequestChars` 和 `maxHistoryChars`；这两个退役键现在会阻止插件加载。
+
+有意保留的合法配置仍可继续使用。默认值变化不会重写已有的冻结磁带条目。
+
+**请求预算已经删除。** 条目减少历史细节，但会随会话累积；本插件不对总历史或当前轮提供硬上限。需要在宿主组合中配置上下文窗口处理，单靠磁带不能避免溢出。插件不会按请求字符数拒绝请求，也不会通过重写已有条目来缩小磁带。
+
+- **退役预算键现在加载时报错**：请删除 `maxRequestChars` 与 `maxHistoryChars`。它们此前虽能通过解析，却不施加任何上限；继续静默接受会让人误以为存在保护。上下文窗口处理应在宿主中配置。
 - **加载时报错，并说明各自去向**：`history.highWaterChars`、`history.lowWaterChars`、`history.keepRecentChars`、`history.checkpointMaxChars`（`Retired history configuration <key>: …`——替代项是 `history.keepRecentTurns`（按轮计数）与 `history.entryMaxChars`；两个水位没有对应项，因为已经没有要跨过的压力阈值了），以及已退役的驱动键 `maxParallelToolCalls`、`inTurnSeal`、`tape`、`state`（`Retired slice configuration <key>: …`）。
 - `mode` 只接受 `slice`；`state` 与 `stream` 在加载时报错。两个小节里出现别的不认识键，同样报错并给出合法键列表。
 
@@ -100,3 +114,11 @@
 文件读取是记录下来的窗口，写入／编辑元数据含 diff 片段。它们是历史观察，不能证明文件当前全文，也不能证明后端身份；完整 base／免重读指针类优化保持关闭，直到宿主提供带完整 provider 文本、目标身份与版本的持久观察通道。见 [记录式记忆](docs/recorded-memory.md)。
 
 实现修复及验证范围见 [2026-09-13 评审修复](docs/review-fixes-2026-09-13.md)。
+
+## 验证与兼容范围
+
+本次策略变更通过了 37 个文件中的 307 个测试、覆盖率门槛，以及 DSH **0.1.5-rc.1、0.1.5-rc.2** 上的打包安装、召回与恢复检查。CI 覆盖 Node 22.19.0、22.22.3 和 24.x。
+
+同样的 307 个测试也在 **0.1.6-alpha.2 源码** `ddefc45fbc7f8e46dd73185e68295696d1297887` 上通过。源码检查不扩大包声明的 peer 版本范围，也不代表已验证 0.1.6 的打包安装。本次没有新增付费模型评测，成本收益与任务准确率尚未重新测量。
+
+变更、迁移细节与验证边界见 [2026-09-21 上下文策略默认值](docs/context-policy-defaults-2026-09-21.md)。

@@ -53,8 +53,9 @@ Numeric locators are qualified with the current session format: `expand_result({
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
   config:
-    maxStepsPerTurn: 50
-    defaultReasoningEffort: low
+    defaultReasoningEffort: inherit
+    fold:
+      pinSteps: 0
     history:
       keepRecentTurns: 0
       pinFirstTurn: true
@@ -66,14 +67,27 @@ Numeric locators are qualified with the current session format: `expand_result({
 |---|---|
 | `history.keepRecentTurns` | Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn). Raising it retains more verbatim history. Unchanged raw turns may still hit the cache; sealing an older turn can invalidate the prefix before that retained tail. Sealing is unconditional: there is no threshold to cross and no size target to fall back to. |
 | `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | Keep turn 1's user message as an untouched append node (default true; its assistant/tool run is still sealable). `pinUserChars` (default 1,200) is the verbatim budget for a sealed user message. `entryMaxChars` (default 8,000, minimum 256) caps each new entry's text; it does not cap the whole tape. |
-| `maxStepsPerTurn` | Stop before dispatching beyond this many model steps; default 50. |
-| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit`; an explicit host/model choice wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
+| `maxStepsPerTurn` | Optional positive step cap. Omit it to let the stock loop control termination; set it explicitly to stop before dispatching beyond that many model steps. |
+| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit` (default). By default, the host/model chooses the reasoning budget; an explicit request choice always wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
 | `digest` | Content-routing options from `src/slice/result-digest.ts`. |
 | `fold` | Tool-result folding options: `enabled`, `pinSteps`, `pinMaxChars`, `spillPreviewMinBytes`, `backoffAfterExpansions`. |
+| `fold.pinSteps` / `pinMaxChars` | Position-based protection is opt-in (`pinSteps: 0` by default). If enabled, results smaller than `pinMaxChars` (default 8,000) in those first steps remain raw. Content-based protections apply at every step. |
+| `fold.backoffAfterExpansions` | Default 2 distinct folded result blocks fully retrieved, with a full-retrieval rate of at least 50%, stops future folding for that tool/resource for the session. Resource identity is the exact `file_path`/`path`, or, without a path, the complete arguments with object keys sorted. Partial `grep`/`lines` queries and repeated retrievals of the same block do not advance backoff; other resources remain eligible. The spill path uses the same rule. |
 
-**The request budget is gone.** Entries reduce historical detail but accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. The tape alone does not prevent overflow. There is no plugin-side ceiling, no refusal, and no degradation tier that rewrites an entry.
+### Upgrading an existing profile
 
-- **Accepted but inert:** `maxRequestChars` and `maxHistoryChars` still parse as valid keys, but nothing reads them — the ceiling and the history cap they used to enforce no longer exist. Remove them from a migrated config; keeping them changes nothing and warns about nothing.
+Updating the plugin does not remove explicit values from your profile. To adopt the current defaults:
+
+1. Remove `maxStepsPerTurn: 50` (or another existing cap) to let the stock loop control termination. Keep a positive integer only if you want an explicit step limit; `0` and `null` are invalid.
+2. Remove `defaultReasoningEffort: low` or change it to `inherit` to use the host/model choice. Explicit request-level choices still take precedence.
+3. Remove `fold.pinSteps: 2` or set it to `0` to apply content-based folding from the first step. Recognized source code, error results and recalled originals retain their existing protections. Resource-scoped backoff applies automatically.
+4. Remove `maxRequestChars` and `maxHistoryChars`; these retired keys now prevent the plugin from loading.
+
+Keep any supported override you intentionally want. Existing frozen tape entries are not rewritten when these defaults change.
+
+**The request budget is gone.** Entries reduce historical detail but accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. The tape alone does not prevent overflow. The plugin does not reject requests based on their character count or shrink the tape by rewriting existing entries.
+
+- **Retired budget keys now fail at load:** remove `maxRequestChars` and `maxHistoryChars`. They previously parsed without enforcing a limit; accepting them silently suggested protection that did not exist. Configure context-window handling in the host.
 - **Fail at load, naming where each went:** `history.highWaterChars`, `history.lowWaterChars`, `history.keepRecentChars`, `history.checkpointMaxChars` (`Retired history configuration <key>: …` — replacements are `history.keepRecentTurns`, counted in turns, and `history.entryMaxChars`; the two water marks have no counterpart, because there is no pressure threshold left to cross), plus the retired driver keys `maxParallelToolCalls`, `inTurnSeal`, `tape`, `state` (`Retired slice configuration <key>: …`).
 - `mode` accepts only `slice`; `state` and `stream` fail at load. An unrecognised key in either section fails with the valid-key list.
 
@@ -100,3 +114,11 @@ The reusable prefix ends at the earliest changed serialized message. Sealing nev
 File reads are recorded windows; write/edit metadata contains diff hunks. They are historical observations, not proof of a complete current file or backend identity, and exact base/pointer optimizations stay disabled until the host offers a durable observation channel with complete provider text, target identity, and version. See [recorded memory](docs/recorded-memory.md).
 
 Implementation fixes and their verification scope: [2026-09-13 review fixes](docs/review-fixes-2026-09-13.md).
+
+## Verification and compatibility
+
+The current policy changes passed 307 tests across 37 files, coverage gates, and packed installation/recall/resume checks on DSH **0.1.5-rc.1 and 0.1.5-rc.2**. CI covers Node 22.19.0, 22.22.3 and 24.x.
+
+The same 307 tests also passed against **0.1.6-alpha.2 source** at `ddefc45fbc7f8e46dd73185e68295696d1297887`. This source probe does not extend the package's declared peer range or establish packed installation support for 0.1.6. No new paid model evaluation was run; cost savings and task accuracy were not remeasured.
+
+See [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md) for the changes, migration details and verification scope.

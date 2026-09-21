@@ -55,9 +55,7 @@ describe('reasoning effort capability guard', () => {
     expect(adapter.requests).toHaveLength(2)
     // Nothing injected, so the adapter's own default is materialized downstream.
     expect(adapter.requests.map(request => request.reasoningEffort)).toEqual(['high', 'high'])
-    expect(harness.warns.filter(message => message.startsWith('slice defaultReasoningEffort='))).toEqual([
-      'slice defaultReasoningEffort=low is not declared by high-only/audited (declared: high); inheriting the adapter default',
-    ])
+    expect(harness.warns.filter(message => message.startsWith('slice defaultReasoningEffort='))).toEqual([])
   })
 
   it('dispatches under factory defaults on a model that declares no reasoning', async () => {
@@ -65,6 +63,22 @@ describe('reasoning effort capability guard', () => {
     expect(harness.errors).toEqual([])
     expect(adapter.requests).toHaveLength(2)
     expect(adapter.requests.map(request => request.reasoningEffort)).toEqual([undefined, undefined])
+  })
+
+  it('inherits the adapter default even when low is also available', async () => {
+    const { harness, adapter } = await dispatch('default-high', ['high', 'low'])
+    expect(harness.errors).toEqual([])
+    expect(adapter.requests.map(request => request.reasoningEffort)).toEqual(['high', 'high'])
+    expect(harness.warns).toEqual([])
+  })
+
+  it('warns once when an explicit plugin default is unsupported', async () => {
+    const { harness, adapter } = await dispatch('low-unsupported', ['high'], { defaultReasoningEffort: 'low' })
+    expect(harness.errors).toEqual([])
+    expect(adapter.requests.map(request => request.reasoningEffort)).toEqual(['high', 'high'])
+    expect(harness.warns.filter(message => message.startsWith('slice defaultReasoningEffort='))).toEqual([
+      'slice defaultReasoningEffort=low is not declared by low-unsupported/audited (declared: high); inheriting the adapter default',
+    ])
   })
 
   it('still injects the configured default when the model declares it', async () => {
@@ -81,7 +95,7 @@ describe('reasoning effort capability guard', () => {
   })
 
   it('never overrides an effort an outer contributor chose explicitly', async () => {
-    const harness = await nativeHarness([], {})
+    const harness = await nativeHarness([], { config: { defaultReasoningEffort: 'low' } })
     live.push(harness)
     const adapter = new CapabilityAdapter(['high', 'low'])
     harness.ctx.llm.registerAdapter(['explicit-choice'], adapter)

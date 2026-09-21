@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock } from '@deepseek-ai/dsh-llm'
 import { Session, SessionId } from '@deepseek-ai/dsh-session'
-import CodeRuntime from '@deepseek-ai/dsh-code-runtime'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { sealCompletedTurns } from '../src/context.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
+import { FixtureCodeRuntime } from './fixture-code-runtime.js'
 
 const live: NativeHarness[] = []
 afterEach(async () => { for (const harness of live.splice(0).reverse()) await harness.ctx.fiber.dispose() })
@@ -112,10 +112,10 @@ describe('successful read provenance in tape entries', () => {
   it('indexes native code-dispatch reads without claiming their bytes reached the model', async () => {
     const body = 'INNER_READ_ONLY_7231'
     let returnedBody = body
-    class FixtureRuntime extends CodeRuntime {
+    class FixtureRuntime extends FixtureCodeRuntime {
       readonly language = 'typescript'
       readonly isolation = 'deterministic fixture'
-      async run(request: Parameters<CodeRuntime['run']>[0]) {
+      async run(request: Parameters<FixtureCodeRuntime['run']>[0]) {
         const sdk = request.bindings!.find(binding => binding.global === 'tools')!.functions
         await sdk.read!({ file_path: 'nested.ts', offset: 3, limit: 2 })
         return { value: 'PROCESSED_WITHOUT_FORWARDING_BODY', logs: [] }

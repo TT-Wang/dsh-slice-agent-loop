@@ -172,8 +172,8 @@ if (FULL_TOOLS) {
   await ctx.plugin(SpillLocal, { root: join(workdir, '.spill') })
   await ctx.plugin(SpillPolicy, { maxInlineBytes: 50_000 })
 }
-// effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
-// 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
+// effort 经插件自身的 defaultReasoningEffort 通道注入；default 沿用宿主默认，
+// 需要固定档位的实验必须显式选择。
 // 'default' = 不传配置,验证出厂默认的真实生效路径。
 if (ARM === 'transcript' || ARM === 'transcript-fold') {
   // 原生 loop 需要 sessionProjections;effort 走 connection defaults(下面)。
@@ -188,7 +188,7 @@ if (ARM === 'transcript' || ARM === 'transcript-fold') {
     // 现在跑会在插件构造处直接抛错。留 expect-error 而不是把文件排除在门禁外：
     // 其余每一行仍被类型检查，等 driver 真被移植时这条指令自己会报错。
     inTurnSeal: SEAL,
-    // 场景自带的步预算(长链场景 150);插件默认值对 50 步链不够。
+    // 场景显式步预算(长链场景 150)；插件本身默认不设步数上限。
     maxStepsPerTurn: MAX_STEPS,
     ...(ARM === 'state' ? { mode: 'state' as const, state: STATE_OPTS } : {}),
     ...(ARM === 'stream' ? { state: STATE_OPTS, digest: DIGEST_OPTS } : {}),

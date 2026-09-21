@@ -371,6 +371,23 @@ describe('slice context on the native DSH loop', () => {
     for (const captured of h.captured) expectReconstructable(captured)
   })
 
+  it('lets the stock loop finish beyond 50 steps when no cap is configured', async () => {
+    const h = await boot([
+      ...Array.from({ length: 51 }, (_, i) => nativeTool(`uncapped-${i}`, 'echo')),
+      nativeText('finished after 51 tool steps'),
+    ])
+    h.ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'Return a result', parameters: {}, execute: async () => [{ type: 'text', text: 'ok' }] }))
+    const { agent } = await create(h, 'native-uncapped')
+    await nativeSend(agent, 'continue using tools')
+
+    expect(h.adapter.requests).toHaveLength(52)
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'step/start')).toHaveLength(52)
+    expect([...agent.session.snapshotEvents()].reverse().find(event => event.type === 'turn/end')?.data.reason.kind).toBe('completed')
+    expect(h.warns.filter(message => message.startsWith('slice maxStepsPerTurn='))).toEqual([])
+    expect(h.errors).toEqual([])
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
   it('honors the step limit without dispatching another model call', async () => {
     const h = await boot([nativeTool('limit-one', 'echo'), nativeTool('limit-two', 'echo')], { config: { maxStepsPerTurn: 2 } })
     h.ctx.tools.register(defineContentToolFixture({ name: 'echo', description: 'Return a result', parameters: {}, execute: async () => [{ type: 'text', text: 'ok' }] }))

@@ -40,11 +40,12 @@ export function apply(ctx, config) {
   const responses = [text('PACKED_FIRST_ANSWER'), tool('packed-recall', 'recall_turn', { turn: '1' }), text('PACKED_SECOND_ANSWER'), text('PACKED_THIRD_ANSWER'), text('PACKED_RESUMED_ANSWER')]
   class Adapter extends llm.LlmAdapter {
     /** @param {string} provider @param {string} model @returns {Promise<import('@deepseek-ai/dsh-llm').LlmResolvedModelInfo>} */
-    async resolveModel(provider, model) { return { provider, id: model, name: model, inputModalities: ['text', 'image'], reasoning: { efforts: [{ id: llm.ReasoningEffortId('low'), name: 'Low' }], defaultEffort: llm.ReasoningEffortId('low') } } }
+    async resolveModel(provider, model) { return { provider, id: model, name: model, inputModalities: ['text', 'image'], reasoning: { efforts: [{ id: llm.ReasoningEffortId('high'), name: 'High' }, { id: llm.ReasoningEffortId('low'), name: 'Low' }], defaultEffort: llm.ReasoningEffortId('high') } } }
     /** @param {import('@deepseek-ai/dsh-llm').GenerateOptions} request */
     async *stream(request) {
       const session = request.sessionId === undefined ? undefined : ctx.sessions.get(request.sessionId)
       assert.ok(session)
+      assert.equal(request.reasoningEffort, 'high', 'the shipped default must inherit the adapter effort, including after resume')
       assert.deepEqual(request.messages, session.deriveMessages())
       const events = structuredClone(session.snapshotEvents())
       const nodes = sessions.foldSurface(events).nodes
@@ -116,7 +117,7 @@ export function apply(ctx, config) {
     assert.equal(tapeNodes(finalEvents).length, 3, 'resume must seal the previous completed turn')
     const shim = await import(pathToFileURL(createRequire(new URL('./home/profiles/slice-packed/package.json', import.meta.url)).resolve('@dsh-external/dsh-slice-agent-loop/invariant')).href)
     assert.equal(typeof shim.apply, 'function', 'the exported invariant compatibility shim must load')
-    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

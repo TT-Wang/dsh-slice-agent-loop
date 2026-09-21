@@ -16,7 +16,7 @@ async function load(history: object): Promise<void> {
 describe('checkConfigKeys', () => {
   it('accepts every documented key', () => {
     expect(() => checkConfigKeys({
-      maxHistoryChars: 1, maxRequestChars: 1, maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, history: {}, mode: 'slice',
+      maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, history: {}, mode: 'slice',
     })).not.toThrow()
   })
 
@@ -36,15 +36,21 @@ describe('checkConfigKeys', () => {
     }
   })
 
+  it.each(['maxRequestChars', 'maxHistoryChars'])('rejects the inert budget key %s with migration guidance', async key => {
+    expect(() => checkConfigKeys({ [key]: 1 })).toThrow(`Retired slice configuration ${key}:`)
+    await expect(nativeHarness([], { config: { [key]: 1 } as never }))
+      .rejects.toThrow(`Retired slice configuration ${key}:`)
+  })
+
   it('reports a typo as unknown and suggests the nearest valid key', () => {
-    expect(() => checkConfigKeys({ maxHistoryChar: 1 }))
-      .toThrow('Unknown slice configuration key maxHistoryChar. Did you mean maxHistoryChars?')
-    expect(() => checkConfigKeys({ MAXREQUESTCHARS: 1 })).toThrow('Did you mean maxRequestChars?')
+    expect(() => checkConfigKeys({ maxStepsPerTur: 1 }))
+      .toThrow('Unknown slice configuration key maxStepsPerTur. Did you mean maxStepsPerTurn?')
+    expect(() => checkConfigKeys({ MAXSTEPSPERTURN: 1 })).toThrow('Did you mean maxStepsPerTurn?')
   })
 
   it('lists the valid keys when nothing is close', () => {
     expect(() => checkConfigKeys({ banana: 1 }))
-      .toThrow(/^Unknown slice configuration key banana\. Valid keys: maxHistoryChars, maxRequestChars,/)
+      .toThrow(/^Unknown slice configuration key banana\. Valid keys: maxStepsPerTurn,/)
   })
 })
 
@@ -75,4 +81,13 @@ describe('history section keys', () => {
     // 退役键与未知键是两种错:未知键不冒充迁移说明。
     await expect(load({ keepRecent: 2 })).rejects.not.toThrow('Retired history configuration')
   })
+})
+
+describe('optional step cap', () => {
+  it.each([0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, null, '50'])(
+    'rejects an invalid explicit cap: %s', async value => {
+      await expect(nativeHarness([], { config: { maxStepsPerTurn: value } as never }))
+        .rejects.toThrow('maxStepsPerTurn must be a positive safe integer')
+    },
+  )
 })

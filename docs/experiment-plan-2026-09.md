@@ -18,8 +18,9 @@
 >   exist inside the checkout. Reproducing it requires that external workspace.
 >
 > **Historical configuration:** `maxHistoryChars` and `maxRequestChars` are now
-> accepted but ignored; the pressure/admission design below is retired. The fold
-> settings remain recognizable, but this table is not a current profile template.
+> rejected at load (2026-09-21); the pressure/admission design below is retired.
+> Defaults for effort and position pinning, and the scope of fold backoff, have also
+> changed. This table is not a current profile template.
 > The old-architecture comparison boundary in §5 still applies.
 >
 > **Archive status:** this file is tracked as an unexecuted historical plan. Its

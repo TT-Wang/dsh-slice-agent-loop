@@ -18,7 +18,7 @@
  *
  * spill 臂(tools/post-execute)改写的是**落盘前**的内容,日志里只剩视图;所以视图首行必须带 spill locator,
  * expand_result 从 locator 读回原文。做不到(没有 spill 后端 / 存储失败)就不改写,留给 pre-step 在 surface 上折。
- * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具、钉住步里的小结果,这条路同样不折。
+ * 它与 pre-step 共用同一份退避/钉住状态:已退避的工具资源、显式钉住步里的小结果,这条路同样不折。
  *
  * 恢复(resume / 插件晚挂):folder 建立时日志里最后一个 request/header、assistant/message 或 assistant/attempt 之前的追加态结果,
  * 已经原样给模型看过(上一进程发过请求),第一次 pre-step 不再折它们——折了会让整段前缀改写、缓存全失;
@@ -43,17 +43,16 @@ export interface Config {
   enabled?: boolean
   /** 折叠策略(阈值、头尾行数、日志上下文行数……),见 result-digest.ts。 */
   digest?: Partial<DigestPolicy>
-  /** 每轮前这么多步的工具结果不折(默认 2):任务的规则/说明文档几乎总在开头被读,l2 实测折掉规则段就全错。 */
+  /** 可选的轮首位置保护(默认 0):显式指定时,前这么多步里的小结果保持原文。默认只按内容与体量判断。 */
   pinSteps?: number
-  /** 钉住步里仍然要折的体量(默认 8000 字符):规则/说明文档只有几 K(l1 的 MANIFEST 3K、l2 的规则 3.7K),而开头两步
-   *  整页抓回来的 10–14K 文档、170K 的测试输出不是规则;f9 实测模型把 6 页都放在第 2 步抓,20000 的阈值让它们全被钉住。 */
+  /** 显式钉住步骤中,仅保护少于此字符数的结果(默认 8000);更大结果仍按内容规则折叠。 */
   pinMaxChars?: number
   /** spill 预览臂(默认 50000 字节,与 dsh-base 的 spill-policy maxInlineBytes 对齐;0 = 关):结果达到这个体量时,在 tools/post-execute
    *  就把原文存进 ctx.spillStore(有 spill 后端时),模型看到的是按内容路由的折叠视图 + 文件定位,而不是 spill-policy 的头尾预览。
    *  没挂 spill 后端时此臂不生效。read 结果与 spill-policy 同样跳过(它靠 pre-step 的 surface 替换折叠,原文留日志)。 */
   spillPreviewMinBytes?: number
-  /** 展开退避(默认 2):某个工具的折叠视图被 expand_result 取回这么多次、且取回率 ≥ 一半,本会话就不再折它的结果——
-   *  s10 实测模型把 64 次折叠逐一取回,折了等于白折还多走一步。 */
+  /** 展开退避(默认 2):同一工具/资源下这么多个不同的折叠结果块被完整取回、且取回率 ≥ 一半,
+   *  本会话不再折该资源。资源为精确 file_path/path,没有路径则用键排序后的参数;局部与重复取回不触发退避。 */
   backoffAfterExpansions?: number
 }
 
@@ -83,7 +82,7 @@ export const FOLD_AFFORDANCE = foldAffordance(false)
 
 interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
 interface CallInfo { name: string; seq: number; path?: string; arguments?: unknown }
-interface FoldView { message: ToolResultMessage; tools: string[]; blocks: ReadonlyMap<number, string>; before: number; after: number; condensed: boolean }
+interface FoldView { message: ToolResultMessage; blocks: ReadonlyMap<number, string>; before: number; after: number; condensed: boolean }
 
 function callPath(args: unknown): string | undefined {
   if (typeof args !== 'object' || args === null) return undefined
@@ -93,6 +92,24 @@ function callPath(args: unknown): string | undefined {
 function parseArgs(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw
   try { return JSON.parse(raw) } catch { return undefined }
+}
+/** Stable JSON arguments group equivalent object key order without guessing resource aliases. */
+function canonicalArguments(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(canonicalArguments)
+  if (typeof value !== 'object' || value === null) return value
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+    .map(([key, item]) => [key, canonicalArguments(item)]))
+}
+/** Exact path identity is shared across read offsets; other calls retain their full argument identity. */
+function backoffScope(tool: string, args: unknown): string {
+  const parsed = parseArgs(args)
+  const path = callPath(parsed)
+  return JSON.stringify(path === undefined ? [tool, 'arguments', canonicalArguments(parsed)] : [tool, 'path', path])
+}
+function partialExpansion(args: { grep?: unknown; lines?: unknown }): boolean {
+  // Match execute's filter selection: malformed/empty optional filters fall back to the full result.
+  return (typeof args.grep === 'string' && Boolean(args.grep.trim()))
+    || (typeof args.lines === 'string' && /^\d+\s*-\s*\d+$/.test(args.lines.trim()))
 }
 function resultChars(message: ToolResultMessage): number {
   let n = 0
@@ -108,6 +125,8 @@ class SessionFolder {
   private cursor = 0
   private readonly calls = new Map<string, CallInfo>()
   private readonly countedExpansions = new Set<string>()
+  /** One full recovery per original result block, shared by all locator aliases and retrieval calls. */
+  private readonly expandedBlocks = new Set<string>()
   /** Successful retrieval bytes keyed by their enclosing model call, never by a whole step/session. */
   private readonly retrievedByCall = new Map<number, Set<string>>()
   /** 每步的追加态结果计数(call 序号 = 该步第 n 个结果,expand_result 用同一规则定位)。 */
@@ -115,10 +134,9 @@ class SessionFolder {
   private readonly originalAt = new Map<number, { turn: number; step: number; ordinal: number }>()
   private readonly countedFolds = new Set<number>()
   readonly stats = { folded: 0, charsBefore: 0, charsAfter: 0, expanded: 0, backedOff: [] as string[], spilled: 0 }
-  /** (turn:step:call) → 被折结果的工具名;展开时据此记账。 */
-  private readonly foldedAt = new Map<string, readonly string[]>()
-  private readonly foldedBlocksAt = new Map<string, ReadonlyMap<number, string>>()
-  private readonly perTool = new Map<string, { folded: number; expanded: number }>()
+  /** (turn:step:call) → folded block ordinal → resource scope. */
+  private readonly foldedAt = new Map<string, ReadonlyMap<number, string>>()
+  private readonly perScope = new Map<string, { folded: number; expanded: number }>()
   /** 建 folder 时最后一个 request/header / assistant/message / assistant/attempt 的 seq:不晚于它的追加态结果已经原样发给过模型,不折。 */
   private readonly shownThrough: number
   /** 当前步(pre-step 记录);post-execute 的钉住判断用。 */
@@ -136,6 +154,10 @@ class SessionFolder {
 
   pinned(step: number, chars: number): boolean {
     return step <= this.pinSteps && chars < this.pinMaxChars
+  }
+
+  backedOff(tool: string, args: unknown): boolean {
+    return this.stats.backedOff.includes(backoffScope(tool, args))
   }
 
   /** 把游标之后新落盘的、仍在 surface 上的追加态工具结果折掉。 */
@@ -187,11 +209,11 @@ class SessionFolder {
     this.cursor = end
   }
 
-  /** Successful expansion: charge only the selected folded result blocks, then apply tool backoff. */
+  /** Successful retrievals remain call-counted telemetry; only distinct full blocks drive resource backoff. */
   /** Called after a successful outcome, not when a possibly failing call starts. */
   noteExpansion(args: unknown, callId: string): void {
     if (this.countedExpansions.has(callId)) return
-    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown }
+    const a = (typeof args === 'object' && args !== null ? args : {}) as { seq?: unknown; formatVersion?: unknown; turn?: unknown; step?: unknown; call?: unknown; block?: unknown; grep?: unknown; lines?: unknown }
     let key: string
     if (a.seq !== undefined) {
       if (a.formatVersion !== SESSION_FORMAT_VERSION) return
@@ -200,21 +222,25 @@ class SessionFolder {
       if (at === undefined) return
       key = `${at.turn}:${at.step}:${at.ordinal}`
     } else key = `${Number(a.turn)}:${Number(a.step)}:${a.call === undefined ? 1 : Number(a.call)}`
-    let tools = this.foldedAt.get(key)
+    let blocks = this.foldedAt.get(key)
     if (a.block !== undefined) {
       const block = Number(a.block)
       if (!Number.isInteger(block) || block < 1) return
-      const selected = this.foldedBlocksAt.get(key)?.get(block)
-      tools = selected === undefined ? undefined : [selected]
+      const selected = blocks?.get(block)
+      blocks = selected === undefined ? undefined : new Map([[block, selected]])
     }
-    if (tools === undefined) return
+    if (blocks === undefined) return
     this.countedExpansions.add(callId)
     this.stats.expanded += 1
-    for (const tool of tools) {
-      const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
+    if (partialExpansion(a)) return
+    for (const [block, scope] of blocks) {
+      const identity = `${key}:${block}`
+      if (this.expandedBlocks.has(identity)) continue
+      this.expandedBlocks.add(identity)
+      const t = this.perScope.get(scope) ?? { folded: 0, expanded: 0 }
       t.expanded += 1
-      this.perTool.set(tool, t)
-      if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(tool)) this.stats.backedOff.push(tool)
+      this.perScope.set(scope, t)
+      if (t.expanded >= this.backoffAfter && t.expanded * 2 >= t.folded && !this.stats.backedOff.includes(scope)) this.stats.backedOff.push(scope)
     }
   }
 
@@ -267,14 +293,13 @@ class SessionFolder {
     let condensed = false
     let before = 0
     let after = 0
-    const tools = new Set<string>()
     const blocks = new Map<number, string>()
     const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}, "formatVersion": ${SESSION_FORMAT_VERSION}})`
     const content = (d.message.content as readonly ToolResultBlock[]).map((block, blockIndex) => {
       if (block.type !== 'tool-result' || block.isError || !block.content) return block
       const callId = String(block.toolCallId ?? d.message.source?.callId ?? '')
       const info = this.calls.get(callId) ?? { name: 'tool', seq: -1 }
-      if (RETRIEVAL_TOOLS.has(info.name) || this.stats.backedOff.includes(info.name)) return block
+      if (RETRIEVAL_TOOLS.has(info.name) || this.backedOff(info.name, info.arguments)) return block
       let blockChanged = false
       const inner = block.content.map((b) => {
         if (b.type !== 'text' || typeof b.text !== 'string') return b
@@ -283,7 +308,6 @@ class SessionFolder {
         if (spillLocatorOf(b.text) !== undefined) {
           // post-execute 已把原文存进 spill store、视图落了盘:不再折,只在首行补上 expand_result 定位(此时还没发过,替换零成本)。
           changed = blockChanged = true
-          tools.add(info.name)
           const { head, rest } = headLine(b.text)
           const text = `${head.slice(0, -1)} · ${hint} returns the full text]${rest}`
           after += text.length
@@ -295,16 +319,15 @@ class SessionFolder {
           return b
         }
         changed = blockChanged = condensed = true
-        tools.add(info.name)
         const text = `[${info.name}${info.path ? ' ' + info.path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · ${hint} returns the full text]\n${r.text}`
         after += text.length
         return { ...b, text }
       })
-      if (blockChanged) blocks.set(blockIndex + 1, info.name)
+      if (blockChanged) blocks.set(blockIndex + 1, backoffScope(info.name, info.arguments))
       return blockChanged ? { ...block, content: inner } : block
     })
     if (!changed) return undefined
-    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), tools: [...tools], blocks, before, after, condensed }
+    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), blocks, before, after, condensed }
   }
 
   private recordFold(seq: number, turn: number, step: number, n: number, view: FoldView): void {
@@ -315,12 +338,11 @@ class SessionFolder {
       this.stats.charsBefore += view.before
       this.stats.charsAfter += view.after
     }
-    this.foldedAt.set(`${turn}:${step}:${n}`, view.tools)
-    this.foldedBlocksAt.set(`${turn}:${step}:${n}`, view.blocks)
-    for (const tool of view.tools) {
-      const t = this.perTool.get(tool) ?? { folded: 0, expanded: 0 }
+    this.foldedAt.set(`${turn}:${step}:${n}`, view.blocks)
+    for (const scope of view.blocks.values()) {
+      const t = this.perScope.get(scope) ?? { folded: 0, expanded: 0 }
       t.folded += 1
-      this.perTool.set(tool, t)
+      this.perScope.set(scope, t)
     }
   }
 
@@ -430,7 +452,7 @@ export class ToolResultFold extends Service {
     super(ctx, 'toolResultFold')
     const policy = resolveDigestPolicy(config.digest)
     const enabled = config.enabled ?? true
-    const pinSteps = config.pinSteps ?? 2
+    const pinSteps = config.pinSteps ?? 0
     if (!Number.isInteger(pinSteps) || pinSteps < 0) throw new Error('pinSteps must be a non-negative integer')
     const pinMaxChars = config.pinMaxChars ?? 8_000
     if (!(pinMaxChars >= 0)) throw new Error('pinMaxChars must be >= 0')
@@ -489,8 +511,8 @@ export class ToolResultFold extends Service {
         const texts = result.content.filter((b): b is { type: 'text'; text: string } => b.type === 'text' && typeof (b as { text?: unknown }).text === 'string')
         const full = texts.map((b) => b.text).join('\n')
         if (Buffer.byteLength(full, 'utf8') < spillMin) return downstream
-        // 与 pre-step 同一份退避/钉住状态:模型已经把这个工具的折叠视图逐一取回,这条路也不再折。
-        if (folder.stats.backedOff.includes(exec.name) || folder.pinned(folder.step, full.length)) return downstream
+        // 与 pre-step 同一份退避/钉住状态:模型已完整取回同一资源的多个不同结果,这条路也不再折。
+        if (folder.backedOff(exec.name, exec.arguments) || folder.pinned(folder.step, full.length)) return downstream
         const path = callPath(parseArgs(exec.arguments))
         const r = digestToolResult(full, { tool: exec.name, ...(path ? { path } : {}) }, policy)
         if (!r.digested) return downstream

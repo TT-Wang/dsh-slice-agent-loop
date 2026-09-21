@@ -17,6 +17,7 @@ export interface HistoryConfig {
     entryMaxChars?: number;
 }
 export interface Config {
+    /** Optional positive step cap; omitted means the stock loop controls termination. */
     maxStepsPerTurn?: number;
     defaultReasoningEffort?: ReasoningEffortDefault;
     digest?: FoldConfig['digest'];
@@ -25,7 +26,6 @@ export interface Config {
     /** Experimental rollback loops are retired; only the native slice policy is supported. */
     mode?: 'slice';
 }
-export declare const DEFAULT_MAX_STEPS_PER_TURN = 50;
 export declare const DEFAULT_HISTORY: Required<HistoryConfig>;
 /**
  * Reject unrecognised keys at load, but say which kind of wrong it is: a key

@@ -1,5 +1,11 @@
 # tool-result-fold:给 dsh 原生 transcript loop 加轮内折叠
 
+> **历史实验记录；现役策略更新（2026-09-21）**：本仓库内置 folding，不能再同时安装独立插件。
+> 默认 `pinSteps` 已改为 0；下面的“前两步保护”和按整个工具退避描述的是旧策略。
+> 当前退避按工具与精确路径分组，无路径时按排序后的完整参数分组；只计不同结果块的完整取回，
+> 局部 `grep` / `lines` 查询和同块重复取回不累计。阈值仍为至少 2 个且完整取回率至少一半。
+> 现役契约见 [README](../README.md#configuration)，本次修改没有重跑下列模型实验，也不沿用其收益结论。
+
 > 独立仓库(正式家):https://github.com/TT-Wang/dsh-tool-result-fold — `dsh plugin add github:TT-Wang/dsh-tool-result-fold`。本仓库的 `src/fold` 是同源副本,供 runner 与契约测试用。
 
 2026-09-03 夜。一天的磁带实验之后的结论是:短会话里最简单的 transcript 最便宜,slice 赢在长会话与
