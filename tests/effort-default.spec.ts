@@ -16,7 +16,7 @@ describe('applyEffortDefault', () => {
     const proposed = { provider: 'deepseek' } as { provider: string; reasoningEffort?: string }
     expect(applyEffortDefault(proposed, 'inherit')).toBe(proposed)
   })
-  it('factory default is low (the ladder ruling)', () => {
-    expect(DEFAULT_REASONING_EFFORT).toBe('low')
+  it('factory default leaves the effort to the host', () => {
+    expect(DEFAULT_REASONING_EFFORT).toBe('inherit')
   })
 })

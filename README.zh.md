@@ -53,7 +53,7 @@
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
   config:
-    defaultReasoningEffort: low
+    defaultReasoningEffort: inherit
     history:
       keepRecentTurns: 0
       pinFirstTurn: true
@@ -66,7 +66,7 @@
 | `history.keepRecentTurns` | 尾部保持原样的已完成轮数（默认 0：一轮在下一轮第一步就被封存）。调大它会保留更多逐字历史。未变动的原始轮仍可能命中缓存；封存更早的轮会改变该尾部之前的前缀，使尾部重新计费。封存是无条件的：没有要跨过的阈值，也没有要回落到的目标大小。 |
 | `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | 第 1 轮的用户消息保持为未经改动的追加节点（默认 true；该轮的 assistant／工具运行仍可封存）。`pinUserChars`（默认 1,200）是被封存用户消息的逐字预算。`entryMaxChars`（默认 8,000，最小 256）限制新条目的文本，不限制整个 tape。 |
 | `maxStepsPerTurn` | 可选的正整数步数上限。默认不设上限，由原生 loop 控制终止；显式设置后，超过该步数就停止派发。 |
-| `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`；宿主／模型的显式选择优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
+| `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`（默认）。默认由宿主／模型选择推理预算；请求中的显式选择始终优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
 | `digest` | 内容路由选项，见 `src/slice/result-digest.ts`。 |
 | `fold` | 工具结果折叠选项：`enabled`、`pinSteps`、`pinMaxChars`、`spillPreviewMinBytes`、`backoffAfterExpansions`。 |
 

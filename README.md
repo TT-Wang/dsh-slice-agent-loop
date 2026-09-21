@@ -53,7 +53,7 @@ Numeric locators are qualified with the current session format: `expand_result({
 - id: slice-agent-loop
   name: '@dsh-external/dsh-slice-agent-loop'
   config:
-    defaultReasoningEffort: low
+    defaultReasoningEffort: inherit
     history:
       keepRecentTurns: 0
       pinFirstTurn: true
@@ -66,7 +66,7 @@ Numeric locators are qualified with the current session format: `expand_result({
 | `history.keepRecentTurns` | Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn). Raising it retains more verbatim history. Unchanged raw turns may still hit the cache; sealing an older turn can invalidate the prefix before that retained tail. Sealing is unconditional: there is no threshold to cross and no size target to fall back to. |
 | `history.pinFirstTurn` / `pinUserChars` / `entryMaxChars` | Keep turn 1's user message as an untouched append node (default true; its assistant/tool run is still sealable). `pinUserChars` (default 1,200) is the verbatim budget for a sealed user message. `entryMaxChars` (default 8,000, minimum 256) caps each new entry's text; it does not cap the whole tape. |
 | `maxStepsPerTurn` | Optional positive step cap. Omit it to let the stock loop control termination; set it explicitly to stop before dispatching beyond that many model steps. |
-| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit`; an explicit host/model choice wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
+| `defaultReasoningEffort` | `off`, `low`, `high`, `max`, or `inherit` (default). By default, the host/model chooses the reasoning budget; an explicit request choice always wins. **Capability-gated**: the default is injected only when the resolved model declares that effort (`declaredEfforts` in `src/effort-default.ts`); unknown capabilities keep the adapter default; a declared capability that omits the requested effort warns once per route. |
 | `digest` | Content-routing options from `src/slice/result-digest.ts`. |
 | `fold` | Tool-result folding options: `enabled`, `pinSteps`, `pinMaxChars`, `spillPreviewMinBytes`, `backoffAfterExpansions`. |
 

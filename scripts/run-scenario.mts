@@ -172,8 +172,8 @@ if (FULL_TOOLS) {
   await ctx.plugin(SpillLocal, { root: join(workdir, '.spill') })
   await ctx.plugin(SpillPolicy, { maxInlineBytes: 50_000 })
 }
-// effort 经插件自身的 defaultReasoningEffort 通道注入(20260901 落地后,插件会给
-// 无人选择的请求注入出厂默认 low——实验各臂必须显式走这个通道才能分臂)。
+// effort 经插件自身的 defaultReasoningEffort 通道注入；default 沿用宿主默认，
+// 需要固定档位的实验必须显式选择。
 // 'default' = 不传配置,验证出厂默认的真实生效路径。
 if (ARM === 'transcript' || ARM === 'transcript-fold') {
   // 原生 loop 需要 sessionProjections;effort 走 connection defaults(下面)。
