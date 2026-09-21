@@ -67,10 +67,11 @@ function positive(value: number | undefined, fallback: number, name: string): nu
   return result
 }
 
-const CONFIG_KEYS = ['maxHistoryChars', 'maxRequestChars', 'maxStepsPerTurn', 'defaultReasoningEffort', 'digest', 'fold', 'history', 'mode'] as const
+const CONFIG_KEYS = ['maxStepsPerTurn', 'defaultReasoningEffort', 'digest', 'fold', 'history', 'mode'] as const
 
-/** Top-level keys of the retired loop-replacement driver, and where each went. */
+/** Retired budget and loop-replacement keys, and where each went. */
 const RETIRED_CONFIG: Record<string, string> = {
+  ...RETIRED_BUDGET,
   maxParallelToolCalls: 'scheduling belongs to the stock agent-loop row',
   inTurnSeal: 'in-turn sealing was retired with the replacement driver',
   tape: 'file-base tape options were retired with the replacement driver',

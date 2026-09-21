@@ -16,7 +16,7 @@ async function load(history: object): Promise<void> {
 describe('checkConfigKeys', () => {
   it('accepts every documented key', () => {
     expect(() => checkConfigKeys({
-      maxHistoryChars: 1, maxRequestChars: 1, maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, history: {}, mode: 'slice',
+      maxStepsPerTurn: 1, defaultReasoningEffort: 'low', digest: {}, fold: {}, history: {}, mode: 'slice',
     })).not.toThrow()
   })
 
@@ -36,15 +36,21 @@ describe('checkConfigKeys', () => {
     }
   })
 
+  it.each(['maxRequestChars', 'maxHistoryChars'])('rejects the inert budget key %s with migration guidance', async key => {
+    expect(() => checkConfigKeys({ [key]: 1 })).toThrow(`Retired slice configuration ${key}:`)
+    await expect(nativeHarness([], { config: { [key]: 1 } as never }))
+      .rejects.toThrow(`Retired slice configuration ${key}:`)
+  })
+
   it('reports a typo as unknown and suggests the nearest valid key', () => {
-    expect(() => checkConfigKeys({ maxHistoryChar: 1 }))
-      .toThrow('Unknown slice configuration key maxHistoryChar. Did you mean maxHistoryChars?')
-    expect(() => checkConfigKeys({ MAXREQUESTCHARS: 1 })).toThrow('Did you mean maxRequestChars?')
+    expect(() => checkConfigKeys({ maxStepsPerTur: 1 }))
+      .toThrow('Unknown slice configuration key maxStepsPerTur. Did you mean maxStepsPerTurn?')
+    expect(() => checkConfigKeys({ MAXSTEPSPERTURN: 1 })).toThrow('Did you mean maxStepsPerTurn?')
   })
 
   it('lists the valid keys when nothing is close', () => {
     expect(() => checkConfigKeys({ banana: 1 }))
-      .toThrow(/^Unknown slice configuration key banana\. Valid keys: maxHistoryChars, maxRequestChars,/)
+      .toThrow(/^Unknown slice configuration key banana\. Valid keys: maxStepsPerTurn,/)
   })
 })
 

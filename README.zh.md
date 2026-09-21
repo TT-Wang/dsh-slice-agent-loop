@@ -69,10 +69,12 @@
 | `defaultReasoningEffort` | `off`、`low`、`high`、`max` 或 `inherit`（默认）。默认由宿主／模型选择推理预算；请求中的显式选择始终优先。**受模型能力门控**：只有已解析模型声明了该档位时才注入（`src/effort-default.ts` 的 `declaredEfforts`）；能力未知时沿用适配器默认；已声明能力但不含请求档位时，按路由告警一次。 |
 | `digest` | 内容路由选项，见 `src/slice/result-digest.ts`。 |
 | `fold` | 工具结果折叠选项：`enabled`、`pinSteps`、`pinMaxChars`、`spillPreviewMinBytes`、`backoffAfterExpansions`。 |
+| `fold.pinSteps` / `pinMaxChars` | 位置保护须显式启用（`pinSteps` 默认 0）。启用后，前若干步里小于 `pinMaxChars`（默认 8,000）的结果保留原文。内容保护在所有步骤都生效。 |
+| `fold.backoffAfterExpansions` | 默认同一工具／资源下至少 2 个不同折叠结果块被完整取回，且完整取回率至少 50%，就在该会话中停止折叠该资源。资源标识为精确的 `file_path`／`path`；没有路径时，使用对象键排序后的完整参数。局部 `grep`／`lines` 查询和同块重复取回不累计退避，其他资源继续按原规则折叠；spill 路径遵循同一规则。 |
 
 **请求预算已经删除。** 条目减少历史细节，但会随会话累积；本插件不对总历史或当前轮提供硬上限。需要在宿主组合中配置上下文窗口处理，单靠磁带不能避免溢出。插件侧没有上限、没有拒绝，也没有任何"重写条目"的降级层级。
 
-- **接受但无效**：`maxRequestChars` 与 `maxHistoryChars` 仍能作为合法键通过解析，但已经没有任何代码读取它们——它们过去施加的字符上限与历史上限都不存在了。迁移配置时请删除；留着不会改变行为，也不会告警。
+- **退役预算键现在加载时报错**：请删除 `maxRequestChars` 与 `maxHistoryChars`。它们此前虽能通过解析，却不施加任何上限；继续静默接受会让人误以为存在保护。上下文窗口处理应在宿主中配置。
 - **加载时报错，并说明各自去向**：`history.highWaterChars`、`history.lowWaterChars`、`history.keepRecentChars`、`history.checkpointMaxChars`（`Retired history configuration <key>: …`——替代项是 `history.keepRecentTurns`（按轮计数）与 `history.entryMaxChars`；两个水位没有对应项，因为已经没有要跨过的压力阈值了），以及已退役的驱动键 `maxParallelToolCalls`、`inTurnSeal`、`tape`、`state`（`Retired slice configuration <key>: …`）。
 - `mode` 只接受 `slice`；`state` 与 `stream` 在加载时报错。两个小节里出现别的不认识键，同样报错并给出合法键列表。
 
@@ -99,3 +101,5 @@
 文件读取是记录下来的窗口，写入／编辑元数据含 diff 片段。它们是历史观察，不能证明文件当前全文，也不能证明后端身份；完整 base／免重读指针类优化保持关闭，直到宿主提供带完整 provider 文本、目标身份与版本的持久观察通道。见 [记录式记忆](docs/recorded-memory.md)。
 
 实现修复及验证范围见 [2026-09-13 评审修复](docs/review-fixes-2026-09-13.md)。
+
+默认策略变更与验证边界：[2026-09-21 上下文策略默认值](docs/context-policy-defaults-2026-09-21.md)。
