@@ -19,7 +19,7 @@ describe('host context overflow contract', () => {
     const h = await nativeHarness([
       nativeTool('large-result', 'large_fixture'), overflow,
       nativeTool('recall-failed-turn', 'recall_turn', { turn: '1', view: 'full' }), nativeText('continued after recall'),
-    ], { config: { history: { pinFirstTurn: false }, fold: { enabled: false } } })
+    ], { config: { fold: { enabled: false } } })
     live.push(h)
     const exactInput = 'OVERFLOW_USER_SENTINEL\n' + 'original request line\n'.repeat(200)
     const exactResult = 'OVERFLOW_RESULT_SENTINEL\n' + 'original returned line\n'.repeat(500)

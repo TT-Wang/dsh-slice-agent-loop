@@ -1,5 +1,7 @@
 # September 16 audit cross-check and fixes
 
+Historical validation record. The later [dialogue-preservation decision](../adr/0003-preserve-dialogue-defaults.md) makes the entry cap opt-in and preserves all original human user nodes; the explicit-cap guarantees below still apply when a cap is configured.
+
 The supplied deep review audited `db72621f2897274689f1a3cd5e02e6ec11fb7efd` (219 tests). This cross-check started from `023385f6ae3f7bb3f91babef2058708298590777` on PR #8, which already contained the retrieval fixes and DSH 0.1.5 migration (250 tests). The original checkout and its untracked review were preserved; all changes here are in the separate fix worktree.
 
 The supplied report was manually synthesized from published, independently reviewed track evidence. Its swarm synthesis tasks were cancelled, and the tests track's host verdict did not persist. This follow-up does not relabel that process as a completed synthesis. The unchanged source report's SHA-256 is `15bc5189040479dc8f80dbee3a8f7025c3369c8d2cd4a6e953cc07a4aa02414a`.

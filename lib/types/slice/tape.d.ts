@@ -48,7 +48,8 @@ export interface ReplyCaps {
     tail: number;
 }
 export declare const DEFAULT_REPLY_CAPS: ReplyCaps;
-export declare function renderTapeReply(artifactId: string, text: string, caps?: ReplyCaps): string;
+/** null preserves the complete text, including leading/trailing whitespace. */
+export declare function renderTapeReply(artifactId: string, text: string, caps?: ReplyCaps | null): string;
 export declare function replyEntry(artifactId: string, text: string, caps?: ReplyCaps): TapeEntry | null;
 export declare const REASONING_CAP_CHARS = 4000;
 export declare function reasoningEntry(artifactId: string, text: string): TapeEntry | null;

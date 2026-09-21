@@ -16,7 +16,7 @@ function assistant(session: S, turn: number, step: number, content: ContentBlock
 }
 
 function policy(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
-  return { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000, ...over }
+  return { keepRecentTurns: 0, ...over }
 }
 
 function surfaceText(session: S): string {

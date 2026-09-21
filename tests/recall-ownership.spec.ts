@@ -5,7 +5,7 @@ import { sealCompletedTurns, type HistoryPolicy } from '../src/context.js'
 import { renderSealedTurn, searchSessionEvents } from '../src/recall.js'
 
 const policy: HistoryPolicy = {
-  keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000,
+  keepRecentTurns: 0,
 }
 
 function user(session: Session, text: string) {
@@ -34,7 +34,7 @@ function originalRecords(session: Session, turn: number): unknown[] {
 }
 
 describe('shared surface and recall turn ownership', () => {
-  it('keeps an archived between-turn human message on the exact page named by search', () => {
+  it('keeps a between-turn human message raw and on the exact recall page named by search', () => {
     const session = Session.create(SessionId('recall-between-turn-user'))
     complete(session, 1)
     const exact = '  BETWEEN_TURN_SENTINEL\n保留 Unicode 和空白\t\n'
@@ -42,8 +42,8 @@ describe('shared surface and recall turn ownership', () => {
     complete(session, 2)
 
     const plan = sealCompletedTurns(session, [], policy)
-    expect(plan.appends.flatMap(append => append.sources)).toContain(between.seq)
-    expect(session.surface.nodes).not.toContain(between.seq)
+    expect(plan.appends.flatMap(append => append.sources)).not.toContain(between.seq)
+    expect(session.surface.nodes).toContain(between.seq)
     expect(session.eventAt(between.seq)).toEqual(between)
 
     for (const view of ['dialogue', 'full'] as const) {

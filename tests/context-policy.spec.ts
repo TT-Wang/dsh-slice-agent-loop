@@ -69,10 +69,10 @@ function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
   return i
 }
 
-/** Default tape policy: seal every completed turn, with a request budget nothing here reaches. */
+/** Default tape policy: seal completed assistant/tool runs without a character cap. */
 function policy(over: Partial<HistoryPolicy> = {}): HistoryPolicy {
   return {
-    keepRecentTurns: 0, pinFirstTurn: true, pinUserChars: 1_200, entryMaxChars: 8_000, ...over,
+    keepRecentTurns: 0, ...over,
   }
 }
 
@@ -91,7 +91,7 @@ describe('append-only tape sealing', () => {
       session.append('turn/end', { turn, reason: { kind: 'completed' } })
     }
     const before = structuredClone(session.snapshotEvents())
-    const plan = sealCompletedTurns(session, [], policy({ pinFirstTurn: false }))
+    const plan = sealCompletedTurns(session, [], policy())
     expect(plan.appends).toHaveLength(3)
     expect(session.surface.nodes[0]).toBe(systemEvents[0]!.seq)
     for (const event of systemEvents) {
@@ -105,32 +105,35 @@ describe('append-only tape sealing', () => {
     expect(entries(session).map(textOfEvent).join('\n')).not.toContain('SYSTEM_INSTRUCTION')
   })
 
-  it('bounds nine 60,000-character user entries in one sealed entry while retaining exact original recall pages', () => {
+  it('preserves every long user node and seals only the completed assistant runs', () => {
     const session = Session.create(SessionId('context-large-history'))
-    const original: string[] = []
+    const original: Array<ReturnType<typeof completedTurn>> = []
     for (let turn = 1; turn <= 10; turn += 1) {
       const question = `ORIGINAL_TURN_${turn}_` + 'x'.repeat(60_000)
-      original.push(question)
-      completedTurn(session, turn, question, `ANSWER_${turn}`)
+      original.push(completedTurn(session, turn, question, `ANSWER_${turn}`))
     }
     const before = structuredClone(session.snapshotEvents())
-    // keepRecentTurns holds turn 10 raw; turns 1-9 seal into one entry at their own position.
-    const plan = sealCompletedTurns(session, [], policy({ keepRecentTurns: 1, pinFirstTurn: false }))
+    // User nodes remain raw and divide the completed assistant runs into entries.
+    const plan = sealCompletedTurns(session, [], policy({ keepRecentTurns: 1 }))
     const text = surfaceText(session)
-    expect(plan.appends).toHaveLength(1)
+    expect(plan.appends).toHaveLength(9)
     expect(plan.viewChars).toBe(Array.from(JSON.stringify(session.deriveMessages())).length)
-    expect(plan.viewChars).toBeLessThanOrEqual(100_000)
-    expect(entries(session)).toHaveLength(1)
+    expect(plan.viewChars).toBeGreaterThan(600_000)
+    expect(entries(session)).toHaveLength(9)
     expect(entries(session)[0]!.surfaceOp).toEqual({
       op: 'replace', startSeq: plan.appends[0]!.start, endSeq: plan.appends[0]!.end,
     })
     expect(text).toContain(`ORIGINAL_TURN_10_${'x'.repeat(60_000)}`)
-    expect(text).toMatch(/ORIGINAL_TURN_1_x+…\[\+\d+ chars, recall_turn\]…x+/)
-    expect(text).not.toContain(`ORIGINAL_TURN_1_${'x'.repeat(60_000)}`)
+    expect(text).toContain(`ORIGINAL_TURN_1_${'x'.repeat(60_000)}`)
     expect(text).toContain('recall_turn({"turn":"<n>","view":"dialogue"})')
-    expect(Array.from(text).length).toBeLessThanOrEqual(8_000 + 61_000)
     expect(session.snapshotEvents().slice(0, before.length)).toEqual(before)
-    original.forEach((question, index) => expect(renderSealedTurn(session.snapshotEvents(), index + 1)?.rendered).toContain(question))
+    original.forEach(({ request, response }, index) => {
+      expect(session.surface.nodes).toContain(request.seq)
+      expect(session.eventAt(request.seq)).toEqual(request)
+      expect(plan.appends.flatMap(append => append.sources)).not.toContain(request.seq)
+      expect(renderSealedTurn(session.snapshotEvents(), index + 1)?.rendered).toContain(textOfEvent(request))
+      expect(session.surface.nodes.includes(response.seq)).toBe(index === 9)
+    })
   })
 
   it('appends nothing while a turn is open, one entry per completed turn, and nothing on a repeat call', () => {
@@ -167,22 +170,65 @@ describe('append-only tape sealing', () => {
     ])
   })
 
-  it('keeps the first turn user message raw when pinned and seals it otherwise', () => {
-    for (const pinFirstTurn of [true, false]) {
-      const session = Session.create(SessionId(`context-pin-${pinFirstTurn}`))
-      completedTurn(session, 1, 'FIRST_QUESTION', 'FIRST_ANSWER')
-      completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
-      completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
-      const first = session.surface.nodes[0]!
-      sealCompletedTurns(session, [], policy({ pinFirstTurn }))
-      expect(session.surface.nodes.includes(first)).toBe(pinFirstTurn)
-      expect(entries(session)).toHaveLength(1)
-      const text = surfaceText(session)
-      expect(text.split('FIRST_QUESTION')).toHaveLength(2)
-      expect(text).toContain('FIRST_ANSWER')
-      expect(text).toContain('SECOND_QUESTION')
-      expect(text).toContain('THIRD_QUESTION')
+  it('keeps every user message raw even when an explicit entry cap omits assistant detail', () => {
+    const session = Session.create(SessionId('context-user-fidelity'))
+    for (let turn = 1; turn <= 3; turn += 1) {
+      const text = `  USER_${turn}_${'u'.repeat(1_600)}_MIDDLE_REQUIREMENT_${'v'.repeat(10_000)}\n\t `
+      const { request } = completedTurn(session, turn, text, 'assistant detail '.repeat(2_000))
+      const plan = sealCompletedTurns(session, [], policy({ entryMaxChars: 256 }))
+      expect(session.surface.nodes).toContain(request.seq)
+      expect(session.eventAt(request.seq)).toEqual(request)
+      expect(plan.appends[0]!.sources).not.toContain(request.seq)
+      expect(textOfEvent(request)).toBe(text)
+      expect(surfaceText(session)).toContain(text)
+      expect(Array.from(textOfEvent(entries(session).at(-1)!)).length).toBeLessThanOrEqual(256)
     }
+  })
+
+  it('preserves every assistant text message and whitespace without the old reply or entry caps', () => {
+    const session = Session.create(SessionId('context-assistant-fidelity'))
+    session.append('turn/start', { turn: 1 })
+    user(session, 'USER_REQUIREMENTS')
+    const first = `  FIRST ${'a'.repeat(3_000)} MIDDLE_FIRST ${'b'.repeat(8_000)}\n\t `
+    const last = `\n LAST ${'c'.repeat(3_000)} MIDDLE_LAST ${'d'.repeat(8_000)}  `
+    const before = assistant(session, 1, [{ type: 'text', text: first }])
+    const after = assistant(session, 1, [{ type: 'text', text: last }])
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const plan = sealCompletedTurns(session, [], policy())
+    expect(plan.appends).toHaveLength(1)
+    const text = textOfEvent(entries(session)[0]!)
+    expect(text).toContain(`\n${first}\n[end reply`)
+    expect(text).toContain(`\n${last}\n[end reply`)
+    expect(text.indexOf(first)).toBeLessThan(text.indexOf(last))
+    expect(text).toContain(`step-1-seq-${before.seq}`)
+    expect(text).toContain(`step-1-seq-${after.seq}`)
+    expect(Array.from(text).length).toBeGreaterThan(22_000)
+    expect(text).not.toContain('chars in sealed turn')
+  })
+
+  it('keeps a complete reply when it fits an explicit entry cap despite exceeding the former reply cap', () => {
+    const session = Session.create(SessionId('context-explicit-cap-full-reply'))
+    const reply = `  ${'a'.repeat(1_800)}_MIDDLE_${'z'.repeat(1_800)}\n\t `
+    completedTurn(session, 1, 'QUESTION', reply)
+    sealCompletedTurns(session, [], policy({ entryMaxChars: 5_000 }))
+    expect(textOfEvent(entries(session)[0]!)).toContain(`\n${reply}\n[end reply`)
+  })
+
+  it('preserves earlier truncated entries on restore while applying uncapped defaults to new turns', () => {
+    const original = Session.create(SessionId('context-restore-capped'))
+    completedTurn(original, 1, 'ORIGINAL_REQUEST', 'OLD_DETAIL_'.repeat(1_000))
+    sealCompletedTurns(original, [], policy({ entryMaxChars: 256 }))
+    const [sealed] = frozen(original)
+    const restored = Session.create(SessionId('context-restore-uncapped'), original.snapshotEvents())
+    const userText = 'USER_HEAD_' + 'u'.repeat(9_000) + '_USER_MIDDLE_' + 'v'.repeat(9_000)
+    const reply = 'REPLY_HEAD_' + 'a'.repeat(9_000) + '_REPLY_MIDDLE_' + 'b'.repeat(9_000)
+    const { request } = completedTurn(restored, 2, userText, reply)
+    sealCompletedTurns(restored, [], policy())
+    expect(frozen(restored)[0]).toEqual(sealed)
+    expect(frozen(restored)[1]!.text).toContain(reply)
+    expect(restored.surface.nodes).toContain(request.seq)
+    expect(surfaceText(restored)).toContain(userText)
+    expect(sealCompletedTurns(restored, [], policy()).appends).toEqual([])
   })
 
   it('preserves a foreign canonical replacement without resurrecting the messages it shadows', () => {
@@ -198,7 +244,7 @@ describe('append-only tape sealing', () => {
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_RESPONSE')
     sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).toContain(canonical.seq)
-    expect(entries(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(2)
     expect(entries(session)[0]!.sourceEventSeqs).not.toContain(canonical.seq)
     expect(surfaceText(session)).toContain('CANONICAL_FOREIGN_CONTEXT')
     expect(surfaceText(session)).toContain('SECOND_QUESTION')
@@ -230,7 +276,7 @@ describe('append-only tape sealing', () => {
     const result = toolTurn(session, 1, 'closed-read', 'DURABLE_FILE_BYTES')
     completedTurn(session, 2, 'next question', 'next answer')
     sealCompletedTurns(session, [], policy())
-    expect(entries(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(2)
     expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call' || block.type === 'tool-result')).toBe(false)
     const text = surfaceText(session)
     expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":3})]`)
@@ -249,12 +295,12 @@ describe('append-only tape sealing', () => {
     completedTurn(session, 4, 'FOURTH_QUESTION', 'FOURTH_ANSWER')
     expect(session.surface.nodes).toContain(empty.seq)
     const plan = sealCompletedTurns(session, [], policy())
-    expect(plan.appends).toHaveLength(1)
-    expect(plan.appends[0]!.sources).toContain(empty.seq)
+    expect(plan.appends).toHaveLength(4)
+    expect(plan.appends[1]!.sources).toContain(empty.seq)
     expect(session.surface.nodes).not.toContain(empty.seq)
-    expect(entries(session)[0]!.sourceEventSeqs).toContain(empty.seq)
-    expect(textOfEvent(entries(session)[0]!)).toContain(`${TAPE_PREFIX}1-4 · 4 turn(s) sealed`)
-    expect(surfaceText(session)).toContain('[turn 2]\nSECOND_QUESTION')
+    expect(entries(session)[1]!.sourceEventSeqs).toContain(empty.seq)
+    expect(textOfEvent(entries(session)[1]!)).toContain(`${TAPE_PREFIX}2-2 · 1 turn(s) sealed`)
+    expect(surfaceText(session)).toContain('SECOND_QUESTION')
     expect(surfaceText(session)).toContain('FOURTH_QUESTION')
   })
 
@@ -268,19 +314,17 @@ describe('append-only tape sealing', () => {
     for (let turn = 6; turn <= 8; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     const warnings: string[] = []
     const plan = sealCompletedTurns(session, [], policy(), message => warnings.push(message))
-    expect(plan.appends).toHaveLength(2)
+    expect(plan.appends).toHaveLength(7)
     // A-RT-05: the cut is reported, naming the call; a silent cut looks like a seal that never shrinks.
     expect(warnings).toHaveLength(1)
     expect(warnings[0]).toContain('turn 5')
     expect(warnings[0]).toContain('never-closed')
     expect(warnings[0]).toContain('cut the sealed span')
-    expect(entries(session).map(textOfEvent)).toEqual([
-      expect.stringContaining('turns 1-4 · 4 turn(s) sealed'), expect.stringContaining('turns 6-8 · 3 turn(s) sealed'),
-    ])
+    expect(entries(session).map(textOfEvent)).toEqual([1, 2, 3, 4, 6, 7, 8].map(turn => expect.stringContaining(`turns ${turn}-${turn} · 1 turn(s) sealed`)))
     expect(session.surface.nodes).toContain(open.seq)
     expect(session.surface.nodes).toContain(call.seq)
-    // pinned turn-1 request, entry 1-4, the raw cut turn (two nodes), entry 6-8.
-    expect(session.surface.nodes).toHaveLength(5)
+    // Eight original user nodes, seven entries, and one unmatched assistant call.
+    expect(session.surface.nodes).toHaveLength(16)
     const blocks = session.deriveMessages().flatMap(message => message.content)
     expect(blocks.filter(block => block.type === 'tool-call')).toHaveLength(1)
     expect(surfaceText(session)).toContain('QUESTION_8')
@@ -307,7 +351,7 @@ describe('append-only tape sealing', () => {
     toolTurn(session, 1, 'closed-one', 'RESULT_ONE')
     for (let turn = 2; turn <= 4; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     const warnings: string[] = []
-    expect(sealCompletedTurns(session, [], policy(), message => warnings.push(message)).appends).toHaveLength(1)
+    expect(sealCompletedTurns(session, [], policy(), message => warnings.push(message)).appends).toHaveLength(4)
     expect(warnings).toEqual([])
   })
 
@@ -333,9 +377,9 @@ describe('append-only tape sealing', () => {
       expect(session.surface.nodes).not.toContain(snapshots[stale - 1])
       expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
     }
-    // Superseded snapshots do not split a span: one entry covers turns 1-7.
-    expect(entries(session)).toHaveLength(1)
-    expect(textOfEvent(entries(session)[0]!)).toContain('turns 1-7 · 7 turn(s) sealed')
+    // User nodes split turns; each old snapshot joins its assistant run.
+    expect(entries(session)).toHaveLength(7)
+    expect(textOfEvent(entries(session)[0]!)).toContain('turns 1-1 · 1 turn(s) sealed')
     for (let turn = 1; turn <= 8; turn += 1) expect(text).toContain(`QUESTION_${turn}`)
   })
 
@@ -348,9 +392,9 @@ describe('append-only tape sealing', () => {
       assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
       session.append('turn/end', { turn, reason: { kind: 'completed' } })
     }
-    sealCompletedTurns(session, [], policy({ pinFirstTurn: false, keepRecentTurns: 1 }))
-    const text = textOfEvent(entries(session)[0]!)
-    expect(text).toContain('[turn 2]\nQUESTION_2\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"2"})]')
+    sealCompletedTurns(session, [], policy({ keepRecentTurns: 1 }))
+    const text = entries(session).map(textOfEvent).join('\n')
+    expect(text).toContain('[turn 2]\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"2"})]')
     for (const stale of [1, 2]) {
       expect(text).not.toContain(`RUNTIME_SNAPSHOT_${stale}`)
       expect(text).toContain(`recall_turn({"turn":"${stale}"})`)
@@ -373,11 +417,11 @@ describe('append-only tape sealing', () => {
     const pending = createUserMessage({ content: [{ type: 'text', text: 'RUNTIME_SNAPSHOT_4' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
     const plan = sealCompletedTurns(session, [pending], policy())
     // Turn 3's snapshot would be the live one; the pending projection supersedes it, so its own turn absorbs it.
-    expect(plan.appends).toHaveLength(1)
+    expect(plan.appends).toHaveLength(3)
     for (const seq of snapshots) expect(session.surface.nodes).not.toContain(seq)
     const text = surfaceText(session)
     expect(text).not.toContain('RUNTIME_SNAPSHOT_')
-    expect(text).toContain('[turn 3]\nQUESTION_3\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"3"})]')
+    expect(text).toContain('[turn 3]\n[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn({"turn":"3"})]')
   })
 
   it('seals a snapshot appended between turns behind a locator that recall actually serves', () => {
@@ -390,7 +434,7 @@ describe('append-only tape sealing', () => {
     sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).not.toContain(orphan.seq)
     expect(session.surface.nodes).toContain(liveSnapshot.seq)
-    expect(entries(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(3)
     const text = surfaceText(session)
     expect(text).not.toContain('BETWEEN_TURNS_SNAPSHOT')
     // Generated context between turns belongs to the turn that just ended, in the note and in both recall tools.
@@ -410,7 +454,7 @@ describe('append-only tape sealing', () => {
     const early = user(session, 'BEFORE_ANY_TURN_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
     for (let turn = 1; turn <= 3; turn += 1) completedTurn(session, turn, `QUESTION_${turn}`, `ANSWER_${turn}`)
     user(session, 'LIVE_SNAPSHOT', RUNTIME_CONTEXT_SOURCE)
-    sealCompletedTurns(session, [], policy({ pinFirstTurn: false }))
+    sealCompletedTurns(session, [], policy())
     expect(session.surface.nodes).toContain(early.seq)
     expect(searchSessionEvents(session.snapshotEvents(), 'BEFORE_ANY_TURN_SNAPSHOT', { kinds: ['context'] })).toEqual([])
   })
@@ -436,16 +480,23 @@ describe('append-only tape sealing', () => {
 
   it('caps an entry at entryMaxChars by dropping tool lines before shrinking excerpts', () => {
     const session = Session.create(SessionId('context-checkpoint-cap'))
-    for (let turn = 1; turn <= 5; turn += 1) toolTurn(session, turn, `cap-${turn}`, 'x'.repeat(200))
-    for (let turn = 6; turn <= 10; turn += 1) completedTurn(session, turn, `LONG_${turn} ${'l'.repeat(5_000)}`, `ANSWER_${turn}`)
-    completedTurn(session, 11, 'tail', 'tail answer')
-    const plan = sealCompletedTurns(session, [], policy({ pinUserChars: 10_000, entryMaxChars: 3_000 }))
+    const id = ToolCallId('cap-read')
+    session.append('turn/start', { turn: 1 })
+    user(session, 'REQUIREMENTS_STAY_RAW')
+    assistant(session, 1, [{ type: 'tool-call', id, name: 'read', arguments: '{}' }])
+    session.append('tool/call', { turn: 1, step: 1, callId: id, name: 'read', arguments: '{}' })
+    session.append('tool/result', { turn: 1, step: 1, message: createToolResultMessage({ callId: id, isError: false, content: [{ type: 'text', text: 'x'.repeat(200) }] }) }, { surfaceOp: 'append' })
+    assistant(session, 1, [{ type: 'text', text: 'ANSWER_' + 'a'.repeat(5_000) }])
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    const plan = sealCompletedTurns(session, [], policy({ entryMaxChars: 3_000 }))
     expect(plan.appends).toHaveLength(1)
     const text = plan.appends[0]!.message.content.map(block => block.type === 'text' ? block.text : '').join('')
     expect(Array.from(text).length).toBeLessThanOrEqual(3_000)
     expect(text).not.toContain('[tool turn')
     expect(text).toContain('…[+')
-    for (let turn = 1; turn <= 11; turn += 1) expect(text).toContain(`[turn ${turn}]`)
+    expect(text).toContain('[turn 1]')
+    expect(text).not.toContain('REQUIREMENTS_STAY_RAW')
+    expect(surfaceText(session)).toContain('REQUIREMENTS_STAY_RAW')
   })
 
   it('never nests or re-renders an entry: a legacy tape keeps its bytes and the seal lands after it', () => {
@@ -458,11 +509,12 @@ describe('append-only tape sealing', () => {
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
     sealCompletedTurns(session, [], policy())
-    const [legacyEntry, one] = frozen(session)
+    const [legacyEntry, one, two] = frozen(session)
     // The legacy entry is an entry: it is neither thawed into the new one nor re-rendered, so it keeps its bytes.
     expect(session.surface.nodes).toContain(legacy.seq)
     expect(legacyEntry).toEqual({ seq: legacy.seq, text: textOfEvent(legacy) })
-    expect(one!.text).toContain(`${TAPE_PREFIX}2-3 · 2 turn(s) sealed`)
+    expect(one!.text).toContain(`${TAPE_PREFIX}2-2 · 1 turn(s) sealed`)
+    expect(two!.text).toContain(`${TAPE_PREFIX}3-3 · 1 turn(s) sealed`)
     expect(entries(session)[1]!.sourceEventSeqs).not.toContain(legacy.seq)
     const oneText = surfaceText(session)
     expect(oneText).toContain('LEGACY_BODY')
@@ -474,13 +526,13 @@ describe('append-only tape sealing', () => {
     const view = session.deriveMessages()
     sealCompletedTurns(session, [], policy())
     const after = frozen(session)
-    expect(after.slice(0, 2)).toEqual([legacyEntry, one])
-    expect(after).toHaveLength(3)
-    expect(after[2]!.text).toContain(`${TAPE_PREFIX}4-4 · 1 turn(s) sealed`)
-    // The pinned request, the legacy entry and the first entry are byte-identical to the previous request.
-    expect(firstDivergence(view, session.deriveMessages())).toBe(3)
+    expect(after.slice(0, 3)).toEqual([legacyEntry, one, two])
+    expect(after).toHaveLength(4)
+    expect(after[3]!.text).toContain(`${TAPE_PREFIX}4-4 · 1 turn(s) sealed`)
+    // Every older user node and entry, plus turn 4's user input, remains byte-identical.
+    expect(firstDivergence(view, session.deriveMessages())).toBe(7)
     const twoText = surfaceText(session)
-    // Turn 2 and 3 bodies still live in the first entry, written once and never repeated by the second.
+    // Turn 2 and 3 user nodes and entries are written once and never repeated.
     expect(twoText.split('SECOND_QUESTION')).toHaveLength(2)
     expect(twoText.split('THIRD_QUESTION')).toHaveLength(2)
     expect(twoText).toContain('FOURTH_QUESTION')
@@ -501,7 +553,7 @@ describe('recall source attribution', () => {
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
     session.append('turn/start', { turn: 3 })
     sealCompletedTurns(session, [], policy())
-    expect(entries(session)).toHaveLength(1)
+    expect(entries(session)).toHaveLength(2)
     const first = renderSealedTurn(session.snapshotEvents(), 1)!
     const second = renderSealedTurn(session.snapshotEvents(), 2)!
     // Attribution is unchanged: generated context is not a user request.

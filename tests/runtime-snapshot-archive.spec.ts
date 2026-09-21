@@ -111,7 +111,7 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
       const after = h.adapter.requests[index]!.messages
       const lastEntry = before.reduce((last, message, position) => entriesIn([message]).length ? position : last, -1)
       // Check actual message position, not just the number of entries: a raw
-      // snapshot and the pinned first request can precede those entries.
+      // snapshot and raw human requests can precede those entries.
       expect(after.slice(0, lastEntry + 1)).toEqual(before.slice(0, lastEntry + 1))
     }
     const events = agent.session.snapshotEvents()
@@ -137,7 +137,7 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
     session.append('assistant/message', { turn: 2, step: 1, stream: [], message: createMessage({ role: 'assistant', content: [{ type: 'text', text: 'ANSWER_2' }], source: { kind: 'model', provider: 'mock', model: 'mock' } }) }, { surfaceOp: 'append' })
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
     const pending = createUserMessage({ content: [{ type: 'text', text: 'NEW_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
-    const policy = { keepRecentTurns: 0, pinFirstTurn: false, pinUserChars: 1_200, entryMaxChars: 8_000 }
+    const policy = { keepRecentTurns: 0 }
     const plan = sealCompletedTurns(session, [pending], policy)
     expect(plan.appends).toHaveLength(1)
     expect(plan.appends.flatMap(append => append.sources)).not.toContain(note.seq)
@@ -222,15 +222,15 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
       expect(text).not.toContain('RUNTIME_SNAPSHOT_')
       expect(text).not.toContain('x'.repeat(100))
     }
-    // Turn 1's own snapshot is sealed with turn 1, whose user message stays pinned on the surface.
+    // Turn 1's own snapshot is sealed with turn 1, whose user message stays raw on the surface.
     const first = written[0]!
     expect(header(textOf(first))).toContain(`${TAPE_PREFIX}1-1 · 1 turn(s) sealed`)
     expect(first.sourceEventSeqs?.some(seq => isSnapshot(events[seq]!))).toBe(true)
     expect(textOf(first)).toContain('[slice note · runtime-context snapshot superseded by a later one')
-    // From turn 2 on the note sits inside its own turn block, after that turn's request line.
+    // Later notes remain in their own turn blocks; human requests stay in their original nodes.
     const second = written[1]!
     expect(header(textOf(second))).toContain(`${TAPE_PREFIX}2-2 · 1 turn(s) sealed`)
-    expect(textOf(second)).toMatch(/\[turn 2\]\nQUESTION_2\n\[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn\(\{"turn":"2"\}\)\]/)
+    expect(textOf(second)).toMatch(/\[turn 2\]\n\[slice note · runtime-context snapshot superseded by a later one; not repeated here · verbatim: recall_turn\(\{"turn":"2"\}\)\]/)
   }, 60_000)
 
   it('(d) accepts a history section in the plugin config, reports a misspelt one and migrates the retired water marks', async () => {

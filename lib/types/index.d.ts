@@ -1,19 +1,17 @@
 /** Slice context policy for the stock DSH agent loop. */
 import { Context, Service } from '@deepseek-ai/cordis';
+import { type HistoryPolicy } from './context.js';
 import { type ReasoningEffortDefault } from './effort-default.js';
 import { type Config as FoldConfig } from './fold/index.js';
 export interface HistoryConfig {
     /**
-     * Completed turns left raw at the tail (default 0: a turn is sealed at the first step of the next turn).
+     * Completed assistant/tool spans left raw at the tail (default 0: sealed at the first step of the next turn).
+     * Human user messages always remain at their original nodes, regardless of this setting.
      * Kept turns remain verbatim and may still hit the provider cache. Sealing an older turn
      * changes the prefix before the retained raw tail, which can make that tail miss the cache.
      */
     keepRecentTurns?: number;
-    /** Keep turn 1's user message as an untouched append node; its assistant/tool run is sealable (default true). */
-    pinFirstTurn?: boolean;
-    /** Sealed user messages at or below this length are kept verbatim in the entry; longer ones keep head 600 / tail 300 (default 1,200). */
-    pinUserChars?: number;
-    /** Hard code-point cap for new entry text (default 8,000, minimum 256); existing frozen entries are unchanged. */
+    /** Optional code-point cap for new entry text (minimum 256); omitted preserves all assistant text. Never caps user nodes or rewrites frozen entries. */
     entryMaxChars?: number;
 }
 export interface Config {
@@ -26,7 +24,7 @@ export interface Config {
     /** Experimental rollback loops are retired; only the native slice policy is supported. */
     mode?: 'slice';
 }
-export declare const DEFAULT_HISTORY: Required<HistoryConfig>;
+export declare const DEFAULT_HISTORY: Readonly<HistoryPolicy>;
 /**
  * Reject unrecognised keys at load, but say which kind of wrong it is: a key
  * the retired driver used gets its migration note; anything else is unknown and
