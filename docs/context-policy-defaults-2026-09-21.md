@@ -27,4 +27,5 @@ On Node 22.22.3 / pnpm 11.7.0, against the declared published DSH 0.1.5-rc.2 dep
 - Full suite: 37 files, 307 tests passed. Coverage: statements 86.69%, branches 79.62%, functions 87.57%, lines 91.10%; all configured gates passed.
 - Source/test/script/gate TypeScript checks passed.
 - Peer ranges, documentation anchors/links, and tracked repository size checks passed.
-- The same packed artifact passed DSH 0.1.5-rc.1 and 0.1.5-rc.2 installation, native dispatch, recall, JSONL reload, inherited effort and frozen-entry checks. Artifact SHA-256: `ecbba82480692432d48984b6f2d944e4bd75e09f33ae83842dd40463a506a172`.
+- The same packed artifact passed DSH 0.1.5-rc.1 and 0.1.5-rc.2 installation, native dispatch, recall, JSONL reload, inherited effort and frozen-entry checks. Local packed-check artifact SHA-256: `ecbba82480692432d48984b6f2d944e4bd75e09f33ae83842dd40463a506a172`.
+- Latest local DSH source probe: 307/307 passed, zero skipped, on 0.1.6-alpha.2 commit `ddefc45fbc7f8e46dd73185e68295696d1297887`. The initial probe failed 9 PTC cases because the host renamed `codeRuntime` to `ptcRuntime`; a shared test-only runtime fixture now serves both interfaces without loading the installed legacy runtime implementation. This is source-level integration evidence, not an expanded package peer range or a packed 0.1.6 installation claim.

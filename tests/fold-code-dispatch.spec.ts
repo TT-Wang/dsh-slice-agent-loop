@@ -3,20 +3,21 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import CodeRuntime, { type CodeRunRequest, type CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
+import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { FOLD_STATS } from '../src/fold/index.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
+import { FixtureCodeRuntime } from './fixture-code-runtime.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => i % 10 === 0 ? `section_${i / 10}: heading` : `row ${i} payload ${'x'.repeat(30)}`).join('\n')
 const LOG = Array.from({ length: 1200 }, (_, i) => `2026-09-13 10:00:00 INFO tick ${i} ${'x'.repeat(30)}`).join('\n')
 const OTHER = LOG.replaceAll('tick', 'unrelated')
 const ROOT = { turn: 1, step: 1, call: 1 }
 
-class RetrievalRuntime extends CodeRuntime {
+class RetrievalRuntime extends FixtureCodeRuntime {
   readonly language = 'typescript'
   readonly isolation = 'fixture'
   async run(request: CodeRunRequest): Promise<CodeRunResult> {
