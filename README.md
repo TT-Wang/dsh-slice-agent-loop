@@ -54,6 +54,8 @@ Numeric locators are qualified with the current session format: `expand_result({
   name: '@dsh-external/dsh-slice-agent-loop'
   config:
     defaultReasoningEffort: inherit
+    fold:
+      pinSteps: 0
     history:
       keepRecentTurns: 0
       pinFirstTurn: true
@@ -72,7 +74,18 @@ Numeric locators are qualified with the current session format: `expand_result({
 | `fold.pinSteps` / `pinMaxChars` | Position-based protection is opt-in (`pinSteps: 0` by default). If enabled, results smaller than `pinMaxChars` (default 8,000) in those first steps remain raw. Content-based protections apply at every step. |
 | `fold.backoffAfterExpansions` | Default 2 distinct folded result blocks fully retrieved, with a full-retrieval rate of at least 50%, stops future folding for that tool/resource for the session. Resource identity is the exact `file_path`/`path`, or, without a path, the complete arguments with object keys sorted. Partial `grep`/`lines` queries and repeated retrievals of the same block do not advance backoff; other resources remain eligible. The spill path uses the same rule. |
 
-**The request budget is gone.** Entries reduce historical detail but accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. The tape alone does not prevent overflow. There is no plugin-side ceiling, no refusal, and no degradation tier that rewrites an entry.
+### Upgrading an existing profile
+
+Updating the plugin does not remove explicit values from your profile. To adopt the current defaults:
+
+1. Remove `maxStepsPerTurn: 50` (or another existing cap) to let the stock loop control termination. Keep a positive integer only if you want an explicit step limit; `0` and `null` are invalid.
+2. Remove `defaultReasoningEffort: low` or change it to `inherit` to use the host/model choice. Explicit request-level choices still take precedence.
+3. Remove `fold.pinSteps: 2` or set it to `0` to apply content-based folding from the first step. Recognized source code, error results and recalled originals retain their existing protections. Resource-scoped backoff applies automatically.
+4. Remove `maxRequestChars` and `maxHistoryChars`; these retired keys now prevent the plugin from loading.
+
+Keep any supported override you intentionally want. Existing frozen tape entries are not rewritten when these defaults change.
+
+**The request budget is gone.** Entries reduce historical detail but accumulate with the conversation; neither total history nor the open turn has a hard size bound here. Configure context-window handling in the host composition. The tape alone does not prevent overflow. The plugin does not reject requests based on their character count or shrink the tape by rewriting existing entries.
 
 - **Retired budget keys now fail at load:** remove `maxRequestChars` and `maxHistoryChars`. They previously parsed without enforcing a limit; accepting them silently suggested protection that did not exist. Configure context-window handling in the host.
 - **Fail at load, naming where each went:** `history.highWaterChars`, `history.lowWaterChars`, `history.keepRecentChars`, `history.checkpointMaxChars` (`Retired history configuration <key>: …` — replacements are `history.keepRecentTurns`, counted in turns, and `history.entryMaxChars`; the two water marks have no counterpart, because there is no pressure threshold left to cross), plus the retired driver keys `maxParallelToolCalls`, `inTurnSeal`, `tape`, `state` (`Retired slice configuration <key>: …`).
@@ -102,4 +115,10 @@ File reads are recorded windows; write/edit metadata contains diff hunks. They a
 
 Implementation fixes and their verification scope: [2026-09-13 review fixes](docs/review-fixes-2026-09-13.md).
 
-Default-policy changes and verification scope: [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md).
+## Verification and compatibility
+
+The current policy changes passed 307 tests across 37 files, coverage gates, and packed installation/recall/resume checks on DSH **0.1.5-rc.1 and 0.1.5-rc.2**. CI covers Node 22.19.0, 22.22.3 and 24.x.
+
+The same 307 tests also passed against **0.1.6-alpha.2 source** at `ddefc45fbc7f8e46dd73185e68295696d1297887`. This source probe does not extend the package's declared peer range or establish packed installation support for 0.1.6. No new paid model evaluation was run; cost savings and task accuracy were not remeasured.
+
+See [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md) for the changes, migration details and verification scope.
