@@ -1,6 +1,6 @@
 # Review fixes, 2026-09-13
 
-This report records the alpha.2 verification at `2b55782`. The subsequent [DSH 0.1.5 compatibility update](dsh-0.1.5-compatibility.md) supersedes its host compatibility boundary; its original test receipts remain historical evidence.
+This report records the alpha.2 verification at `2b55782`. The subsequent [DSH 0.1.5 compatibility update](dsh-0.1.5-compatibility.md) and then the [DSH 0.1.7 update](dsh-0.1.7-compatibility.md) supersede its host compatibility boundary (under session format V4 each result event carries one tool-role message, so the multi-block sibling cases below no longer arise); its original test receipts remain historical evidence.
 
 This patch fixes the ten findings reviewed at `db72621f2897274689f1a3cd5e02e6ec11fb7efd`. It retains the current per-turn tape policy, default reasoning effort, and shipped alpha.2 host target. It does not switch existing profiles or run paid model evaluations.
 

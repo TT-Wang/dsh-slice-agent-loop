@@ -4,7 +4,7 @@
  * never shadowed, and a seal never rewrites anything already on the surface.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import { createMessage, createUserMessage, type Message, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { createMessage, createUserMessage, type RequestMessage as Message, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, foldSurface, isReplacementSurfaceEvent, Session, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { HISTORY_SOURCE, RUNTIME_CONTEXT_SOURCE, TAPE_PREFIX, sealCompletedTurns } from '../src/context.js'
@@ -21,11 +21,11 @@ const TAPE: Config = { history: { keepRecentTurns: 0 } }
 const TURNS = 60
 
 function isSnapshot(event: SessionEvent): event is SessionEvent<'user/message'> {
-  return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === RUNTIME_CONTEXT_SOURCE
+  return event.type === 'user/message' && event.data.source.kind === RUNTIME_CONTEXT_SOURCE
 }
 
 function isEntry(event: SessionEvent): event is SessionEvent<'user/message'> {
-  return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE
+  return event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE
     && event.data.content.some(block => block.type === 'text' && block.text.startsWith(TAPE_PREFIX))
 }
 
@@ -82,7 +82,7 @@ function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
 }
 
 function ours(event: SessionEvent): boolean {
-  return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE
+  return event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE
 }
 
 /** Indices of captured requests at which a slice seal (our replacement appends) became visible. */
@@ -127,16 +127,16 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
   it('never reseals a snapshot-only entry written by an earlier build', () => {
     const session = Session.create(SessionId('old-snapshot-entry'))
     session.append('turn/start', { turn: 1 })
-    const old = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'OLD_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } }), { surfaceOp: 'append' })
+    const old = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'OLD_CONTEXT' }], source: { kind: RUNTIME_CONTEXT_SOURCE } }), { surfaceOp: 'append' })
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
-    const note = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: `${TAPE_PREFIX}1-1 · snapshot-only legacy entry]` }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }), {
+    const note = session.append('user/message', createUserMessage({ content: [{ type: 'text', text: `${TAPE_PREFIX}1-1 · snapshot-only legacy entry]` }], source: { kind: HISTORY_SOURCE } }), {
       surfaceOp: { op: 'replace', startSeq: old.seq, endSeq: old.seq }, sourceEventSeqs: [old.seq],
     })
     session.append('turn/start', { turn: 2 })
     session.append('user/message', createUserMessage({ content: [{ type: 'text', text: 'QUESTION_2' }], source: { kind: 'user' } }), { surfaceOp: 'append' })
     session.append('assistant/message', { turn: 2, step: 1, stream: [], message: createMessage({ role: 'assistant', content: [{ type: 'text', text: 'ANSWER_2' }], source: { kind: 'model', provider: 'mock', model: 'mock' } }) }, { surfaceOp: 'append' })
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
-    const pending = createUserMessage({ content: [{ type: 'text', text: 'NEW_CONTEXT' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
+    const pending = createUserMessage({ content: [{ type: 'text', text: 'NEW_CONTEXT' }], source: { kind: RUNTIME_CONTEXT_SOURCE } })
     const policy = { keepRecentTurns: 0 }
     const plan = sealCompletedTurns(session, [pending], policy)
     expect(plan.appends).toHaveLength(1)
@@ -166,7 +166,7 @@ describe('superseded runtime snapshots on the append-only session tape', () => {
       // Exactly the live snapshot, in place, with its original source and append op.
       expect(onSurface.map(event => event.seq)).toEqual([newest.seq])
       expect(newest.surfaceOp).toBe('append')
-      expect(newest.data.source).toMatchObject({ kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE })
+      expect(newest.data.source).toMatchObject({ kind: RUNTIME_CONTEXT_SOURCE })
       for (const replacement of log.filter(isReplacementSurfaceEvent)) expect(replacement.sourceEventSeqs ?? []).not.toContain(newest.seq)
     }
     // A turn absorbs its own dead snapshot, so every seal writes a tape entry: outside the

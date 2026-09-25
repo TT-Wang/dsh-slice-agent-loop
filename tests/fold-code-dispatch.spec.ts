@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import type { CodeRunRequest, CodeRunResult } from '@deepseek-ai/dsh-code-runtime'
+import type { PtcRunResult, PtcRunSpec } from '@deepseek-ai/dsh-ptc-runtime'
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
@@ -20,7 +20,7 @@ const ROOT = { turn: 1, step: 1, call: 1 }
 class RetrievalRuntime extends FixtureCodeRuntime {
   readonly language = 'typescript'
   readonly isolation = 'fixture'
-  async run(request: CodeRunRequest): Promise<CodeRunResult> {
+  async run(request: PtcRunSpec): Promise<PtcRunResult> {
     const tools = request.bindings.find((binding) => binding.global === 'tools')!.functions
     if (request.program === 'unrelated') return { value: OTHER, logs: [] }
     if (request.program === 'failure') {
@@ -57,21 +57,24 @@ async function boot(program: string, spill: boolean, body = BIG) {
     const root = await mkdtemp(join(tmpdir(), 'fold-code-'))
     roots.push(root)
     await h.ctx.plugin(SpillLocal, { root } as never)
-    await h.ctx.plugin(SpillPolicy, { maxInlineBytes: 50_000 })
+    // Token-denominated native retention (DSH 0.1.7); about 50 KB of this ASCII text.
+    await h.ctx.plugin(SpillPolicy, { maxInlineTokens: 12_500 })
   }
   h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: body }] }))
   const { agent } = await h.ctx.agents.create({ sessionId: SessionId(`code-${program}-${spill}`), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
   agent.ctx.tools.presentAs('both')
   await nativeSend(agent, 'read then recover its omitted evidence')
   expect(h.errors).toEqual([])
-  const textsAt = (request: number, id: string) => h.adapter.requests[request]!.messages.flatMap((m) => m.content).filter((b) => b.type === 'tool-result' && b.toolCallId === id).flatMap((b) => b.type === 'tool-result' ? b.content.filter((p) => p.type === 'text').map((p) => p.type === 'text' ? p.text : '') : []).join('\n')
+  // Session format V4: each result reaches the model as its own tool-role message.
+  const textsAt = (request: number, id: string) => h.adapter.requests[request]!.messages.flatMap((m) => m.role === 'tool' && m.toolCallId === id ? m.content : [])
+    .flatMap((p) => p.type === 'text' ? [p.text] : []).join('\n')
   return { h, agent, textsAt }
 }
 
 describe('nested recovery preserves only forwarded evidence', () => {
   it('backs off after nested full recovery of distinct originals and retains that resource scope on replay', async () => {
     class DistinctRuntime extends RetrievalRuntime {
-      async run(request: CodeRunRequest): Promise<CodeRunResult> {
+      async run(request: PtcRunSpec): Promise<PtcRunResult> {
         const tools = request.bindings.find(binding => binding.global === 'tools')!.functions
         const first = await tools.expand_result(ROOT)
         await tools.expand_result({ ...ROOT, step: 2 })
@@ -161,7 +164,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
     ], { config: { history: { keepRecentTurns: 3 }, fold: { pinSteps: 0, spillPreviewMinBytes: 0, backoffAfterExpansions: 10 }, digest: { minChars: 1500 } } })
     live.push(h)
     class ReusedRuntime extends RetrievalRuntime {
-      async run(request: CodeRunRequest): Promise<CodeRunResult> {
+      async run(request: PtcRunSpec): Promise<PtcRunResult> {
         // This later unrelated result happens to equal the old retrieved bytes.
         if (request.program === 'echo') return { value: `[full result of read · turn 1 step 1 call 1]\n${BIG}`, logs: [] }
         return super.run(request)

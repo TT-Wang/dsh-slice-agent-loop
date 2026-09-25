@@ -1,4 +1,4 @@
-/** Real DSH services with only the external model and settings storage replaced. */
+/** Real DSH services with only the external model replaced (0.1.7 needs no settings provider). */
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry, { type Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
@@ -11,7 +11,6 @@ import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import * as sessionInvariant from '@deepseek-ai/dsh-session/invariant'
 import JsonlPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
-import { SettingsProvider, type SettingsNamespace } from '@deepseek-ai/dsh-settings'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry from '@deepseek-ai/dsh-tools'
 import SliceLoopPlugin, { type Config } from '../src/index.js'
@@ -45,20 +44,6 @@ export class NativeAdapter extends LlmAdapter {
   }
 }
 
-class MemorySettings extends SettingsProvider {
-  readonly writable = true
-  private documentForTest: Record<string, unknown> = {}
-
-  protected load(): Promise<Record<string, unknown>> {
-    return Promise.resolve(structuredClone(this.documentForTest))
-  }
-
-  protected persist(ns: SettingsNamespace, section: Record<string, unknown>): Promise<void> {
-    this.documentForTest = { ...this.documentForTest, [ns]: structuredClone(section) }
-    return Promise.resolve()
-  }
-}
-
 export interface NativeHarnessOptions {
   config?: Config
   persistenceRoot?: string
@@ -79,7 +64,6 @@ export async function nativeHarness(responses: StreamChunk[][], options: NativeH
     await ctx.plugin(LlmRuntime)
     await ctx.plugin(SessionStore)
     await ctx.plugin(SessionProjections)
-    await ctx.plugin(MemorySettings)
     await ctx.plugin(SystemPrompt, { personaPrefix: 'Native-context integration fixture.' })
     await ctx.plugin(ToolRegistry)
     await ctx.plugin(AgentRegistry)

@@ -32,7 +32,7 @@ import type { Session, SessionEvent, SessionSeq, ToolResultMessage } from '@deep
 import { SESSION_FORMAT_VERSION, isAppendSurfaceEvent, isReplacementSurfaceEvent } from '@deepseek-ai/dsh-session'
 import { defineTool, type PostToolDecision, type ToolDefinition, type ToolExecution, type ToolExecutionResult, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import type { SpillStore } from '@deepseek-ai/dsh-spill'
-import { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, originalText, originalResultText, type ResultLocator } from './results.js'
+import { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, loggedTextParts, originalPartText, originalResultText, type ResultLocator } from './results.js'
 export { fullResultAt, originalResultAt, resultBySeq, spillLocatorOf, originalText } from './results.js'
 import { digestToolResult, resolveDigestPolicy, type DigestPolicy } from '../slice/result-digest.js'
 
@@ -47,7 +47,7 @@ export interface Config {
   pinSteps?: number
   /** 显式钉住步骤中,仅保护少于此字符数的结果(默认 8000);更大结果仍按内容规则折叠。 */
   pinMaxChars?: number
-  /** spill 预览臂(默认 50000 字节,与 dsh-base 的 spill-policy maxInlineBytes 对齐;0 = 关):结果达到这个体量时,在 tools/post-execute
+  /** spill 预览臂(默认 50000 字节,约等于 dsh-base 的 spill-policy 默认 maxInlineTokens 12500 按 4 字节/token 折算;0 = 关):结果达到这个体量时,在 tools/post-execute
    *  就把原文存进 ctx.spillStore(有 spill 后端时),模型看到的是按内容路由的折叠视图 + 文件定位,而不是 spill-policy 的头尾预览。
    *  没挂 spill 后端时此臂不生效。read 结果与 spill-policy 同样跳过(它靠 pre-step 的 surface 替换折叠,原文留日志)。 */
   spillPreviewMinBytes?: number
@@ -80,7 +80,6 @@ export function foldAffordance(hasRecallStep: boolean): string {
 
 export const FOLD_AFFORDANCE = foldAffordance(false)
 
-interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
 interface CallInfo { name: string; seq: number; path?: string; arguments?: unknown }
 interface FoldView { message: ToolResultMessage; blocks: ReadonlyMap<number, string>; before: number; after: number; condensed: boolean }
 
@@ -113,7 +112,7 @@ function partialExpansion(args: { grep?: unknown; lines?: unknown }): boolean {
 }
 function resultChars(message: ToolResultMessage): number {
   let n = 0
-  for (const b of message.content as ReadonlyArray<ToolResultBlock>) for (const inner of b.content ?? []) if (inner.type === 'text' && typeof inner.text === 'string') n += inner.text.length
+  for (const inner of message.content) if (inner.type === 'text') n += inner.text.length
   return n
 }
 function headLine(text: string): { head: string; rest: string } {
@@ -178,10 +177,10 @@ class SessionFolder {
         if (!d.isError && RETRIEVAL_TOOLS.has(d.name)) {
           const rootSeq = this.calls.get(d.rootCallId)?.seq
           if (d.name === EXPAND_TOOL_NAME && rootSeq !== undefined) this.noteExpansion(d.arguments, `${rootSeq}:${d.subCallId}`)
-          for (const part of d.content) if (part.type === 'text') {
+          for (const part of loggedTextParts(d.content)) {
             // The durable dispatch copy can be a spill preview. Live observations
             // already hold the full result; replay hydrates it when available.
-            try { this.rememberRetrieval(rootSeq, await originalText(part.text, `dispatch ${d.subCallId}`)) } catch { /* unavailable spill is not evidence of forwarding */ }
+            try { this.rememberRetrieval(rootSeq, await originalPartText(part, `dispatch ${d.subCallId}`)) } catch { /* unavailable spill is not evidence of forwarding */ }
           }
         }
         continue
@@ -193,11 +192,10 @@ class SessionFolder {
       }
       if (!isAppendSurfaceEvent(event)) continue
       const d = event.data as { turn: number; step: number; message: ToolResultMessage }
-      for (const block of d.message.content) {
-        const id = String(block.toolCallId ?? d.message.source?.callId ?? '')
-        const info = this.calls.get(id)
-        if (!block.isError && info?.name === EXPAND_TOOL_NAME) this.noteExpansion(info.arguments, `${info.seq}:${id}`)
-      }
+      // Session format V4: the tool-role message answers exactly one call.
+      const id = String(d.message.toolCallId)
+      const info = this.calls.get(id)
+      if (!d.message.isError && info?.name === EXPAND_TOOL_NAME) this.noteExpansion(info.arguments, `${info.seq}:${id}`)
       const key = `${d.turn}:${d.step}`
       const n = (this.ordinals.get(key) ?? 0) + 1
       this.ordinals.set(key, n)
@@ -283,51 +281,57 @@ class SessionFolder {
     const at = this.originalAt.get(source)
     const original = this.session.eventAt(source)
     if (at === undefined || original?.type !== 'tool/result' || !isAppendSurfaceEvent(original)) return
-    const view = this.buildFold(original.data, at.ordinal, source)
-    if (view === undefined || !isDeepStrictEqual(view.message, event.data.message)) return
-    this.recordFold(source, at.turn, at.step, at.ordinal, view)
+    // A fold written before a session-format upgrade keeps its frozen hint, e.g.
+    // `"formatVersion": 3` in a V3 session restored as V4: rebuild with each older
+    // version the replacement itself names, so its count and backoff survive the resume.
+    const text = event.data.message.content.map((part) => part.type === 'text' ? part.text : '').join('\n')
+    const older = [...new Set([...text.matchAll(/"formatVersion": (\d+)\}\) returns the full text\]/g)].map((match) => Number(match[1])))]
+      .filter((version) => version < SESSION_FORMAT_VERSION)
+    for (const version of [SESSION_FORMAT_VERSION, ...older]) {
+      const view = this.buildFold(original.data, at.ordinal, source, version)
+      if (view === undefined || !isDeepStrictEqual(view.message, event.data.message)) continue
+      this.recordFold(source, at.turn, at.step, at.ordinal, view)
+      return
+    }
   }
 
-  private buildFold(d: { turn: number; step: number; message: ToolResultMessage }, n: number, seq: number): FoldView | undefined {
+  private buildFold(d: { turn: number; step: number; message: ToolResultMessage }, n: number, seq: number, formatVersion: number = SESSION_FORMAT_VERSION): FoldView | undefined {
     let changed = false
     let condensed = false
     let before = 0
     let after = 0
     const blocks = new Map<number, string>()
-    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}, "formatVersion": ${SESSION_FORMAT_VERSION}})`
-    const content = (d.message.content as readonly ToolResultBlock[]).map((block, blockIndex) => {
-      if (block.type !== 'tool-result' || block.isError || !block.content) return block
-      const callId = String(block.toolCallId ?? d.message.source?.callId ?? '')
-      const info = this.calls.get(callId) ?? { name: 'tool', seq: -1 }
-      if (RETRIEVAL_TOOLS.has(info.name) || this.backedOff(info.name, info.arguments)) return block
-      let blockChanged = false
-      const inner = block.content.map((b) => {
-        if (b.type !== 'text' || typeof b.text !== 'string') return b
-        if (this.forwardsRetrieval(info.seq, b.text)) return b
-        before += b.text.length
-        if (spillLocatorOf(b.text) !== undefined) {
-          // post-execute 已把原文存进 spill store、视图落了盘:不再折,只在首行补上 expand_result 定位(此时还没发过,替换零成本)。
-          changed = blockChanged = true
-          const { head, rest } = headLine(b.text)
-          const text = `${head.slice(0, -1)} · ${hint} returns the full text]${rest}`
-          after += text.length
-          return { ...b, text }
-        }
-        const r = digestToolResult(b.text, { tool: info.name, ...(info.path ? { path: info.path } : {}) }, this.policy)
-        if (!r.digested) {
-          after += b.text.length
-          return b
-        }
-        changed = blockChanged = condensed = true
-        const text = `[${info.name}${info.path ? ' ' + info.path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · ${hint} returns the full text]\n${r.text}`
+    const hint = `${EXPAND_TOOL_NAME}({"turn": ${d.turn}, "step": ${d.step}, "call": ${n}}) or ${EXPAND_TOOL_NAME}({"seq": ${seq}, "formatVersion": ${formatVersion}})`
+    // Session format V4: the tool-role message is the single result block (block 1).
+    const message = d.message
+    if (message.isError) return undefined
+    const info = this.calls.get(String(message.toolCallId)) ?? { name: 'tool', seq: -1 }
+    if (RETRIEVAL_TOOLS.has(info.name) || this.backedOff(info.name, info.arguments)) return undefined
+    const content = message.content.map((b) => {
+      if (b.type !== 'text') return b
+      if (this.forwardsRetrieval(info.seq, b.text)) return b
+      before += b.text.length
+      if (spillLocatorOf(b.text) !== undefined) {
+        // post-execute 已把原文存进 spill store、视图落了盘:不再折,只在首行补上 expand_result 定位(此时还没发过,替换零成本)。
+        changed = true
+        const { head, rest } = headLine(b.text)
+        const text = `${head.slice(0, -1)} · ${hint} returns the full text]${rest}`
         after += text.length
         return { ...b, text }
-      })
-      if (blockChanged) blocks.set(blockIndex + 1, backoffScope(info.name, info.arguments))
-      return blockChanged ? { ...block, content: inner } : block
+      }
+      const r = digestToolResult(b.text, { tool: info.name, ...(info.path ? { path: info.path } : {}) }, this.policy)
+      if (!r.digested) {
+        after += b.text.length
+        return b
+      }
+      changed = condensed = true
+      const text = `[${info.name}${info.path ? ' ' + info.path : ''} · ${r.kind} · ${r.totalLines} lines, ${r.keptLines} kept · ${hint} returns the full text]\n${r.text}`
+      after += text.length
+      return { ...b, text }
     })
     if (!changed) return undefined
-    return { message: freezeMessage<ToolResultMessage>({ ...d.message, content: content as never }), blocks, before, after, condensed }
+    blocks.set(1, backoffScope(info.name, info.arguments))
+    return { message: freezeMessage<ToolResultMessage>({ ...message, content }), blocks, before, after, condensed }
   }
 
   private recordFold(seq: number, turn: number, step: number, n: number, view: FoldView): void {
@@ -396,7 +400,7 @@ export function expandResultToolDefinition(): ToolDefinition {
       turn: { type: 'number', description: 'Turn number from the condensed view\'s first line (required without seq).' },
       step: { type: 'number', description: 'Step number from the condensed view\'s first line (required without seq).' },
       call: { type: 'number', description: 'Which result of that step (1-based; default 1).' },
-      block: { type: 'number', description: 'Optional 1-based result block within a combined result event; omit to retrieve every sibling.' },
+      block: { type: 'number', description: 'Optional; each result is a single block, so only 1 is valid. Omit it.' },
       grep: { type: 'string', description: 'Case-insensitive regex: return only matching lines, each with 2 lines of context, and a count of matches.' },
       lines: { type: 'string', description: 'Line range "start-end" (1-based, inclusive), e.g. "120-180".' },
     },

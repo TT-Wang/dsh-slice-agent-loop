@@ -11,46 +11,62 @@ allowBuilds:
 # undefined: it reports explicit settings only, never built-in defaults, so
 # that output must not be read as "no policy".
 minimumReleaseAge: 1440
-# The age policy would otherwise refuse the freshly published @deepseek-ai/dsh
-# release this repository pins. Every package below is exempted from the wait so
-# `pnpm install` resolves it on the day it ships. Update this list in the same
-# change as any DSH version bump, or the install starts failing the age check.
-# The policy covers transitive dependencies too; with minimumReleaseAgeStrict off
-# pnpm appends those names here by itself, so keep what it writes.
+# This list tracks the pinned @deepseek-ai/dsh release (currently 0.1.7-rc.2,
+# published 2026-09-24T14:18Z): every entry names that exact version, so each
+# package is exempted only for this release and the policy still covers every
+# other version. It must change in the same commit as every DSH version bump;
+# otherwise install rewrites this file (or, with minimumReleaseAgeStrict on,
+# refuses the fresh release), and stale entries keep naming versions nobody
+# installs. The policy covers transitive dependencies too; with
+# minimumReleaseAgeStrict off pnpm appends those names here by itself, so keep
+# what it writes. scripts/validation/run-packed-smoke.mjs copies this list into
+# its throwaway workspaces, so the packed smoke follows the same exemptions; the
+# published host's wider closure is exempted there per exact @deepseek-ai
+# name@version that pnpm reports as immature, and recorded as evidence.
 minimumReleaseAgeExclude:
-  - '@deepseek-ai/dsh-agent-loop@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-agent@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-attachment@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-brand@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-code-runtime@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-commands@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-compaction@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-fs@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-invariants@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-llm-retry@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-llm@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-output-retention@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-sandbox-policy@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-sandbox@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-scope@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-format-catalog@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-format-v0-to-v1@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-format-v1-to-v2@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-format@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-persistence-jsonl@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-persistence@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session-projection@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-session@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-settings@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-spill-local@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-spill-policy@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-spill@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-system-prompt@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-timeout@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-token-meter@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-tool-fs@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-tools@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-typert-protocol@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-user-approval@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-util-crypto@0.1.5-rc.2'
-  - '@deepseek-ai/dsh-util-values@0.1.5-rc.2'
+  - '@deepseek-ai/dsh-agent-loop@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-agent@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-attachment@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-brand@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-ptc-runtime@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-commands@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-compaction@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-fs@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-invariants@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-llm-retry@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-llm@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-output-retention@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-sandbox-policy@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-sandbox@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-scope@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format-catalog@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format-v0-to-v1@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format-v1-to-v2@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-persistence-jsonl@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-persistence@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-projection@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-settings@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-spill-local@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-spill-policy@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-spill@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-system-prompt@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-timeout@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-token-meter@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-tool-fs@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-tools@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-typert-protocol@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-user-approval@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-util-crypto@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-util-values@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-app-boot@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-atomic-write@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-compaction-image-offload@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-config-editor@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-home-paths@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-launch-environment@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-package-manifest@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format-v2-to-v3@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-session-format-v3-to-v4@0.1.7-rc.2'
+  - '@deepseek-ai/dsh-util-code-language@0.1.7-rc.2'

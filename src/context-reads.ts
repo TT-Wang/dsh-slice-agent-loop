@@ -135,18 +135,19 @@ export function readHistory(session: Session): ReadHistory {
       calls.set(callKey(call.turn, call.step, event.data.callId), call)
       roots.set(event.data.callId, call)
     } else if (event.type === 'tool/result' && event.surfaceOp === 'append') {
+      // Session format V4: the event's tool-role message is the one result block.
       const owned: ReadRef[] = []
-      event.data.message.content.forEach((block, index) => {
-        const call = calls.get(callKey(event.data.turn, event.data.step, block.toolCallId))
-        if (!call) return
+      const result = event.data.message
+      const call = calls.get(callKey(event.data.turn, event.data.step, result.toolCallId))
+      if (call) {
         // A failed outer program may still have successful log-only reads.
         owned.push(...(pending.get(call.seq) ?? []))
         pending.delete(call.seq)
-        if (!block.isError) {
-          const read = readRef(call, event.seq, block.content ?? [], { block: index + 1 })
+        if (!result.isError) {
+          const read = readRef(call, event.seq, result.content, { block: 1 })
           if (read) { remember(read); owned.push(read) }
         }
-      })
+      }
       if (owned.length) results.set(event.seq, owned)
     } else if (event.type === 'tool/ptc-dispatch-start') {
       const root = roots.get(event.data.rootCallId)

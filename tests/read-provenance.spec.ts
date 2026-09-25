@@ -6,6 +6,7 @@ import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { sealCompletedTurns } from '../src/context.js'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
 import { FixtureCodeRuntime } from './fixture-code-runtime.js'
+import { toolResult } from './v4-fixtures.js'
 
 const live: NativeHarness[] = []
 afterEach(async () => { for (const harness of live.splice(0).reverse()) await harness.ctx.fiber.dispose() })
@@ -95,17 +96,12 @@ describe('successful read provenance in tape entries', () => {
     const a = ToolCallId('read-a')
     const b = ToolCallId('read-b')
     assistant(session, 1, 1, [a, b].map((id, i) => ({ type: 'tool-call', id, name: 'read', arguments: JSON.stringify({ file_path: `${i}.ts` }) })))
-    const first = createToolResultMessage({ callId: a, isError: false, content: [{ type: 'text', text: 'A_BODY' }] })
-    const second = createToolResultMessage({ callId: b, isError: false, content: [{ type: 'text', text: 'B_BODY' }] })
-    // The published constructor types content as a singleton tuple, although
-    // durable native result events accept and reconstruct multiple siblings.
-    const content: typeof first.content = [...first.content]
-    content.push(...second.content)
-    const message = { ...first, content }
-    const result = session.append('tool/result', { turn: 1, step: 1, message }, { surfaceOp: 'append' })
+    // Session format V4: sibling results of one step are separate tool-role result events.
+    const results = ([[a, 'A_BODY'], [b, 'B_BODY']] as const).map(([callId, text]) =>
+      session.append('tool/result', { turn: 1, step: 1, message: toolResult(callId, text) }, { surfaceOp: 'append' }))
     finish(session, 1)
-    expect(index(session)[0]).toContain(`0.ts (1 lines, ${digest('A_BODY')}, step 1, seq ${result.seq} block 1`)
-    expect(index(session)[0]).toContain(`1.ts (1 lines, ${digest('B_BODY')}, step 1, seq ${result.seq} block 2`)
+    expect(index(session)[0]).toContain(`0.ts (1 lines, ${digest('A_BODY')}, step 1, seq ${results[0]!.seq} block 1`)
+    expect(index(session)[0]).toContain(`1.ts (1 lines, ${digest('B_BODY')}, step 1, seq ${results[1]!.seq} block 1`)
     expect(index(session)[0]).not.toContain(digest('A_BODYB_BODY'))
   })
 

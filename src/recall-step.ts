@@ -2,13 +2,14 @@
 import { defineTool, type ToolDefinition, type ToolRunContext } from '@deepseek-ai/dsh-tools'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { originalText, storedTextLocatorOf } from './fold/results.js'
+import { loggedTextParts, originalPartText } from './fold/results.js'
 
 export const RECALL_STEP_TOOL_NAME = 'recall_step'
 
 type LogEvent = { type: string; data: unknown; surfaceOp?: unknown; seq?: unknown }
 interface CallEvent { turn: number; step: number; block?: { name?: string; arguments?: string; id?: string }; name?: string; arguments?: string }
-interface ResultEvent { turn: number; step: number; message: { content: ReadonlyArray<{ type: string; content?: ReadonlyArray<{ type: string; text?: string }>; isError?: boolean }> } }
+/** Session format V4: one tool-role message per result event, its content direct. */
+interface ResultEvent { turn: number; step: number; message: { content: ReadonlyArray<{ type: string; text?: string }>; isError?: boolean } }
 interface ResultTextPart {
   text: string
   preview?: { bytes?: number; locator: string }
@@ -43,14 +44,10 @@ function stepRecord(events: Iterable<LogEvent>, turn: number, step: number): Ste
       calls.push(`→ ${c.block?.name ?? c.name ?? '?'}(${c.block?.arguments ?? c.arguments ?? ''})`)
     } else if (event.type === 'tool/result') {
       ordinal += 1
-      const blocks = (d as ResultEvent).message.content.filter((block) => block.type === 'tool-result')
-      for (const [index, block] of blocks.entries()) {
-        const parts = (block.content ?? []).flatMap((part) => part.type === 'text' && typeof part.text === 'string'
-          ? [{ text: part.text, preview: storedTextLocatorOf(part.text) }] : [])
-        const target = typeof event.seq === 'number' ? `"seq":${event.seq},"formatVersion":${SESSION_FORMAT_VERSION}` : `"turn":${turn},"step":${step},"call":${ordinal}`
-        const locator = `expand_result({${target}${blocks.length > 1 ? `,"block":${index + 1}` : ''}})`
-        results.push({ parts, isError: block.isError === true, locator })
-      }
+      const message = (d as ResultEvent).message
+      const parts: ResultTextPart[] = loggedTextParts(message.content)
+      const target = typeof event.seq === 'number' ? `"seq":${event.seq},"formatVersion":${SESSION_FORMAT_VERSION}` : `"turn":${turn},"step":${step},"call":${ordinal}`
+      results.push({ parts, isError: message.isError === true, locator: `expand_result({${target}})` })
     }
   }
   return calls.length === 0 && results.length === 0 ? null : { calls, results }
@@ -115,8 +112,8 @@ export function recallStepToolDefinition(): ToolDefinition {
         for (const part of result.parts) {
           if (part.preview === undefined) continue
           try {
-            part.text = await originalText(part.text, result.locator)
-            part.preview = undefined
+            part.text = await originalPartText(part, result.locator)
+            delete part.preview
           } catch (error) {
             // Keep other available evidence and never pass a preview off as the complete result.
             part.hydrationError = error instanceof Error ? error.message : String(error)

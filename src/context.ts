@@ -28,14 +28,31 @@ import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
 import { readHistory, readIndexLine, readsForResult, type ReadHistory, type ReadRef } from './context-reads.js'
 import { userMessageTurn } from './turn-ownership.js'
 
-export const HISTORY_SOURCE = 'slice:history'
+/**
+ * Source kind of every sealed entry. Session format V4 has no shared `plugin`
+ * wrapper: a third-party producer declares its own kind. The V3-to-V4 catalog
+ * migration maps the old `{ kind: 'plugin', plugin: 'slice:history' }` source
+ * to exactly this kind, so restored and newly written entries share it.
+ */
+export const HISTORY_SOURCE = 'plugin:slice:history'
 export const CHECKPOINT_PREFIX = '[slice checkpoint v1 · turns '
 /** Header of a sealed entry. Sessions written by the pressure-archive build carry CHECKPOINT_PREFIX; both parse. */
 export const TAPE_PREFIX = '[slice tape v1 · turns '
 /** Stand-in for a superseded runtime snapshot inside the entry that seals its turn. */
 export const SNAPSHOT_NOTE_PREFIX = '[slice note · '
-/** The host's runtime-context projection (dsh-agent-loop RuntimeContextProjection). */
-export const RUNTIME_CONTEXT_SOURCE = '@deepseek-ai/dsh-system-prompt'
+/**
+ * Source kind of the host's runtime-context projection (dsh-agent-loop
+ * RuntimeContextProjection). V3 `@deepseek-ai/dsh-system-prompt` user-role
+ * snapshots are restored with this kind by the V3-to-V4 migration.
+ */
+export const RUNTIME_CONTEXT_SOURCE = 'runtime-context'
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    /** A sealed slice tape entry (or a legacy checkpoint) written by this plugin. */
+    'plugin:slice:history': { kind: 'plugin:slice:history' }
+  }
+}
 /** Enough space for the range header and an intact recall command. */
 export const MIN_ENTRY_MAX_CHARS = 256
 
@@ -84,8 +101,7 @@ function textOf(message: Message): string {
 }
 
 export function ours(event: SessionEvent): boolean {
-  return event.type === 'user/message' && event.data.source.kind === 'plugin'
-    && event.data.source.plugin === HISTORY_SOURCE
+  return event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE
 }
 
 /**
@@ -94,14 +110,14 @@ export function ours(event: SessionEvent): boolean {
  * the newest one carries live information.
  */
 function runtimeSnapshot(event: SessionEvent): boolean {
-  return event.type === 'user/message' && event.data.source.kind === 'plugin'
-    && event.data.source.plugin === RUNTIME_CONTEXT_SOURCE
+  return event.type === 'user/message' && isRuntimeSnapshot(event.data)
 }
 
 /** True for a message the host's runtime-context projection just produced. */
 export function isRuntimeSnapshot(message: Message): boolean {
-  return message.role === 'user' && message.source.kind === 'plugin'
-    && message.source.plugin === RUNTIME_CONTEXT_SOURCE
+  // The kind is declared by dsh-agent-loop's runtime-context module, which is
+  // not a public type entry; compare the producer string itself.
+  return message.role === 'user' && (message.source.kind as string) === RUNTIME_CONTEXT_SOURCE
 }
 
 /** Original append events behind a node; only our own replacements are expanded. */
@@ -129,9 +145,10 @@ function unpairedCalls(messages: readonly Message[]): string[] {
   const calls = new Set<string>()
   const results = new Set<string>()
   for (const message of messages) {
+    // V4: each result is its own tool-role message answering one call.
+    if (message.role === 'tool') results.add(message.toolCallId)
     for (const block of message.content) {
       if (block.type === 'tool-call') calls.add(block.id)
-      if (block.type === 'tool-result') results.add(block.toolCallId)
     }
   }
   return [...new Set([...calls, ...results])].filter(id => !calls.has(id) || !results.has(id))
@@ -215,9 +232,12 @@ function inspectSurface(session: Session, pending: readonly Message[]): Layout {
     let guarded = seq > completedThrough || turns[0] < 1
     let superseded = false
     let recallTurns = [recallAt.get(seq) ?? 0]
-    if (event.type === 'system/message') {
-      // DSH v3 persists both the prompt head and in-history prompt updates on
-      // the surface. Their system role and placement belong to the host.
+    if (event.type === 'system/message' || event.type === 'developer/message') {
+      // Session format V4 keeps the system prompt as surface node 0 (replaced
+      // in place; the host rejects any other replacement covering it) plus
+      // in-history prompt updates, and developer/message tool additions and
+      // removals that the route's tool history resolves by message id. Their
+      // role, placement and bytes belong to the host: never sealed or cited.
       guarded = true
     } else if (runtimeSnapshot(event)) {
       // Not the open-turn guard: a dead snapshot of the open turn is still dead.
@@ -274,10 +294,10 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
       // spill locator, rather than a later surface digest.
       const origin = event.surfaceOp === 'append' ? event : session.eventAt(event.sourceEventSeqs?.[0] ?? event.seq) ?? event
       const source = origin.type === 'tool/result' ? origin : event
-      const blocks = source.data.message.content
+      const result = source.data.message
       current.reads.push(...readsForResult(history, source))
-      const name = blocks.map(block => toolNames.get(block.toolCallId) ?? 'tool').filter((n, i, a) => a.indexOf(n) === i).join(', ')
-      const size = blocks.flatMap(block => block.content ?? []).reduce((n, b) => n + (b.type === 'text' ? textChars(b.text) : 0), 0)
+      const name = toolNames.get(result.toolCallId) ?? 'tool'
+      const size = result.content.reduce((n, b) => n + (b.type === 'text' ? textChars(b.text) : 0), 0)
       current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
     }
   }
@@ -414,7 +434,7 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
     const push = (nodes: Node[]): void => {
       if (!nodes.length) return
       const text = renderCheckpoint(session, nodes, layout.toolNames, policy.entryMaxChars)
-      runs.push({ nodes, message: createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'plugin', plugin: HISTORY_SOURCE } }) })
+      runs.push({ nodes, message: createUserMessage({ content: [{ type: 'text', text }], source: { kind: HISTORY_SOURCE } }) })
     }
     // A turn whose calls are not all closed cuts the run instead of suppressing it (calls close within their turn),
     // and says so: a silent cut looks exactly like an archive that never shrinks the view (A-RT-05).

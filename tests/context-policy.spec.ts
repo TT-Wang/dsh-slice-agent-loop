@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { createMessage, createSystemMessage, createToolResultMessage, createUserMessage, ToolCallId, type ContentBlock, type Message } from '@deepseek-ai/dsh-llm'
-import { Session, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import { Session, SessionId, SESSION_FORMAT_VERSION, type SessionEvent, type SessionSeq, type UserMessage } from '@deepseek-ai/dsh-session'
+import './v4-fixtures.js'
 import { HISTORY_SOURCE, planSeal, RUNTIME_CONTEXT_SOURCE, sealCompletedTurns, TAPE_PREFIX, type HistoryPolicy } from '../src/context.js'
 import { renderSealedTurn, searchSessionEvents } from '../src/recall.js'
 
-function user(session: Session, text: string, plugin?: string) {
+/** A user-role message; `kind` is the producer's V4 source kind (a third-party producer is `plugin:<name>`). */
+function user(session: Session, text: string, kind?: string) {
   return session.append('user/message', createUserMessage({
-    content: [{ type: 'text', text }], source: plugin ? { kind: 'plugin', plugin } : { kind: 'user' },
+    content: [{ type: 'text', text }], source: (kind ? { kind } : { kind: 'user' }) as UserMessage['source'],
   }), { surfaceOp: 'append' })
 }
 
@@ -31,7 +33,7 @@ function toolTurn(session: Session, turn: number, rawId: string, text: string, p
   user(session, `read a file ${turn}`)
   assistant(session, turn, [{ type: 'tool-call', id, name: 'read', arguments: '{}' }])
   session.append('tool/call', { turn, step: 1, callId: id, name: 'read', arguments: '{}' })
-  if (protectedText !== undefined) user(session, protectedText, 'runtime-fixture')
+  if (protectedText !== undefined) user(session, protectedText, 'plugin:runtime-fixture')
   const result = session.append('tool/result', { turn, step: 1,
     message: createToolResultMessage({ callId: id, isError: false, content: [{ type: 'text', text }] }),
   }, { surfaceOp: 'append' })
@@ -52,8 +54,7 @@ function textOfEvent(event: SessionEvent<'user/message'>): string {
 function entries(session: Session): SessionEvent<'user/message'>[] {
   return session.surface.nodes.flatMap(seq => {
     const event = session.eventAt(seq)
-    return event?.type === 'user/message' && event.data.source.kind === 'plugin'
-      && event.data.source.plugin === HISTORY_SOURCE ? [event] : []
+    return event?.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE ? [event] : []
   })
 }
 
@@ -84,7 +85,7 @@ describe('append-only tape sealing', () => {
       const turn = index + 1
       session.append('turn/start', { turn })
       systemEvents.push(session.append('system/message', {
-        turn, step: 1, message: createSystemMessage(prompt, '@deepseek-ai/dsh-system-prompt'),
+        turn, step: 1, message: createSystemMessage(prompt),
       }, { surfaceOp: 'append' }))
       user(session, `QUESTION_${turn}`)
       assistant(session, turn, [{ type: 'text', text: `ANSWER_${turn}` }])
@@ -103,6 +104,47 @@ describe('append-only tape sealing', () => {
     expect(session.snapshotEvents().slice(0, before.length)).toEqual(before)
     expect(surfaceText(session)).toContain('UPDATED_SYSTEM_INSTRUCTION')
     expect(entries(session).map(textOfEvent).join('\n')).not.toContain('SYSTEM_INSTRUCTION')
+  })
+
+  it('never seals or cites the V4 system head node 0, even after the host replaces it in place behind existing entries', () => {
+    const session = Session.create(SessionId('context-system-head-v4'))
+    session.append('turn/start', { turn: 1 })
+    const head = session.append('system/message', { turn: 1, step: 1, message: createSystemMessage('HEAD_SYSTEM_V1') }, { surfaceOp: 'append' })
+    user(session, 'QUESTION_1')
+    assistant(session, 1, [{ type: 'text', text: 'ANSWER_1' }])
+    session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
+    completedTurn(session, 2, 'QUESTION_2', 'ANSWER_2')
+    session.append('turn/start', { turn: 3 })
+    const first = sealCompletedTurns(session, [], policy())
+    expect(first.appends).toHaveLength(2)
+    expect(session.surface.nodes[0]).toBe(head.seq)
+    const written = frozen(session)
+
+    // The host rewrites the prompt in place: node 0 now holds a replacement appended after the entries.
+    const rewritten = session.append('system/message', { turn: 3, step: 1, message: createSystemMessage('HEAD_SYSTEM_V2') }, {
+      surfaceOp: { op: 'replace', startSeq: head.seq, endSeq: head.seq }, sourceEventSeqs: [head.seq],
+    })
+    user(session, 'QUESTION_3')
+    assistant(session, 3, [{ type: 'text', text: 'ANSWER_3' }])
+    session.append('turn/end', { turn: 3, reason: { kind: 'completed' } })
+    session.append('turn/start', { turn: 4 })
+    const view = session.deriveMessages()
+    const lastEntry = view.reduce((last, message, index) => message.role === 'user' && message.source.kind === HISTORY_SOURCE ? index : last, -1)
+    const plan = sealCompletedTurns(session, [], policy())
+
+    expect(plan.appends).toHaveLength(1)
+    expect(textOfEvent(entries(session).at(-1)!).startsWith(`${TAPE_PREFIX}3-3`)).toBe(true)
+    const systemSeqs = [head.seq, rewritten.seq]
+    for (const append of [...first.appends, ...plan.appends]) {
+      for (const seq of systemSeqs) expect(append.sources).not.toContain(seq)
+      expect(systemSeqs).not.toContain(append.start)
+    }
+    // Node 0 stays the host's replacement; entries written behind it are neither rewritten nor re-rendered.
+    expect(session.surface.nodes[0]).toBe(rewritten.seq)
+    expect(session.deriveMessages()[0]).toEqual(rewritten.data.message)
+    expect(frozen(session).slice(0, written.length)).toEqual(written)
+    expect(firstDivergence(view, session.deriveMessages())).toBeGreaterThan(lastEntry)
+    expect(entries(session).map(textOfEvent).join('\n')).not.toContain('HEAD_SYSTEM')
   })
 
   it('preserves every long user node and seals only the completed assistant runs', () => {
@@ -235,7 +277,7 @@ describe('append-only tape sealing', () => {
     const session = Session.create(SessionId('context-canonical-replacement'))
     const original = completedTurn(session, 1, 'SHADOWED_QUESTION', 'SHADOWED_RESPONSE')
     const canonical = session.append('user/message', createUserMessage({
-      content: [{ type: 'text', text: 'CANONICAL_FOREIGN_CONTEXT' }], source: { kind: 'plugin', plugin: 'foreign-compactor' },
+      content: [{ type: 'text', text: 'CANONICAL_FOREIGN_CONTEXT' }], source: { kind: 'plugin:test-context' },
     }), {
       surfaceOp: { op: 'replace', startSeq: original.request.seq, endSeq: original.response.seq },
       sourceEventSeqs: [original.request.seq, original.response.seq],
@@ -277,9 +319,10 @@ describe('append-only tape sealing', () => {
     completedTurn(session, 2, 'next question', 'next answer')
     sealCompletedTurns(session, [], policy())
     expect(entries(session)).toHaveLength(2)
-    expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call' || block.type === 'tool-result')).toBe(false)
+    expect(session.deriveMessages().some(message => message.role === 'tool')).toBe(false)
+    expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call')).toBe(false)
     const text = surfaceText(session)
-    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":3})]`)
+    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
     expect(text).not.toContain('DURABLE_FILE_BYTES')
     expect(renderSealedTurn(session.snapshotEvents(), 1, { view: 'full' })?.rendered).toContain('DURABLE_FILE_BYTES')
   })
@@ -343,7 +386,7 @@ describe('append-only tape sealing', () => {
     expect(warnings.length).toBeGreaterThanOrEqual(1)
     const blocks = session.deriveMessages().flatMap(message => message.content)
     expect(blocks.filter(block => block.type === 'tool-call')).toHaveLength(1)
-    expect(blocks.filter(block => block.type === 'tool-result')).toHaveLength(1)
+    expect(session.deriveMessages().filter(message => message.role === 'tool')).toHaveLength(1)
   })
 
   it('stays silent when every sealed turn is call-closed', () => {
@@ -414,7 +457,7 @@ describe('append-only tape sealing', () => {
       session.append('turn/end', { turn, reason: { kind: 'completed' } })
     }
     session.append('turn/start', { turn: 4 })
-    const pending = createUserMessage({ content: [{ type: 'text', text: 'RUNTIME_SNAPSHOT_4' }], source: { kind: 'plugin', plugin: RUNTIME_CONTEXT_SOURCE } })
+    const pending = createUserMessage({ content: [{ type: 'text', text: 'RUNTIME_SNAPSHOT_4' }], source: { kind: RUNTIME_CONTEXT_SOURCE } })
     const plan = sealCompletedTurns(session, [pending], policy())
     // Turn 3's snapshot would be the live one; the pending projection supersedes it, so its own turn absorbs it.
     expect(plan.appends).toHaveLength(3)
@@ -461,7 +504,7 @@ describe('append-only tape sealing', () => {
 
   it('seals on every consecutive turn and never re-renders an entry an un-sealable floor sits above', () => {
     const session = Session.create(SessionId('context-floor-headroom'))
-    user(session, 'P'.repeat(700), 'runtime-fixture')
+    user(session, 'P'.repeat(700), 'plugin:runtime-fixture')
     const appends: number[] = []
     let settled: ReturnType<typeof frozen> = []
     for (let turn = 1; turn <= 8; turn += 1) {
@@ -504,7 +547,7 @@ describe('append-only tape sealing', () => {
     const first = completedTurn(session, 1, 'FIRST_QUESTION', 'FIRST_ANSWER')
     const legacy = session.append('user/message', createUserMessage({
       content: [{ type: 'text', text: '# SESSION TAPE (sealed conversational history; not current-world truth)\nLEGACY_BODY' }],
-      source: { kind: 'plugin', plugin: HISTORY_SOURCE },
+      source: { kind: HISTORY_SOURCE },
     }), { surfaceOp: { op: 'replace', startSeq: first.response.seq, endSeq: first.response.seq }, sourceEventSeqs: [first.response.seq] })
     completedTurn(session, 2, 'SECOND_QUESTION', 'SECOND_ANSWER')
     completedTurn(session, 3, 'THIRD_QUESTION', 'THIRD_ANSWER')
@@ -544,7 +587,7 @@ describe('recall source attribution', () => {
     const session = Session.create(SessionId('recall-authority'))
     session.append('turn/start', { turn: 1 })
     user(session, 'REAL_USER_SENTINEL')
-    user(session, 'PLUGIN_INPUT_SENTINEL', 'runtime-fixture')
+    user(session, 'PLUGIN_INPUT_SENTINEL', 'plugin:runtime-fixture')
     assistant(session, 1, [{ type: 'text', text: 'REAL_ASSISTANT_SENTINEL' }])
     session.append('turn/end', { turn: 1, reason: { kind: 'completed' } })
     session.append('turn/start', { turn: 2 })
@@ -585,7 +628,7 @@ describe('recall source attribution', () => {
     const original = session.append('tool/result', { turn: 1, step: 1,
       message: createToolResultMessage({ callId: ToolCallId('lookup'), isError: false, content: [{ type: 'text', text: 'ORIGINAL_RESULT_SENTINEL' }] }),
     }, { surfaceOp: 'append' })
-    const content = [{ ...original.data.message.content[0], content: [{ type: 'text' as const, text: 'GENERATED_RESULT_SENTINEL' }] }] as [typeof original.data.message.content[0]]
+    const content = [{ type: 'text' as const, text: 'GENERATED_RESULT_SENTINEL' }]
     session.append('tool/result', { ...original.data, message: { ...original.data.message, content } }, {
       surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq],
     })

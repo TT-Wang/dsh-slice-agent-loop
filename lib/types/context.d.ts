@@ -24,14 +24,32 @@
  */
 import { type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
 import { type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';
-export declare const HISTORY_SOURCE = "slice:history";
+/**
+ * Source kind of every sealed entry. Session format V4 has no shared `plugin`
+ * wrapper: a third-party producer declares its own kind. The V3-to-V4 catalog
+ * migration maps the old `{ kind: 'plugin', plugin: 'slice:history' }` source
+ * to exactly this kind, so restored and newly written entries share it.
+ */
+export declare const HISTORY_SOURCE = "plugin:slice:history";
 export declare const CHECKPOINT_PREFIX = "[slice checkpoint v1 \u00B7 turns ";
 /** Header of a sealed entry. Sessions written by the pressure-archive build carry CHECKPOINT_PREFIX; both parse. */
 export declare const TAPE_PREFIX = "[slice tape v1 \u00B7 turns ";
 /** Stand-in for a superseded runtime snapshot inside the entry that seals its turn. */
 export declare const SNAPSHOT_NOTE_PREFIX = "[slice note \u00B7 ";
-/** The host's runtime-context projection (dsh-agent-loop RuntimeContextProjection). */
-export declare const RUNTIME_CONTEXT_SOURCE = "@deepseek-ai/dsh-system-prompt";
+/**
+ * Source kind of the host's runtime-context projection (dsh-agent-loop
+ * RuntimeContextProjection). V3 `@deepseek-ai/dsh-system-prompt` user-role
+ * snapshots are restored with this kind by the V3-to-V4 migration.
+ */
+export declare const RUNTIME_CONTEXT_SOURCE = "runtime-context";
+declare module '@deepseek-ai/dsh-llm' {
+    interface MessageSourceMap {
+        /** A sealed slice tape entry (or a legacy checkpoint) written by this plugin. */
+        'plugin:slice:history': {
+            kind: 'plugin:slice:history';
+        };
+    }
+}
 /** Enough space for the range header and an intact recall command. */
 export declare const MIN_ENTRY_MAX_CHARS = 256;
 export interface HistoryPolicy {

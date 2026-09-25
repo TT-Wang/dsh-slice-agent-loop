@@ -75,8 +75,9 @@ export function parseTurnId(value: unknown): number | null {
 
 type LogEvent = { type: string; data: unknown; surfaceOp?: unknown; seq?: unknown }
 
-interface ToolResultBlock { type: string; toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }> }
-interface ToolResultData { turn: number; step: number; message: { content: ReadonlyArray<ToolResultBlock>; source?: { callId?: string } } }
+/** Session format V4: a tool/result carries one tool-role message answering one call. */
+interface ToolResultMessageData { toolCallId?: string; isError?: boolean; content?: ReadonlyArray<{ type: string; text?: string }>; source?: { callId?: string } }
+interface ToolResultData { turn: number; step: number; message: ToolResultMessageData }
 
 /** Join a message's text blocks; non-text blocks (images, tool results) contribute nothing. */
 function textOf(message: UserMessage | { content: ReadonlyArray<{ type: string }> }): string {
@@ -86,18 +87,11 @@ function textOf(message: UserMessage | { content: ReadonlyArray<{ type: string }
     .join('')
 }
 
-/** Text of a tool/result's tool-result blocks; isError read from the block field, never from a substring. */
-function resultTextOf(message: ToolResultData['message']): { text: string; isError: boolean; callIds: string[] } {
-  let isError = false
+/** Text of a tool-role result message; isError read from the message field, never from a substring. */
+function resultTextOf(message: ToolResultMessageData): { text: string; isError: boolean; callId: string } {
   const parts: string[] = []
-  const callIds: string[] = []
-  for (const block of message.content) {
-    if (block.type !== 'tool-result') continue
-    if (block.isError === true) isError = true
-    if (block.toolCallId !== undefined) callIds.push(String(block.toolCallId))
-    for (const inner of block.content ?? []) if (inner.type === 'text' && inner.text) parts.push(inner.text)
-  }
-  return { text: parts.join('\n'), isError, callIds }
+  for (const inner of message.content ?? []) if (inner.type === 'text' && inner.text) parts.push(inner.text)
+  return { text: parts.join('\n'), isError: message.isError === true, callId: String(message.toolCallId ?? message.source?.callId ?? '') }
 }
 
 /** User-role runtime snapshots and generated context are not user requests. */
@@ -106,10 +100,10 @@ function isUserInput(data: Record<string, unknown>): boolean {
   return source?.kind === 'user'
 }
 
-/** Names the producer of a user-role message the human did not write. */
+/** Names the producer of a user-role message the human did not write (its V4 source kind, e.g. runtime-context). */
 function contextSource(data: Record<string, unknown>): string {
-  const source = data.source as { kind?: unknown; plugin?: unknown } | undefined
-  return typeof source?.plugin === 'string' ? source.plugin : String(source?.kind ?? 'generated')
+  const source = data.source as { kind?: unknown } | undefined
+  return String(source?.kind ?? 'generated')
 }
 
 function isOriginalEvent(event: { surfaceOp?: unknown }): boolean {
@@ -137,8 +131,8 @@ function noteCalls(names: Map<string, string>, event: LogEvent): void {
   }
 }
 
-function expandLocator(seq: number, block?: number): string {
-  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq},"formatVersion":${SESSION_FORMAT_VERSION}${block === undefined ? '' : `,"block":${block}`}})`
+function expandLocator(seq: number): string {
+  return `${EXPAND_RESULT_TOOL_NAME}({"seq":${seq},"formatVersion":${SESSION_FORMAT_VERSION}})`
 }
 
 interface SealedTurnPage {
@@ -234,13 +228,9 @@ export function renderSealedTurn(
         if (view === 'dialogue' && (data.turn as number) === turn) {
           const d = data as unknown as ToolResultData
           const seq = seqOf(event, index)
-          const blocks = d.message.content.filter((block) => block.type === 'tool-result')
-          for (const [blockIndex, block] of blocks.entries()) {
-            const { text } = resultTextOf({ content: [block] })
-            const name = names.get(block.toolCallId ?? d.message.source?.callId ?? '') ?? 'tool'
-            const ordinal = blocks.length > 1 ? blockIndex + 1 : undefined
-            items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq}${ordinal === undefined ? '' : ` block ${ordinal}`} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq, ordinal)}]` })
-          }
+          const { text, callId } = resultTextOf(d.message)
+          const name = names.get(callId) ?? 'tool'
+          items.push({ kind: 'tool', line: `[tool step ${d.step} seq ${seq} · ${name} · ${Array.from(text).length} chars · ${expandLocator(seq)}]` })
         }
         break
       default:
@@ -308,9 +298,7 @@ export interface RecallHit {
   snippet: string
   /** Durable tool/result event seq (tool_output / tool_error hits only). */
   seq?: number
-  /** 1-based original tool-result sibling when the event contains multiple blocks. */
-  block?: number
-  /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for result blocks. */
+  /** Copy-paste follow-up: dialogue for said text, full for tool inputs, expansion for tool results. */
   locator: string
 }
 
@@ -375,7 +363,7 @@ export function searchSessionEvents(
   // The surface policy and both recall tools share userMessageTurn, including
   // human input and generated context appended between turns. Their locators
   // must resolve to the page containing the exact original event.
-  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number; block?: number }> = []
+  const docs: Array<{ turn: number; step?: number; kind: SearchKind; text: string; seq: number }> = []
   const names = new Map<string, string>()
   let openTurn: number | null = null
   let lastEnded: number | null = null
@@ -430,18 +418,11 @@ export function searchSessionEvents(
       }
       case 'tool/result': {
         const d = data as unknown as ToolResultData
-        const blocks = d.message.content.filter((block) => block.type === 'tool-result')
-        for (const [blockIndex, block] of blocks.entries()) {
-          // A copied recall sibling cannot suppress independent original evidence.
-          const callId = block.toolCallId ?? d.message.source?.callId ?? ''
-          if (RECALL_FAMILY.has(names.get(callId) ?? '')) continue
-          const { text, isError } = resultTextOf({ content: [block] })
-          const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
-          if (kinds.has(kind) && text.trim()) docs.push({
-            turn: d.turn, step: d.step, kind, text, seq,
-            ...(blocks.length > 1 ? { block: blockIndex + 1 } : {}),
-          })
-        }
+        // Each V4 result event answers one call; a recall result is a copy of history, not evidence.
+        const { text, isError, callId } = resultTextOf(d.message)
+        if (RECALL_FAMILY.has(names.get(callId) ?? '')) break
+        const kind: SearchKind = isError ? 'tool_error' : 'tool_output'
+        if (kinds.has(kind) && text.trim()) docs.push({ turn: d.turn, step: d.step, kind, text, seq })
         break
       }
       default:
@@ -482,8 +463,7 @@ export function searchSessionEvents(
       score,
       snippet: snippetAround(doc.text, terms, isTool ? TOOL_SNIPPET_CHARS : 180),
       ...(isTool ? { seq: doc.seq } : {}),
-      ...(doc.block === undefined ? {} : { block: doc.block }),
-      locator: isTool ? expandLocator(doc.seq, doc.block) : turnLocator(doc.turn, doc.kind === 'tool_input' ? 'full' : 'dialogue'),
+      locator: isTool ? expandLocator(doc.seq) : turnLocator(doc.turn, doc.kind === 'tool_input' ? 'full' : 'dialogue'),
     })
   }
   hits.sort((a, b) => b.score - a.score || b.turn - a.turn)
@@ -516,10 +496,10 @@ export function renderSearchHits(
   const lines = [
     `[recall_search "${query}" · ${hits.length} hit(s) · historical record — each hit ends with the exact call that returns `
     + `its original: recall_turn({"turn": "slice-turn-N"}) (view "dialogue" is the default: the cheap text-only page) for said text, `
-    + `recall_turn view "full" for tool inputs, expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events)]`,
+    + `recall_turn view "full" for tool inputs, expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION}}) for tool output]`,
   ]
   for (const hit of hits) {
-    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}${hit.block === undefined ? '' : ` block ${hit.block}`}`
+    const where = `slice-turn-${hit.turn}${hit.step === undefined ? '' : ` step ${hit.step}`}${hit.seq === undefined ? '' : ` seq ${hit.seq}`}`
     lines.push(`- ${where} [${hit.kind}] ${hit.snippet} → ${hit.locator}`)
   }
   return lines.join('\n')
@@ -533,7 +513,7 @@ export function recallSearchToolDefinition(): ToolDefinition {
       'Search THIS session\'s durable history when you need something said or done earlier but do not know '
       + 'which turn. Returns scored hits, each with a bounded original snippet and the exact follow-up call: '
       + 'recall_turn view "dialogue" (its default) for said text, view "full" for tool inputs, '
-      + `expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION},"block": B}) for tool output (block only for multi-result events). scope "auto" (default) `
+      + `expand_result({"seq": Q,"formatVersion": ${SESSION_FORMAT_VERSION}}) for tool output. scope "auto" (default) `
       + 'searches user/assistant text, generated context (runtime snapshots and injected notices), tool inputs '
       + 'and tool errors plus raw tool output through bounded slots '
       + `(at most ${TOOL_OUTPUT_SLOTS} tool-output hits, ${TOOL_SNIPPET_CHARS} chars each); scope "dialogue" `

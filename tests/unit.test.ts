@@ -203,10 +203,11 @@ describe("recall_search corpus and flood guard (Reasonix 借鉴)", () => {
     ev("user/message", { content: [{ type: "text", text: "deploy with token QQ-91" }] }),
     ev("assistant/message", { turn: 1, step: 1, message: { content: [
       { type: "text", text: "using token QQ-91 as instructed" },
-      { type: "tool-call", name: "write", arguments: '{"file_path":"cfg.toml"}' },
+      { type: "tool-call", id: "w1", name: "write", arguments: '{"file_path":"cfg.toml"}' },
     ] } }),
-    ev("tool/result", { turn: 1, step: 1, message: { content: [{ type: "tool-result", isError: false,
-      content: [{ type: "text", text: ("flood ".repeat(500)) + " token QQ-91 buried here" }] }] } }),
+    // Session format V4: the tool-role message is the result.
+    ev("tool/result", { turn: 1, step: 1, message: { role: "tool", toolCallId: "w1", source: { kind: "tool", callId: "w1" }, isError: false,
+      content: [{ type: "text", text: ("flood ".repeat(500)) + " token QQ-91 buried here" }] } }),
     ev("turn/end", { turn: 1, reason: { kind: "completed" } }),
   ];
 

@@ -168,9 +168,10 @@ if (FULL_TOOLS) {
   // 评测用的整份返回工具(2026-09-04):网页抓取镜像 + SQLite 查询;场景没有 site/ 或 data/*.db 时调用会报错,不影响其他场景。
   ctx.tools.register(fetchPageTool(workdir))
   ctx.tools.register(dbQueryTool(workdir))
-  // 产品默认(dsh-base)同款:超过 50KB 的工具结果存成文件、模型看预览 + 路径。两臂同挂,A/B 才是产品条件。
+  // 产品默认(dsh-base)同款:超过 12500 估算 token(约 50KB)的工具结果存成文件、模型看预览 + 路径。两臂同挂,A/B 才是产品条件。
+  // DSH 0.1.7 的 spill-policy 只认 maxInlineTokens;缺这个字段时插件不挂载。
   await ctx.plugin(SpillLocal, { root: join(workdir, '.spill') })
-  await ctx.plugin(SpillPolicy, { maxInlineBytes: 50_000 })
+  await ctx.plugin(SpillPolicy, { maxInlineTokens: 12_500 })
 }
 // effort 经插件自身的 defaultReasoningEffort 通道注入；default 沿用宿主默认，
 // 需要固定档位的实验必须显式选择。

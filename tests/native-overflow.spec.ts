@@ -52,10 +52,11 @@ describe('host context overflow contract', () => {
     expect(agent.session.snapshotEvents().slice(0, failedEvents.length)).toEqual(failedEvents)
     expect(agent.session.snapshotEvents().some(isReplacementSurfaceEvent)).toBe(true)
     const recalled = agent.session.snapshotEvents().find(event => event.type === 'tool/result'
-      && event.data.message.content.some(block => block.toolCallId === 'recall-failed-turn'))
+      && event.data.message.toolCallId === 'recall-failed-turn')
     expect(recalled?.type).toBe('tool/result')
     if (recalled?.type !== 'tool/result') throw new Error('expected the native recall tool result')
-    const recalledText = recalled.data.message.content.flatMap(block => block.content.flatMap(part => part.type === 'text' ? [part.text] : [])).join('\n')
+    // Session format V4: the tool-role message carries the result blocks directly.
+    const recalledText = recalled.data.message.content.flatMap(part => part.type === 'text' ? [part.text] : []).join('\n')
     expect(recalledText).toBe(failedPage)
     expect(agent.session.snapshotEvents().filter(event => event.type === 'turn/end').at(-1)).toMatchObject({ data: { reason: { kind: 'completed' } } })
   })

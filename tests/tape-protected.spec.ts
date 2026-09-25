@@ -17,13 +17,14 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import type { ImageBlock, Message } from '@deepseek-ai/dsh-llm'
-import { isReplacementSurfaceEvent, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import type { ImageBlock, RequestMessage as Message } from '@deepseek-ai/dsh-llm'
+import { isReplacementSurfaceEvent, SESSION_FORMAT_VERSION, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { HISTORY_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import type { Config } from '../src/index.js'
 import { nativeHarness, nativeMessage, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
+import { TEST_CONTEXT_SOURCE } from './v4-fixtures.js'
 
 const live: NativeHarness[] = []
 const roots: string[] = []
@@ -50,7 +51,7 @@ function sealedPrefix(messages: readonly Message[]): number {
 }
 function sealedEvents(events: readonly SessionEvent[]): SessionEvent<'user/message'>[] {
   return events.filter((event): event is SessionEvent<'user/message'> =>
-    event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE)
+    event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
 }
 function textOfEvent(event: SessionEvent<'user/message'>): string {
   return event.data.content.map(block => block.type === 'text' ? block.text : '').join('')
@@ -151,16 +152,19 @@ describe('what a seal leaves untouched', () => {
     })
 
     // Each pointer resolves to the untouched append record that still holds the full result.
-    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(/expand_result\(\{"seq":(\d+),"formatVersion":3\}\)/g)].map(match => Number(match[1])))
+    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(new RegExp(`expand_result\\(\\{"seq":(\\d+),"formatVersion":${SESSION_FORMAT_VERSION}\\}\\)`, 'g'))].map(match => Number(match[1])))
     expect(seqs).toHaveLength(4)
     for (const seq of seqs) {
       const event = agent.session.eventAt(seq as SessionSeq)
       expect(event?.type).toBe('tool/result')
       expect(event?.type === 'tool/result' ? event.surfaceOp : undefined).toBe('append')
     }
+    // V4 tool-role results carry their text directly, so the open turn's own raw result is visible and is the only one.
     const last = textIn(h.adapter.requests.at(-1)!.messages)
     expect(last).toContain('recall_turn')
-    expect(last).not.toContain('r'.repeat(3_000))
+    for (let n = 1; n <= 4; n += 1) expect(last).not.toContain(`RESULT_${n} r`)
+    expect(last.split('r'.repeat(3_000))).toHaveLength(2)
+    expect(last).toContain('RESULT_5 r')
     expectStablePrefix(h.adapter.requests)
   })
 
@@ -203,7 +207,7 @@ describe('what a seal leaves untouched', () => {
         const events = agent.session.snapshotEvents()
         const source = events.filter(event => (event.type === 'assistant/message' || event.type === 'tool/result') && event.data.turn === 2).map(event => event.seq)
         foreign = agent.session.append('user/message', createUserMessage({
-          content: [{ type: 'text', text: 'FOREIGN_CANONICAL_SENTINEL' }], source: { kind: 'plugin', plugin: 'external-compaction' },
+          content: [{ type: 'text', text: 'FOREIGN_CANONICAL_SENTINEL' }], source: { kind: TEST_CONTEXT_SOURCE },
         }), { surfaceOp: { op: 'replace', startSeq: source[0]!, endSeq: source[source.length - 1]! }, sourceEventSeqs: source }).seq
       }
       return next()
@@ -220,7 +224,7 @@ describe('what a seal leaves untouched', () => {
 
     expect(h.errors).toEqual([])
     const events = agent.session.snapshotEvents()
-    const runtime = events.find(event => event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt')!
+    const runtime = events.find(event => event.type === 'user/message' && event.data.source.kind === 'runtime-context')!
     const imageSeq = events.find(event => event.type === 'user/message' && event.data.id === imageMessage.id)!.seq
     const guarded = [runtime.seq, foreign!, imageSeq]
     const written = sealedEvents(events)
@@ -241,7 +245,7 @@ describe('what a seal leaves untouched', () => {
     // A seal that cut a call from its result would leave an unmatched tool block behind.
     const blocks = last.flatMap(message => message.content)
     expect(blocks.flatMap(block => block.type === 'tool-call' ? [block.id] : []).sort())
-      .toEqual(blocks.flatMap(block => block.type === 'tool-result' ? [block.toolCallId] : []).sort())
+      .toEqual(last.flatMap(message => message.role === 'tool' ? [message.toolCallId] : []).sort())
     expectStablePrefix(h.adapter.requests)
   })
 
@@ -288,7 +292,7 @@ describe('what a seal leaves untouched', () => {
     const events = agent.session.snapshotEvents()
     const run = events.filter(event => (event.type === 'assistant/message' || event.type === 'tool/result') && event.data.turn === 1).map(event => event.seq)
     const legacy = agent.session.append('user/message', createUserMessage({
-      content: [{ type: 'text', text: legacyText }], source: { kind: 'plugin', plugin: HISTORY_SOURCE },
+      content: [{ type: 'text', text: legacyText }], source: { kind: HISTORY_SOURCE },
     }), { surfaceOp: { op: 'replace', startSeq: run[0]!, endSeq: run[run.length - 1]! }, sourceEventSeqs: run })
     await flood(agent, 2, 6)
 
