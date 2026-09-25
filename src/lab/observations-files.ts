@@ -5,13 +5,11 @@
  * Read evidence already present in Harness's durable tool records. This module
  * never resolves a path, reads a file, or guesses an FsTarget/version token.
  *
- * Offline only, and three known defects are left unfixed here on purpose: it
- * reads `content[0]` alone, it accepts `block.toolCallId` alone, and it drops a
- * tool/result whose `surfaceOp` is undefined. Before this module is ever put
- * back on a live path it must first adopt src/recall.ts's handling: iterate
- * every tool-result block, take the call id as
- * `block.toolCallId ?? message.source?.callId`, and treat an undefined
- * `surfaceOp` as an original event the way recall's isOriginalEvent does.
+ * Offline only. Tool results are read in session format V4 (one tool-role
+ * message per result, `message.toolCallId`). One known defect is left unfixed
+ * here on purpose: it drops a tool/result whose `surfaceOp` is undefined.
+ * Before this module is ever put back on a live path it must treat an
+ * undefined `surfaceOp` as an original event the way recall's isOriginalEvent does.
  */
 import { asRecord } from './state-events.js'
 import type { RecordedEvent, RecordedFileObservation } from './state-events.js'
@@ -106,8 +104,8 @@ export function recordedFileObservations(events: Iterable<RecordedEvent>): Recor
       try { args = typeof data.arguments === 'string' ? JSON.parse(data.arguments) : data.arguments } catch { args = undefined }
       calls.set(data.callId, { name: String(data.name), arguments: args, callId: data.callId, rootCallId: data.callId, nested: false })
     } else if (turn !== undefined && event.type === 'tool/result' && event.surfaceOp === 'append' && data.turn === turn) {
-      const content = asRecord(data.message).content
-      const block = asRecord(Array.isArray(content) ? content[0] : undefined)
+      // Session format V4: the tool-role message itself carries toolCallId, isError and content.
+      const block = asRecord(data.message)
       const call = typeof block.toolCallId === 'string' ? calls.get(block.toolCallId) : undefined
       if (call === undefined) continue
       calls.delete(call.callId)

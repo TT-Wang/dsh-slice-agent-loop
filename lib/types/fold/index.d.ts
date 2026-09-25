@@ -39,7 +39,7 @@ export interface Config {
     pinSteps?: number;
     /** 显式钉住步骤中,仅保护少于此字符数的结果(默认 8000);更大结果仍按内容规则折叠。 */
     pinMaxChars?: number;
-    /** spill 预览臂(默认 50000 字节,与 dsh-base 的 spill-policy maxInlineBytes 对齐;0 = 关):结果达到这个体量时,在 tools/post-execute
+    /** spill 预览臂(默认 50000 字节,约等于 dsh-base 的 spill-policy 默认 maxInlineTokens 12500 按 4 字节/token 折算;0 = 关):结果达到这个体量时,在 tools/post-execute
      *  就把原文存进 ctx.spillStore(有 spill 后端时),模型看到的是按内容路由的折叠视图 + 文件定位,而不是 spill-policy 的头尾预览。
      *  没挂 spill 后端时此臂不生效。read 结果与 spill-policy 同样跳过(它靠 pre-step 的 surface 替换折叠,原文留日志)。 */
     spillPreviewMinBytes?: number;

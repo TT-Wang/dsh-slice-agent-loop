@@ -88,7 +88,7 @@ send(agent, [
 await agent.whenIdle()
 
 const t1 = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
-const t1text = (t1?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
+const t1text = (t1?.data as { message: { content: ReadonlyArray<{ type: string; text?: string }> } }).message.content
   .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 const t1len = [...t1text].length
 console.log(`T1 reply: ${t1len} code points; code word present: ${t1text.includes(CODE_WORD)}`)
@@ -105,7 +105,7 @@ await agent.whenIdle()
 
 const callsAfterT2 = agent.session.snapshotEvents().filter(e => e.type === 'tool/call').length
 const t2reply = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
-const t2text = (t2reply?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
+const t2text = (t2reply?.data as { message: { content: ReadonlyArray<{ type: string; text?: string }> } }).message.content
   .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 console.log(`T2: tool calls so far=${callsAfterT2}; reply quotes code word: ${t2text.includes(CODE_WORD)}`)
 
@@ -115,7 +115,7 @@ if (callsAfterT2 === 0) {
   send(agent, 'Now use the recall_turn tool with {"turn": "slice-turn-1"} and quote that same final sentence from its output.')
   await agent.whenIdle()
   const t3reply = agent.session.snapshotEvents().filter(e => e.type === 'assistant/message').at(-1)
-  t3text = (t3reply?.data as { message: { content: Array<{ type: string; text?: string }> } }).message.content
+  t3text = (t3reply?.data as { message: { content: ReadonlyArray<{ type: string; text?: string }> } }).message.content
     .filter(b => b.type === 'text').map(b => b.text ?? '').join('')
 }
 

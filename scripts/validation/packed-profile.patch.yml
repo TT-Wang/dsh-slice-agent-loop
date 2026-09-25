@@ -5,10 +5,6 @@
       name: '@deepseek-ai/dsh-session'
     - id: session-projection
       name: '@deepseek-ai/dsh-session-projection'
-    - id: settings
-      name: '@deepseek-ai/dsh-settings-file'
-      config:
-        watch: false
     - id: system-prompt
       name: '@deepseek-ai/dsh-system-prompt'
       config:

@@ -1,7 +1,7 @@
 /** recall batch 2: recall_turn views and recall_search scope/locators, driven on the stock DSH loop. */
 import { afterEach, describe, expect, it } from 'vitest'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, SessionId } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
 import { recallToolDefinition, renderSealedTurn, renderSearchHits, searchSessionEvents, TOOL_OUTPUT_SLOTS, TOOL_SNIPPET_CHARS } from '../src/recall.js'
@@ -38,9 +38,10 @@ function toolResultText(h: NativeHarness, sessionId: string, callId: string): { 
   const agent = h.ctx.agents.get(SessionId(sessionId))
   if (agent === undefined) throw new Error(`no agent ${sessionId}`)
   const event = agent.session.snapshotEvents().find((e) => e.type === 'tool/result'
-    && e.surfaceOp === 'append' && e.data.message.content[0]?.toolCallId === callId)
+    && e.surfaceOp === 'append' && e.data.message.toolCallId === callId)
   if (event?.type !== 'tool/result') throw new Error(`missing tool result ${callId}`)
-  const text = event.data.message.content.flatMap((b) => b.content.flatMap((inner) => inner.type === 'text' ? [inner.text] : [])).join('\n')
+  // Session format V4: the tool-role message's content is the result itself.
+  const text = event.data.message.content.flatMap((inner) => inner.type === 'text' ? [inner.text] : []).join('\n')
   return { seq: event.seq, text }
 }
 
@@ -93,7 +94,7 @@ describe('recall_turn views', () => {
     expect(text).not.toContain('HIDDEN_REASONING_SENTINEL')
     expect(text).not.toContain('## Original records')
     expect(text).not.toContain('PORT_SENTINEL')
-    expect(text).toContain(`[tool step 1 seq ${read.seq} · read_config · ${CONFIG.length} chars · expand_result({"seq":${read.seq},"formatVersion":3})]`)
+    expect(text).toContain(`[tool step 1 seq ${read.seq} · read_config · ${CONFIG.length} chars · expand_result({"seq":${read.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
     expect(text.split('[tool step')).toHaveLength(2)
     expect(text).toContain('view dialogue')
     expect(text).toContain('recall_turn({"turn":"1","view":"full"})')
@@ -173,7 +174,7 @@ describe('recall_search scope and locators', () => {
     expect(read.text).toContain('PORT_SENTINEL=7443')
     const hits = searchSessionEvents(events, 'PORT_SENTINEL', { scope: 'auto' })
     expect(hits).toHaveLength(1)
-    expect(hits[0]).toMatchObject({ turn: 1, step: 1, kind: 'tool_output', seq: read.seq, locator: `expand_result({"seq":${read.seq},"formatVersion":3})` })
+    expect(hits[0]).toMatchObject({ turn: 1, step: 1, kind: 'tool_output', seq: read.seq, locator: `expand_result({"seq":${read.seq},"formatVersion":${SESSION_FORMAT_VERSION}})` })
     expect(hits[0]!.snippet).toContain('PORT_SENTINEL=7443')
     expect(Array.from(hits[0]!.snippet).length).toBeLessThanOrEqual(TOOL_SNIPPET_CHARS + 2)
     expect(events[read.seq]?.type).toBe('tool/result')
@@ -181,7 +182,7 @@ describe('recall_search scope and locators', () => {
     // The tool's own rendering (default scope auto) named the same locator.
     const searched = toolResultText(h, 'search-auto', 'search-1')
     expect(searched.text).toContain(`seq ${read.seq} [tool_output]`)
-    expect(searched.text).toContain(`→ expand_result({"seq":${read.seq},"formatVersion":3})`)
+    expect(searched.text).toContain(`→ expand_result({"seq":${read.seq},"formatVersion":${SESSION_FORMAT_VERSION}})`)
     // Dialogue hits name the dialogue view of their turn.
     expect(renderSearchHits('q', searchSessionEvents(events, 'ASSISTANT_ONE_SENTINEL'))).toContain('→ recall_turn({"turn":"1","view":"dialogue"})')
   })
@@ -221,7 +222,7 @@ describe('recall_search scope and locators', () => {
     expect(trap.text).toContain('"isError":true')
     const errors = searchSessionEvents(events, 'BOOM_ERROR_SENTINEL', { scope: 'auto' })
     expect(errors.map((hit) => hit.kind)).toEqual(['tool_error'])
-    expect(errors[0]!.locator).toBe(`expand_result({"seq":${errors[0]!.seq},"formatVersion":3})`)
+    expect(errors[0]!.locator).toBe(`expand_result({"seq":${errors[0]!.seq},"formatVersion":${SESSION_FORMAT_VERSION}})`)
     expect(events[errors[0]!.seq!]?.type).toBe('tool/result')
     expect(searchSessionEvents(events, 'BOOM_ERROR_SENTINEL', { kinds: ['tool_output'] })).toEqual([])
     expect(searchSessionEvents(events, 'TRAP_SENTINEL', { scope: 'auto' }).map((hit) => hit.kind)).toEqual(['tool_output'])
@@ -237,8 +238,8 @@ describe('recall_search scope and locators', () => {
       push('turn/start', { turn })
       push('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: `NEEDLE asked in turn ${turn}` }] })
       push('assistant/message', { turn, step: 1, message: { content: [{ type: 'tool-call', id: `c${turn}`, name: 'cat', arguments: '{}' }] } })
-      push('tool/result', { turn, step: 1, message: { content: [{ type: 'tool-result', toolCallId: `c${turn}`, isError: false,
-        content: [{ type: 'text', text: `${'flood '.repeat(400)} NEEDLE buried ${'flood '.repeat(400)}` }] }] } })
+      push('tool/result', { turn, step: 1, message: { role: 'tool', toolCallId: `c${turn}`, source: { kind: 'tool', callId: `c${turn}` }, isError: false,
+        content: [{ type: 'text', text: `${'flood '.repeat(400)} NEEDLE buried ${'flood '.repeat(400)}` }] } })
       push('turn/end', { turn, reason: { kind: 'completed' } })
     }
     const hits = searchSessionEvents(events, 'NEEDLE', { scope: 'auto', limit: 4 })
@@ -247,7 +248,7 @@ describe('recall_search scope and locators', () => {
     expect(hits.filter((hit) => hit.kind === 'user')).toHaveLength(4)
     for (const hit of toolHits) {
       expect(Array.from(hit.snippet).length).toBeLessThanOrEqual(TOOL_SNIPPET_CHARS + 2)
-      expect(hit.locator).toBe(`expand_result({"seq":${hit.seq},"formatVersion":3})`)
+      expect(hit.locator).toBe(`expand_result({"seq":${hit.seq},"formatVersion":${SESSION_FORMAT_VERSION}})`)
       expect(events[hit.seq!]?.type).toBe('tool/result')
     }
     expect(searchSessionEvents(events, 'NEEDLE', { kinds: ['tool_output'], limit: 6 })).toHaveLength(6)
@@ -256,13 +257,14 @@ describe('recall_search scope and locators', () => {
 
 describe('generated context in recall', () => {
   it('serves superseded runtime snapshots from both views and from search, never as the user request', () => {
-    const plugin = { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' }
+    // Session format V4 source of the host's runtime-context projection (V3 snapshots are restored with it).
+    const snapshot = { kind: 'runtime-context' }
     const events: Array<{ type: string; data: unknown; seq: number }> = []
     let seq = 0
     const push = (type: string, data: unknown) => { events.push({ type, data, seq }); seq += 1 }
     for (let turn = 1; turn <= 3; turn += 1) {
       push('turn/start', { turn })
-      push('user/message', { source: plugin, content: [{ type: 'text', text: `RUNTIME_SNAPSHOT_${turn} This snapshot supersedes earlier runtime-context snapshots.` }] })
+      push('user/message', { source: snapshot, content: [{ type: 'text', text: `RUNTIME_SNAPSHOT_${turn} This snapshot supersedes earlier runtime-context snapshots.` }] })
       push('user/message', { source: { kind: 'user' }, content: [{ type: 'text', text: `USER_ASK_${turn}` }] })
       push('assistant/message', { turn, step: 1, message: { content: [{ type: 'text', text: `REPLY_${turn}` }] } })
       push('turn/end', { turn, reason: { kind: 'completed' } })
@@ -274,7 +276,7 @@ describe('generated context in recall', () => {
       const request = page.rendered.split('## User request (verbatim)\n')[1]!.split('\n## Assistant response')[0]!
       expect(request).toContain('USER_ASK_2')
       expect(request).not.toContain('RUNTIME_SNAPSHOT_2')
-      expect(page.rendered).toContain('## Generated context recorded during this turn (verbatim)\n[@deepseek-ai/dsh-system-prompt]\nRUNTIME_SNAPSHOT_2')
+      expect(page.rendered).toContain('## Generated context recorded during this turn (verbatim)\n[runtime-context]\nRUNTIME_SNAPSHOT_2')
       expect(page.rendered).toContain('1 generated context message(s)')
     }
     const hits = searchSessionEvents(events, 'RUNTIME_SNAPSHOT_2', { scope: 'auto' })

@@ -2,13 +2,13 @@
 
 [English](README.md)
 
-面向 **DeepSeek Harness 0.1.5-rc.2 / 0.1.5-rc.1** 的对话上下文保留策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。这个 patch 是增量的：它只新增本插件。
+面向 **DeepSeek Harness 0.1.7-rc.2 / 0.1.7-rc.1**（会话格式 V4）的对话上下文保留策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。这个 patch 是增量的：它只新增本插件。
 
 ## 历史模型：只追加的磁带
 
-每轮的**第一步**，把超出 `history.keepRecentTurns`（默认 0）的已完成轮中可封存的助手／工具段，在原位置封成冻结的 `[slice tape v1 …]` `user/message` surface replacement。已有条目永不重渲染或嵌套；截至最后一个已有条目的 surface 前缀保持不动。更早的节点即使后来变得可封存，也留在原位置，不回填到已有条目前方。保护节点可能把同一轮切成多个条目。
+每轮的**第一步**，把超出 `history.keepRecentTurns`（默认 0）的已完成轮中可封存的助手／工具段，在原位置封成冻结的 `[slice tape v1 …]` `user/message` surface replacement，来源 kind 为 `plugin:slice:history`。已有条目永不重渲染或嵌套；截至最后一个已有条目的 surface 前缀保持不动。更早的节点即使后来变得可封存，也留在原位置，不回填到已有条目前方。保护节点可能把同一轮切成多个条目。
 
-每一轮仍在宿主 surface 上的原始人类用户消息都逐字保留在原节点，不再复制到 tape 中。指令消息、多模态输入与**最新的**运行时上下文快照也保留原来源与位置。被取代的快照只有位于冻结前缀之后时才可随所属轮封存；较早的快照如果后来才被取代，就留在原位置。快照正文不会被写成人类请求。原始事件仍在日志里，封存、折叠与恢复后都可召回。
+每一轮仍在宿主 surface 上的原始人类用户消息都逐字保留在原节点，不再复制到 tape 中。system prompt（surface 第 0 个节点，只由宿主原地替换）以及其他所有 `system/message`、`developer/message` 节点永不封存、也不被引用。指令消息、多模态输入与**最新的**运行时上下文快照（来源 kind 为 `runtime-context`）也保留原来源与位置。被取代的快照只有位于冻结前缀之后时才可随所属轮封存；较早的快照如果后来才被取代，就留在原位置。快照正文不会被写成人类请求。原始事件仍在日志里，封存、折叠与恢复后都可召回。
 
 冻结只保证已有条目的字节不变，**不保证每次只为一个新条目付费**：封存位置之后的所有文本（包括保留的原始尾部）仍可能缓存失效。见下方「前缀行为」。
 
@@ -16,10 +16,10 @@
 
 一条条目按顺序渲染：
 
-- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":3}) returns a tool result]`；
+- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":4}) returns a tool result]`；
 - 每个被封存的轮：`[turn N]`，然后按原顺序保留该段内每条可见助手文本，各有回复包装与来源定位；默认保留全文和空白，包括调用工具之前的助手消息；
 - 该轮的**读索引**行（见下）；
-- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":3})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
+- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":4})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
 
 **默认不设条目或助手文本上限。** reasoning 与工具结果正文留在原日志中，通过召回访问；导航元数据仍有展示限制。用户消息位于条目之外，不会被条目渲染器缩短。
 
@@ -35,19 +35,19 @@
 
 - 计入 `read`、`read_section`、`read_file`，包括嵌套的 `tool/ptc-dispatch`。失败读取不进入成功索引和比较历史；成功重试可以更新之前的成功观察。
 - 每个「工具、路径、参数窗口、直接/代码通道」选择同轮**最后一次成功读取**。导航行在 2,000 码点内最多显示 10 项，单项标签也有限长；省略项标出数量与完整轮召回提示。这些展示限制不截断底层读取记录。
-- 指纹是返回文本的 `sha256` 前 8 位；比较同样规则选出的更早成功观察，标出其 turn、step、seq 与结果块。不同窗口或通道之间不声称文件发生变化。
+- 指纹是返回文本的 `sha256` 前 8 位；比较同样规则选出的更早成功观察，标出其 turn、step、seq 与结果块（会话格式 V4 下每个结果事件只有一条 tool 角色消息，所以总是 `block 1`）。不同窗口或通道之间不声称文件发生变化。
 - 直接读取定位到日志结果；嵌套读取定位到 dispatch，明确标注 `code log; model visibility not implied`：代码拿到文本，不代表模型看到了全文。
 - 条目不复制文件正文。这是历史返回窗口，不证明整份文件，也不证明当前状态。
 
 ## 召回与展开工具
 
-`recall_turn` 返回一整轮：`view: "dialogue"`（默认）只给每条用户与助手文本一次、工具结果以定位符表示；`view: "full"` 另附全部原始记录（reasoning、工具元数据、每一条原始工具输出），在有工作量的一轮里要大两个数量级，只在需要工具输入或原始 reasoning 时才要。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq, formatVersion: 3}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。多结果事件支持从 1 起算的 `block` 选择；省略则取全部兄弟结果，逐块恢复 spill。
+`recall_turn` 返回一整轮：`view: "dialogue"`（默认）只给每条用户与助手文本一次、工具结果以定位符表示；`view: "full"` 另附全部原始记录（reasoning、工具元数据、每一条原始工具输出），在有工作量的一轮里要大两个数量级，只在需要工具输入或原始 reasoning 时才要。`recall_step` 取回某一步，并在存储可用时恢复 spill 原文；不可用时明确标成预览，并给出精确展开定位符。`expand_result` 按 `{seq, formatVersion: 4}`（每条条目的工具行里给出的持久日志 id）或按 turn/step/call 序号精确取回工具结果，可按行或正则过滤。会话格式 V4 中每个工具结果都是独立的 tool 角色消息，同一步里的并行调用各自产生带独立 seq 的结果事件；可选的 `block` 参数只接受 `1`。每个 spill 文本部分单独恢复。
 
-`recall_search` 搜索原始的用户与助手文本、生成的上下文（插件产生的 user 角色消息，如运行时快照；两轮之间投影的快照归属刚结束的那一轮）、工具输入与工具错误（见 `src/recall.ts` 的 `DEFAULT_SEARCH_KINDS`）。默认 `scope: "auto"` 也收录普通工具**输出**，但只通过有界槽位（最多 `TOOL_OUTPUT_SLOTS` = 3 条、每条 `TOOL_SNIPPET_CHARS` = 600 字符），因为工具输出是会话里体量最大、信噪比最低的文本；`scope: "dialogue"` 跳过它，显式 `kinds` 优先于 scope。召回工具自己的输入与输出块不入索引，但不会连带丢掉同一事件里的普通兄弟结果。工具输入命中指向含参数的完整轮记录，结果命中指向精确事件与结果块。每条命中都给出后续调用。
+`recall_search` 搜索原始的用户与助手文本、生成的上下文（不是人类写的 user 角色消息，如运行时快照，命中里统一标注为 `[context]`；`recall_turn` 页面按来源 kind 标注，例如 `[runtime-context]`；两轮之间投影的快照归属刚结束的那一轮）、工具输入与工具错误（见 `src/recall.ts` 的 `DEFAULT_SEARCH_KINDS`）。默认 `scope: "auto"` 也收录普通工具**输出**，但只通过有界槽位（最多 `TOOL_OUTPUT_SLOTS` = 3 条、每条 `TOOL_SNIPPET_CHARS` = 600 字符），因为工具输出是会话里体量最大、信噪比最低的文本；`scope: "dialogue"` 跳过它，显式 `kinds` 优先于 scope。召回工具自己的输入与结果不入索引，但不会连带丢掉同一步里的普通结果。工具输入命中指向含参数的完整轮记录，结果命中指向精确的结果事件。每条命中都给出后续调用。
 
 可见历史里的缺席意味着"未知"或"未被选中"——**绝不是假**，也绝不是"这件事没发生过"。否认某事说过之前，先召回。
 
-数字定位符必须注明当前会话格式：`expand_result({"seq":42,"formatVersion":3})`。缺少版本或版本不符的 `seq` 调用会在查找前拒绝。宿主 v2→v3 迁移会插入事件，却保留旧磁带文本，因此旧数字可能指向另一条结果。可用 `recall_turn` 的 dialogue 视图或 `recall_search` 获取新定位符，也可使用稳定的 `turn`/`step`/`call` 坐标。见 [宿主兼容与迁移](docs/dsh-0.1.5-compatibility.md)。
+数字定位符必须注明当前会话格式（`SESSION_FORMAT_VERSION`，现为 4）：`expand_result({"seq":42,"formatVersion":4})`。缺少版本或版本不符的 `seq` 调用会在查找前拒绝，0.1.5 版本写下的磁带里冻结的 `formatVersion:3` 提示也一样。宿主把旧会话恢复成 V4 时不改旧磁带文本，而迁移一旦插入事件就会给后面的 seq 重新编号，因此旧数字可能指向另一条结果。可用 `recall_turn` 的 dialogue 视图或 `recall_search` 获取新定位符，也可使用稳定的 `turn`/`step`/`call` 坐标。见 [DSH 0.1.7 兼容与 V3 会话续跑](docs/dsh-0.1.7-compatibility.md)；[0.1.5 说明](docs/dsh-0.1.5-compatibility.md) 作为历史保留。
 
 ## 配置
 
@@ -93,7 +93,7 @@
 - **加载时报错，并说明各自去向**：`history.highWaterChars`、`history.lowWaterChars`、`history.keepRecentChars`、`history.checkpointMaxChars`（`Retired history configuration <key>: …`——替代项是 `history.keepRecentTurns`（按轮计数）与 `history.entryMaxChars`；两个水位没有对应项，因为已经没有要跨过的压力阈值了），以及已退役的驱动键 `maxParallelToolCalls`、`inTurnSeal`、`tape`、`state`（`Retired slice configuration <key>: …`）。
 - `mode` 只接受 `slice`；`state` 与 `stream` 在加载时报错。两个小节里出现别的不认识键，同样报错并给出合法键列表。
 
-条目头是 `[slice tape v1 …]`，`warn` 前缀是 `slice tape:`；已退役的 `[slice checkpoint v1 …]` / `# SESSION TAPE` 替换仍可解析：更早版本写下的会话续跑时，它们作为普通的已封存条目留在 surface 上。
+条目头是 `[slice tape v1 …]`，`warn` 前缀是 `slice tape:`；已退役的 `[slice checkpoint v1 …]` / `# SESSION TAPE` 替换仍可解析：更早版本写下的会话续跑时，它们作为普通的已封存条目留在 surface 上。格式 3 会话里的条目经宿主 V3→V4 恢复后，来源 kind 变为 `plugin:slice:history`，正文不变，仍保持冻结。
 
 ## 组合方式
 
@@ -119,6 +119,6 @@
 
 ## 验证与兼容范围
 
-本次变更通过 **37 个文件中的 322 个测试**、覆盖率门槛、类型检查，以及 DSH **0.1.5-rc.1、0.1.5-rc.2** 打包安装／召回／恢复。相同的 322 个测试也在现有 **0.1.6-alpha.2 源码** `ddefc45fbc7f8e46dd73185e68295696d1297887` 上通过。CI 覆盖 Node 22.19.0、22.22.3 和 24.x。源码检查不扩大包声明的 peer 版本范围，也不代表已验证该版本的打包安装。本次没有新增付费模型评测；内容保留测试不能直接证明成本收益或任务准确率。
+本次变更通过 **38 个文件中的 342 个测试**、覆盖率门槛、类型检查，以及 DSH **0.1.7-rc.1、0.1.7-rc.2** 打包安装／召回／恢复。peer 范围是 `0.1.7-rc.1 || 0.1.7-rc.2`；本版本不支持 0.1.5 宿主，包括 2026-09-25 时 npm `latest` 指向的 0.1.5-rc.3。0.1.5 版本写下的格式 3 会话经宿主 V3→V4 恢复后可以续跑，这条路径由两份 provider 实际写出的 0.1.5 会话夹具覆盖，含并行、失败、PTC 嵌套与已折叠的结果。CI 覆盖 Node 22.19.0、22.22.3 和 24.x。本次没有新增付费模型评测；内容保留测试不能直接证明成本收益或任务准确率。宿主变化、迁移行为与验证记录见 [DSH 0.1.7 兼容说明](docs/dsh-0.1.7-compatibility.md)。
 
 当前历史策略与迁移见 [默认保留对话](docs/adr/0003-preserve-dialogue-defaults.md)；此前循环／折叠策略变更及其已记录验证结果见 [2026-09-21 上下文策略默认值](docs/context-policy-defaults-2026-09-21.md)。

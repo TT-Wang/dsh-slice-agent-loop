@@ -4,6 +4,12 @@ name: Peer compatibility
 # A newer unsupported release must fail rather than produce a misleading green.
 # Supporting it requires a reviewed manifest and runtime compatibility change.
 #
+# On 2026-09-25 npm `latest` lagged the pinned `next` release (0.1.7-rc.2):
+# @deepseek-ai/dsh was tagged 0.1.5-rc.3 and most dsh-* packages far older.
+# `pnpm up --latest` keeps a locked prerelease newer than `latest` (probed on
+# pnpm 11.7.0 with dsh-util-values: 0.1.7-rc.2 stayed, "Already up to date"),
+# so until `latest` moves past 0.1.7-rc.2 this job re-verifies the pinned release.
+#
 # It never touches the committed lockfile: the upgrade happens in the runner's
 # working copy and is thrown away with it.
 on:

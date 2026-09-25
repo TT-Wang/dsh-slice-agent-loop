@@ -8,7 +8,7 @@
  * diverge before the entries already on the surface.
  */
 import { afterEach, describe, expect, it } from 'vitest'
-import type { Message } from '@deepseek-ai/dsh-llm'
+import type { RequestMessage as Message } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -32,7 +32,7 @@ function entries(messages: readonly Message[]): string[] {
 function header(text: string): string { return text.split('\n')[0]! }
 function sealedEvents(events: readonly SessionEvent[]): SessionEvent<'user/message'>[] {
   return events.filter((event): event is SessionEvent<'user/message'> =>
-    event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE)
+    event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
 }
 function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
   let i = 0
@@ -95,11 +95,14 @@ describe('append-only session tape', () => {
       expect(firstDivergence(earlier, later)).toBeGreaterThanOrEqual(entries(earlier).length)
     }
 
-    // Every sealed turn is still reachable verbatim, and the raw tool text is gone from the view.
+    // Every sealed turn is still reachable verbatim, and its raw tool text is gone from the view. V4 tool-role
+    // results carry their text directly, so the open turn's own raw result is visible and is the only one.
     const last = textIn(h.adapter.requests.at(-1)!.messages)
     expect(last).toContain('recall_turn')
     expect(last).toContain('expand_result')
-    expect(last).not.toContain('r'.repeat(3_000))
+    for (let n = 1; n <= 7; n += 1) expect(last).not.toContain(`RESULT_${n} r`)
+    expect(last.split('r'.repeat(3_000))).toHaveLength(2)
+    expect(last).toContain('RESULT_8 r')
     expect(last).toContain('REQUEST_8')
   })
 

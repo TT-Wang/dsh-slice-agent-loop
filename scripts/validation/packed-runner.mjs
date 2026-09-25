@@ -33,6 +33,10 @@ const tool = (id, name, args) => [
 const secondUser = `Recall the first turn\n${'u'.repeat(5_000)}\nPACKED_USER_MIDDLE\n${'v'.repeat(5_000)}`
 const secondAnswer = `  PACKED_SECOND_ANSWER\n${'a'.repeat(5_000)}\nPACKED_ASSISTANT_MIDDLE\n${'b'.repeat(5_000)}\n  `
 const intermediateAnswer = 'PACKED_INTERMEDIATE_ASSISTANT'
+// V4 source kinds are merge-extensible strings; producers outside this
+// compilation (runtime-context, plugin:<name>) are not in the static union.
+/** @param {{source?: {kind?: unknown}}|null|undefined} message @returns {string|undefined} */
+const sourceKind = message => typeof message?.source?.kind === 'string' ? message.source.kind : undefined
 /** @param {import('@deepseek-ai/cordis').Context} ctx @param {{outputDir:string}} config */
 export function apply(ctx, config) {
   const appExit = /** @type {((code:number)=>void)|undefined} */ (ctx.get('appExit'))
@@ -66,13 +70,26 @@ export function apply(ctx, config) {
       const header = sessions.foldRequestHeader(events)
       assert.ok(header, 'every dispatched request must have a native header')
       assert.deepEqual(request.tools ?? [], header.tools ?? [])
+      // Session format V4: the system prompt is surface node 0, a system/message
+      // event replaced in place; loop-built requests leave request.system unset.
+      assert.equal(request.system, undefined, 'the system prompt must travel only as message 0')
+      assert.equal(events[nodes[0]]?.type, 'system/message', 'surface node 0 must be the native system/message event')
       assert.equal(request.messages[0]?.role, 'system', 'the native system prompt must remain at the surface head')
       assert.equal(request.messages.filter(message => message.role === 'system').length, 1)
       const system = request.messages[0].content.filter(block => block.type === 'text').map(block => block.text).join('\n')
       assert.ok(system.includes('Packed plugin validation fixture.'))
       assert.ok(system.includes('<slice>'))
-      const joined = request.messages.flatMap(message => message.content.filter(block => block.type === 'text').map(block => block.text)).join('\n')
-      assert.equal(joined.split('PACKED_RUNTIME_SENTINEL').length, 2)
+      // DSH 0.1.7 projects the runtime snapshot after it opens the turn, so the
+      // snapshot belongs to turn 1 and recall_turn serves it back verbatim as
+      // generated context. Only that explicit recall result may repeat it; the
+      // surface itself (system, users, tape, assistant) carries one live copy.
+      const texts = (/** @type {import('@deepseek-ai/dsh-llm').Message} */ message) => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])
+      const surface = request.messages.filter(message => message.role !== 'tool')
+      assert.equal(surface.flatMap(texts).join('\n').split('PACKED_RUNTIME_SENTINEL').length, 2, 'the surface must carry exactly one runtime snapshot')
+      const runtime = surface.filter(message => texts(message).some(value => value.includes('PACKED_RUNTIME_SENTINEL')))
+      assert.deepEqual(runtime.map(message => sourceKind(message)), ['runtime-context'], 'the runtime snapshot must carry the V4 runtime-context source')
+      const repeated = request.messages.filter(message => message.role === 'tool' && texts(message).some(value => value.includes('PACKED_RUNTIME_SENTINEL')))
+      assert.ok(repeated.every(message => message.role === 'tool' && message.toolCallId === 'packed-recall'), 'only the recall result may repeat the runtime snapshot')
       requests.push({ request: structuredClone({ ...request, signal: undefined }), events })
       const response = responses.shift()
       assert.ok(response, 'unexpected extra model request')
@@ -106,6 +123,9 @@ export function apply(ctx, config) {
     const firstEntrySeq = firstTape[0]
     const firstEntry = requests[1].events[firstEntrySeq]
     assert.ok(JSON.stringify(sessions.deriveEventMessage(firstEntry)).includes('PACKED_FIRST_ANSWER'))
+    // The V3->V4 migration names every third-party plugin source 'plugin:' +
+    // its original name; slice writes new tape entries under the same kind.
+    assert.equal(sourceKind(sessions.deriveEventMessage(firstEntry)), 'plugin:slice:history', 'tape entries must carry the slice history source kind')
     for (const { events } of requests.slice(1)) {
       assert.ok(tapeNodes(events).includes(firstEntrySeq), 'a sealed entry must remain on the surface')
       assert.deepEqual(events[firstEntrySeq], firstEntry, 'a sealed entry must remain frozen')
@@ -132,9 +152,20 @@ export function apply(ctx, config) {
     }
     checkDialogue(before)
     assert.ok(before.every(event => sessions.KNOWN_SESSION_EVENT_TYPES.has(event.type)), 'no unknown required plugin events')
-    const recallResult = before.find(event => event.type === 'tool/result' && event.data.message.content.some(block => block.type === 'tool-result' && block.toolCallId === 'packed-recall'))
-    assert.ok(recallResult?.type === 'tool/result' && recallResult.data.message.content.some(block => block.type === 'tool-result' && block.toolCallId === 'packed-recall' && block.isError !== true))
+    // V4 tool results are tool-role messages; the tool-result block wrapper is gone.
+    const recallResult = before.find(event => event.type === 'tool/result' && event.data.message.toolCallId === 'packed-recall')
+    assert.ok(recallResult?.type === 'tool/result', 'the recall call must have a durable result')
+    assert.equal(recallResult.data.message.role, 'tool')
+    assert.equal(sourceKind(recallResult.data.message), 'tool')
+    assert.notEqual(recallResult.data.message.isError, true, 'recall_turn must succeed')
     assert.ok(JSON.stringify(recallResult).includes('First packed request'))
+    // Sealed tool lines cite durable results by numeric seq in the host's
+    // current session format; the supported 0.1.7 hosts write format V4.
+    assert.equal(sessions.SESSION_FORMAT_VERSION, 4, 'the supported hosts write session format V4')
+    const locator = `expand_result(${JSON.stringify({ seq: recallResult.seq, formatVersion: sessions.SESSION_FORMAT_VERSION })})`
+    assert.ok(tapeNodes(before).some(seq => JSON.stringify(sessions.deriveEventMessage(before[seq])).includes(JSON.stringify(locator).slice(1, -1))), 'the sealed tool line must cite the recall result with a V4 seq locator')
+    // Generated context is labelled by its V4 source kind, not a V3 plugin name.
+    assert.ok(JSON.stringify(recallResult).includes('[runtime-context]\\nCurrent runtime context'), 'recall must serve the turn\'s runtime snapshot under its V4 source kind')
     await ctx.sessions.flush(handle.agent.session)
     await handle.dispose()
     const resumed = await ctx.agents.resume({ resumeSessionId: sessions.SessionId('packed-loader-session'), agentOptions: { provider: 'packed-mock', model: 'deterministic' } })
@@ -151,7 +182,7 @@ export function apply(ctx, config) {
     checkDialogue(finalEvents)
     const shim = await import(pathToFileURL(createRequire(new URL('./home/profiles/slice-packed/package.json', import.meta.url)).resolve('@dsh-external/dsh-slice-agent-loop/invariant')).href)
     assert.equal(typeof shim.apply, 'function', 'the exported invariant compatibility shim must load')
-    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, nativeSystemMessageRetained: true, frozenTapeRetained: true, originalUserNodeRetained: true, completeAssistantTextsRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, sessionFormatVersion: sessions.SESSION_FORMAT_VERSION, nativeSystemMessageRetained: true, systemPromptNodeZero: true, runtimeContextSource: true, tapeSourceKind: 'plugin:slice:history', frozenTapeRetained: true, originalUserNodeRetained: true, completeAssistantTextsRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

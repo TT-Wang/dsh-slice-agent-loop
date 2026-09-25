@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createUserMessage, freezeMessage, markAgentLoopRequest, ToolCallId } from '@deepseek-ai/dsh-llm'
-import type { ImageBlock, Message, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ImageBlock, Message, RequestMessage, StreamChunk } from '@deepseek-ai/dsh-llm'
 import { deriveEventMessage, foldRequestHeader, foldSurface, isReplacementSurfaceEvent, KNOWN_SESSION_EVENT_TYPES, SessionId } from '@deepseek-ai/dsh-session'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import {
@@ -15,6 +15,10 @@ import { HISTORY_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import { type Config } from '../src/index.js'
 import { multiToolCallResponse } from './mock-adapter.js'
 import { renderSealedTurn } from '../src/recall.js'
+import { TEST_CONTEXT_SOURCE } from './v4-fixtures.js'
+
+/** The host's runtime-context projection, spelled independently of the plugin under test (session format V4). */
+const RUNTIME_CONTEXT = 'runtime-context'
 
 /** The default keep window, spelled out: a completed turn seals into one entry at the next turn's first step. */
 const SEAL: Config = { history: { keepRecentTurns: 0 } }
@@ -39,12 +43,12 @@ async function create(harness: NativeHarness, id: string) {
   })
 }
 
-function textIn(messages: readonly Message[]): string {
+function textIn(messages: readonly RequestMessage[]): string {
   return messages.flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])).join('\n')
 }
 
 /** Sealed tape entries of one dispatched request, in surface order. */
-function entriesIn(messages: readonly Message[]): string[] {
+function entriesIn(messages: readonly RequestMessage[]): string[] {
   return messages.flatMap(message => {
     const text = message.content.map(block => block.type === 'text' ? block.text : '').join('')
     return text.startsWith(TAPE_PREFIX) ? [text] : []
@@ -56,7 +60,7 @@ function rangeOf(entry: string): string {
   return entry.slice(TAPE_PREFIX.length).split(' ')[0]!
 }
 
-function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
+function firstDivergence(a: readonly RequestMessage[], b: readonly RequestMessage[]): number {
   let i = 0
   while (i < a.length && i < b.length && JSON.stringify(a[i]) === JSON.stringify(b[i])) i += 1
   return i
@@ -66,7 +70,7 @@ function firstDivergence(a: readonly Message[], b: readonly Message[]): number {
  * The property the tape exists for: a seal lands after every entry already written, so no request
  * diverges from its predecessor before them. The new entry and its raw tail may miss.
  */
-function expectStablePrefix(requests: ReadonlyArray<{ messages: readonly Message[] }>): void {
+function expectStablePrefix(requests: ReadonlyArray<{ messages: readonly RequestMessage[] }>): void {
   for (let i = 1; i < requests.length; i += 1) {
     const earlier = requests[i - 1]!.messages
     expect(firstDivergence(earlier, requests[i]!.messages)).toBeGreaterThanOrEqual(entriesIn(earlier).length)
@@ -99,7 +103,7 @@ function expectReconstructable({ request, events }: CapturedRequest): void {
   if (system?.type !== 'system/message') throw new Error('request surface must begin with the system prompt')
   expect(request.messages[0]).toEqual(system.data.message)
   expect(request.messages[0]!.role).toBe('system')
-  expect(request.messages[0]!.source).toEqual({ kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt' })
+  expect(request.messages[0]!.source).toEqual({ kind: 'system-prompt' })
   expect(request.tools ?? []).toEqual(header?.tools ?? [])
   expect(Object.isFrozen(request)).toBe(true)
   expect(Object.isFrozen(request.messages)).toBe(true)
@@ -140,7 +144,7 @@ describe('slice context on the native DSH loop', () => {
     expect(secondEntry.split('FIRST_ASSISTANT_MESSAGE')).toHaveLength(2)
     expect(secondEntry.split('FINAL_ASSISTANT_MESSAGE')).toHaveLength(2)
     const events = agent.session.snapshotEvents()
-    const written = events.filter(event => event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE)
+    const written = events.filter(event => event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
     const sources = written.flatMap(event => event.sourceEventSeqs ?? [])
     const assistantSources = events.filter(event => event.type === 'assistant/message' && event.data.turn === 2)
     expect(assistantSources).toHaveLength(2)
@@ -227,7 +231,7 @@ describe('slice context on the native DSH loop', () => {
     expect(systemNodes[1]!.data.message.content).toEqual([])
     expect(systemNodes[1]!.sourceEventSeqs).toEqual([prompts[1]!.seq])
     const sources = agent.session.snapshotEvents().flatMap(event => event.type === 'user/message'
-      && event.data.source.kind === 'plugin' && event.data.source.plugin === HISTORY_SOURCE ? event.sourceEventSeqs ?? [] : [])
+      && event.data.source.kind === HISTORY_SOURCE ? event.sourceEventSeqs ?? [] : [])
     const allSystem = agent.session.snapshotEvents().filter(event => event.type === 'system/message')
     for (const event of allSystem) expect(sources).not.toContain(event.seq)
     const finalSystems = h.adapter.requests[3]!.messages.filter(message => message.role === 'system')
@@ -235,6 +239,41 @@ describe('slice context on the native DSH loop', () => {
     expect(textIn(finalSystems)).toContain('UPDATED_SYSTEM_INSTRUCTION')
     expect(textIn(h.adapter.requests[3]!.messages.filter(message => message.role === 'user'))).not.toContain('UPDATED_SYSTEM_INSTRUCTION')
     expect(entriesIn(h.adapter.requests[3]!.messages).map(rangeOf)).toEqual(['1-1', '2-2'])
+  })
+
+  it('keeps system node 0 out of every seal when the host rewrites the prompt in place', async () => {
+    const h = await boot([nativeText('one'), nativeText('two'), nativeText('three'), nativeText('four')], { config: SEAL })
+    const { agent } = await create(h, 'native-system-head-rewrite')
+    await nativeSend(agent, 'first question')
+    await nativeSend(agent, 'second question')
+    // Without in-history prompt updates the host normalizes node 0 in place.
+    h.ctx.systemPrompt.section({ name: 'rewritten-head', order: 50, text: 'REWRITTEN_HEAD_INSTRUCTION' })
+    await nativeSend(agent, 'third question')
+    await nativeSend(agent, 'fourth question')
+
+    expect(h.errors).toEqual([])
+    const events = agent.session.snapshotEvents()
+    const system = events.filter(event => event.type === 'system/message')
+    expect(system.length).toBeGreaterThanOrEqual(2)
+    const head = system[0]!
+    const rewrites = system.filter(isReplacementSurfaceEvent)
+    expect(rewrites.length).toBeGreaterThanOrEqual(1)
+    for (const rewrite of rewrites) expect(rewrite.surfaceOp).toEqual({ op: 'replace', startSeq: head.seq, endSeq: head.seq })
+    expect(agent.session.surface.nodes[0]).toBe(rewrites.at(-1)!.seq)
+    const sealed = events.filter(event => event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
+    expect(sealed.length).toBe(3)
+    for (const entry of sealed) {
+      for (const event of system) expect(entry.sourceEventSeqs ?? []).not.toContain(event.seq)
+      if (isReplacementSurfaceEvent(entry)) expect(entry.surfaceOp.startSeq).not.toBe(head.seq)
+    }
+    for (const request of h.adapter.requests.slice(2)) {
+      expect(request.messages[0]!.role).toBe('system')
+      expect(textIn([request.messages[0]!])).toContain('REWRITTEN_HEAD_INSTRUCTION')
+    }
+    expect(entriesIn(h.adapter.requests[3]!.messages).map(rangeOf)).toEqual(['1-1', '2-2', '3-3'])
+    // Node 0 is the host's to rewrite; behind it, no request diverges before the entries its predecessor carried.
+    expectStablePrefix(h.adapter.requests.map(request => ({ messages: request.messages.slice(1) })))
+    for (const captured of h.captured) expectReconstructable(captured)
   })
 
   it('reconstructs every request and retains the stock turn projection through positional history replacements', async () => {
@@ -291,7 +330,7 @@ describe('slice context on the native DSH loop', () => {
     const { agent } = await create(h, 'native-runtime')
     const authority = createUserMessage({
       content: [{ type: 'text', text: 'OPAQUE_PLUGIN_AUTHORITY_SENTINEL' }],
-      source: { kind: 'plugin', plugin: 'foreign-authority', form: 'notice', summary: 'Persistent authority fixture' },
+      source: { kind: TEST_CONTEXT_SOURCE, form: 'notice', summary: 'Persistent authority fixture' },
     })
     agent.inject(authority)
     for (const input of ['first', 'second', 'third']) await nativeSend(agent, input)
@@ -317,7 +356,7 @@ describe('slice context on the native DSH loop', () => {
     await nativeSend(agent, 'third')
 
     const latestRuntime = h.adapter.requests.map(request => request.messages.filter(message =>
-      message.role === 'user' && message.source.kind === 'plugin' && message.source.plugin === '@deepseek-ai/dsh-system-prompt').at(-1))
+      message.role === 'user' && message.source?.kind === RUNTIME_CONTEXT).at(-1))
     expect(latestRuntime.map(message => message === undefined ? '' : textIn([message]))).toEqual([
       expect.stringContaining('RUNTIME_A'), expect.stringContaining('RUNTIME_B'),
       'Current runtime context: none. Earlier runtime-context snapshots no longer apply.',
@@ -347,7 +386,7 @@ describe('slice context on the native DSH loop', () => {
       await nativeSend(agent, `question ${turn}`)
       surfaceSnapshots.push(agent.session.surface.nodes.filter(seq => {
         const event = agent.session.eventAt(seq)!
-        return event.type === 'user/message' && event.data.source.kind === 'plugin' && event.data.source.plugin === '@deepseek-ai/dsh-system-prompt'
+        return event.type === 'user/message' && event.data.source.kind === RUNTIME_CONTEXT
       }).length)
     }
 
@@ -362,8 +401,7 @@ describe('slice context on the native DSH loop', () => {
     expect(surfaceSnapshots.slice(0, keepRecentTurns + 1)).toEqual([1, 2, 3, 4])
     expect([...new Set(surfaceSnapshots.slice(keepRecentTurns + 1))]).toEqual([keepRecentTurns + 1])
     const last = h.adapter.requests.at(-1)!.messages
-    const projected = last.filter(message => message.role === 'user' && message.source.kind === 'plugin'
-      && message.source.plugin === '@deepseek-ai/dsh-system-prompt')
+    const projected = last.filter(message => message.role === 'user' && message.source?.kind === RUNTIME_CONTEXT)
     expect(textIn([projected.at(-1)!])).toContain(`RUNTIME ${String(turns).padStart(6, '0')}`)
     expect(textIn(last)).not.toContain('RUNTIME 000001')
     expectStablePrefix(h.adapter.requests)
@@ -397,7 +435,7 @@ describe('slice context on the native DSH loop', () => {
     const h = await boot([nativeTool('retry-echo', 'echo'), nativeFailure(), nativeText('recovered')])
     const { agent } = await create(h, 'native-retry')
     const steering = nativeMessage('STEERING_ONCE_SENTINEL')
-    const injected = createUserMessage({ content: [{ type: 'text', text: 'INJECTED_ONCE_SENTINEL' }], source: { kind: 'plugin', plugin: 'retry-fixture' } })
+    const injected = createUserMessage({ content: [{ type: 'text', text: 'INJECTED_ONCE_SENTINEL' }], source: { kind: TEST_CONTEXT_SOURCE } })
     h.ctx.tools.register(defineContentToolFixture({
       name: 'echo', description: 'Exercise a continuation step', parameters: {},
       async execute() {
@@ -449,10 +487,11 @@ describe('slice context on the native DSH loop', () => {
 
     const continued = h.adapter.requests[1]!.messages
     const calls = continued.flatMap(message => message.content.flatMap(block => block.type === 'tool-call' ? [block.id] : []))
-    const results = continued.flatMap(message => message.content.flatMap(block => block.type === 'tool-result' ? [block] : []))
+    // Session format V4: each result is its own tool-role message answering one call.
+    const results = continued.flatMap(message => message.role === 'tool' ? [message] : [])
     expect(calls).toEqual(['multi-ok', 'multi-failed'])
-    expect(results.map(block => block.toolCallId)).toEqual(calls)
-    expect(results.map(block => block.isError ?? false)).toEqual([false, true])
+    expect(results.map(message => message.toolCallId)).toEqual(calls)
+    expect(results.map(message => message.isError ?? false)).toEqual([false, true])
     // Tool output lives in the original records, so this needs the explicit full view.
     const recalled = renderSealedTurn(agent.session.snapshotEvents(), 1, { view: 'full' })!.rendered
     expect(recalled).toContain('MULTI_SUCCESS_SENTINEL')
@@ -501,7 +540,7 @@ describe('slice context on the native DSH loop', () => {
       if (turn === 2) {
         const source = agent.session.surface.nodes.filter(seq => agent.session.eventAt(seq)?.type !== 'system/message')
         agent.session.append('user/message', createUserMessage({
-          content: [{ type: 'text', text: 'EXTERNAL_CANONICAL_SUMMARY' }], source: { kind: 'plugin', plugin: 'external-compaction' },
+          content: [{ type: 'text', text: 'EXTERNAL_CANONICAL_SUMMARY' }], source: { kind: TEST_CONTEXT_SOURCE },
         }), {
           surfaceOp: { op: 'replace', startSeq: source[0]!, endSeq: source[source.length - 1]! }, sourceEventSeqs: source,
         })
@@ -529,7 +568,7 @@ describe('slice context on the native DSH loop', () => {
     h.ctx.tools.register(defineContentToolFixture({
       name: 'echo', description: 'Add context after one tool pair', parameters: {},
       async execute() {
-        agent.inject(createUserMessage({ content: [{ type: 'text', text: 'PROTECTED_AFTER_TOOL' }], source: { kind: 'plugin', plugin: 'tool-authority' } }))
+        agent.inject(createUserMessage({ content: [{ type: 'text', text: 'PROTECTED_AFTER_TOOL' }], source: { kind: TEST_CONTEXT_SOURCE } }))
         return [{ type: 'text', text: 'tool result' }]
       },
     }))
@@ -541,7 +580,7 @@ describe('slice context on the native DSH loop', () => {
     for (const request of h.adapter.requests) {
       const blocks = request.messages.flatMap(message => message.content)
       expect(blocks.flatMap(block => block.type === 'tool-call' ? [block.id] : []).sort())
-        .toEqual(blocks.flatMap(block => block.type === 'tool-result' ? [block.toolCallId] : []).sort())
+        .toEqual(request.messages.flatMap(message => message.role === 'tool' ? [message.toolCallId] : []).sort())
     }
     expect(textIn(h.adapter.requests[2]!.messages)).toContain('PROTECTED_AFTER_TOOL')
     expect(textIn(h.adapter.requests[3]!.messages)).toContain('PROTECTED_AFTER_TOOL')
@@ -551,6 +590,51 @@ describe('slice context on the native DSH loop', () => {
     expect(entriesIn(h.adapter.requests[3]!.messages).map(rangeOf)).toEqual(['1-1', '1-1', '2-2'])
     expect(entriesIn(h.adapter.requests[3]!.messages)[0]).toContain('[tool turn 1 step 1')
     expect(h.errors).toEqual([])
+    expectStablePrefix(h.adapter.requests)
+    for (const captured of h.captured) expectReconstructable(captured)
+  })
+
+  it('keeps host developer/message tool-set notices on the surface and out of every entry when the tool set changes', async () => {
+    const h = await boot([nativeText('first answer'), nativeText('second answer'), nativeText('third answer'), nativeText('fourth answer')], { config: SEAL })
+    const { agent } = await create(h, 'native-developer-tool-change')
+    const tool = (name: string) => defineContentToolFixture({ name, description: `fixture ${name}`, parameters: {}, execute: async () => [{ type: 'text', text: name }] })
+    let runtime = () => {}
+    const turn = async (n: number, change?: () => void) => {
+      runtime()
+      runtime = h.ctx.systemPrompt.context({ name: 'native-runtime', order: 50, text: `RUNTIME_TURN_${n}` })
+      change?.()
+      await nativeSend(agent, `question ${n}`)
+    }
+    let disposeFirst = () => {}
+    await turn(1, () => { disposeFirst = h.ctx.tools.register(tool('first_fixture_tool')) })
+    // A tool-set change between requests makes the host append a developer/message
+    // (source tool-registry) inside the next turn, after its runtime snapshot and header.
+    await turn(2, () => { h.ctx.tools.register(tool('added_fixture_tool')) })
+    await turn(3, () => disposeFirst())
+    await turn(4)
+
+    expect(h.errors).toEqual([])
+    const events = agent.session.snapshotEvents()
+    const developer = events.filter(event => event.type === 'developer/message')
+    expect(developer.map(event => event.type === 'developer/message' ? [event.data.turn, event.data.message.source] : []))
+      .toEqual([[2, { kind: 'tool-registry' }], [3, { kind: 'tool-registry' }]])
+    const surface = agent.session.surface.nodes
+    const sealed = events.filter(event => event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
+    expect(sealed.length).toBeGreaterThanOrEqual(3)
+    for (const event of developer) {
+      expect(surface).toContain(event.seq)
+      for (const entry of sealed) {
+        expect(entry.sourceEventSeqs ?? []).not.toContain(event.seq)
+        if (isReplacementSurfaceEvent(entry)) {
+          expect(event.seq < entry.surfaceOp.startSeq || event.seq > entry.surfaceOp.endSeq).toBe(true)
+        }
+      }
+    }
+    // A protected node cuts its turn: the superseded snapshot before the developer node and the
+    // reply after it seal as two entries with the same turn range.
+    const last = h.adapter.requests.at(-1)!.messages
+    expect(entriesIn(last).map(rangeOf)).toEqual(['1-1', '2-2', '2-2', '3-3', '3-3'])
+    expect(textIn(last)).not.toContain('RUNTIME_TURN_2')
     expectStablePrefix(h.adapter.requests)
     for (const captured of h.captured) expectReconstructable(captured)
   })
@@ -590,14 +674,16 @@ describe('slice context on the native DSH loop', () => {
     expect(h.adapter.requests).toHaveLength(4)
     expect(h.errors).toEqual([])
     const result = agent.session.snapshotEvents().find(event => event.type === 'tool/result'
-      && event.surfaceOp === 'append' && event.data.message.content[0]?.toolCallId === 'recall-original')
+      && event.surfaceOp === 'append' && event.data.message.toolCallId === 'recall-original')
     if (result?.type !== 'tool/result') throw new Error('missing recall tool result')
-    const text = result.data.message.content[0]!.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+    const text = result.data.message.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
     const records = JSON.parse(text.split('## Original records (including reasoning, tool output and recorded file metadata)\n')[1]!) as Array<{
-      type: string; data: { message?: { content: Array<{ toolCallId?: string; content?: Array<{ type: string; text?: string }> }> } }
+      type: string; data: { message?: { role?: string; toolCallId?: string; content: Array<{ type: string; text?: string }> } }
     }>
-    const record = records.find(event => event.type === 'tool/result' && event.data.message?.content[0]?.toolCallId === 'large-result')
-    expect(record?.data.message?.content[0]?.content?.[0]?.text).toBe(original)
+    // Session format V4 records carry the tool-role message itself.
+    const record = records.find(event => event.type === 'tool/result' && event.data.message?.toolCallId === 'large-result')
+    expect(record?.data.message?.role).toBe('tool')
+    expect(record?.data.message?.content[0]?.text).toBe(original)
     expect(h.adapter.requests[3]!.messages).toContainEqual(result.data.message)
     for (const captured of h.captured) expectReconstructable(captured)
   })
@@ -620,9 +706,9 @@ describe('slice context on the native DSH loop', () => {
     expect(h.errors).toEqual([])
     expect(agent.session.snapshotEvents().some(event => event.type === 'tool/result' && isReplacementSurfaceEvent(event))).toBe(true)
     const result = agent.session.snapshotEvents().find(event => event.type === 'tool/result'
-      && event.surfaceOp === 'append' && event.data.message.content[0]?.toolCallId === 'recall-step')
+      && event.surfaceOp === 'append' && event.data.message.toolCallId === 'recall-step')
     if (result?.type !== 'tool/result') throw new Error('missing step recall')
-    const text = result.data.message.content[0]!.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
+    const text = result.data.message.content.flatMap(block => block.type === 'text' ? [block.text] : []).join('')
     expect(text).toContain(original)
     expect(text.split('[result]\n')).toHaveLength(2)
     expect(h.adapter.requests[3]!.messages).toContainEqual(result.data.message)

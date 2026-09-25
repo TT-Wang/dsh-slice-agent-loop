@@ -7,13 +7,12 @@
  *      a result left unshown by a blocked turn is folded when the tape's keep window still holds that turn raw, and sealed with it otherwise.
  */
 import { mkdtemp, rm } from 'node:fs/promises'
-import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { StreamChunk } from '@deepseek-ai/dsh-llm'
-import { isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SESSION_FORMAT_VERSION, isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SpillLocal from '@deepseek-ai/dsh-spill-local'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { EXPAND_TOOL_NAME, FOLD_STATS, resultBySeq, spillLocatorOf, ToolResultFold } from '../src/fold/index.js'
@@ -52,7 +51,8 @@ const replacements = (agent: Agent) => events(agent).filter((e) => e.type === 't
 const originals = (agent: Agent) => events(agent).filter((e) => e.type === 'tool/result' && isAppendSurfaceEvent(e))
 function resultTextOf(e: SessionEvent): string {
   if (e.type !== 'tool/result') return ''
-  return e.data.message.content.flatMap((b) => b.content.flatMap((x) => x.type === 'text' ? [x.text] : [])).join('\n')
+  // Session format V4: the tool-role message's content is the result itself.
+  return e.data.message.content.flatMap((x) => x.type === 'text' ? [x.text] : []).join('\n')
 }
 /** The model reads the fold view like a model would: at step `at` it decides its next call from the log so far.
  *  Registered `prepend` so it is outermost: the fold itself runs after the inner step decision (it only folds an entered
@@ -87,24 +87,27 @@ describe('expand_result by durable seq', () => {
     const h = await boot([nativeTool('read-original', 'read', { file_path: 'notes.md' })], { config: { fold: { pinSteps: 0 }, digest: { minChars: 1500 } } })
     tool(h, 'read', () => BIG)
     const { agent } = await create(h, 'seq-format-boundary')
+    // Session format V4 is current; V3 seqs (and alpha.2's V2 seqs) predate the V3-to-V4 migration.
+    expect(SESSION_FORMAT_VERSION).toBe(4)
     scriptAt(agent, 2, () => nativeTool('bare-seq', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq }), h.responses)
-    scriptAt(agent, 3, () => nativeTool('old-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: SESSION_FORMAT_VERSION - 1 }), h.responses)
-    scriptAt(agent, 4, () => nativeTool('fresh-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: SESSION_FORMAT_VERSION }), h.responses)
-    scriptAt(agent, 5, () => nativeTool('stable-address', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }), h.responses)
-    scriptAt(agent, 6, () => nativeText('done'), h.responses)
+    scriptAt(agent, 3, () => nativeTool('v3-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: 3 }), h.responses)
+    scriptAt(agent, 4, () => nativeTool('v2-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: 2 }), h.responses)
+    scriptAt(agent, 5, () => nativeTool('fresh-format', EXPAND_TOOL_NAME, { seq: originals(agent)[0]!.seq, formatVersion: 4 }), h.responses)
+    scriptAt(agent, 6, () => nativeTool('stable-address', EXPAND_TOOL_NAME, { turn: 1, step: 1, call: 1 }), h.responses)
+    scriptAt(agent, 7, () => nativeText('done'), h.responses)
     await nativeSend(agent, 'retrieve the evidence')
     expect(h.errors).toEqual([])
-    for (const id of ['bare-seq', 'old-format']) {
+    for (const id of ['bare-seq', 'v3-format', 'v2-format']) {
       const error = originals(agent).find(event => event.type === 'tool/result' && event.data.message.source?.callId === id)!
-      expect(error.type === 'tool/result' && error.data.message.content[0].isError).toBe(true)
-      expect(resultTextOf(error)).toContain(`numeric seq requires formatVersion ${SESSION_FORMAT_VERSION}`)
+      expect(error.type === 'tool/result' && error.data.message.isError).toBe(true)
+      expect(resultTextOf(error)).toContain('numeric seq requires formatVersion 4 from a fresh locator')
       expect(resultTextOf(error)).toContain('Do not relabel an old locator')
       expect(resultTextOf(error)).toContain('recall_turn')
       expect(resultTextOf(error)).not.toContain('row 55 payload')
     }
     for (const id of ['fresh-format', 'stable-address']) {
       const result = originals(agent).find(event => event.type === 'tool/result' && event.data.message.source?.callId === id)!
-      expect(result.type === 'tool/result' && result.data.message.content[0].isError).toBe(false)
+      expect(result.type === 'tool/result' && result.data.message.isError).toBe(false)
       expect(resultTextOf(result)).toContain('row 55 payload')
     }
     expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, backedOff: [] })
@@ -131,7 +134,7 @@ describe('expand_result by durable seq', () => {
     expect(h.errors).toEqual([])
     const original = originals(agent)[0]!
     // the view names both locators
-    expect(requestText(h, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 1, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${original.seq}, \\"formatVersion\\": 3})`)
+    expect(requestText(h, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 1, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${original.seq}, \\"formatVersion\\": ${SESSION_FORMAT_VERSION}})`)
     expect(requestText(h, 1)).not.toContain('row 55 payload')
     // seq of the replacement resolves to the original through sourceEventSeqs[0]
     expect(viewSeq).toBeGreaterThan(original.seq)
@@ -142,9 +145,9 @@ describe('expand_result by durable seq', () => {
     expect(requestText(h, 3)).toContain('[read · turn 1 step 1 call 1 · lines 2-3 of 120]')
     expect(requestText(h, 3)).toContain('2: row 1 payload')
     // a seq that is not a tool result is a clear error, not a silent miss
-    const bad = originals(agent).find((e) => e.type === 'tool/result' && e.data.message.content[0]?.toolCallId === 'c4')!
+    const bad = originals(agent).find((e) => e.type === 'tool/result' && e.data.message.toolCallId === 'c4')!
     expect(resultTextOf(bad)).toContain(`seq ${badSeq} is a user/message event, not a tool result`)
-    expect(bad.type === 'tool/result' && bad.data.message.content[0]?.isError).toBe(true)
+    expect(bad.type === 'tool/result' && bad.data.message.isError).toBe(true)
     // Both retrieval calls are counted, but a partial alias is not a second full recovery.
     const stats = FOLD_STATS.get(agent.session)!
     expect(stats.folded).toBe(1)
@@ -171,7 +174,7 @@ describe('post-execute spill arm', () => {
     expect(spillLocatorOf(resultTextOf(logged))).toMatchObject({ bytes: Buffer.byteLength(LOG, 'utf8') })
     // pre-step adds both expand_result locators to the spilled view before it is first sent; that is not counted as a fold
     expect(requestText(h, 1)).toContain(`stored at`)
-    expect(requestText(h, 1)).toContain(`or ${EXPAND_TOOL_NAME}({\\"seq\\": ${logged.seq}, \\"formatVersion\\": 3}) returns the full text]`)
+    expect(requestText(h, 1)).toContain(`or ${EXPAND_TOOL_NAME}({\\"seq\\": ${logged.seq}, \\"formatVersion\\": ${SESSION_FORMAT_VERSION}}) returns the full text]`)
     expect(requestText(h, 1)).toContain('ERROR worker 7 failed')
     expect(requestText(h, 1)).not.toContain('tick 300 ')
     // the original comes back from the locator, whole or filtered
@@ -261,7 +264,7 @@ describe('resume from snapshotEvents', () => {
     const fresh = originals(two.agent).at(-1)!
     expect(fresh.seq).toBeGreaterThan(seed.length - 1)
     expect(folds.map((e) => (e as { sourceEventSeqs?: number[] }).sourceEventSeqs)).toEqual([[fresh.seq]])
-    expect(requestText(second, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 2, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${fresh.seq}, \\"formatVersion\\": 3})`)
+    expect(requestText(second, 1)).toContain(`${EXPAND_TOOL_NAME}({\\"turn\\": 2, \\"step\\": 1, \\"call\\": 1}) or ${EXPAND_TOOL_NAME}({\\"seq\\": ${fresh.seq}, \\"formatVersion\\": ${SESSION_FORMAT_VERSION}})`)
     expect(FOLD_STATS.get(two.agent.session)).toMatchObject({ folded: 1, expanded: 0, backedOff: [] })
   })
 
@@ -318,7 +321,7 @@ describe('resume from snapshotEvents', () => {
     await nativeSend(two.agent, 'continue')
 
     expect(second.errors).toEqual([])
-    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq},\\"formatVersion\\":3})`)
+    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq},\\"formatVersion\\":${SESSION_FORMAT_VERSION}})`)
     expect(requestText(second, 0)).not.toContain('row 55 payload')
   })
 

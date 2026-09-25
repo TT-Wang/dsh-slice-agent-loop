@@ -101,8 +101,8 @@ export function reduceContinuityEvents(
       try { args = typeof data.arguments === 'string' ? JSON.parse(data.arguments) : data.arguments } catch { args = undefined }
       calls.set(data.callId, { name: String(data.name), arguments: args })
     } else if (event.type === 'tool/result' && event.surfaceOp === 'append' && data.turn === turn) {
-      const content = asRecord(data.message).content
-      const block = asRecord(Array.isArray(content) ? content[0] : undefined)
+      // Session format V4: the tool-role message itself carries toolCallId, isError and content.
+      const block = asRecord(data.message)
       const resultText = textOf(block)
       trackToolOutcome(c, block.isError === true, resultText)
       const call = typeof block.toolCallId === 'string' ? calls.get(block.toolCallId) : undefined

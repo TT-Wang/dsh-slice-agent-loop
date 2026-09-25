@@ -19,7 +19,8 @@ const call = (turn: number, callId: string, name: string, args: unknown): Record
 })
 const result = (turn: number, callId: string, meta?: unknown, isError = false, text = 'ok'): RecordedEvent => ({
   type: 'tool/result', surfaceOp: 'append',
-  data: { turn, step: 1, message: { content: [{ type: 'tool-result', toolCallId: callId, isError, content: [{ type: 'text', text }] }] }, ...(meta === undefined ? {} : { meta }) },
+  // Session format V4: a tool-role message answers exactly one call.
+  data: { turn, step: 1, message: { role: 'tool', toolCallId: callId, source: { kind: 'tool', callId }, isError, content: [{ type: 'text', text }] }, ...(meta === undefined ? {} : { meta }) },
 })
 const readMeta = (path = 'remote://workspace/a.ts') => ({ path, offset: 1, totalLines: 1, lines: [{ number: 1, text: 'remote text' }] })
 const read = (turn: number, callId: string, path = 'remote://workspace/a.ts'): RecordedEvent[] => [
@@ -115,9 +116,12 @@ describe('recorded memory replay', () => {
   })
 
   it('keeps runtime and plugin contexts out of the human conversation ring', () => {
+    // V4 producer kinds: the runtime-context projection and a third-party plugin as the V3-to-V4 migration names it.
     const runtime = user('runtime secrets')
-    runtime.data = { ...(runtime.data as object), source: { kind: 'plugin', plugin: '@deepseek-ai/dsh-system-prompt', form: 'state' } }
-    const c = reduceContinuityEvents([start(1), runtime, user('human task'), user('steering'), assistant(1, 'done'), end(1)], 'session')
+    runtime.data = { ...(runtime.data as object), source: { kind: 'runtime-context', form: 'state' } }
+    const plugin = user('plugin notice')
+    plugin.data = { ...(plugin.data as object), source: { kind: 'plugin:acme' } }
+    const c = reduceContinuityEvents([start(1), runtime, user('human task'), plugin, user('steering'), assistant(1, 'done'), end(1)], 'session')
     expect(c.goal).toBe('human task')
     expect(c.conversation).toEqual([{ user: 'human task\nsteering', assistant: 'done', turn: 1 }])
   })

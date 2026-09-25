@@ -2,7 +2,8 @@
 import { readFile } from 'node:fs/promises'
 import { isAppendSurfaceEvent, type SessionEvent, type ToolResultMessage } from '@deepseek-ai/dsh-session'
 
-type ResultBlock = ToolResultMessage['content'][number]
+/** Session format V4: a tool/result event carries one tool-role message, so its only block is the message itself. */
+type ResultBlock = ToolResultMessage
 export type ResultLocator = { seq: number } | { turn: number; step: number; call: number }
 
 function noteCalls(names: Map<string, string>, event: SessionEvent): void {
@@ -13,7 +14,7 @@ function noteCalls(names: Map<string, string>, event: SessionEvent): void {
 }
 
 function blocksOf(message: ToolResultMessage, block?: number): readonly ResultBlock[] {
-  const blocks = message.content.filter((item) => item.type === 'tool-result')
+  const blocks = [message]
   if (block === undefined) return blocks
   if (!Number.isInteger(block) || block < 1) throw new Error('expand_result: "block" must be a positive integer')
   const selected = blocks[block - 1]
@@ -27,7 +28,7 @@ function textOf(block: ResultBlock): string {
 
 function describeResult(calls: ReadonlyMap<string, string>, message: ToolResultMessage, block?: number): { name: string; text: string } {
   const blocks = blocksOf(message, block)
-  const names = [...new Set(blocks.map((item) => calls.get(String(item.toolCallId ?? message.source?.callId ?? '')) ?? 'tool'))]
+  const names = [...new Set(blocks.map((item) => calls.get(String(item.toolCallId)) ?? 'tool'))]
   return { name: names.join(', ') || 'tool', text: blocks.map(textOf).join('\n') }
 }
 
@@ -40,7 +41,7 @@ function resultEventAt(events: readonly SessionEvent[], turn: number, step: numb
   return undefined
 }
 
-/** The ordinal counts original result events, never replacement copies or sibling blocks. */
+/** The ordinal counts original result events (one per call in V4), never replacement copies. */
 export function fullResultAt(events: readonly SessionEvent[], turn: number, step: number, call: number, block?: number): { name: string; text: string } | null {
   const result = resultEventAt(events, turn, step, call)
   if (result === undefined) return null
@@ -88,30 +89,63 @@ export function spillLocatorOf(text: string): { bytes: number; locator: string }
   return match ? { bytes: Number(match[1]), locator: match[2]! } : undefined
 }
 
-export function storedTextLocatorOf(logged: string): { locator: string; bytes?: number } | undefined {
-  // Native spill-policy bounds nested dispatch log copies separately. The
-  // local backend's complete notice has fixed retrieval guidance; match that
-  // suffix so a period inside a path cannot truncate the locator.
-  const native = /(?:^|\n\n)\(Omitted \d+ bytes\. Full formatted result stored at: ([^\n]+)\. Use read with offset\/limit, or grep this path to search within it\.\)$/.exec(logged)
-  return spillLocatorOf(logged) ?? (native ? { locator: native[1]! } : undefined)
+/** The native spill-policy notice: `(Omitted N bytes.[ Omitted M images.] Full formatted result stored at: …)`. */
+function nativeSpillLocatorOf(logged: string): { locator: string } | undefined {
+  // The local backend's complete notice has fixed retrieval guidance; match
+  // that suffix so a period inside a path cannot truncate the locator. DSH
+  // 0.1.7 adds an image count when whole images were omitted as well.
+  const native = /(?:^|\n\n)\(Omitted \d+ bytes\.(?: Omitted \d+ images\.)? Full formatted result stored at: ([^\n]+)\. Use read with offset\/limit, or grep this path to search within it\.\)$/.exec(logged)
+  return native ? { locator: native[1]! } : undefined
 }
 
-export async function originalText(logged: string, where: string): Promise<string> {
-  const spill = storedTextLocatorOf(logged)
-  if (spill === undefined) return logged
+export function storedTextLocatorOf(logged: string): { locator: string; bytes?: number } | undefined {
+  return spillLocatorOf(logged) ?? nativeSpillLocatorOf(logged)
+}
+
+type StoredLocator = { locator: string; bytes?: number }
+/** One text part of a logged result, and the stored original it previews, if any. */
+export type LoggedTextPart = { text: string; preview?: StoredLocator }
+
+/**
+ * The text parts of one logged result content. Native spill-policy stores the
+ * whole formatted content (every text part in order, images as descriptors)
+ * and ends the retained [head, image…, tail] copy with its notice, so that
+ * notice on the last text part previews all of them: they form one preview
+ * part. A fold spill preview identifies only its own part.
+ */
+export function loggedTextParts(content: ReadonlyArray<{ type: string; text?: unknown }>): LoggedTextPart[] {
+  const texts = content.flatMap((part) => part.type === 'text' && typeof part.text === 'string' ? [part.text] : [])
+  const native = texts.length > 1 && spillLocatorOf(texts.at(-1)!) === undefined ? nativeSpillLocatorOf(texts.at(-1)!) : undefined
+  if (native !== undefined) return [{ text: texts.join('\n'), preview: native }]
+  return texts.map((text) => {
+    const preview = storedTextLocatorOf(text)
+    return preview === undefined ? { text } : { text, preview }
+  })
+}
+
+async function readStored(spill: StoredLocator, where: string): Promise<string> {
   try { return await readFile(spill.locator, 'utf8') } catch (error) {
     throw new Error(`expand_result: the full text of ${where} (${spill.bytes ?? 'unknown'} bytes) was stored at ${spill.locator} and cannot be read from here (${String(error)}); read that locator with the file tools instead`)
   }
 }
 
-/** Hydrate each original text part before joining siblings or parts. A spill
- * preview identifies only its own part, never the text that follows it. */
+export async function originalText(logged: string, where: string): Promise<string> {
+  const spill = storedTextLocatorOf(logged)
+  return spill === undefined ? logged : await readStored(spill, where)
+}
+
+/** The stored original of one logged text part, or its own text when it previews nothing. */
+export async function originalPartText(part: LoggedTextPart, where: string): Promise<string> {
+  return part.preview === undefined ? part.text : await readStored(part.preview, where)
+}
+
+/** Hydrate each original text part before joining the parts; see {@link loggedTextParts}. */
 export async function originalResultText(events: readonly SessionEvent[], locator: ResultLocator, where: string, block?: number): Promise<string> {
   const event = 'seq' in locator ? originalResultAt(events, locator.seq)
     : resultEventAt(events, locator.turn, locator.step, locator.call)
   if (event === undefined) throw new Error(`expand_result: no tool result recorded at ${where}`)
   return (await Promise.all(blocksOf(event.data.message, block).map(async (item, index) => (
-    await Promise.all(item.content.flatMap((part, partIndex) => part.type === 'text'
-      ? [originalText(part.text, `${where} block ${block ?? index + 1} text part ${partIndex + 1}`)] : []))
+    await Promise.all(loggedTextParts(item.content).map((part, partIndex) =>
+      originalPartText(part, `${where} block ${block ?? index + 1} text part ${partIndex + 1}`)))
   ).join('\n')))).join('\n')
 }
