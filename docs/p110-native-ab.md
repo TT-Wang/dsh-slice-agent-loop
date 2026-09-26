@@ -1,14 +1,13 @@
 # P1-10 native A/B: one teaching site per recall rule
 
-> **Status: DRAFT pre-registration (2026-09-27, build stage).** The harness, arms,
-> tasks, metrics and gates below are built and dry-run offline. No paid model call
-> has been made. The draft becomes the pre-registration when §13 "Frozen
-> parameters" is filled after the pilot and committed before the batch; the pilot
-> may still change a task (§5), nothing else. §14 "Results" stays empty until the
-> batch and the report exist. Revised before any paid call (same day, fix stage): access
-> flags, the leak rule, "insufficient" verdicts, budget accounting, read ranges, one turn
-> per prompt, infra classification, answer classes and the secrets hold-back; §15 lists
-> each change.
+> **Status: PRE-REGISTRATION, frozen 2026-09-27 before the batch.** The harness, arms,
+> tasks, metrics and gates below were built and dry-run offline, revised before any paid
+> call (§15), then checked by a paid warmup and a control-only pilot. The pilot changed
+> the delivery prompts of r1, r2 and r4 and the T1 prompt of r5, added the delivery
+> validity rule and the r5 write-leak exception, and fixed one access-flag false
+> positive; §13 records the pilot, every change and the frozen parameters. Nothing
+> below changes after this commit. §14 "Results" stays empty until the batch and the
+> report exist.
 
 ## 1. Question
 
@@ -32,7 +31,7 @@ means no large regression was seen, not equivalence.
 
 | arm | commit | branch | what changes |
 |---|---|---|---|
-| control | `95d40ce` (origin/main; `src/` and `lib/` byte-identical to `ba12a5b`) | detached | nothing |
+| control | `95d40ce` (origin/main when the arms were built; `src/` and `lib/` byte-identical to `ba12a5b`; origin/main has since moved to `8241118`, a docs-only merge) | detached | nothing |
 | arm 1 | `4fe4389` | `exp/p110-ab-arm1` (from `95d40ce`) | A + C below |
 | arm 2 | `147d2d4` | `exp/p110-ab-arm2` (from arm 1) | A + C + F |
 
@@ -193,11 +192,11 @@ correct exam answer requires recall. Oracles never live in the workdir.
 | alias | task | turns | step cap | exam | source |
 |---|---|---|---|---|---|
 | hello | `hello` | 1 | 4 | – | warmup: "Reply with exactly: HELLO"; always passes |
-| r1 | `p110_r1_fixture_fp` | 6 | 12 | T5 | dsh-slice `r2b_tool_only`: prompts P1, P2, P6, P10, P11, P12 verbatim; the hook deletes `tools/check_fixtures.py` and `fixtures/` after T2 (replaces r2b's deletion turn). Oracle: `FX-8b69ed6e`; decoys `FX-3c1a9f04`, `FX-8b69ed7a`, `FX-e2d40b91` in the T3/T4 floods. |
-| r2 | `p110_r2_superseded_stamp` | 7 | 12 | T6 | dsh-slice `r2d_superseded_fact`: prompts P1, P2, P4, P6, P10, P13, P14; the hook deletes `config/` and `tools/stamp.py` after T4. Current `CFG-8d2e0fac` (T4), stale `CFG-81d29c44` (T2), decoys in the floods; two locators from different turns. |
+| r1 | `p110_r1_fixture_fp` | 6 | 12 | T5 | dsh-slice `r2b_tool_only`: prompts P1, P2, P6, P10, P11, P12 verbatim, except that P1 asks to run the script as is, without redirection or a pipe (pilot, §13); the hook deletes `tools/check_fixtures.py` and `fixtures/` after T2 (replaces r2b's deletion turn). Oracle: `FX-8b69ed6e`; decoys `FX-3c1a9f04`, `FX-8b69ed7a`, `FX-e2d40b91` in the T3/T4 floods. |
+| r2 | `p110_r2_superseded_stamp` | 7 | 12 | T6 | dsh-slice `r2d_superseded_fact`: prompts P1, P2, P4, P6, P10, P13, P14, with P2 and P6 (T2, T4) asking to run the script as is, without redirection or a pipe (pilot, §13); the hook deletes `config/` and `tools/stamp.py` after T4. Current `CFG-8d2e0fac` (T4), stale `CFG-81d29c44` (T2), decoys in the floods; two locators from different turns. |
 | r3 | `p110_r3_runbook_middle` | 3 | 12 | T3 | new. A seeded 420-line, 28 KB prose runbook (above the fold's 6000-char threshold, no line structured, code-like or log-like to the digest). T1: read it with the read tool, write the night-shift escalation extension (`64471`, line 180; decoy `64417` in the kept head) to `answers/ext.txt`: in-turn fold recovery, the direct probe of C2. The hook deletes `docs/` after T1; T2 filler (`slugify`); T3: the backup datacenter (`Brackenfold`, line 300; decoy `Aldergate` on the kept last line): cross-turn recall of the T1 read. A cell is valid only if the T1 read was folded. |
-| r4 | `p110_r4_probe_compare` | 4 | 12 | T4 | new. `tools/probe.py --region us` (T1) and `--region eu` (T2) print a run id and an 8-endpoint p50/p95 table derived from sha256; never restated; the hook deletes `tools/` after T2; T3 filler (`pct`); T4 writes `shipping,690,291` (highest us p95, then eu). Swapped regions are detected; one leading CSV header line whose value fields are not numbers is ignored. |
-| r5 | `p110_r5_initial_failures` | 2 | 60 | T2 | dsh-tool-result-fold `f3_test_suite_fix`: T1 fixes a red 400-test suite with 5 planted bugs (turn timeout 40 min); T2 lists the tests that failed before any change, only recoverable from T1 tool output. The truth file moved from `<workdir>/.truth/` to `<workdir>.truth.json`. |
+| r4 | `p110_r4_probe_compare` | 4 | 12 | T4 | new. `tools/probe.py --region us` (T1) and `--region eu` (T2), each run "exactly as written (no redirection, no pipe)" (pilot, §13), print a run id and an 8-endpoint p50/p95 table derived from sha256; never restated; the hook deletes `tools/` after T2; T3 filler (`pct`); T4 writes `shipping,690,291` (highest us p95, then eu). Swapped regions are detected; one leading CSV header line whose value fields are not numbers is ignored. |
+| r5 | `p110_r5_initial_failures` | 2 | 60 | T2 | dsh-tool-result-fold `f3_test_suite_fix`: T1 fixes a red 400-test suite with 5 planted bugs (turn timeout 40 min) and replies "just DONE and the final pass count, without summarizing the fixes" (pilot, §13); T2 lists the tests that failed before any change, only recoverable from T1 tool output. The truth file moved from `<workdir>/.truth/` to `<workdir>.truth.json`. |
 | c1 | `lh1_incremental_build` | 8 | 14 | – | sliceagent h2h, copied as is: 8 dependent turns building `calc.py`; cross-turn and post-edit re-reads of the model's own file. |
 | c2 | `m3_consistency_bugfix` | 1 | 26 | – | sliceagent h2h, copied as is: one invariant across 4 modules; same-turn re-read and verification behaviour. |
 
@@ -216,6 +215,11 @@ Oracle tokens have three roles per exam (`exams` in each `meta.json`):
   (default: the recall tokens). r4: anything the probe printed. r5: a `FAILED` marker for
   one of the ten tests, or the truth file's `"failing"` key; the test names themselves are
   in the workspace's `tests/`, so they are not evidence.
+
+**Delivery** (r1, r2, r4; `delivery` in `meta.json`): the turns that print the exam's fact
+(r1 T1; r2 T2 and T4; r4 T1 and T2) must show it in a non-recall tool result. A run whose
+output went to `/dev/null` leaves the exam unanswerable by construction, which the pilot
+met twice (§13); such a cell is invalid (§7), not a failure.
 
 `scripts/ab/selfcheck_tasks.py` shows each oracle failing on the untouched workdir,
 passing on a correct end state (also with an r4 header line) and naming decoy, stale,
@@ -308,7 +312,12 @@ All from the session log (`ab_metrics.py`), one row per cell.
   verbatim), or in a tool input before the exam turn that writes it to a file: `write`
   or `edit` content, or a bash `echo`/`printf`/`cat` into a file, `tee` or a heredoc.
   Other tool inputs never reach the tape (a tool line carries name, size and locator), so
-  running a failing test by name is not a leak.
+  running a failing test by name is not a leak. r5 excepts write and edit calls on files
+  under `textkit/` (`leak_write.skip_paths`): the required fix edits the buggy function and
+  so names it, while the edited file holds every function id anyway; a notes file or any
+  other write naming a fixed function still counts.
+- **Delivery.** For each delivery turn (§4), whether a non-recall tool result of that turn
+  names the exam's fact; reported per cell without the token.
 - **Oracle via the file system.** In the exam turn, in log order: a non-recall tool
   result (bash, read, grep, glob, …) names a file-system token (§4) before any recall
   result did and before the model itself wrote it (in assistant text or a tool input,
@@ -320,7 +329,8 @@ All from the session log (`ab_metrics.py`), one row per cell.
   absolute paths alike; `/usr`, `/bin`, `/sbin`, `/System`, `/Library`, `/opt/homebrew`,
   `/etc` and `/dev/null` are exempt, `/tmp` and `/var` are not), on `~`, `$HOME` or
   `$TMPDIR`, on `/` given to `find`, `ls`, `grep`, `du`, `cat` and similar walkers, on
-  `mdfind` or `locate`, and wherever it names `sessions/`, `.zstd`, `.truth`,
+  `mdfind` or `locate` as the command word of a pipeline stage (not as text: a heredoc
+  comment "# locate …" is no search), and wherever it names `sessions/`, `.zstd`, `.truth`,
   `session.v4`, a `home-<arm>` or the harness. A call naming `.env`, `DSH_HOME` or
   `~/.dsh` is flagged as a secret reference (§5 step 7). The sed, awk and grep pattern
   argument is not a path.
@@ -339,7 +349,8 @@ one tool list and one system prompt for the session; one turn per prompt (user p
 turn ends = prompts, no goal-round message); no `/private` or `/Users` in the system
 prompt; zero compaction events; tape headers and tool lines in the arm's form; for arm 1
 and arm 2 the per-request prefix at least 700 chars smaller than control and every tape
-header 76 or 78 chars; for r3 a fold of the T1 read. Otherwise the cell is rerun, at most
+header 76 or 78 chars; for r3 a fold of the T1 read; for r1, r2 and r4 the exam's fact in
+a non-recall tool result of every delivery turn (§4). Otherwise the cell is rerun, at most
 2 attempts. A pair counts only when both its cells are valid; dropped pairs are listed in
 the report.
 
@@ -503,18 +514,104 @@ lines).
   that may still hold the task's sources) and the harness. Access outside the workdir is
   flagged by path and the oracle's arrival by content (§6); a path built at run time
   inside a script and read without printing an oracle token would slip past both.
-- r5 is expected to leave G2 often: a T1 closeout that names the fixed functions is a
-  leak by the rule above, since the failing list follows from them.
+- r5 can still leave G2: any T1 text that names the fixed functions is a leak by §6, since
+  the failing list follows from them. The first r5 pilot's closeout did; after the pilot
+  change (§13) the re-pilot's did not. With r5 out of every pair, G2 would rest on at
+  most 12 of 15 pairs against its minimum of 10.
 - Provider weather (latency, rate limits, cache eviction, peak hours) is controlled by
   running the arms of a pair concurrently and interleaving reps; timestamps are kept.
 
-## 13. Frozen parameters (fill after the pilot, commit before the batch)
+## 13. Frozen parameters and pilot (pre-registration, committed before the batch)
 
-- Harness commit: _TBD_
-- Arm tarballs: §2 (sha256 above; `SHA256SUMS` next to them)
-- Fingerprints: §3, `docs/ab/p110-2026-09-27/fingerprints.json`
-- Price sheet: §10; seed: 20260927; reps: 3; `--parallel-arms`; `--budget-usd 10`
-- Pilot outcome and any task change: _TBD_
+- **Harness:** commit `58363c5` (`scripts/ab/` tree `c3a2abe`, tasks tree `0a38b29`). The
+  pre-registration commit that adds this section changes only this file and
+  `docs/ab/p110-2026-09-27/pilot.json`; every batch manifest records the commit it ran from
+  (`harness_commit`), and `git diff 58363c5 <that commit> -- scripts` must be empty.
+- **Arms:** control `95d40ce`, arm 1 `4fe4389`, arm 2 `147d2d4`; tarballs and sha256 in §2
+  and `docs/ab/p110-2026-09-27/SHA256SUMS` (identical to `$AB/artifacts/SHA256SUMS`).
+- **Host and model:** DSH 0.1.7-rc.2 (frozen copy); provider `deepseek-official`, model
+  `deepseek-flash`, reasoning effort high (request headers of the warmup logs).
+- **Fingerprints:** §3, unchanged by the warmup: `run_ab.py fingerprints --compare` found
+  no changed field and no delta mismatch, so `docs/ab/p110-2026-09-27/fingerprints.json`
+  stands (the §3 fallback was not needed).
+- **Price sheet:** §10 and `scripts/ab/prices.json`: peak miss $0.44/M, hit $0.014/M, out
+  $1.32/M (off-peak half of each); the budget prices every turn at peak.
+- **Budget:** `--budget-usd 10` over the single ledger `$AB/spend.jsonl`, which already
+  holds the warmup and the pilots ($0.1205 at peak); reserve $0.75, margin $0.60, $0.05
+  per unpriced step, stop after 40 unpriced steps.
+- **Batch:** `run_ab.py --ab-root $AB --arms control,arm1,arm2 --tasks all --reps 3 --seed
+  20260927 --parallel-arms --budget-usd 10 --batch p110-20260927` (continued with
+  `--resume`), `--max-attempts 2`, fingerprints `$AB/fingerprints.json`.
+- **Tasks:** r1 `p110_r1_fixture_fp`, r2 `p110_r2_superseded_stamp`, r3
+  `p110_r3_runbook_middle`, r4 `p110_r4_probe_compare`, r5 `p110_r5_initial_failures`, c1
+  `lh1_incremental_build`, c2 `m3_consistency_bugfix`, exactly as in the tasks tree above.
+- **Gates:** §8 and `scripts/ab/gates.json`; margins, minimum pairs (17 of 21, 10 of 15)
+  and arbitration units are unchanged by the pilot.
+
+### Warmup (paid, 2026-09-27)
+
+`hello` x 2 reps x 3 arms, arms concurrent, `--fingerprints none` (harness `8d88eb7`): 6/6
+cells valid; step-1 cacheRead in rep 2: control 4,608, arm 1 4,352, arm 2 4,352 tokens
+(required ≥ 4,000); 16 tools; no `/private` or `/Users` in any system prompt; fingerprints
+equal to the offline ones in every arm. $0.0066 at peak.
+
+### Pilot (control only)
+
+**Pilot 1** (harness `8d88eb7`; r1, r3, r4, 1 rep).
+
+- r3 passed and was valid. The T1 read was folded (426 lines, 14 kept); the model found
+  the extension with the grep tool and a read at offset 176 (one `fold_then_reread`), and
+  answered T3 from `expand_result` with `grep` on the tape locator of the T1 read. 23 s.
+- r1 and r4 failed by construction. Told that only the exit status mattered, the model ran
+  the script as `python3 … > /dev/null 2>&1; echo exit=$?` in the delivery turn (r1 T1; r4
+  T1, not T2), so the fact never reached a tool result. The exam turns then used the
+  recall path correctly (`expand_result` on the tape locators of both T1 results,
+  `recall_step`, `recall_turn` full) and honestly answered CANNOT-RECOVER. No flag, no
+  leak.
+
+**Changes made at the pilot** (the only ones; no arm had run a gated task):
+
+1. Delivery prompts: r1 T1, r2 T2 and T4, r4 T1 and T2 ask to run the script as is,
+   without redirection or a pipe. r2 shares r1's wording, so it was changed and piloted
+   as well.
+2. Delivery validity (§4, §7): each delivery turn must show the fact in a non-recall tool
+   result, otherwise the cell is invalid and rerun. Re-scored under this rule, pilot 1's
+   r1 and r4 cells are invalid, not failures.
+3. r5 T1 asks for "just DONE and the final pass count, without summarizing the fixes".
+   The first r5 pilot passed and sourced its answer through `expand_result`, but its T1
+   closeout listed the five fixed functions, a leak by §6. That would have dropped r5
+   from G2 in nearly every pair, leaving G2 at most 12 of 15 pairs against its minimum of
+   10.
+4. r5 write leaks except write/edit calls on `textkit/` (§6). The same pilot's bug-fix
+   edits named the fixed functions, which carries no shortcut.
+5. Metric fix: `mdfind` and `locate` are flagged as a command word only (§6). The r5
+   re-pilot had been flagged for a Python heredoc comment "# locate def fn block".
+
+**Pilot 2** (harness `fe8bb76`; r1, r2, r4) and the **r5 pilots** (`fe8bb76` and
+`5e25c0d`), re-scored under the frozen harness `58363c5`:
+
+| task | pass | valid | G2-eligible | exam source | wall |
+|---|---|---|---|---|---|
+| r1 | yes | yes | yes | `expand_result` on the T1 tape locator (after `recall_turn` dialogue) | 31 s |
+| r2 | yes | yes | yes | `expand_result` x 3 on tape locators; stale value not used | 56 s |
+| r3 (pilot 1) | yes | yes | yes | `expand_result` with `grep` on the T1 read | 23 s |
+| r4 | yes | yes | yes | `expand_result` on both probe results, first try | 25 s |
+| r5, first | yes | yes | no (T1 closeout named the functions) | `expand_result` | 34 s |
+| r5, after change 3 | yes | yes | yes | `expand_result` and `recall_step` of T1, then a re-run of the pre-fix code rebuilt in `.repro/` inside the workdir | 43 s |
+
+No flag, leak or oracle-via-fs remains in any of these cells, and no recall-tool error or
+formatVersion rejection occurred.
+
+Floor and ceiling: control passed each piloted task, but every exam went through the
+recall path (recall-sourced), so the recall metrics of G2 and G6 carry signal at a pass
+ceiling, and G1 is non-inferiority, which needs no headroom above control. c1 and c2 were
+not piloted (copied as is from the h2h suite; their oracles are covered by the self-check).
+
+Spend so far: **$0.1205** at peak prices (warmup $0.0066, pilot 1 $0.0310, pilot 2
+$0.0393, r5 pilots $0.0157 and $0.0278), no unpriced step. From the pilot cells
+($0.007–0.028 each) a batch arm-rep costs about $0.15 at peak with c1 and c2 estimated, so
+the 63-cell batch should cost about $1.5–2.5, well inside the cap. Per-cell records,
+without oracle tokens or answer text: `docs/ab/p110-2026-09-27/pilot.json`.
 
 ## 14. Results
 
