@@ -5,7 +5,10 @@
 > has been made. The draft becomes the pre-registration when §13 "Frozen
 > parameters" is filled after the pilot and committed before the batch; the pilot
 > may still change a task (§5), nothing else. §14 "Results" stays empty until the
-> batch and the report exist.
+> batch and the report exist. Revised before any paid call (same day, fix stage): access
+> flags, the leak rule, "insufficient" verdicts, budget accounting, read ranges, one turn
+> per prompt, infra classification, answer classes and the secrets hold-back; §15 lists
+> each change.
 
 ## 1. Question
 
@@ -132,34 +135,52 @@ carries the locator of the unshown result), not deleted.
   no compaction, command-compact, tool-result pruner, session-title LLM or web tool;
   empty persona prefix and suffix (the headless defaults put `{{model}}` and
   `{{cwd}}` into the system prompt); no subagent, fork or workflow tools (child
-  sessions would carry usage outside the parent log); no skill catalog. The model is
+  sessions would carry usage outside the parent log); no skill catalog; no goal tools and
+  no goal-round driver (a `create_goal` call would let the driver start extra turns inside
+  the same process, so session turn numbers would stop matching prompt indices). 16 tools
+  remain. The model is
   the base default `deepseek-official/deepseek-flash`, effort high; the plugin keeps
   its default `inherit`.
 - Per task, one more overlay sets `slice-agent-loop.maxStepsPerTurn`, identical across
   arms.
-- `--dump-config` is identical across the three homes (408 lines) once each home's own
+- `--dump-config` is identical across the three homes (414 lines) once each home's own
   path in the provenance comments is normalized; the plugin package is the only
   difference, and it does not appear in the dump.
 - Environment as `~/.dsh-slicey/bin/slicey-dsh`: inherited proxy variables,
-  `NODE_USE_ENV_PROXY=1`, `NODE_OPTIONS=--disable-warning=UNDICI-EHPA`. The key is a
-  symlink `home-<arm>/.env -> ~/.dsh/.env`, created only after the dry run.
+  `NODE_USE_ENV_PROXY=1`, `NODE_OPTIONS=--disable-warning=UNDICI-EHPA`, and
+  `DSH_TELEMETRY_DISABLED=1` as the owner's login shell sets it. Every other inherited
+  `DSH_*` variable is removed from the child (`DSH_PERMISSION_MODE` unset means the
+  profile default `workspace-write`); each batch manifest records the variable names,
+  never values. The key is a symlink `home-<arm>/.env -> ~/.dsh/.env`, created only after
+  the dry run.
 
 Fingerprints measured in the offline dry run (§11); every real cell must match its arm
 (`$AB/fingerprints.json`, copied to `docs/ab/p110-2026-09-27/fingerprints.json`):
 
 | | control | arm 1 | arm 2 |
 |---|---|---|---|
-| system prompt sha256 | `ba80ae83…` | `1b608b9c…` | `1b608b9c…` |
+| system prompt sha256 | `f323bf5f…` | `46c592c8…` | `46c592c8…` |
 | slice tool JSON sha256 (canonical JSON of the four recall tools) | `6699b32a…` | `4d9ca4cc…` | `4d9ca4cc…` |
-| system prompt chars | 4,779 | 4,181 | 4,181 |
-| four recall tools, canonical JSON chars | 5,441 | 5,266 | 5,266 |
-| per-request prefix (system + all 19 tools) | 20,575 | 19,802 (−773) | 19,802 (−773) |
+| system prompt chars | 4,249 | 3,651 (−598) | 3,651 (−598) |
+| four recall tools, canonical JSON chars | 5,441 | 5,266 (−175) | 5,266 (−175) |
+| per-request prefix (system + all 16 tools) | 18,311 | 17,538 (−773) | 17,538 (−773) |
 | tape header, one-digit turns | 188 | 76 | 76 |
 | mean tape tool line in the dry run | 94.4 | 94.4 | 53.3 (−41.1) |
-| tools | 19 | 19 | 19 |
+| tools | 16 | 16 | 16 |
 
 The control slice-tool fingerprint equals the one in the two real Raft sessions of the
-P1-10 record, which ran the `ba12a5b` build.
+P1-10 record, which ran the `ba12a5b` build. Disabling the goal tools removed 530 chars
+from every arm's system prompt (the goal tool's system section) and three tools; the
+control-vs-arm deltas are the ones of the first dry run (`5b629af`: system −598, slice
+tools −175, prefix −773), checked with `run_ab.py fingerprints --compare`.
+
+Fingerprints come from the mock provider. The system prompt and tool list are composed by
+the host and the plugin, not by the provider, but that is checked, not assumed: the
+warmup batch runs with `--fingerprints none` and its fingerprints are compared with these
+(§5 step 3). Pre-declared fallback: if they differ while the control-vs-arm deltas and the
+slice-tool shas are unchanged, the warmup fingerprints replace these for the pilot and the
+batch (and the docs copy); if a delta or a slice-tool sha differs, the batch does not
+start.
 
 ## 4. Tasks
 
@@ -175,47 +196,86 @@ correct exam answer requires recall. Oracles never live in the workdir.
 | r1 | `p110_r1_fixture_fp` | 6 | 12 | T5 | dsh-slice `r2b_tool_only`: prompts P1, P2, P6, P10, P11, P12 verbatim; the hook deletes `tools/check_fixtures.py` and `fixtures/` after T2 (replaces r2b's deletion turn). Oracle: `FX-8b69ed6e`; decoys `FX-3c1a9f04`, `FX-8b69ed7a`, `FX-e2d40b91` in the T3/T4 floods. |
 | r2 | `p110_r2_superseded_stamp` | 7 | 12 | T6 | dsh-slice `r2d_superseded_fact`: prompts P1, P2, P4, P6, P10, P13, P14; the hook deletes `config/` and `tools/stamp.py` after T4. Current `CFG-8d2e0fac` (T4), stale `CFG-81d29c44` (T2), decoys in the floods; two locators from different turns. |
 | r3 | `p110_r3_runbook_middle` | 3 | 12 | T3 | new. A seeded 420-line, 28 KB prose runbook (above the fold's 6000-char threshold, no line structured, code-like or log-like to the digest). T1: read it with the read tool, write the night-shift escalation extension (`64471`, line 180; decoy `64417` in the kept head) to `answers/ext.txt`: in-turn fold recovery, the direct probe of C2. The hook deletes `docs/` after T1; T2 filler (`slugify`); T3: the backup datacenter (`Brackenfold`, line 300; decoy `Aldergate` on the kept last line): cross-turn recall of the T1 read. A cell is valid only if the T1 read was folded. |
-| r4 | `p110_r4_probe_compare` | 4 | 12 | T4 | new. `tools/probe.py --region us` (T1) and `--region eu` (T2) print a run id and an 8-endpoint p50/p95 table derived from sha256; never restated; the hook deletes `tools/` after T2; T3 filler (`pct`); T4 writes `shipping,690,291` (highest us p95, then eu). Swapped regions are detected. |
+| r4 | `p110_r4_probe_compare` | 4 | 12 | T4 | new. `tools/probe.py --region us` (T1) and `--region eu` (T2) print a run id and an 8-endpoint p50/p95 table derived from sha256; never restated; the hook deletes `tools/` after T2; T3 filler (`pct`); T4 writes `shipping,690,291` (highest us p95, then eu). Swapped regions are detected; one leading CSV header line whose value fields are not numbers is ignored. |
 | r5 | `p110_r5_initial_failures` | 2 | 60 | T2 | dsh-tool-result-fold `f3_test_suite_fix`: T1 fixes a red 400-test suite with 5 planted bugs (turn timeout 40 min); T2 lists the tests that failed before any change, only recoverable from T1 tool output. The truth file moved from `<workdir>/.truth/` to `<workdir>.truth.json`. |
 | c1 | `lh1_incremental_build` | 8 | 14 | – | sliceagent h2h, copied as is: 8 dependent turns building `calc.py`; cross-turn and post-edit re-reads of the model's own file. |
 | c2 | `m3_consistency_bugfix` | 1 | 26 | – | sliceagent h2h, copied as is: one invariant across 4 modules; same-turn re-read and verification behaviour. |
 
-Oracle tokens (for recall sourcing and leak checks): r1 `8b69ed6e`; r2 `8d2e0fac`;
-r3 `Brackenfold` (exam) and `64471` (T1, in-turn); r4 the two run ids
-`PRB-us-7537d2a4`, `PRB-eu-559cd122` and the two `shipping` table rows; r5 the ten
-failing test names. `scripts/ab/selfcheck_tasks.py` shows each oracle failing on the
-untouched workdir, passing on a correct end state and naming decoy, stale, swapped and
-CANNOT-RECOVER answers (22/22 checks).
+Oracle tokens have three roles per exam (`exams` in each `meta.json`):
+
+- **Recall tokens**: a recall result in the exam turn that names one sources the answer. r1
+  `8b69ed6e`; r2 `8d2e0fac`; r3 `Brackenfold` (`64471` is the in-turn token of T1); r4 the
+  two run ids `PRB-us-7537d2a4`, `PRB-eu-559cd122` and the two `shipping` table rows; r5
+  the ten failing test names.
+- **Leak tokens**: enough to answer (default: the recall tokens). r4: the `shipping`
+  values (`shipping … 690`, `shipping … 291`); the run ids do not answer the question. r5:
+  the five buggy function ids (`dates_f5`, `hashing_f7`, `slugs_f0`, `tokens_f3`,
+  `validate_f2`); with them and the `tests/` tree the failing list follows
+  (`test_<id>_0`, `test_<id>_1`).
+- **File-system tokens**: evidence that a non-recall tool result carried the oracle
+  (default: the recall tokens). r4: anything the probe printed. r5: a `FAILED` marker for
+  one of the ten tests, or the truth file's `"failing"` key; the test names themselves are
+  in the workspace's `tests/`, so they are not evidence.
+
+`scripts/ab/selfcheck_tasks.py` shows each oracle failing on the untouched workdir,
+passing on a correct end state (also with an r4 header line) and naming decoy, stale,
+swapped and CANNOT-RECOVER answers (23/23 checks). It works in a temporary directory and
+removes every workdir it made, because each one is an oracle copy on disk.
 
 ## 5. Procedure
 
 1. Offline dry run (done, §11): all tasks x 3 arms x 1 rep with the scripted mock.
-2. Link the key; warmup and parity: `hello` x 2 reps x 3 arms, arms concurrent. Every
-   arm must show step-1 cacheRead ≥ 4000 in rep 2, 19 tools, matching fingerprints and
-   no `/private` or `/Users` in the system prompt.
-3. Pilot, control only: r1, r3, r4 x 1 rep. Check oracles, leak and access flags, the
+2. Before the key is linked, no oracle copy may sit on disk outside a running cell: the
+   model's reads are not confined (§12). Every cell packs its workdir and truth sidecar
+   into `results/<batch>/workdirs/<wid>.tgz` and removes them when it ends for any reason
+   (finished, invalid, timed out, budget-stopped or retried), gzips its turn stdout, and
+   keeps oracle tokens out of `cells/*.json`; self-checks run in a temporary directory.
+   The development leftovers of the build stage (self-check workdirs, development and guard
+   batches, the scout's workdirs) were packed into a compressed attic outside the AB root
+   and removed on 2026-09-27.
+3. Link the key; warmup and parity: `hello` x 2 reps x 3 arms, arms concurrent,
+   `--fingerprints none`. Every arm must show step-1 cacheRead ≥ 4000 in rep 2, 16 tools
+   and no `/private` or `/Users` in the system prompt. Then
+   `run_ab.py fingerprints --batch-dir $AB/results/warm --compare $AB/fingerprints.json`
+   decides as pre-declared in §3: equal, keep; different with equal deltas and slice-tool
+   shas, replace; a delta or slice-tool sha differs, stop.
+4. Pilot, control only: r1, r3, r4 x 1 rep. Check oracles, leak and access flags, the
    r3 fold, wall time. If control cannot pass a task at all, fix that task here; this
    is the only point where a task may change. Then fill §13 and commit.
-4. Batch: 7 tasks x 3 reps x 3 arms = 63 cells, seed 20260927 (seeded task order per
+5. Batch: 7 tasks x 3 reps x 3 arms = 63 cells, seed 20260927 (seeded task order per
    rep), the three arms of a (task, rep) pair run concurrently. An invalid cell is
    rerun once; infra reruns are reported separately and never count as behaviour.
-5. Report: `ab_report.py` pairs cells by (task, rep), evaluates [gates.json](../scripts/ab/gates.json)
+6. Report: `ab_report.py` pairs cells by (task, rep), evaluates [gates.json](../scripts/ab/gates.json)
    and writes `summary.json` / `summary.md`; the per-turn cache split is cross-checked
    with dsh-slice `cache-metrics.py`. Arbitration only as in §9.
+7. Archive: `run_ab.py secrets-scan --ab-root $AB` first. It lists every cell with a tool
+   call that referenced `.env`, `DSH_HOME` or `~/.dsh` (the bash tool exports `DSH_HOME`,
+   and the sandbox does not confine reads, so `$DSH_HOME/.env` is readable). Those cells'
+   session logs and turn files are held back from the experiment archive until the owner
+   has looked. Nothing ever reads the key or searches for it.
 
 ## 6. Metrics
 
 All from the session log (`ab_metrics.py`), one row per cell.
 
-- **Usage.** Over every `assistant/message`: miss = `inputTokens`, hit =
+- **Usage.** Over every `assistant/message` and every failed `assistant/attempt` (a
+  retried attempt's billed tokens live only in its stream): miss = `inputTokens`, hit =
   `cacheReadTokens`, out = `outputTokens` (the three add up to `totalTokens`; checked
-  on the two real sessions); requests; step-1 miss per turn. Cost = miss·Pm + hit·Ph +
-  out·Po on both sheets of [scripts/ab/prices.json](../scripts/ab/prices.json). Peak is
-  exactly twice off-peak for every field, so ratios do not depend on the sheet.
+  on the two real sessions); step-1 miss per turn. Requests = committed messages only, so
+  provider retries stay out of G4's request count; failed attempts and records without a
+  usage sample are reported. Cost = miss·Pm + hit·Ph + out·Po on both sheets of
+  [scripts/ab/prices.json](../scripts/ab/prices.json). Peak is exactly twice off-peak for
+  every field, so ratios do not depend on the sheet.
 - **Same-turn repeated reads.** Read-like calls are `read` (line range
-  [offset, offset+limit−1], defaults 1 and 2000) and single-file bash reads (`cat`,
-  `head`, `tail`, `nl`, `sed -n`, `less`, `more`, optionally after `cd DIR &&`),
-  which cover the whole file. Paths are normalized against the session cwd. Mutations
+  [offset, offset+limit−1], defaults 1 and 2000) and single-file bash reads with their
+  line ranges: `cat`, `nl`, `less`, `more` the whole file; `head` lines 1..N (default
+  10); `sed -n` with numeric `p` ranges (`'a,bp'`, `'Np'`, `'a,$p'`, several joined by
+  `;`); `tail -n +N` lines N..end. Any other `tail`, a regex print (`sed -n '/re/p'`) or
+  `head -c` is a range of unknown position that never overlaps another read, so paging
+  through disjoint ranges or `head` then `tail` is not a re-read. A first downstream
+  `| head`, `| sed -n` or `| tail` narrows a whole-file read. Paths are resolved against
+  a leading `cd DIR &&`, the bash tool's own `workdir` parameter (which its description
+  asks the model to use instead of `cd`) and the session cwd. Mutations
   are `write`/`edit` and bash redirects, `rm`, `mv`, `cp`, `tee`, `touch`, `sed -i`,
   `perl -i` (a directory mutation covers the files below it). Per turn:
   `reread_same_turn_unchanged` = a read of P overlapping a range already read in the
@@ -237,13 +297,33 @@ All from the session log (`ab_metrics.py`), one row per cell.
 - **Finish.** `turn_end` kinds; closeout = a completed turn whose last assistant message
   has text and no tool call; step-cap cuts = `turn_end` kind `blocked` (exit 1 on
   0.1.7-rc.2).
-- **Exams.** Recall-sourced = an oracle token appears in the result of a recall tool
+- **Exams.** Recall-sourced = a recall token (§4) appears in the result of a recall tool
   call within the exam turn; recall-sourced correct = that and `verify` passes. Exam
-  answer class from `verify`: correct, decoy, stale, hedged, wrong (including swapped
-  regions and a partial failing list), cannot_recover, missing. Leak = an oracle token
-  in assistant text or tool input before the exam turn. Flagged access = a bash command
-  or path touching `sessions/`, `.zstd`, `.truth`, `session.v4`, a `home-<arm>` or the
-  harness.
+  answer class from `verify`: a passing `verify` is always correct; otherwise decoy,
+  stale, hedged, wrong (including swapped regions and a partial failing list),
+  cannot_recover, missing, read from the task's own class or, for r1/r2, from the verdict
+  part of the detail only (their detail ends with the model's `how.md` text after
+  ` | how:`, which never decides the class).
+- **Leak.** A leak token (§4) in assistant text before the exam turn (the tape keeps it
+  verbatim), or in a tool input before the exam turn that writes it to a file: `write`
+  or `edit` content, or a bash `echo`/`printf`/`cat` into a file, `tee` or a heredoc.
+  Other tool inputs never reach the tape (a tool line carries name, size and locator), so
+  running a failing test by name is not a leak.
+- **Oracle via the file system.** In the exam turn, in log order: a non-recall tool
+  result (bash, read, grep, glob, …) names a file-system token (§4) before any recall
+  result did and before the model itself wrote it (in assistant text or a tool input,
+  e.g. its own answer file read back).
+- **Flagged access.** Every path argument (`file_path`, `path`, a glob pattern's fixed
+  prefix), every path-like word of a bash command (following `cd`), and the bash
+  `workdir` parameter is resolved against the cell's workdir (`/tmp` and `/private/tmp`
+  are the same place). A call is flagged when a path leaves the workdir (`..` escapes and
+  absolute paths alike; `/usr`, `/bin`, `/sbin`, `/System`, `/Library`, `/opt/homebrew`,
+  `/etc` and `/dev/null` are exempt, `/tmp` and `/var` are not), on `~`, `$HOME` or
+  `$TMPDIR`, on `/` given to `find`, `ls`, `grep`, `du`, `cat` and similar walkers, on
+  `mdfind` or `locate`, and wherever it names `sessions/`, `.zstd`, `.truth`,
+  `session.v4`, a `home-<arm>` or the harness. A call naming `.env`, `DSH_HOME` or
+  `~/.dsh` is flagged as a secret reference (§5 step 7). The sed, awk and grep pattern
+  argument is not a path.
 
 `ab_metrics.py` reproduces the P1-10 record's counts on the two real V4 sessions
 (360/408 requests, 73/95 turns, 72/94 entries, recall_search 8 / recall_turn 1 /
@@ -253,21 +333,34 @@ its 14 mock logs; `scripts/ab/test_ab_metrics.py` pins both.
 
 ## 7. Validity
 
-A cell counts only if: every turn exited 0 or ended with a model-attributable
-`turn_end` (the step cap), never a timeout, TRANSPORT, RATE_LIMIT, MISSING_CREDENTIAL
-or budget kill; the log was found; the system prompt and slice tool fingerprints equal
-the arm's; 19 tools, one tool list and one system prompt for the session; no `/private`
-or `/Users` in the system prompt; zero compaction events; tape headers and tool lines
-in the arm's form; for arm 1 and arm 2 the per-request prefix at least 700 chars
-smaller than control and every tape header 76 or 78 chars; for r3 a fold of the T1
-read. Otherwise the cell is rerun, at most 2 attempts. A pair counts only when both its
-cells are valid; dropped pairs are listed in the report. A cell with flagged access or a
-leak counts for G1 but its pair is dropped from G2.
+A cell counts only if: every turn exited 0 or ended in a model-attributable way; the
+log was found; the system prompt and slice tool fingerprints equal the arm's; 16 tools,
+one tool list and one system prompt for the session; one turn per prompt (user prompts =
+turn ends = prompts, no goal-round message); no `/private` or `/Users` in the system
+prompt; zero compaction events; tape headers and tool lines in the arm's form; for arm 1
+and arm 2 the per-request prefix at least 700 chars smaller than control and every tape
+header 76 or 78 chars; for r3 a fold of the T1 read. Otherwise the cell is rerun, at most
+2 attempts. A pair counts only when both its cells are valid; dropped pairs are listed in
+the report.
+
+Infra, which invalidates the cell: a `turn_end` error whose code is TRANSPORT, RATE_LIMIT,
+SERVER, HTTP 5xx, TIMEOUT, EMPTY_RESPONSE, MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH,
+QUOTA, ACCOUNT_QUOTA, NO_ADAPTER or ABORTED, or whose stderr shows a network failure; a
+turn without `turn_end` (the process died); the harness's turn timeout; a budget kill.
+Model-attributable, which ends the turn and lets the cell continue (a failure for G1 and
+G5, never an infra rerun): the step cap (`blocked`), `max-tokens`, and an error with any
+other code (CONTEXT_WINDOW_EXCEEDED, INVALID_REQUEST, UNKNOWN, …). The report lists these
+turns per arm.
+
+A cell counts for G1 but its pair is dropped from G2 when, up to its exam turn, a call was
+flagged, or a leak token leaked, or the exam answer came via the file system (§6).
 
 ## 8. Gates
 
 Unit: 7 tasks x 3 reps = 21 paired cells per arm against control; the 15 recall cells
 for G2. [scripts/ab/gates.json](../scripts/ab/gates.json) encodes these as data.
+Minimum valid pairs per check: 17 of 21 (G1, G3, G4, G5, G6 except the arm-1 baseline
+checks) and 10 of 15 (G2 and the G6 checks against arm 1).
 
 - **G1 Task success (non-inferiority).** Σpass(arm) ≥ Σpass(control) − 1 over 21 cells,
   and no task with pass(arm) ≤ pass(control) − 2.
@@ -300,8 +393,11 @@ Pre-declared reading of the gates, where the plan left it implicit:
   margin (one count; 0.05 of a cost ratio; one request of median delta; one
   cross-turn target of the first-try rate); **fail** when missed by more. A gate
   arbitrates when a check arbitrates and none fails.
-- G6 first-try is not evaluable (reported, not blocking) when either side has no
-  cross-turn target.
+- **insufficient** when a check has fewer valid pairs than its minimum, or cannot be
+  evaluated at all (no pairs, no pair with a positive baseline cost, a missing
+  baseline arm). Only G6 first-try may be **n/a** (reported, not blocking), when either
+  side has no cross-turn target. Verdict order within a gate: fail, insufficient,
+  arbitrate, pass. Without this rule a G2 whose every pair was excluded passed vacuously.
 - Exclusions are paired: an invalid or G2-excluded cell drops its (task, rep) pair from
   that comparison on both sides.
 
@@ -316,6 +412,9 @@ Pre-declared reading of the gates, where the plan left it implicit:
 - Any gate at "arbitrate": once, +3 reps of the tasks driving the miss, all arms, same
   concurrent pairing; decide on the pooled 6 reps with count margins doubled
   (`ab_report.py --pooled`).
+- Any gate "insufficient" (and none failed): that arm does not ship on this batch. The
+  single arbitration batch above may add +3 reps of the tasks whose pairs were dropped;
+  if the pooled result is still insufficient, the arm does not ship.
 - Counts and paired deltas are reported, not p-values.
 
 ## 10. Budget and cost
@@ -324,33 +423,67 @@ Hard cap $10 for the whole experiment (warmup, pilot, batch, arbitration), enfor
 `run_ab.py` from usage tokens at the **peak** sheet (miss $0.44/M, hit $0.014/M, out
 $1.32/M; the v4-flash sheet in [dsh-plugin-opportunities.md](dsh-plugin-opportunities.md);
 that `deepseek-flash` bills on it is an assumption, token counts are authoritative).
-One ledger (`$AB/spend.jsonl`) spans every batch. No cell starts within $0.25 of the cap;
-running turns are killed, and no turn starts, within $0.15 of it (a step's usage is only
-visible when the step ends). Estimate from the plan: about $0.30 per arm-rep at peak,
-about $2.7 for the batch, $0.5–1 for warmup, pilot and a possible arbitration.
+One ledger (`$AB/spend.jsonl`) spans every batch.
+
+A turn's charge is the larger of two figures. From its `--json` stdout: the usage of every
+`step_end`, plus $0.05 for every `step_end` without usage (the 0.1.7-rc.2 projector drops
+a whole step's usage when any attempt of it reported no sample, typically a transport or
+429 retry, so that step, successful attempt included, would otherwise cost $0) and for a
+step still open when the process ended (killed or crashed mid-request). From its session
+log: the usage of every `assistant/message` and `assistant/attempt` of the turn, plus
+$0.05 for every such record without a sample. $0.05 is about a 100K-token all-miss
+request with 8K output at peak.
+
+No cell starts within $0.75 of the cap. Running turns are polled every second, each
+counting its priced steps plus $0.05 for its open step, and killed, with no further turn
+started, within $0.60 of it. Invariant: a step's usage is known only when it ends, so
+between two polls each concurrent turn can finish at most one step beyond what was
+counted; the margin must be at least 2 x concurrent turns x worst-case step cost (3 x 2 x
+$0.10, where a 150K-token all-miss request with 30K output at peak is about $0.11). The
+run also stops cleanly once more than 40 unpriced steps have been charged (a retry
+storm). Estimate from the plan: about $0.30 per arm-rep at peak, about $2.7 for the
+batch, $0.5–1 for warmup, pilot and a possible arbitration.
 
 ## 11. Offline dry run (build evidence, 2026-09-27)
 
-Harness commit `5b629af`. No key existed in any home; the mock adapter
-(`scripts/ab/mock-llm.mjs`, provider `ab-mock`) scripted bash, two reads of the file the
-prompt names, and an `expand_result` on the newest tape tool line, parsing whichever
-form the arm renders.
+Harness commit `5d3b067` (the fixes of §15; the first dry run on `5b629af` is superseded).
+No key existed in any home; the mock adapter (`scripts/ab/mock-llm.mjs`, provider
+`ab-mock`) scripted bash, two reads of the file the prompt names, and an `expand_result`
+on the newest tape tool line, parsing whichever form the arm renders. The homes were
+rebuilt with the revised parity overlay; `--dump-config` is identical across arms (414
+lines).
 
-- 8 tasks (7 + hello) x 3 arms x 1 rep = 24 cells, arms concurrent, 61 s: 96/96 turns
-  exited 0, 24/24 logs found, 24/24 metrics rows, 24/24 cells valid on the first
-  attempt and again when re-validated against the fingerprints computed from them
-  (identical to an earlier development run).
+- 8 tasks (7 + hello) x 3 arms x 1 rep = 24 cells, arms concurrent, about 40 s: 96/96
+  turns exited 0, 24/24 logs found, 24/24 metrics rows, 24/24 cells valid on the first
+  attempt; one turn per prompt everywhere; no flagged call, leak or oracle-via-fs in any
+  cell. A second run validated against the fingerprints computed from the first gave the
+  same result (24/24 valid).
 - Tape forms per arm as expected (control long/long, arm 1 short/long, arm 2 short/v);
   every mock `expand_result` found its locator on the tape with formatVersion 4 in all
   three arms; the r3 T1 read was folded in every arm.
-- Guards, on the same commit: a budget stop inside two concurrent cells (ledger
-  $0.00247 under a $0.0025 cap, exit 2) and `--resume` rerunning exactly those cells; a
-  mid-turn kill (turn killed after 3 steps, ledger $0.000202 under a $0.00025 cap, exit
-  2); a doctored fingerprint file makes cells invalid after 2 attempts; `--offline`
-  refuses to start when a home has a `.env`; a turn cut by the step cap ends with
-  `blocked` and exit 1.
-- `scripts/ab/test_ab_metrics.py` 10/10 (with the 24 mock logs and the two real
-  sessions), `scripts/ab/test_ab_report.py` 6/6, `scripts/ab/selfcheck_tasks.py` 22/22.
+- After each cell its workdir (and r5's truth sidecar) was packed into
+  `workdirs/<wid>.tgz` and removed, and its turn stdout gzipped: no workdir, plain turn
+  file or oracle token in `results/` afterwards.
+- Fingerprints: §3; `run_ab.py fingerprints --compare` against the `5b629af` run shows
+  the expected changes (16 tools, system prompt −530 chars in every arm) and identical
+  control-vs-arm deltas.
+- Guards, on the same commit:
+  - failure injection without usage (`AB_MOCK_FAIL_EVERY=3`): 14 steps without usage were
+    charged, each turn's session-log figure was at least its stdout figure, and the
+    metrics billed the committed message of every such step (r3: miss 1,027 against 409
+    in the stdout usage) with 6 failed attempts per cell; with usage
+    (`AB_MOCK_FAIL_USAGE=1`) the stdout and metrics figures agree (7,627 miss, 6,600 of
+    them from failed attempts);
+  - a retry storm (`AB_MOCK_FAIL_EVERY=2`, limit 3) stopped the batch cleanly (exit 2);
+  - budget kills mid-turn with three concurrent arms: ledger $0.002961 under a $0.003
+    cap, then `--resume` at $0.006: $0.005718, then at $0.010: $0.008793 with the cells
+    done; attempt numbers 1, 2, 3 per cell, no repeated (cell, attempt, turn) ledger key,
+    no workdir left;
+  - a doctored fingerprint file makes a cell invalid after 2 attempts.
+- `scripts/ab/test_ab_metrics.py` 18/18 (with the 24 mock logs and the two real
+  sessions), `scripts/ab/test_ab_report.py` 10/10, `scripts/ab/test_run_ab.py` 5/5,
+  `scripts/ab/selfcheck_tasks.py` 23/23; typecheck, 342/342 vitest, check:docs,
+  check:size and check:build pass on the harness branch.
 - Fingerprints and the tarball checksums are in
   [docs/ab/p110-2026-09-27/](ab/p110-2026-09-27/fingerprints.json).
 
@@ -365,9 +498,13 @@ form the arm renders.
   web, host compaction or pruner), one process per turn. Production slicey is a
   long-lived web app with compaction and the 8192-char pruner. Both arms share the
   differences.
-- Leaks and shortcuts are flagged, not prevented; flagged pairs leave G2.
-- The workdirs of the concurrent arms are siblings; reading another arm's workdir is not
-  flagged unless it goes through a flagged path.
+- Leaks and shortcuts are detected, not prevented: the sandbox confines writes only, so
+  the model can read anywhere on disk, including a concurrent arm's workdir (a sibling
+  that may still hold the task's sources) and the harness. Access outside the workdir is
+  flagged by path and the oracle's arrival by content (§6); a path built at run time
+  inside a script and read without printing an oracle token would slip past both.
+- r5 is expected to leave G2 often: a T1 closeout that names the fixed functions is a
+  leak by the rule above, since the failing list follows from them.
 - Provider weather (latency, rate limits, cache eviction, peak hours) is controlled by
   running the arms of a pair concurrently and interleaving reps; timestamps are kept.
 

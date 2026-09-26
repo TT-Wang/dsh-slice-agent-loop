@@ -3,14 +3,14 @@
   "arm1": {
    "cells": 8,
    "mean_tool_line_chars": 94.4,
-   "prefix_chars": 19802,
+   "prefix_chars": 17538,
    "prefix_delta_vs_control": -773,
    "slice_tools_delta_vs_control": -175,
    "slice_tools_json_chars": 5266,
    "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
-   "system_chars": 4181,
+   "system_chars": 3651,
    "system_delta_vs_control": -598,
-   "system_sha": "1b608b9c503d3dadfe33c232a4a3b3c7e998508609e3074f77220380a19058a0",
+   "system_sha": "46c592c8c95d3328c5c8265b58a4c3f63abc90fde1397a26dd875f64680dd212",
    "tape_header_forms": [
     "short"
    ],
@@ -22,11 +22,9 @@
    ],
    "tool_names": [
     "bash",
-    "create_goal",
     "edit",
     "exit_plan_mode",
     "expand_result",
-    "get_goal",
     "glob",
     "grep",
     "job_kill",
@@ -38,24 +36,23 @@
     "recall_step",
     "recall_turn",
     "todo_write",
-    "update_goal",
     "write"
    ],
-   "tools_count": 19,
-   "tools_json_chars": 15621,
-   "tools_sha": "62c9e16305232c14d7648b3a250b5677ca18430a7a362746a4b472bbfe23e3b3"
+   "tools_count": 16,
+   "tools_json_chars": 13887,
+   "tools_sha": "c376494a5dc9e37beaaa4c99c9f83b2065581c55c9dc3d73aec6368105813932"
   },
   "arm2": {
    "cells": 8,
    "mean_tool_line_chars": 53.3,
-   "prefix_chars": 19802,
+   "prefix_chars": 17538,
    "prefix_delta_vs_control": -773,
    "slice_tools_delta_vs_control": -175,
    "slice_tools_json_chars": 5266,
    "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
-   "system_chars": 4181,
+   "system_chars": 3651,
    "system_delta_vs_control": -598,
-   "system_sha": "1b608b9c503d3dadfe33c232a4a3b3c7e998508609e3074f77220380a19058a0",
+   "system_sha": "46c592c8c95d3328c5c8265b58a4c3f63abc90fde1397a26dd875f64680dd212",
    "tape_header_forms": [
     "short"
    ],
@@ -67,11 +64,9 @@
    ],
    "tool_names": [
     "bash",
-    "create_goal",
     "edit",
     "exit_plan_mode",
     "expand_result",
-    "get_goal",
     "glob",
     "grep",
     "job_kill",
@@ -83,21 +78,20 @@
     "recall_step",
     "recall_turn",
     "todo_write",
-    "update_goal",
     "write"
    ],
-   "tools_count": 19,
-   "tools_json_chars": 15621,
-   "tools_sha": "62c9e16305232c14d7648b3a250b5677ca18430a7a362746a4b472bbfe23e3b3"
+   "tools_count": 16,
+   "tools_json_chars": 13887,
+   "tools_sha": "c376494a5dc9e37beaaa4c99c9f83b2065581c55c9dc3d73aec6368105813932"
   },
   "control": {
    "cells": 8,
    "mean_tool_line_chars": 94.4,
-   "prefix_chars": 20575,
+   "prefix_chars": 18311,
    "slice_tools_json_chars": 5441,
    "slice_tools_sha": "6699b32a319b52738830cdf5733d4cdbdc61cac7a887352d02b8bba28322870f",
-   "system_chars": 4779,
-   "system_sha": "ba80ae830a8f96361efcb7a308649a338339a67b2a60d43d43e298416358b162",
+   "system_chars": 4249,
+   "system_sha": "f323bf5f14b418b388e5e411b0f7396b8a1b272ae0fd070af6bfcb12d209d948",
    "tape_header_forms": [
     "long"
    ],
@@ -109,11 +103,9 @@
    ],
    "tool_names": [
     "bash",
-    "create_goal",
     "edit",
     "exit_plan_mode",
     "expand_result",
-    "get_goal",
     "glob",
     "grep",
     "job_kill",
@@ -125,15 +117,32 @@
     "recall_step",
     "recall_turn",
     "todo_write",
-    "update_goal",
     "write"
    ],
-   "tools_count": 19,
-   "tools_json_chars": 15796,
-   "tools_sha": "5fda60dd82b63c564255d8d5c34089e944c99eb84402ad0897ff28586f581b90"
+   "tools_count": 16,
+   "tools_json_chars": 14062,
+   "tools_sha": "f4367a52dce72fe941cc126d0a20ba9fbbf72954ca678b8bd54b5ca5e97933bc"
   }
  },
- "batch_dir": "offline dry run, batch \"offline\" (harness 5b629af; raw data kept outside the repo)",
+ "batch_dir": "offline dry run, batch \"offline\" (harness 5d3b067, parity overlay with tool-goal and goal-round-driver disabled; raw data kept outside the repo)",
  "canonical_json": "sha256 over json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(\",\", \":\")); slice tools = the four recall tool definitions of the first request/header",
- "created": "2026-09-26T18:20:07+00:00"
+ "compared_with": {
+  "changed_fields": [
+   "arm1.prefix_chars",
+   "arm1.system_sha",
+   "arm1.tools_count",
+   "arm1.tools_sha",
+   "arm2.prefix_chars",
+   "arm2.system_sha",
+   "arm2.tools_count",
+   "arm2.tools_sha",
+   "control.prefix_chars",
+   "control.system_sha",
+   "control.tools_count",
+   "control.tools_sha"
+  ],
+  "delta_mismatches": [],
+  "file": "fingerprints of the 5b629af dry run (19 tools; superseded)"
+ },
+ "created": "2026-09-26T19:17:49+00:00"
 }
