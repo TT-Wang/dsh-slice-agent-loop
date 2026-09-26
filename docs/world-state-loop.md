@@ -11,6 +11,9 @@
 >   `tests/state-ledger.spec.ts` 引用，不在插件的现役调用图上。
 > - **下面的 A/B 与回放数字测自 2026-09-02 的自建 loop**，与当前 DSH 原生 slice
 >   上下文策略不可比。
+> - **`results/` 自 2026-09-27 起不再纳入 Git**：本文引用的账本、sidecar 与回放语料在
+>   GitHub release `archive-legacy-results-2026-09-04` 里，恢复方法见
+>   [results/README.md](../results/README.md)。
 
 # 世界状态循环(World-State Loop):实现、v2 重载荷 A/B、回放试点与裁决
 

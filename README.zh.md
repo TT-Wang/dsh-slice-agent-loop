@@ -97,7 +97,13 @@
 
 ## 组合方式
 
-用 DSH 的插件安装器安装本仓库，并应用它的 `cordis.patch.yml` bundle。**保持 `agent-loop`、`agent-loop-invariant` 与原生 session projections 启用。** Git 包内含已生成的 `lib/` 产物。
+从 GitHub 安装到某个 DSH profile：
+
+```sh
+dsh plugin --profile <name> add github:TT-Wang/dsh-slice-agent-loop
+```
+
+`dsh plugin` 在 profile 目录里调用 pnpm。pnpm 下载默认分支当前 commit 的 tarball，不含 Git 历史；DSH 会选中 `package.json` 声明的 `cordis.patch.yml` bundle。Git 安装不执行构建，所以 Git 包内含已生成的 `lib/` 产物。**保持 `agent-loop`、`agent-loop-invariant` 与原生 session projections 启用。** 没有开启热重载的 profile 在下次启动时生效。
 
 本包已经自带一份工具结果折叠，和独立插件 [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) 最初同源，也以 `./fold` 导出。**不要在同一个 profile 里再装那个独立插件**：两者都会注册 `expand_result`，第二次注册会在加载时直接失败（`tool "expand_result" is already registered`）。只有想在不装 slice 策略的原生 loop 上单独用折叠时，才单独挂 `./fold`（或那个独立插件）。
 

@@ -1,4 +1,6 @@
 > Historical results for the retired custom loop, before the native DSH alpha.2 migration. These measurements do not establish the upgraded policy’s quality or cost.
+>
+> The raw ledgers and scenario snapshots cited below under `results/` are no longer tracked in Git (2026-09-27). They are in the GitHub release `archive-legacy-results-2026-09-04`; [results/README.md](../results/README.md) shows how to restore them. Benchmark output written to `results/` stays local.
 
 # dsh-slice-agent-loop
 

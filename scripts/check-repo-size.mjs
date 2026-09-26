@@ -1,15 +1,21 @@
 #!/usr/bin/env node
 /**
- * Tracked-bytes gate.
+ * Tracked-bytes gate: sums the working-tree size of every file `git ls-files`
+ * lists.
  *
- * `results/` is a committed evidence archive and it is 98% of what a
- * `dsh plugin add github:...` install downloads (Git install clones the whole
- * repo; the npm tarball is unaffected — `files` only ships `lib/`). The archive
- * grew ~40 experiment directories in ten days with nothing watching, so this
- * gate makes the next jump a visible decision instead of a silent one.
+ * A `dsh plugin add github:...` install has pnpm download a codeload tarball of
+ * one commit's whole tree (not a clone; no history), then install only what
+ * `files` in package.json names (`lib/`, `cordis.patch.yml`). Every Git install
+ * downloads every tracked byte, compressed, although almost none is installed.
  *
- * Raising LIMIT_MIB is allowed — but it should be a deliberate commit, not a
- * side effect of dropping a new run into results/.
+ * Until 2026-09-27 `results/` held 57 MiB of raw experiment data here, about
+ * 95% of that tarball. It moved to a GitHub release asset and is now ignored
+ * (see results/README.md), leaving about 2 MiB tracked. The 8 MiB default
+ * leaves room for normal growth and fails if a data archive is committed again.
+ *
+ * Raising the limit is allowed (--limit, or REPO_SIZE_LIMIT_MIB in
+ * .github/workflows/ci.yml), but it should be a deliberate commit, not a side
+ * effect of committing experiment output.
  *
  *   node scripts/check-repo-size.mjs [--limit <MiB>] [--top <n>]
  */
@@ -23,7 +29,7 @@ const args = process.argv.slice(2)
 /** @param {string} flag @param {string} [fallback] */
 const opt = (flag, fallback) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : fallback }
 
-const LIMIT_MIB = Number(opt('--limit', process.env.REPO_SIZE_LIMIT_MIB ?? '64'))
+const LIMIT_MIB = Number(opt('--limit', process.env.REPO_SIZE_LIMIT_MIB ?? '8'))
 const TOP = Number(opt('--top', '10'))
 if (!Number.isFinite(LIMIT_MIB) || LIMIT_MIB <= 0) throw new Error(`--limit must be a positive number, got ${opt('--limit')}`)
 
@@ -54,6 +60,7 @@ if (total > LIMIT_MIB * 1048576) {
   console.error(`\nTracked bytes ${mib(total)} MiB exceed the ${LIMIT_MIB} MiB limit.`)
   console.error('Largest tracked files:')
   for (const [file, bytes] of sizes.sort((a, b) => b[1] - a[1]).slice(0, TOP)) console.error(`  ${mib(bytes).padStart(8)} MiB  ${file}`)
-  console.error('\nMove the archive out of the repo, or raise --limit deliberately in .github/workflows/ci.yml.')
+  console.error('\nPublish data archives as a GitHub release asset instead of committing them (see results/README.md),')
+  console.error('or raise the limit deliberately (REPO_SIZE_LIMIT_MIB in .github/workflows/ci.yml).')
   process.exit(1)
 }

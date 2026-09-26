@@ -26,6 +26,14 @@
 > **Archive status:** this file is tracked as an unexecuted historical plan. Its
 > earlier "untracked on main" note described the working copy before archival.
 > See `CONTEXT.md` for the current policy; do not execute the profiles below as-is.
+>
+> **Results location (2026-09-27):** `results/` is no longer tracked; only its
+> README is. The 2026-08-26..09-04 archive the checks above refer to is the
+> GitHub release `archive-legacy-results-2026-09-04`; see
+> [results/README.md](../results/README.md) to restore it. The §0 Telemetry row
+> (`results/sidecars`) and the §6 per-direction results directories now stay
+> local, because `.gitignore` ignores them. Publish a finished run as a release
+> asset rather than committing it.
 
 Original plan follows unchanged.
 

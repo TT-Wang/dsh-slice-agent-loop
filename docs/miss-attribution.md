@@ -15,6 +15,8 @@ npx tsx scripts/attribute-miss.mts results/sidecars            # 整个目录
 npx tsx scripts/attribute-miss.mts results/sidecars/<id>.calls.jsonl --json
 ```
 
+`results/` 只有 README 纳入 Git，其余内容都被 `.gitignore` 忽略（2026-09-27 起），所以写进 `results/sidecars` 的 sidecar 只留在本机，不会被提交。需要公开的数据打成归档，作为 GitHub release 附件发布，不要提交进仓库。2026-09-04 之前的 sidecar 在 release `archive-legacy-results-2026-09-04` 里，恢复方法见 [results/README.md](../results/README.md)。
+
 Sidecar 每会话一个文件（`<sessionId>.calls.jsonl`）：每轮一条 `seed`（system · runtime-context 块 · 切片 user 文本的**发出原字节**），每次成功调用一条 `call`（原始 usage + 归一化 `norm`，`norm.input` 沿用 bench 账本口径 = MISS tokens；`norm.reasoning` 单列，为下一场输出侧战役留的弹药）。
 
 ## Verdict 语义

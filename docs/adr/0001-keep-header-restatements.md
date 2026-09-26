@@ -12,6 +12,11 @@ gate was never re-run.
 | The ADR commit `dc6cd24`'s own message: "Branch left unmerged." | Contradicted by the two commands above. |
 | "re-running that gate" | Never happened. `find results -name '*hdrslim*'` matches only `results/20260901-header-dedup/`; the later `results/20260903-hdr/` is a `s2_taskdag_scheduler` TAPE_HDR base-mode experiment, unrelated to the s10/n1 dedup gate. |
 
+The `results/` directories cited here are no longer tracked in Git
+(2026-09-27). They are in the GitHub release
+`archive-legacy-results-2026-09-04`; [results/README.md](../../results/README.md)
+shows how to restore them before running the `find` above.
+
 **Mitigating fact — this is a broken evidence chain, not a live behavior
 regression.** Since the 2026-09-08 native migration `assemble.ts` is no longer
 on the plugin's live call graph: the published entry (`src/index.ts` →

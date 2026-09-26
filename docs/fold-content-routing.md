@@ -33,6 +33,8 @@
 
 ## 复验(合并后,`results/20260903-fold-routing/`)
 
+`results/` 自 2026-09-27 起不再纳入 Git,这批账本在 GitHub release `archive-legacy-results-2026-09-04` 里,恢复方法见 [results/README.md](../results/README.md)。
+
 | 场景 | 条件 | 结果 | 成本 | 折叠 |
 |---|---|---|---|---|
 | l1 ×3 | 产品默认(low、fs) | 44/45、45/45、45/45 | $0.031 / $0.029 / $0.025 | 44×(798K→51K 字符) |

@@ -3,6 +3,9 @@
 > 起的 DSH 原生 slice 上下文策略。**数字不可跨架构比较。** 轮内折叠机制本身仍在
 > (`src/fold/`，见 `docs/tool-result-fold.md`)，但它现在跑在原生 loop 上，成本与
 > 缓存结构都已不同。
+>
+> `results/` 自 2026-09-27 起不再纳入 Git，本页引用的账本在 GitHub release
+> `archive-legacy-results-2026-09-04` 里，恢复方法见 [results/README.md](../results/README.md)。
 
 # slice + 轮内折叠 vs 历史 default:多轮 s 系列、CB20、l1/l2
 

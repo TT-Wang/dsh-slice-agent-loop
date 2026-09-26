@@ -46,7 +46,8 @@ jobs:
         run: npm run verify:packed
         env:
           SLICE_PACKED_DSH_VERSION: 0.1.7-rc.1
-      # results/ is a committed evidence archive and 98% of what a Git install
-      # downloads. Raising the ceiling should be a deliberate commit.
+      # A `dsh plugin add github:` install downloads a tarball of every tracked
+      # file. Raw experiment data lives in GitHub releases, not the tree (see
+      # results/README.md). Raising the 8 MiB ceiling should be a deliberate commit.
       - name: Tracked-bytes budget
         run: npm run check:size

@@ -4,6 +4,7 @@
 > 为历史记录)。修正结论与新系列见 [legacy-loop.md](legacy-loop.md) 的「Results update — 2026-08-24 → 31」一节
 > 与 results/20260826-retention · 20260827-cost1m · 20260831-reasoning-ab 档案。
 > （该节 2026-09-08 原生迁移时从根 README 移入 `docs/legacy-loop.md`;此处指路 2026-09-10 更正。）
+> （2026-09-27：`results/` 不再纳入 Git，本文提到的 `results/` 档案在 GitHub release `archive-legacy-results-2026-09-04` 里，恢复方法见 [results/README.md](../results/README.md)。）
 
 > ⚠️ **架构状态（2026-09-10）**:本报告全部数字测自**已退役的自建 loop**
 > （replace-the-agent-loop 驱动器 + Python sidecar 臂），不是 2026-09-08 起的

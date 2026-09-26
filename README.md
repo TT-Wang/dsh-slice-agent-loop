@@ -97,7 +97,13 @@ Entry headers are `[slice tape v1 …]`, warn messages are prefixed `slice tape:
 
 ## Composition
 
-Install this repository with DSH's plugin installer and apply its `cordis.patch.yml` bundle. **Keep `agent-loop`, `agent-loop-invariant`, and the stock session projections enabled.** The Git package includes generated `lib/` artifacts.
+Install from GitHub into a DSH profile:
+
+```sh
+dsh plugin --profile <name> add github:TT-Wang/dsh-slice-agent-loop
+```
+
+`dsh plugin` runs pnpm in the profile directory. pnpm downloads a tarball of the default branch's current commit, without Git history, and DSH selects the `cordis.patch.yml` bundle that `package.json` declares. A Git install runs no build, so the Git package includes generated `lib/` artifacts. **Keep `agent-loop`, `agent-loop-invariant`, and the stock session projections enabled.** A profile without live reload applies the change at its next start.
 
 This package already mounts its own copy of tool-result folding: originally derived from the standalone [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) plugin, also exported here as `./fold`. **Do not install the standalone plugin into the same profile.** Both register `expand_result`, and the second registration fails at load with `tool "expand_result" is already registered`. Mount `./fold` (or the standalone plugin) on its own only when you want folding on the stock loop without the slice policy.
 
