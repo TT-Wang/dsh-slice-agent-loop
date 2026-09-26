@@ -1,0 +1,6 @@
+{
+  "_source": "docs/dsh-plugin-opportunities.md:6 (DeepSeek pricing page, 2026-09), v4-flash; USD per million tokens. The 0.1.7 base routes to deepseek-flash; that it bills on the v4-flash sheet is an assumption. Token counts are the ground truth.",
+  "offpeak": { "miss": 0.22, "hit": 0.007, "out": 0.66 },
+  "peak": { "miss": 0.44, "hit": 0.014, "out": 1.32 },
+  "budget_sheet": "peak"
+}

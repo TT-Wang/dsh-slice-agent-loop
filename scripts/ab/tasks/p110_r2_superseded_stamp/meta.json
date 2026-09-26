@@ -1,0 +1,18 @@
+{
+ "name": "p110_r2_superseded_stamp",
+ "alias": "r2",
+ "turns": 7,
+ "max_steps_per_turn": 12,
+ "turn_timeout_s": 900,
+ "recall": true,
+ "exams": [
+  {
+   "turn": 6,
+   "tokens": [
+    "8d2e0fac"
+   ]
+  }
+ ],
+ "source": "dsh-slice/scenarios/r2d_superseded_fact: prompts P1,P2,P4,P6,P10,P13,P14 (verbatim); setup.py and verify.py unchanged; the user-requested deletion turn P8 is replaced by hooks.after_turn(4).",
+ "stressor": "superseded fact: stamp A printed in T2, stamp B printed in T4 after a config fix; config and script deleted after T4; decoys in the T3/T5 floods; exam T6 asks for the value in effect (B), so the model must pick between two tool results from different turns."
+}

@@ -1,0 +1,33 @@
+# A/B parity overlay (every arm identical): no host compaction, no extra model calls,
+# byte-stable persona, same tool set.
+- id: compaction-basic
+  disabled: true
+- id: command-compact
+  disabled: true
+- id: tool-result-pruner
+  disabled: true
+- id: session-title-llm
+  disabled: true
+- id: tool-web
+  disabled: true
+- id: system-prompt
+  config:
+    personaPrefix: ''
+    personaSuffix: ''
+# Keep all model work in one session log: no delegation children (their usage
+# and sealing would land in separate child sessions).
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-workflow
+  disabled: true
+# Hermetic: no user-home skill catalog (it can change mid-batch).
+- id: skill-filesystem
+  disabled: true
+- id: tool-skill
+  disabled: true

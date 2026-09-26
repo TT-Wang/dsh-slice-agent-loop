@@ -1,0 +1,22 @@
+{
+ "name": "p110_r4_probe_compare",
+ "alias": "r4",
+ "turns": 4,
+ "max_steps_per_turn": 12,
+ "turn_timeout_s": 900,
+ "recall": true,
+ "exams": [
+  {
+   "turn": 4,
+   "tokens": [
+    "PRB-us-7537d2a4",
+    "PRB-eu-559cd122",
+    "shipping        177     690",
+    "shipping         43     291"
+   ]
+  }
+ ],
+ "oracle_answer": "shipping,690,291",
+ "source": "new for P1-10",
+ "stressor": "two small probe outputs (T1 us, T2 eu), never restated; tools/ deleted after T2; filler T3; exam T4 needs one row from each output, so two cross-turn locators from different turns. Swapped regions are detected."
+}
