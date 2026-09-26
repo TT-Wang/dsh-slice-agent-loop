@@ -5,6 +5,7 @@
 - 验证基线：`f5fc4b1` = `db72621` + PR #8（`2b55782`、`023385f`、`059687a`）。
 - 方法：8 名分领域 verifier 逐条取现场证据，每组再配一名 skeptic 专门找反例；27 条判定**零条被推翻**。
 - 计划原文保持冻结。凡行号锚点、字符数、字节数与本文件不一致，**以本文件为准**。
+- **2026-09-27 复核**：PR #10–#12 合并后，对 main `ba12a5b` 重新核对了下文「仍需决策的条目」里的四条，结论与处理见文末[「2026-09-27 复核」](#2026-09-27-复核)，与上文冲突处以该节为准。
 
 ## 计数
 
@@ -84,3 +85,21 @@
 - **P0-4 降级过陡**：13 轮、每轮 10 个长路径 read 加 10 个工具、cap 2000 时，整条条目会从逐轮摘要直接掉到约 153 字符的范围标记（内容仍可 `recall_turn` 取回）。可考虑按轮分配预算，但不得改写已封存条目。
 - **P1-5 残留线性扫描**：`src/context.ts:182` 的 `inspectSurface` 每次 seal 仍全量遍历一次日志（不算哈希，且只在 `step === 1` 触发，实测 1 ms 内）。优化前先量长会话实际耗时。
 - **P1-9 依赖宿主**：插件内没有轮内 seal，超窗完全交给宿主；现有用例用的是模拟 provider，尚无真实 compaction 组合的集成验证。
+
+## 2026-09-27 复核
+
+方法：四条各派一名 verifier 在 `ba12a5b`（PR #10 `63c928c`、#11 `406f513`、#12 `ba12a5b` 之后）上取现场证据并实测，再各配一名 skeptic 找反例，分歧由第三人逐点实查裁定。四条的状态判定无一被推翻，数字与说法按下表更正。量化用到两份真实 V4 会话（Raft 外部 agent `slicey-dsh`，2026-09-25，`raft-slicey-dsh-1`/`-2`，360/408 次请求）。
+
+| ID | 复核状态 | 结论 | 处理 |
+|---|---|---|---|
+| P1-6 | 前提已变，结项 | PR #11 删除了 `own` 谓词与 `pinFirstTurn`：所有非 slice 的 `user/message` 一律原样保留（`src/context.ts` 的通用保护分支），这是 ADR-0003 有意接受的成本；KERNEL 用一句全局声明（人类消息逐字留在原节点）代替了逐条记账。PR #12 起 `system/message`、`developer/message` 一律保护。唯一随轮数线性增长的非人类来源是插件注入的 `[Raft wake]` 提示：`raft-slicey-dsh-2` 末次请求 94 条、12,502 字符（surface 文本的 7.9%），全会话累计约占输入 token 的 4.0–5.3%，其中 97.5% 是 cacheRead。 | 放弃原方案 (b)：每个条目一行“kept raw”记账约 54 字符，不提供 KERNEL 之外的信息。上文 P1-6 行与本节之前对 `own` 的引用均已失效。可选跟进（低优先级）：在 dsh-raft-channel 里缩短唤醒提示。 |
+| P1-10 | 仍成立，数字更正 | `ba12a5b` 上：条目首行 188 字符（教学从句 142）、`KERNEL` 1,543、`FOLD_AFFORDANCE` 1,351 / `foldAffordance(true)` 1,568、四个工具定义 JSON 5,436。真实会话里首行教学从句约占 cacheRead 的 2.7–4.7%；工具行的 `expand_result` 定位符累计更大（322 万 / 257 万字符）；前缀去重每请求约 305 token，只有首行收益的五分之一左右，而一次前缀变更让跨部署的活跃会话各整请求未命中一次（实测 8.7K–59K token）。 | **更正上文方向**：ADR-0001 要求 A/B 的对象正是按轮付费的条目 header 瘦身，上文“条目 header 瘦身可以先做”说反了；“前缀变更先 A/B”也从未执行过（PR #9/#11/#12 都改过前缀）。决定：做一次 native A/B（对照 = main；实验臂 1 = 首行短图例 + 前缀每条规则只讲一处；实验臂 2 = 臂 1 + 工具行短定位符），通过后搭下一次本来就要改前缀的版本发布。实验设计与结果见 `docs/p110-native-ab.md`（实验分支 `exp/p110-ab-harness`）。 |
+| P2-8 | 已处理 | 上文“Git 克隆 58.95 MiB”的口径也不对：`dsh plugin add github:` 由 pnpm 下载该 commit 的 codeload tarball（约 12.5 MiB，95% 是 `results/`），不带历史，再按 `files` 只装约 0.27 MiB。 | PR #13：`results/` 的数据移到 release [`archive-legacy-results-2026-09-04`](https://github.com/TT-Wang/dsh-slice-agent-loop/releases/tag/archive-legacy-results-2026-09-04)，`results/*` 改为忽略（保留 `results/README.md`），`check:size` 上限 64 → 8 MiB；不改写历史。安装 tarball 由 13.1 MB 降到约 0.64 MB。 |
+| P2-13 | 已处理 | 缺的标签实际是 9 个（4 个 triage + 5 个 `/wayfinder`）；手动源码验证在 0.1.7 上已跑不通（全新 rc.2 检出 335/342）；compat 周任务跟踪的 npm `latest` 仍是 0.1.5-rc.3，只是在重测 rc.2。 | 2026-09-27 由维护者建了 4 个 triage 标签（`/wayfinder` 的 5 个待首次使用前再建）。PR #14：`verify:master` 在全新 `dsh-v0.1.7-rc.2` 检出上 342/342，并写进“升级宿主前”步骤；compat 周任务改为跟踪 `@deepseek-ai/dsh*` 的 `next` dist-tag（cordis 仍用 `latest`），合并后手动触发一次通过。 |
+
+复核中顺带发现、不属于这四条的事项：
+
+- 真实会话里，系统提示在会话中途变化会让宿主原位替换 surface 第 0 个节点，下一请求整请求未命中；`raft-slicey-dsh-1`/`-2` 各发生 2/4 次，全部由开发期间修改 Raft orientation 文本引起。
+- 唤醒提示用 source kind `user`，`recall.ts` 的 `isUserInput` 会把它当成人类输入，稀释 `recall_search` 的 user 类命中。
+- `dsh-tool-skill` 的替换 skill 目录、在已有条目之前被取代的 runtime-context 快照等节点永久保留，数量随“变更次数”而不是轮数增长；raft 会话里各 0–1 份，频繁切换技能或权限的交互会话未测。
+
