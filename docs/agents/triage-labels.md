@@ -1,6 +1,6 @@
 # Triage Labels
 
-The skills speak in terms of five canonical triage roles. This file defines the desired label strings. It does not assert that all labels have been provisioned in GitHub. Read `gh label list` before applying one; use an existing label only when its meaning matches, or explicitly provision the missing role as part of a triage task.
+The skills speak in terms of five canonical triage roles. All five labels in the table exist in this repo's GitHub tracker: `wontfix` is a GitHub default, and the maintainer created the other four on 2026-09-27 (GitHub records 2026-09-26 17:01 UTC). Agents apply and remove these labels. Creating, renaming or deleting a label is a repository setting that the maintainer owns; if `gh` reports a missing label, stop and tell the maintainer.
 
 | Label in mattpocock/skills | Label in our tracker | Meaning                                  |
 | -------------------------- | -------------------- | ---------------------------------------- |
@@ -10,6 +10,6 @@ The skills speak in terms of five canonical triage roles. This file defines the 
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table after verifying it exists.
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
-Edit the right-hand column to match whatever vocabulary you actually use.
+If the vocabulary changes, the maintainer changes the GitHub labels and this table together.

@@ -2,9 +2,11 @@
 
 > Historical alpha.2 receipt. Current released-host instructions and evidence are
 > in [DSH 0.1.7 compatibility](dsh-0.1.7-compatibility.md); the
-> [DSH 0.1.5 compatibility](dsh-0.1.5-compatibility.md) notes are also history. Source-checkout
-> verification is manual-only, not a scheduled or required CI gate. The native
-> dependency commands below apply only to this historical host.
+> [DSH 0.1.5 compatibility](dsh-0.1.5-compatibility.md) notes are also history.
+> To check a 0.1.7 tag's source, follow
+> [Before upgrading the host](dsh-0.1.7-compatibility.md#before-upgrading-the-host).
+> Source-checkout verification is manual-only, not a scheduled or required CI
+> gate. The `fs-ext` native build steps below apply only to this historical host.
 
 The upgraded context plugin was checked against both the published Harness
 release and the newer upstream source checkout. The plugin delegates execution
@@ -46,8 +48,10 @@ creates an isolated `DSH_HOME`, and uses the launcher's standard profile setting
 `nodeLinker: hoisted` and `autoInstallPeers: false`. It invokes the supported
 `dsh plugin --profile slice-packed add` command, checks the composed Loader tree,
 and boots that profile. It leaves the user's installed profiles unchanged.
-Only persistence's declared `fs-ext` native build script is run; a native C++
-toolchain is required. Package installation requires network access.
+On this historical host, only persistence's declared `fs-ext` native build
+script ran, and it needed a native C++ toolchain. Since 0.1.5 the published host
+ships its `flock` addon as a package dependency, so the current script builds
+nothing natively. Package installation requires network access.
 
 The fixture uses a deterministic LLM adapter. Settings, tool dispatch, recall,
 the stock loop, surface derivation, invariants, and JSONL persistence use published
@@ -62,9 +66,12 @@ No API credentials are needed.
 
 ## Repeat the source check
 
-Use a separate Harness checkout at the desired upstream revision. In that
-checkout, install the required source dependency closure and build the one native
-persistence dependency used by these tests:
+Use a separate Harness checkout at the desired upstream revision. For a 0.1.7
+tag, prepare it as described in
+[Before upgrading the host](dsh-0.1.7-compatibility.md#before-upgrading-the-host).
+The commands below are for this historical host only. They install the required
+source dependency closure and build the one native persistence dependency
+(`fs-ext`) that host used:
 
 ```sh
 pnpm install --filter @deepseek-ai/dsh-agent-loop... \
@@ -81,7 +88,10 @@ node scripts/validation/run-master-tests.mjs "$HARNESS_SOURCE_CHECKOUT"
 
 The script uses the checkout's complete `tsconfig.base.json` path map and its
 standard-decorator transform. Harness imports all resolve to one source graph;
-it does not mix selected master packages with published Harness artifacts. The
+it does not mix selected master packages with published Harness artifacts. It
+also points tsx at that path map (added for 0.1.7's JSONL migration verifier),
+so code the Harness loads in a worker thread through tsx resolves to the same
+source. The
 printed evidence directory records the exact upstream commit, test report, and
 command output. The verified source worktree remained clean.
 

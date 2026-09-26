@@ -6,7 +6,7 @@ Issues live in this repo's GitHub Issues (TT-Wang/dsh-slice-agent-loop), operate
 
 ### Triage labels
 
-Default five-role vocabulary; each label string equals its role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
+Default five-role vocabulary; each label string equals its role name (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). All five exist on GitHub; agents apply them, and only the maintainer creates labels. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 

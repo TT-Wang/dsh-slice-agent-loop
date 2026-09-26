@@ -13,7 +13,7 @@ The tape, fold and recall policy is unchanged; the V4 host differences that chan
 
 ## V4 host behaviour worth knowing
 
-- **A tool-set change splits its turn into two entries.** When the tool set changes between requests, the 0.1.7 loop appends a `developer/message` (source `tool-registry`, content `tool-addition` / `tool-removal`) inside the next turn, after that turn's user message, runtime snapshot and request header. The node is protected, and a protected node ends a sealed run, so once the turn seals, its superseded snapshot and its replies land in two entries that both carry the header `turns N-N · 1 turn(s) sealed`. Pointers and recall are unaffected; the model sees the same turn header twice. `tests/native-context.spec.ts` covers this.
+- **On rc.2, a tool-set change splits its turn into two entries.** When the tool set changes between requests, the 0.1.7-rc.2 loop appends a `developer/message` (source `tool-registry`, content `tool-addition` / `tool-removal`) inside the next turn, after that turn's user message, runtime snapshot and request header. The node is protected, and a protected node ends a sealed run, so once the turn seals, its superseded snapshot and its replies land in two entries that both carry the header `turns N-N · 1 turn(s) sealed`. Pointers and recall are unaffected; the model sees the same turn header twice. `tests/native-context.spec.ts` covers this. 0.1.7-rc.1 does not emit this node: its `dsh-llm` already defines the `tool-addition` / `tool-removal` content, but its agent loop never appends the message (rc.2 added that in `packages/core/agent-loop/src/agent.ts`). On rc.1 the turn therefore seals as one entry, and that test is the one failure when the suite runs against rc.1 source (see [source-checkout verification](#source-checkout-verification-on-2026-09-27)).
 - **Native spill notices can count images, and they preview the whole result.** 0.1.7's spill-policy bounds results by `maxInlineTokens` and keeps whole images: its retained copy is `[head, image…, "[...]" + tail + notice]`, and the notice may read `(Omitted N bytes. Omitted M images. Full formatted result stored at: …)`. The stored file holds the complete formatted content, with each image as a descriptor line. When the last text part of a result carries that notice, `expand_result` and `recall_step` return the stored file once for the whole result instead of hydrating each part, so the retained head is not repeated. A fold spill preview still covers only its own part.
 - **Fold state crosses a V3 resume.** A fold replacement written by a 0.1.5 build keeps its frozen `"formatVersion": 3` hint. On replay the folder rebuilds the view with the version the replacement names, so that fold still counts and retrieving it by `turn`/`step`/`call` still drives expansion backoff. Retrievals made with an old-format numeric `seq` are not recounted, because they can no longer be resolved safely.
 
@@ -43,6 +43,34 @@ The host deliberately does not rewrite message text or tool arguments, so a rest
 
 `expand_result` still accepts a `block` argument. Each V4 result is a single block, so only `block: 1` is valid; any other value reports that the result has one block.
 
+## Before upgrading the host
+
+Before bumping the pinned packages to a new host tag, run the whole plugin suite against that tag's source. This finds host contract changes while the upgrade is still a decision: the 0.1.5-rc.1 source failed 97 tests on 2026-09-13 (positional replacements moved to `startSeq`/`endSeq`), and the 0.1.6-alpha.2 source failed 9 PTC tests on 2026-09-21 (`codeRuntime` became `ptcRuntime`). The step is manual; no CI job runs it. The weekly Peer compatibility workflow (`.github/workflows/compat.yml`) installs npm's `next` tag for the `@deepseek-ai/dsh*` packages and fails once `next` falls outside the declared peer range, which is the usual signal that a new tag needs this check.
+
+The steps are for macOS and Linux. They need git, pnpm 11.7.0, a supported Node installation that ships its headers in `<node prefix>/include/node` (the native build stops and names that path when they are missing), and a C compiler for the host's native addon: `cc`, or `musl-gcc` on musl Linux. Clone the target tag and prepare it:
+
+```sh
+TAG=dsh-v0.1.7-rc.2
+HARNESS_SOURCE_CHECKOUT="$HOME/src/deepseek-harness-$TAG"
+git clone --depth 1 --branch "$TAG" https://github.com/deepseek-ai/deepseek-harness.git "$HARNESS_SOURCE_CHECKOUT"
+cd "$HARNESS_SOURCE_CHECKOUT"
+pnpm install --filter @deepseek-ai/dsh-agent-loop... \
+  --filter @deepseek-ai/dsh-session-persistence-jsonl... \
+  --filter @deepseek-ai/dsh-tool-fs... --ignore-scripts --frozen-lockfile
+pnpm run build:native-system
+```
+
+Then run the suite from the plugin checkout, after its own `pnpm install --frozen-lockfile`:
+
+```sh
+npm run verify:master -- "$HARNESS_SOURCE_CHECKOUT"
+```
+
+- `--ignore-scripts` skips upstream's install hooks. No `fs-ext` build is needed: the 0.1.7 lockfile has no `fs-ext`, and file locking comes from the host's own `flock` addon.
+- `build:native-system` compiles that addon into `native/system/packages/<platform>-<arch>/bin/`: `system.node` on macOS, and `glibc/system.node` or `musl/system.node` on Linux. Upstream's own `pnpm test` runs the same step first. JSONL persistence loads the addon for its file lock on macOS and Linux. Without it 7 tests fail: 4 in `tests/host-format-upgrade.spec.ts` name the missing `system.node`, while 3 in `tests/native-context.spec.ts` and `tests/tape-protected.spec.ts` report only `SessionPersistenceNotFoundError` on resume. On any other OS the step exits 0 without building anything, and this procedure has not been tried there. Only macOS arm64 has been run; the Linux paths and compilers come from upstream's `native/system/scripts/build.ts`.
+- No upstream `lib/` build is needed. `scripts/validation/run-master-tests.mjs` resolves every Harness import through the checkout's `tsconfig.base.json` path map and points tsx at the same file (`TSX_TSCONFIG_PATH`). The 0.1.7 JSONL provider verifies a migrated generation in a worker thread that it loads through tsx, outside Vite's aliases. Before the script set that variable, a fresh checkout failed the 4 restore tests in `tests/host-format-upgrade.spec.ts`, which asked for unbuilt `lib/` files. Building upstream `lib/` also works (a full install plus `pnpm run build:lib:host` took 167 s on the machine below), but then the worker runs built code rather than the checked-out source.
+- The script prints the host commit, test counts and an evidence directory, and exits non-zero on any failure. Explain every failure before bumping the pins: fix the plugin, or record the host difference in the compatibility notes, as with the rc.1 tool-set notice above.
+
 ## Verification recorded on 2026-09-25
 
 Local verification on Node 22.22.3 / pnpm 11.7.0, macOS arm64, against DSH 0.1.7-rc.2 development dependencies passed **342/342 tests across 38 files** and all typechecks (source, tests, scripts, gates). `pnpm install --frozen-lockfile` and `pnpm peers check` passed.
@@ -52,3 +80,14 @@ The packed check installed the same tarball into the published rc.2 and rc.1 CLI
 The pinned hosts are younger than pnpm's `minimumReleaseAge`. The repository's `pnpm-workspace.yaml` exempts exactly the 46 `@deepseek-ai` 0.1.7-rc.2 packages in the lockfile. Installing the published CLI also brings in their transitive closure. For that install, `scripts/validation/run-packed-smoke.mjs` exempts only exact `@deepseek-ai/*` versions that pnpm reports as too young, and fails on any other immature package. It records those versions in its evidence directory (227 for rc.2, 0 for rc.1 in the run above).
 
 CI runs the doc check, typechecks, the full suite with coverage, generated-artifact checks and the packed rc.2 installation on Node 22.19.0, 22.22.3 and 24.x, plus the packed rc.1 installation on Node 22.22.3. No paid model evaluation or benchmark was run. These compatibility tests do not measure cost or model success rate.
+
+## Source-checkout verification on 2026-09-27
+
+The 2026-09-25 record above has no source-level run; this one follows [Before upgrading the host](#before-upgrading-the-host) for both supported tags. Plugin: main `ba12a5b` plus the `TSX_TSCONFIG_PATH` change to `scripts/validation/run-master-tests.mjs`. Machine: Node 22.22.3, pnpm 11.7.0, macOS arm64.
+
+| Host source | Result |
+| --- | --- |
+| `dsh-v0.1.7-rc.2`, commit `477b4f4`, fresh shallow clone | **342/342 across 38 files**, zero skipped |
+| `dsh-v0.1.7-rc.1`, commit `46a7f68`, fresh shallow clone | 341/342. The failure is the `tests/native-context.spec.ts` case "keeps host developer/message tool-set notices on the surface and out of every entry when the tool set changes": rc.1 appends no tool-registry `developer/message` (see [V4 host behaviour worth knowing](#v4-host-behaviour-worth-knowing)). A pre-built local rc.1 checkout at the same commit gave the same result. |
+
+Wall time for rc.2 with a warm pnpm store: clone 6.4 s (183 MB, 37 MB of it `.git`), filtered install 7–8 s (849 packages, all reused from the store, none downloaded), native build 2–3 s, `verify:master` 6–7 s. A cold store has to download those 849 packages; that time was not measured. Before the script change, the same fresh rc.2 checkout passed 335/342 without the native build and 338/342 with it. Neither upstream checkout had tracked or untracked changes afterwards; only ignored build output was added.
