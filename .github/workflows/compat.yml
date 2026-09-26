@@ -23,7 +23,9 @@ name: Peer compatibility
 # When `next` is younger than pnpm's minimumReleaseAge (one day), `pnpm up`
 # keeps the current version and exits 0 (probed on pnpm 11.7.0), so a release
 # published less than a day before a run is first probed the following week.
-# The step summary below shows what actually resolved.
+# The "Record what actually resolved" step writes the resolved versions to the
+# step summary. It runs before the checks, so a run that fails check:peers
+# still names the new `next` version.
 #
 # It never touches the committed lockfile: the upgrade happens in the runner's
 # working copy and is thrown away with it.
@@ -62,9 +64,6 @@ jobs:
         run: pnpm up '@deepseek-ai/dsh*@next'
       - name: Upgrade cordis to npm latest
         run: pnpm up @deepseek-ai/cordis --latest
-      - run: pnpm peers check
-      - run: npm run check:peers
-      - run: npm run check:docs
       - name: Record what actually resolved
         run: |
           {
@@ -74,6 +73,9 @@ jobs:
               | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const t=JSON.parse(s)[0];for(const g of ["dependencies","devDependencies"])for(const [k,v] of Object.entries(t[g]??{}))if(k.startsWith("@deepseek-ai/"))console.log(`${k}@${v.version}`)})'
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - run: pnpm peers check
+      - run: npm run check:peers
+      - run: npm run check:docs
       - run: npm run typecheck
       - run: npm run test:coverage
       - run: npm run check:build
