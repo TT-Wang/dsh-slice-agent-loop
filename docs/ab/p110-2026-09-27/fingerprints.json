@@ -1,0 +1,139 @@
+{
+ "arms": {
+  "arm1": {
+   "cells": 8,
+   "mean_tool_line_chars": 94.4,
+   "prefix_chars": 19802,
+   "prefix_delta_vs_control": -773,
+   "slice_tools_delta_vs_control": -175,
+   "slice_tools_json_chars": 5266,
+   "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
+   "system_chars": 4181,
+   "system_delta_vs_control": -598,
+   "system_sha": "1b608b9c503d3dadfe33c232a4a3b3c7e998508609e3074f77220380a19058a0",
+   "tape_header_forms": [
+    "short"
+   ],
+   "tape_header_lengths": [
+    76
+   ],
+   "tool_line_forms": [
+    "long"
+   ],
+   "tool_names": [
+    "bash",
+    "create_goal",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "get_goal",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "update_goal",
+    "write"
+   ],
+   "tools_count": 19,
+   "tools_json_chars": 15621,
+   "tools_sha": "62c9e16305232c14d7648b3a250b5677ca18430a7a362746a4b472bbfe23e3b3"
+  },
+  "arm2": {
+   "cells": 8,
+   "mean_tool_line_chars": 53.3,
+   "prefix_chars": 19802,
+   "prefix_delta_vs_control": -773,
+   "slice_tools_delta_vs_control": -175,
+   "slice_tools_json_chars": 5266,
+   "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
+   "system_chars": 4181,
+   "system_delta_vs_control": -598,
+   "system_sha": "1b608b9c503d3dadfe33c232a4a3b3c7e998508609e3074f77220380a19058a0",
+   "tape_header_forms": [
+    "short"
+   ],
+   "tape_header_lengths": [
+    76
+   ],
+   "tool_line_forms": [
+    "v"
+   ],
+   "tool_names": [
+    "bash",
+    "create_goal",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "get_goal",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "update_goal",
+    "write"
+   ],
+   "tools_count": 19,
+   "tools_json_chars": 15621,
+   "tools_sha": "62c9e16305232c14d7648b3a250b5677ca18430a7a362746a4b472bbfe23e3b3"
+  },
+  "control": {
+   "cells": 8,
+   "mean_tool_line_chars": 94.4,
+   "prefix_chars": 20575,
+   "slice_tools_json_chars": 5441,
+   "slice_tools_sha": "6699b32a319b52738830cdf5733d4cdbdc61cac7a887352d02b8bba28322870f",
+   "system_chars": 4779,
+   "system_sha": "ba80ae830a8f96361efcb7a308649a338339a67b2a60d43d43e298416358b162",
+   "tape_header_forms": [
+    "long"
+   ],
+   "tape_header_lengths": [
+    188
+   ],
+   "tool_line_forms": [
+    "long"
+   ],
+   "tool_names": [
+    "bash",
+    "create_goal",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "get_goal",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "update_goal",
+    "write"
+   ],
+   "tools_count": 19,
+   "tools_json_chars": 15796,
+   "tools_sha": "5fda60dd82b63c564255d8d5c34089e944c99eb84402ad0897ff28586f581b90"
+  }
+ },
+ "batch_dir": "offline dry run, batch \"offline\" (harness 5b629af; raw data kept outside the repo)",
+ "canonical_json": "sha256 over json.dumps(obj, ensure_ascii=False, sort_keys=True, separators=(\",\", \":\")); slice tools = the four recall tool definitions of the first request/header",
+ "created": "2026-09-26T18:20:07+00:00"
+}

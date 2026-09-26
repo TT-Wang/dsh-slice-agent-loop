@@ -331,19 +331,28 @@ about $2.7 for the batch, $0.5–1 for warmup, pilot and a possible arbitration.
 
 ## 11. Offline dry run (build evidence, 2026-09-27)
 
-No key existed in any home; the mock adapter (`scripts/ab/mock-llm.mjs`, provider
-`ab-mock`) scripted bash, two reads of the file the prompt names, and an
-`expand_result` on the newest tape tool line, parsing whichever form the arm renders.
+Harness commit `5b629af`. No key existed in any home; the mock adapter
+(`scripts/ab/mock-llm.mjs`, provider `ab-mock`) scripted bash, two reads of the file the
+prompt names, and an `expand_result` on the newest tape tool line, parsing whichever
+form the arm renders.
 
-- 8 tasks (7 + hello) x 3 arms x 1 rep = 24 cells, arms concurrent: 96/96 turns exited 0,
-  24/24 logs found, 24/24 metrics rows, 24/24 cells valid on the first attempt.
+- 8 tasks (7 + hello) x 3 arms x 1 rep = 24 cells, arms concurrent, 61 s: 96/96 turns
+  exited 0, 24/24 logs found, 24/24 metrics rows, 24/24 cells valid on the first
+  attempt and again when re-validated against the fingerprints computed from them
+  (identical to an earlier development run).
 - Tape forms per arm as expected (control long/long, arm 1 short/long, arm 2 short/v);
   every mock `expand_result` found its locator on the tape with formatVersion 4 in all
   three arms; the r3 T1 read was folded in every arm.
-- Guards exercised: a budget stop between cells and `--resume`; a mid-turn kill (turn
-  killed after 3 steps, ledger $0.000202 under a $0.00025 cap, exit 2); a doctored
-  fingerprint file makes cells invalid after 2 attempts; a turn cut by the step cap ends
-  with `blocked` and exit 1.
+- Guards, on the same commit: a budget stop inside two concurrent cells (ledger
+  $0.00247 under a $0.0025 cap, exit 2) and `--resume` rerunning exactly those cells; a
+  mid-turn kill (turn killed after 3 steps, ledger $0.000202 under a $0.00025 cap, exit
+  2); a doctored fingerprint file makes cells invalid after 2 attempts; `--offline`
+  refuses to start when a home has a `.env`; a turn cut by the step cap ends with
+  `blocked` and exit 1.
+- `scripts/ab/test_ab_metrics.py` 10/10 (with the 24 mock logs and the two real
+  sessions), `scripts/ab/test_ab_report.py` 6/6, `scripts/ab/selfcheck_tasks.py` 22/22.
+- Fingerprints and the tarball checksums are in
+  [docs/ab/p110-2026-09-27/](ab/p110-2026-09-27/fingerprints.json).
 
 ## 12. Risks and limits
 
