@@ -8,6 +8,11 @@
 > positive; §13 records the pilot, every change and the frozen parameters. Nothing
 > below changes after this commit. §14 "Results" stays empty until the batch and the
 > report exist.
+>
+> **Results added 2026-09-27 (§14).** The batch and the single arbitration batch ran as
+> pre-registered. Pooled over 6 reps, every gate passes for both arms (arm 1 G1–G5, arm 2
+> G1–G6), so the pre-registered decision is to ship A + C and add F. Sections 1–13 and
+> 15 are unchanged since the pre-registration commit `f70d584`.
 
 ## 1. Question
 
@@ -615,7 +620,125 @@ without oracle tokens or answer text: `docs/ab/p110-2026-09-27/pilot.json`.
 
 ## 14. Results
 
-_Empty until the batch and the report exist._
+**Runs** (harness `f70d584`; `git diff 58363c5 f70d584 -- scripts` is empty; arms, host,
+model and fingerprints as in §13):
+
+| batch | window (UTC, 2026-09-26) | cells | valid on attempt 1 | pass | spend at peak |
+|---|---|---|---|---|---|
+| `p110-20260927` (the §13 command) | 19:58–21:00 | 63 | 63 | 63 | $2.2320 |
+| `p110-20260927-arb` (arbitration, below) | 21:02–21:53 | 63 | 63 | 63 | $2.2258 |
+
+Neither batch had an infra failure, rerun, model-error turn, timeout, budget stop, unpriced
+step, failed provider attempt, compaction or goal call. Every cell matched its arm's
+fingerprints, tape forms and structural sizes. The whole experiment (warmup, pilots, batch
+and arbitration) cost **$4.5783 at peak prices** of the $10 cap, over 598 ledger turns.
+
+**Batch alone** (21 pairs per arm; 15 recall pairs for G2):
+
+| gate | arm 1 | arm 2 |
+|---|---|---|
+| G1 | pass: 21 vs 21 | pass: 21 vs 21 |
+| G2 | **insufficient**: 8 valid G2 pairs (minimum 10) | **insufficient**: 9 valid G2 pairs |
+| G3 | pass: 41 vs 33 (limit 43.25) | pass: 41 vs 33 |
+| G4 | pass: median ratio 0.987, sum ratio 1.017, median Δrequests 0, full views 0 vs 3 | **arbitrate**: median Δrequests +2 against the limit +1 (one unit); median ratio 1.043, sum ratio 1.031, full views 0 vs 3 all pass |
+| G5 | pass: closeouts 86 vs 85, step-cap cuts 7 vs 8 | pass: 85 vs 85, 8 vs 8 |
+| G6 | – | **insufficient**: the checks against arm 1 have 8 pairs; first-try 1.0 vs 1.0 and extra hops 3 vs 2 pass |
+
+**Arbitration (§9).** Trigger: arm 2 G4.requests missed by exactly one unit, and no check
+failed in either arm. G2 in both arms and arm 2's G6 checks against arm 1 were
+insufficient. The arbitration took "the tasks driving the miss" as the union of two sets:
+the tasks with positive paired request deltas for arm 2 (r1, r3, r5, c1, c2) and the
+tasks whose G2 pairs were dropped (r2, r3, r4, r5). Together these are all seven tasks. So the
+single arbitration batch ran all 7 tasks x 3 reps x 3 arms, with the same command, the
+same seed (the pre-registration fixes no other) and the same concurrent pairing. The
+decision uses the pooled 6 reps (`ab_report.py --pooled`, count margins x2). As
+`gates.json` specifies, the minimum pair counts stay at 17 and 10.
+
+**Pooled result (decides):**
+
+| gate | arm 1 vs control | arm 2 vs control |
+|---|---|---|
+| G1 | pass: 42 vs 42 | pass: 42 vs 42 |
+| G2 (pairs) | pass (16): recall-sourced correct 16 vs 16; recall errors 0 vs 0; formatVersion rejections 0 vs 0; decoy/stale/hedged/wrong/CANNOT-RECOVER 0 vs 0 | pass (19): 19 vs 19; 0 vs 0; 0 vs 0 (none to recover); 0 vs 0 |
+| G3 | pass: 73 vs 79 (limit 102.75) | pass: 87 vs 79 |
+| G4 | pass: median ratio 0.979, sum ratio 0.967, median Δrequests 0, full views 1 vs 3 | pass: 0.986, 0.994, **+1 (at the limit)**, 0 vs 3 |
+| G5 | pass: closeouts 174 vs 168, step-cap cuts 12 vs 18 | pass: 170 vs 168, 16 vs 18 |
+| G6 | – | pass: first-try 1.0 vs 1.0; extra hops 4 vs 2 (limit 6); vs arm 1 (17 pairs): rejections 0 vs 0, bad answers 0 vs 0 |
+
+**Decision (§9):** arm 1 passes G1–G5, so ship A + C as one PR. It rides on the next
+release that already changes the prefix, unless the owner accepts one full cache miss per
+session active at deploy. Arm 2 passes G1–G6, so add F to the same PR.
+
+What this shows, and what it does not:
+
+- **Ceiling.** Every one of the 126 cells passed. Every recall exam, 30 per arm, was answered
+  correctly from a recall tool result, and no arm had a recall-tool error or a
+  formatVersion rejection. That includes the cells excluded from G2 (§6), so the
+  exclusions do not hide a G2 difference. G1 and G2 therefore rule out a large regression
+  at the ceiling, not a small one (n = 6 per task and arm).
+- **Arm 2 requests.** Arm 2's median paired request delta is exactly at its limit (+1 per
+  cell) after being +2 in the batch and −1 in the arbitration batch alone. Its same-turn
+  re-reads are 87 vs 79 (+10%, limit +30%). Arm 1 shows neither (0; 73 vs 79).
+- **Cost.** The prefix is 773 chars shorter in both arms. The median turn-1 step-1
+  cacheRead is 4,480 tokens in each arm against 4,736 in control. Pooled cost at the
+  off-peak sheet is arm 1 $0.7277, arm 2 $0.7484 and control $0.7528. As §8 expected, the
+  structural saving is below what behaviour noise resolves at this n.
+- **Cache split cross-check.** dsh-slice `cache-metrics.py --json` runs on the V4 logs.
+  In all 126 cells its session miss, hit, output, request count, turn-first-step miss,
+  per-turn step-1 cacheRead and `expand_result` count equal the `ab_metrics` figures.
+  Failed-attempt usage, which `ab_metrics` also bills, was 0 everywhere.
+
+**G2 exclusions (reported, not gated).** 26 of the 90 recall cells (30 per arm, both
+batches) were excluded: arm 1 11, arm 2 8, control 7. One arm 1 r5 cell was excluded for a write leak;
+it wrote the fixed function ids into a file outside `textkit/` in T1. All the other
+exclusions were flagged accesses:
+
+- In 19 cells the model listed or read the concurrent arms' workdirs under `work/`. In 11
+  it listed the A/B root, `results/` or the scratchpad, and in 2 it ran `find /`.
+- Most of these happened in r2's exam turn (T6), usually after the turn's first recall
+  call. The rest were in the filler turns of r3 (T2) and r4 (T3). Those turns ask the
+  model to add a function to `lib/slug.py` and `lib/fmt.py`, which the setup never
+  creates, so the model searched the disk for them (and, in one r3 cell, for the
+  deleted runbook).
+- 2 exclusions rest only on false positives of the rules: a `find -not -path '*/.git/*'`
+  pattern, and `glob **/*.env` inside the workdir, where the task's own
+  `config/service.env` lives.
+- No exam answer came through the file system (oracle-via-fs 0).
+- In one excluded cell (r4 rep 2, arm 1, batch) the model also read the batch manifest,
+  which names the arms.
+
+Post hoc and not gated: in r2's exam turn, the model went outside its workdir in 2 of 6
+control cells, 5 of 6 arm 1 cells and 5 of 6 arm 2 cells, and every one of those cells
+still answered from recall. At n = 6 this is the only arm-dependent pattern in the data.
+It is worth watching after release, as a sign that the shorter teaching text makes the
+model double-check deleted sources on disk.
+
+**Secrets.** `run_ab.py secrets-scan` lists 18 calls in 14 cells: 9 in the batch and 5 in
+the arbitration. The inputs of those calls were of three kinds:
+
+- `Calculator(...).env` in c1 test code (7 cells);
+- `glob **/*.env` and `find -name '*.env'` looking for r2's own `service.env`;
+- `ls -la "$DSH_HOME"` and `find home-arm1` listings (r2 and r4).
+
+None of them reads a file's content under the home. Following §5 step 7, the session logs
+and turn files of these 14 cells are held back from the archive until the owner has looked.
+A separate scan found 14 bash calls that ran `env`, all as `env | grep ^DSH`. Their results
+contain only the names `DSH_HOME`, `DSH_PROFILE`, `DSH_PROFILE_DIR`, `DSH_SESSION_ID`,
+`DSH_SHELL`, `DSH_WORKSPACE` and `PWD`. The scan checked names only and never printed values.
+
+**For a next native A/B:**
+
+- Give filler turns a target file that exists.
+- Keep each arm's workdirs and the harness state out of the model's reach: separate
+  roots per arm, a manifest outside the tree, or a read-confining sandbox.
+- Stop flagging `find -path` patterns and `*.env` globs inside the workdir.
+
+**Files.** [summary.md](ab/p110-2026-09-27/summary.md) and
+[summary.json](ab/p110-2026-09-27/summary.json) hold two reports. The first is the pooled
+report, which decides. The second is the batch alone, which triggered the arbitration.
+Paths in both are normalized. The raw cells, turn files, session logs and ledger are in
+the owner's experiment archive, `results/20260927-p110-ab/` in the dsh-slice workspace,
+minus the held-back logs.
 
 ## 15. Revisions before any paid call (2026-09-27)
 

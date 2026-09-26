@@ -1,0 +1,4240 @@
+{
+ "arbitration": {
+  "command": "run_ab.py --ab-root $AB --arms control,arm1,arm2 --tasks all --reps 3 --seed 20260927 --parallel-arms --budget-usd 10 --max-attempts 2 --fingerprints $AB/fingerprints.json --batch p110-20260927-arb",
+  "min_pairs_note": "pooled evaluation keeps the minimum pair counts of gates.json (17 and 10); only count margins are doubled",
+  "seed_note": "same seed as the batch; the pre-registration fixes no other",
+  "tasks": "all seven: the tasks with positive paired request deltas for arm2 (r1, r3, r5, c1, c2) united with the tasks whose G2 pairs were dropped (r2, r3, r4, r5)",
+  "trigger": "batch: arm2 G4.requests 'arbitrate' (median paired request delta +2 against the limit +1, one unit); G2 'insufficient' in both arms (8 and 9 of 15 recall pairs valid for G2, minimum 10) and arm2 G6.vs_arm1 'insufficient'; no check failed in either arm"
+ },
+ "batch": {
+  "arms": [
+   "arm1",
+   "arm2",
+   "control"
+  ],
+  "baseline": "control",
+  "batches": [
+   "$AB/results/p110-20260927"
+  ],
+  "cells": 63,
+  "count_margin_multiplier": 1,
+  "decision": {
+   "arm1": "do not ship on this batch (too few valid pairs; only the single arbitration batch may add pairs)",
+   "arm2": "drop F on this batch (too few valid pairs; only the single arbitration batch may add pairs) / arbitration"
+  },
+  "g2_exclusions": {
+   "arm1": [
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r1.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /.git/*"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "secret: .env"
+       ],
+       "tool": "glob",
+       "turn": 4
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r3.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: / (find)",
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r2.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $SP"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $SP"
+       ],
+       "tool": "glob",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB",
+        "outside: $AB/home-arm1",
+        "secret: DSH_HOME",
+        "sensitive: /home-arm1"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r5_initial_failures.r3.arm1",
+     "flagged": false,
+     "flags": [],
+     "leak": true,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "arm2": [
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r1.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/$d/config/service.env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-0544039354/tools/stamp.py"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work",
+        "secret: .env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r3_runbook_middle.r2.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r3.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927",
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da",
+        "outside: $AB/results/p110-20260927/work/w-c448e5e29a"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/cells",
+        "outside: $AB/results/p110-20260927/manifest-20260927T035824.json",
+        "outside: $AB/results/p110-20260927/work",
+        "outside: $AB/results/p110-20260927/workdirs"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "control": [
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "secret: .env"
+       ],
+       "tool": "glob",
+       "turn": 4
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r3_runbook_middle.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $TMP(truncated)",
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 2
+      },
+      {
+       "reasons": [
+        "outside: /node_modules/*",
+        "outside: $TMP(truncated)"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results",
+        "outside: $AB/results/p110-20260927",
+        "outside: $AB/results/p110-20260927/2>/dev/null"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/workdirs",
+        "outside: $AB/results/p110-20260927/work/workdirs/*"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da",
+        "outside: $AB/results/p110-20260927/work/w-479ee65f48"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da/lib/fmt.py"
+       ],
+       "tool": "read",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $TMP(truncated)",
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da/answers",
+        "outside: $AB/results/p110-20260927/work/w-479ee65f48/answers"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ]
+  },
+  "gates": {
+   "arm1": [
+    {
+     "checks": [
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "ge_base_minus",
+       "threshold": 20,
+       "verdict": "pass"
+      },
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "per_task": {
+        "c1": {
+         "arm": 3,
+         "base": 3
+        },
+        "c2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r1": {
+         "arm": 3,
+         "base": 3
+        },
+        "r2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r3": {
+         "arm": 3,
+         "base": 3
+        },
+        "r4": {
+         "arm": 3,
+         "base": 3
+        },
+        "r5": {
+         "arm": 3,
+         "base": 3
+        }
+       },
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 2",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "ge_base_minus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall cells)",
+     "report_only": {},
+     "verdict": "insufficient"
+    },
+    {
+     "checks": [
+      {
+       "arm": 41,
+       "arm_sum": 41,
+       "base": 33,
+       "base_sum": 33,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 cells",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_factor_base_plus",
+       "threshold": 43.25,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 2,
+       "base": 1
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 52,
+       "base": 55
+      }
+     },
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.372245,
+       "base": "paired",
+       "base_sum": 0.366174,
+       "baseline": "control",
+       "desc": "median paired cost ratio arm/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 0.9871,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 21,
+       "pairs": 21,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.372245,
+       "base": "sum 0.3662",
+       "base_sum": 0.366174,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 21,
+       "ratio": 1.0166,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.402791,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 542,
+       "base": "paired",
+       "base_sum": 541,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 0,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 3,
+       "base_sum": 3,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_base_plus",
+       "threshold": 5,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 86,
+       "arm_sum": 86,
+       "base": 85,
+       "base_sum": 85,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "ge_base_minus",
+       "threshold": 84,
+       "verdict": "pass"
+      },
+      {
+       "arm": 7,
+       "arm_sum": 7,
+       "base": 8,
+       "base_sum": 8,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_base_plus",
+       "threshold": 9,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ],
+   "arm2": [
+    {
+     "checks": [
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "ge_base_minus",
+       "threshold": 20,
+       "verdict": "pass"
+      },
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "per_task": {
+        "c1": {
+         "arm": 3,
+         "base": 3
+        },
+        "c2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r1": {
+         "arm": 3,
+         "base": 3
+        },
+        "r2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r3": {
+         "arm": 3,
+         "base": 3
+        },
+        "r4": {
+         "arm": 3,
+         "base": 3
+        },
+        "r5": {
+         "arm": 3,
+         "base": 3
+        }
+       },
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 2",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "note": "9 valid pairs < 10 required",
+       "pairs": 9,
+       "rule": "ge_base_minus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "note": "9 valid pairs < 10 required",
+       "pairs": 9,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "note": "9 valid pairs < 10 required",
+       "pairs": 9,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "every arm 2 rejection recovered in the same turn",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "note": "9 valid pairs < 10 required",
+       "pairs": 9,
+       "rule": "arm_eq",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "note": "9 valid pairs < 10 required",
+       "pairs": 9,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall cells)",
+     "report_only": {},
+     "verdict": "insufficient"
+    },
+    {
+     "checks": [
+      {
+       "arm": 41,
+       "arm_sum": 41,
+       "base": 33,
+       "base_sum": 33,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 cells",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_factor_base_plus",
+       "threshold": 43.25,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 2,
+       "base": 1
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 54,
+       "base": 55
+      }
+     },
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.377565,
+       "base": "paired",
+       "base_sum": 0.366174,
+       "baseline": "control",
+       "desc": "median paired cost ratio arm/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 1.0429,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 21,
+       "pairs": 21,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.377565,
+       "base": "sum 0.3662",
+       "base_sum": 0.366174,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 21,
+       "ratio": 1.0311,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.402791,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 571,
+       "base": "paired",
+       "base_sum": 541,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 2,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "median_delta_le",
+       "shortfall_units": 1.0,
+       "threshold": 1,
+       "verdict": "arbitrate"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 3,
+       "base_sum": 3,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_base_plus",
+       "threshold": 5,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "arbitrate"
+    },
+    {
+     "checks": [
+      {
+       "arm": 85,
+       "arm_sum": 85,
+       "base": 85,
+       "base_sum": 85,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "ge_base_minus",
+       "threshold": 84,
+       "verdict": "pass"
+      },
+      {
+       "arm": 8,
+       "arm_sum": 8,
+       "base": 8,
+       "base_sum": 8,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_base_plus",
+       "threshold": 9,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": {
+        "ok": 21,
+        "targets": 21
+       },
+       "arm_rate": 1.0,
+       "base": {
+        "ok": 34,
+        "targets": 34
+       },
+       "base_rate": 1.0,
+       "baseline": "control",
+       "desc": "first-try success rate of expand_result on a target in an earlier turn",
+       "dropped_pairs": [],
+       "id": "G6.first_try",
+       "metric": "cross_turn_first_try",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "rate_ge_base_minus",
+       "threshold": 0.9,
+       "verdict": "pass"
+      },
+      {
+       "arm": 3,
+       "arm_sum": 3,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave",
+       "dropped_pairs": [],
+       "id": "G6.extra_hops",
+       "metric": "extra_hops",
+       "min_pairs": 17,
+       "pairs": 21,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "baseline": "arm1",
+       "desc": "fv_rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "arm1",
+       "desc": "fv_rejections_unrecovered",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "arm_eq",
+       "verdict": "insufficient"
+      },
+      {
+       "baseline": "arm1",
+       "desc": "bad_exam_answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "note": "8 valid pairs < 10 required",
+       "pairs": 8,
+       "rule": "le_base_plus",
+       "verdict": "insufficient"
+      }
+     ],
+     "id": "G6",
+     "name": "Arm 2 only: locators",
+     "report_only": {},
+     "verdict": "insufficient"
+    }
+   ]
+  },
+  "invalid_cells": [],
+  "model_error_turns": {},
+  "non_final_attempts": [],
+  "pooled": false,
+  "secret_references": [
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r1.arm2",
+    "reasons": [
+     "outside: /0",
+     "outside: /]",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r1.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r3.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r3.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r1.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "glob",
+    "turn": 4
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r2.arm2",
+    "reasons": [
+     "outside: $AB/results/p110-20260927/work",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r2.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "glob",
+    "turn": 4
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r4_probe_compare.r2.arm1",
+    "reasons": [
+     "outside: $AB",
+     "outside: $AB/home-arm1",
+     "secret: DSH_HOME",
+     "sensitive: /home-arm1"
+    ],
+    "tool": "bash",
+    "turn": 3
+   }
+  ],
+  "spend": {
+   "by_batch": {
+    "p110-20260927": 2.231971,
+    "p110-20260927-arb": 2.225812,
+    "pilot": 0.031042,
+    "pilot-r5": 0.01567,
+    "pilot-r5b": 0.027806,
+    "pilot2": 0.039334,
+    "warm": 0.006615
+   },
+   "total_usd_peak_sheet": 4.57825,
+   "turns": 598
+  },
+  "structure": {
+   "arm1": {
+    "mean_tool_line_chars": 94.4,
+    "prefix_chars": 17538,
+    "prefix_delta_vs_control": -773,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "arm2": {
+    "mean_tool_line_chars": 53.3,
+    "prefix_chars": 17538,
+    "prefix_delta_vs_control": -773,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "control": {
+    "mean_tool_line_chars": 94.4,
+    "prefix_chars": 18311,
+    "prefix_delta_vs_control": null,
+    "slice_tools_json_chars": 5441,
+    "system_chars": 4249,
+    "tape_header_lengths": [
+     188
+    ]
+   }
+  },
+  "table": {
+   "arm1": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.088119,
+     "median_requests": 83,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 18,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003871,
+     "median_requests": 5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 4,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005672,
+     "median_requests": 19,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 3,
+     "flagged_or_leak": 3,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.010947,
+     "median_requests": 27,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004815,
+     "median_requests": 18,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003509,
+     "median_requests": 16,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 1,
+     "median_cost_usd": 0.007424,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 12,
+     "valid": 3
+    }
+   },
+   "arm2": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.084404,
+     "median_requests": 87,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 18,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004157,
+     "median_requests": 8,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005473,
+     "median_requests": 19,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 5,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 2,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.011866,
+     "median_requests": 28,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005313,
+     "median_requests": 14,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003475,
+     "median_requests": 15,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.006633,
+     "median_requests": 16,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 10,
+     "valid": 3
+    }
+   },
+   "control": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.080417,
+     "median_requests": 85,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 11,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003469,
+     "median_requests": 5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 0,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005004,
+     "median_requests": 16,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.013097,
+     "median_requests": 31,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 4,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004127,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 2,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.008147,
+     "median_requests": 22,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.006826,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 12,
+     "valid": 3
+    }
+   }
+  },
+  "time_range": [
+   "2026-09-26T19:58:24+00:00",
+   "2026-09-26T20:59:58+00:00"
+  ],
+  "totals": {
+   "arm1": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.372245,
+    "cost_peak_usd": 0.744493,
+    "hit": 7774336,
+    "miss": 387509,
+    "out": 352384,
+    "requests": 542,
+    "turn_first_miss": 93615
+   },
+   "arm2": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.377565,
+    "cost_peak_usd": 0.75513,
+    "hit": 7937536,
+    "miss": 399228,
+    "out": 354806,
+    "requests": 571,
+    "turn_first_miss": 91734
+   },
+   "control": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.366174,
+    "cost_peak_usd": 0.732346,
+    "hit": 7834240,
+    "miss": 410523,
+    "out": 334877,
+    "requests": 541,
+    "turn_first_miss": 97429
+   }
+  },
+  "valid_cells": 63,
+  "warmup": {}
+ },
+ "cache_crosscheck": {
+  "compared": "session miss (inputTokens), hit (cacheReadTokens), output, request count (steps), turn-first-step miss and per-turn step-1 cacheRead, and expand_result call counts, against ab_metrics (failed-attempt usage removed; it was 0 everywhere)",
+  "per_batch": {
+   "p110-20260927": {
+    "cells": 63,
+    "compactions": 0,
+    "expand_result_count_mismatches": 0,
+    "mismatch_cells": 0
+   },
+   "p110-20260927-arb": {
+    "cells": 63,
+    "compactions": 0,
+    "expand_result_count_mismatches": 0,
+    "mismatch_cells": 0
+   }
+  },
+  "result": "runs on V4 logs; identical figures in all 126 cells; 0 compaction events",
+  "tool": "~/Documents/kimi/workspace/dsh-slice/scripts/cache-metrics.py --json on each cell's session.v4.jsonl.zstd"
+ },
+ "created": "2026-09-27",
+ "env_print_scan": "post hoc: 14 bash calls ran env (all as env | grep ^DSH); their results list only the names DSH_HOME, DSH_PROFILE, DSH_PROFILE_DIR, DSH_SESSION_ID, DSH_SHELL, DSH_WORKSPACE, PWD (names checked, values never printed)",
+ "harness_commit": "f70d584cbf300eacade20ddd7f45e6b3266d0140 (git diff 58363c5 f70d584 -- scripts is empty)",
+ "note": "P1-10 native A/B results (docs/p110-native-ab.md §14). 'pooled' is the ab_report.py --pooled output over the batch p110-20260927 and the single arbitration batch p110-20260927-arb (count margins x2); it decides (§9). 'batch' is the batch alone, which triggered the arbitration. Paths are normalized ($AB = the scratch A/B root, $SP = the scratchpad, ~ = the owner's home). No oracle token and no model answer text is kept here.",
+ "pooled": {
+  "arms": [
+   "arm1",
+   "arm2",
+   "control"
+  ],
+  "baseline": "control",
+  "batches": [
+   "$AB/results/p110-20260927",
+   "$AB/results/p110-20260927-arb"
+  ],
+  "cells": 126,
+  "count_margin_multiplier": 2,
+  "decision": {
+   "arm1": "ship A + C (G1-G5 pass)",
+   "arm2": "add F (G1-G6 pass)"
+  },
+  "g2_exclusions": {
+   "arm1": [
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r1.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /.git/*"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "secret: .env"
+       ],
+       "tool": "glob",
+       "turn": 4
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r1.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r2.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work/w-0b6f59d97e",
+        "outside: $AB/results/p110-20260927-arb/work/w-4e9c59079f"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work/w-0b6f59d97e/answers",
+        "outside: $AB/results/p110-20260927-arb/work/w-0b6f59d97e/tools",
+        "outside: $AB/results/p110-20260927-arb/work/w-4e9c59079f/config/service.env",
+        "outside: $AB/results/p110-20260927-arb/work/w-4e9c59079f/tools"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work/w-4e9c59079f/config",
+        "outside: $AB/results/p110-20260927-arb/work/w-4e9c59079f/lib"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r3.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: / (find)",
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r3.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "cd to $(pwd)",
+        "relative path after cd to an unknown directory: ..",
+        "relative path after cd to an unknown directory: ../..",
+        "relative path after cd to an unknown directory: 2>/dev/null",
+        "secret: DSH_HOME"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work/w-064d2a3ca3",
+        "outside: $AB/results/p110-20260927-arb/work/w-840e6e580f"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $SP"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r3_runbook_middle.r3.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb",
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r4_probe_compare.r1.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb",
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb",
+        "outside: $AB/results/p110-20260927-arb/workdirs"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work/w-3de533726d",
+        "outside: $AB/results/p110-20260927-arb/work/w-3de533726d/lib/fmt.py",
+        "outside: $AB/results/p110-20260927-arb/work/w-7e1560a84a",
+        "outside: $AB/results/p110-20260927-arb/work/w-7e1560a84a/lib/fmt.py"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r2.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $SP"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $SP"
+       ],
+       "tool": "glob",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB",
+        "outside: $AB/home-arm1",
+        "secret: DSH_HOME",
+        "sensitive: /home-arm1"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r5_initial_failures.r3.arm1",
+     "flagged": false,
+     "flags": [],
+     "leak": true,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r5_initial_failures.r3.arm1",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /private/tmp/analyze.py"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /private/tmp/diffcheck.py"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "cd to $T",
+        "outside: /textkit/dates.py",
+        "outside: /textkit/hashing.py",
+        "outside: /textkit/slugs.py",
+        "outside: /textkit/tokens.py",
+        "outside: /textkit/validate.py"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "arm2": [
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r1.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/$d/config/service.env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-0544039354/tools/stamp.py"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r1.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB",
+        "outside: $AB/2>/dev/null"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work",
+        "outside: $AB/results/p110-20260927-arb/work/*"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work",
+        "outside: $AB/results/p110-20260927-arb/work/w-4b9f463343/config",
+        "outside: $AB/results/p110-20260927-arb/work/w-4b9f463343/tools",
+        "outside: $AB/results/p110-20260927-arb/work/w-a8ac76d347/answers",
+        "outside: $AB/results/p110-20260927-arb/work/w-a8ac76d347/answers/how.md",
+        "outside: $AB/results/p110-20260927-arb/work/w-a8ac76d347/answers/stamp.md"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB",
+        "outside: $AB/2>/dev/null",
+        "outside: $AB/results/p110-20260927-arb/results",
+        "outside: $AB/results/p110-20260927-arb/work/w-4b9f463343/tools",
+        "secret: .env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work",
+        "secret: .env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r2.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: / (find)"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r3.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $TMP(truncated)"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r3_runbook_middle.r2.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r3_runbook_middle.r3.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results",
+        "outside: $AB/results/p110-20260927-arb/work",
+        "outside: $AB/results/p110-20260927-arb/work/2>/dev/null"
+       ],
+       "tool": "bash",
+       "turn": 2
+      },
+      {
+       "reasons": [
+        "outside: $AB",
+        "outside: $AB/2>/dev/null",
+        "outside: $AB/=== results/p110-20260927-arb:",
+        "outside: $AB/results/p110-20260927-arb"
+       ],
+       "tool": "bash",
+       "turn": 2
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "glob",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r3.arm2",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927",
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da",
+        "outside: $AB/results/p110-20260927/work/w-c448e5e29a"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/cells",
+        "outside: $AB/results/p110-20260927/manifest-20260927T035824.json",
+        "outside: $AB/results/p110-20260927/work",
+        "outside: $AB/results/p110-20260927/workdirs"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "control": [
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "secret: .env"
+       ],
+       "tool": "glob",
+       "turn": 4
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r2_superseded_stamp.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work",
+        "secret: .env"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $TMP(truncated)",
+        "outside: $AB/results/p110-20260927-arb/work/w-796fc32799"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r3_runbook_middle.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $TMP(truncated)",
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 2
+      },
+      {
+       "reasons": [
+        "outside: /node_modules/*",
+        "outside: $TMP(truncated)"
+       ],
+       "tool": "bash",
+       "turn": 2
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results",
+        "outside: $AB/results/p110-20260927",
+        "outside: $AB/results/p110-20260927/2>/dev/null"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/workdirs",
+        "outside: $AB/results/p110-20260927/work/workdirs/*"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927",
+     "cell": "p110_r4_probe_compare.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da",
+        "outside: $AB/results/p110-20260927/work/w-479ee65f48"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da/lib/fmt.py"
+       ],
+       "tool": "read",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $TMP(truncated)",
+        "outside: $AB/results/p110-20260927/work/w-2322b6f4da/answers",
+        "outside: $AB/results/p110-20260927/work/w-479ee65f48/answers"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110-20260927-arb",
+     "cell": "p110_r4_probe_compare.r3.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work"
+       ],
+       "tool": "bash",
+       "turn": 3
+      },
+      {
+       "reasons": [
+        "outside: $AB/results/p110-20260927-arb/work",
+        "outside: $AB/results/p110-20260927-arb/work/w-1ec5787076/lib/fmt.py"
+       ],
+       "tool": "bash",
+       "turn": 3
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ]
+  },
+  "gates": {
+   "arm1": [
+    {
+     "checks": [
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "ge_base_minus",
+       "threshold": 40,
+       "verdict": "pass"
+      },
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 42,
+       "per_task": {
+        "c1": {
+         "arm": 6,
+         "base": 6
+        },
+        "c2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r1": {
+         "arm": 6,
+         "base": 6
+        },
+        "r2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r3": {
+         "arm": 6,
+         "base": 6
+        },
+        "r4": {
+         "arm": 6,
+         "base": 6
+        },
+        "r5": {
+         "arm": 6,
+         "base": 6
+        }
+       },
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 4",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 16,
+       "arm_sum": 16,
+       "base": 16,
+       "base_sum": 16,
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "pairs": 16,
+       "rule": "ge_base_minus",
+       "threshold": 14,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "pairs": 16,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "pairs": 16,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "pairs": 16,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall cells)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 73,
+       "arm_sum": 73,
+       "base": 79,
+       "base_sum": 79,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 cells",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_factor_base_plus",
+       "threshold": 102.75,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 3,
+       "base": 3
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 108,
+       "base": 113
+      }
+     },
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.727667,
+       "base": "paired",
+       "base_sum": 0.752823,
+       "baseline": "control",
+       "desc": "median paired cost ratio arm/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 0.9789,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 42,
+       "pairs": 42,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.727667,
+       "base": "sum 0.7528",
+       "base_sum": 0.752823,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 42,
+       "ratio": 0.9666,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.828105,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 1066,
+       "base": "paired",
+       "base_sum": 1110,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 0.0,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 1,
+       "arm_sum": 1,
+       "base": 3,
+       "base_sum": 3,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_base_plus",
+       "threshold": 7,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 174,
+       "arm_sum": 174,
+       "base": 168,
+       "base_sum": 168,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "ge_base_minus",
+       "threshold": 166,
+       "verdict": "pass"
+      },
+      {
+       "arm": 12,
+       "arm_sum": 12,
+       "base": 18,
+       "base_sum": 18,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_base_plus",
+       "threshold": 20,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ],
+   "arm2": [
+    {
+     "checks": [
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "ge_base_minus",
+       "threshold": 40,
+       "verdict": "pass"
+      },
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 42,
+       "per_task": {
+        "c1": {
+         "arm": 6,
+         "base": 6
+        },
+        "c2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r1": {
+         "arm": 6,
+         "base": 6
+        },
+        "r2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r3": {
+         "arm": 6,
+         "base": 6
+        },
+        "r4": {
+         "arm": 6,
+         "base": 6
+        },
+        "r5": {
+         "arm": 6,
+         "base": 6
+        }
+       },
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 4",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 19,
+       "arm_sum": 19,
+       "base": 19,
+       "base_sum": 19,
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "pairs": 19,
+       "rule": "ge_base_minus",
+       "threshold": 17,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "pairs": 19,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "pairs": 19,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "every arm 2 rejection recovered in the same turn",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "pairs": 19,
+       "rule": "arm_eq",
+       "threshold": 0,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "pairs": 19,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall cells)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 87,
+       "arm_sum": 87,
+       "base": 79,
+       "base_sum": 79,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 cells",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_factor_base_plus",
+       "threshold": 102.75,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 4,
+       "base": 3
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 109,
+       "base": 113
+      }
+     },
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.748402,
+       "base": "paired",
+       "base_sum": 0.752823,
+       "baseline": "control",
+       "desc": "median paired cost ratio arm/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 0.9858,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 42,
+       "pairs": 42,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.748402,
+       "base": "sum 0.7528",
+       "base_sum": 0.752823,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 42,
+       "ratio": 0.9941,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.828105,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 1111,
+       "base": "paired",
+       "base_sum": 1110,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 1.0,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 3,
+       "base_sum": 3,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_base_plus",
+       "threshold": 7,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 170,
+       "arm_sum": 170,
+       "base": 168,
+       "base_sum": 168,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "ge_base_minus",
+       "threshold": 166,
+       "verdict": "pass"
+      },
+      {
+       "arm": 16,
+       "arm_sum": 16,
+       "base": 18,
+       "base_sum": 18,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_base_plus",
+       "threshold": 20,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": {
+        "ok": 53,
+        "targets": 53
+       },
+       "arm_rate": 1.0,
+       "base": {
+        "ok": 74,
+        "targets": 74
+       },
+       "base_rate": 1.0,
+       "baseline": "control",
+       "desc": "first-try success rate of expand_result on a target in an earlier turn",
+       "dropped_pairs": [],
+       "id": "G6.first_try",
+       "metric": "cross_turn_first_try",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "rate_ge_base_minus",
+       "threshold": 0.9,
+       "verdict": "pass"
+      },
+      {
+       "arm": 4,
+       "arm_sum": 4,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave",
+       "dropped_pairs": [],
+       "id": "G6.extra_hops",
+       "metric": "extra_hops",
+       "min_pairs": 17,
+       "pairs": 42,
+       "rule": "le_base_plus",
+       "threshold": 6,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "arm1",
+       "desc": "fv_rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "pairs": 17,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "arm1",
+       "desc": "fv_rejections_unrecovered",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "pairs": 17,
+       "rule": "arm_eq",
+       "threshold": 0,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "arm1",
+       "desc": "bad_exam_answers",
+       "dropped_pairs": [
+        "r2.r1 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r3.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r2 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r4.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927): G2 exclusion (flagged access or leak)",
+        "r2.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r2.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r3.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r4.r1 (p110-20260927-arb): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110-20260927-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G6.vs_arm1.G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "pairs": 17,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G6",
+     "name": "Arm 2 only: locators",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ]
+  },
+  "invalid_cells": [],
+  "model_error_turns": {},
+  "non_final_attempts": [],
+  "pooled": true,
+  "secret_references": [
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "lh1_incremental_build.r1.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 2
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r1.arm2",
+    "reasons": [
+     "outside: /0",
+     "outside: /]",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r1.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "edit",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "lh1_incremental_build.r2.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "edit",
+    "turn": 8
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r3.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "lh1_incremental_build.r3.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 1
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r1.arm1",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "glob",
+    "turn": 4
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "p110_r2_superseded_stamp.r1.arm2",
+    "reasons": [
+     "outside: $AB",
+     "outside: $AB/2>/dev/null",
+     "outside: $AB/results/p110-20260927-arb/results",
+     "outside: $AB/results/p110-20260927-arb/work/w-4b9f463343/tools",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r2.arm2",
+    "reasons": [
+     "outside: $AB/results/p110-20260927/work",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r2_superseded_stamp.r2.control",
+    "reasons": [
+     "secret: .env"
+    ],
+    "tool": "glob",
+    "turn": 4
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "p110_r2_superseded_stamp.r3.arm1",
+    "reasons": [
+     "cd to $(pwd)",
+     "relative path after cd to an unknown directory: ..",
+     "relative path after cd to an unknown directory: ../..",
+     "relative path after cd to an unknown directory: 2>/dev/null",
+     "secret: DSH_HOME"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927-arb",
+    "cell": "p110_r2_superseded_stamp.r3.control",
+    "reasons": [
+     "outside: $AB/results/p110-20260927-arb/work",
+     "secret: .env"
+    ],
+    "tool": "bash",
+    "turn": 6
+   },
+   {
+    "batch": "p110-20260927",
+    "cell": "p110_r4_probe_compare.r2.arm1",
+    "reasons": [
+     "outside: $AB",
+     "outside: $AB/home-arm1",
+     "secret: DSH_HOME",
+     "sensitive: /home-arm1"
+    ],
+    "tool": "bash",
+    "turn": 3
+   }
+  ],
+  "spend": {
+   "by_batch": {
+    "p110-20260927": 2.231971,
+    "p110-20260927-arb": 2.225812,
+    "pilot": 0.031042,
+    "pilot-r5": 0.01567,
+    "pilot-r5b": 0.027806,
+    "pilot2": 0.039334,
+    "warm": 0.006615
+   },
+   "total_usd_peak_sheet": 4.57825,
+   "turns": 598
+  },
+  "structure": {
+   "arm1": {
+    "mean_tool_line_chars": 94.4,
+    "prefix_chars": 17538,
+    "prefix_delta_vs_control": -773,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "arm2": {
+    "mean_tool_line_chars": 53.3,
+    "prefix_chars": 17538,
+    "prefix_delta_vs_control": -773,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "control": {
+    "mean_tool_line_chars": 94.4,
+    "prefix_chars": 18311,
+    "prefix_delta_vs_control": null,
+    "slice_tools_json_chars": 5441,
+    "system_chars": 4249,
+    "tape_header_lengths": [
+     188
+    ]
+   }
+  },
+  "table": {
+   "arm1": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0784395,
+     "median_requests": 75.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 33,
+     "valid": 6
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003718,
+     "median_requests": 6.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0058165000000000005,
+     "median_requests": 18.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 6,
+     "flagged_or_leak": 6,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.011124499999999999,
+     "median_requests": 28.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 8,
+     "valid": 6
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0048985,
+     "median_requests": 17.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 6,
+     "valid": 6
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 2,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0032865,
+     "median_requests": 15.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 1,
+     "valid": 6
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 1,
+     "median_cost_usd": 0.0070810000000000005,
+     "median_requests": 13.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 17,
+     "valid": 6
+    }
+   },
+   "arm2": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0857995,
+     "median_requests": 86.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 32,
+     "valid": 6
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004319,
+     "median_requests": 8.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005683499999999999,
+     "median_requests": 19.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 11,
+     "valid": 6
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 5,
+     "flagged_or_leak": 5,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0135655,
+     "median_requests": 28.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 5,
+     "valid": 6
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 2,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005065,
+     "median_requests": 14.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 9,
+     "valid": 6
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003477,
+     "median_requests": 15.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 8,
+     "valid": 6
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0062965,
+     "median_requests": 13.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 18,
+     "valid": 6
+    }
+   },
+   "control": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.086168,
+     "median_requests": 89.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 31,
+     "valid": 6
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0040964999999999994,
+     "median_requests": 6.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 0,
+     "valid": 6
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0051515,
+     "median_requests": 17.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 6,
+     "valid": 6
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 3,
+     "flagged_or_leak": 3,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.012797,
+     "median_requests": 30.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 6,
+     "valid": 6
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0047535,
+     "median_requests": 14.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 6,
+     "valid": 6
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 3,
+     "flagged_or_leak": 3,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0038005,
+     "median_requests": 16.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 2,
+     "valid": 6
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0074234999999999995,
+     "median_requests": 13.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 28,
+     "valid": 6
+    }
+   }
+  },
+  "time_range": [
+   "2026-09-26T19:58:24+00:00",
+   "2026-09-26T21:52:55+00:00"
+  ],
+  "totals": {
+   "arm1": {
+    "cells": 42,
+    "cost_offpeak_usd": 0.727667,
+    "cost_peak_usd": 1.455333,
+    "hit": 15052288,
+    "miss": 776088,
+    "out": 684184,
+    "requests": 1066,
+    "turn_first_miss": 185117
+   },
+   "arm2": {
+    "cells": 42,
+    "cost_offpeak_usd": 0.748402,
+    "cost_peak_usd": 1.4968,
+    "hit": 15620096,
+    "miss": 794532,
+    "out": 703429,
+    "requests": 1111,
+    "turn_first_miss": 180307
+   },
+   "control": {
+    "cells": 42,
+    "cost_offpeak_usd": 0.752823,
+    "cost_peak_usd": 1.505643,
+    "hit": 16232320,
+    "miss": 816677,
+    "out": 696254,
+    "requests": 1110,
+    "turn_first_miss": 190890
+   }
+  },
+  "valid_cells": 126,
+  "warmup": {}
+ }
+}
