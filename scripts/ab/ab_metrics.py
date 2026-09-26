@@ -55,8 +55,11 @@ BIG = 10 ** 9
 # when it leaves it. Locations an ordinary program run touches are exempt.
 SYSTEM_PREFIXES = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/fd/", "/dev/zero", "/dev/urandom", "/dev/random",
                    "/usr/", "/bin/", "/sbin/", "/System/", "/Library/", "/opt/homebrew/", "/opt/local/", "/private/etc/", "/proc/")
-# Flagged wherever they resolve: the durable session log, the oracle sidecar, the harness, whole-disk search.
-SENSITIVE_RE = re.compile(r"sessions/|/sessions\b|\.zstd\b|\.truth\b|session\.v4|/home-(?:control|arm\d)\b|wt-harness|scripts/ab/|(?:^|[\s;&|(])(?:mdfind|locate)\s")
+# Flagged wherever they resolve: the durable session log, the oracle sidecar, the harness. Whole-disk search
+# (mdfind, locate) is flagged as a command word in bash_access, not as text: a heredoc comment such as
+# "# locate the def block" is no search (a false positive in the r5 pilot).
+SENSITIVE_RE = re.compile(r"sessions/|/sessions\b|\.zstd\b|\.truth\b|session\.v4|/home-(?:control|arm\d)\b|wt-harness|scripts/ab/")
+DISK_SEARCH = ("mdfind", "locate")
 # Flagged, and held back from the archive until the owner has looked: anything that can reach the model key.
 SECRET_RE = re.compile(r"\bDSH_HOME\b|\bDSH_PROFILE_DIR\b|(?<![\w.])\.env(?![\w])|/\.dsh[\w-]*\b")
 HOME_RE = re.compile(r"(?:^|[\s'\"=:(])~(?:/|$|[\s'\")])|\$\{?(?:HOME|TMPDIR|OLDPWD)\b")
@@ -402,6 +405,8 @@ def bash_access(command, cwd, root):
             if not toks:
                 continue
             cmd = os.path.basename(toks[0])
+            if cmd in DISK_SEARCH:
+                reasons.append("sensitive: " + cmd)
             if cmd in ("cd", "pushd"):
                 target = toks[1] if len(toks) > 1 else "~"
                 r = resolve_arg(target, cwd)

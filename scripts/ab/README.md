@@ -77,8 +77,9 @@ to a file.
    `$AB/home-<arm>/sessions/*/<SID>/session.v4.jsonl.zstd`; `ab_metrics` adds the metrics row.
 4. Validity (see the doc): turn exits, log found, fingerprints, 16 tools, one turn per prompt,
    no host path in the system prompt, no compaction, tape header / tool-line form of the arm,
-   structural prefix and header sizes, the r3 fold. An invalid cell is rerun once
-   (`--max-attempts 2`).
+   structural prefix and header sizes, the r3 fold, and for r1, r2 and r4 the delivery of the
+   exam's fact in a non-recall tool result of its delivery turn (meta `delivery`). An invalid
+   cell is rerun once (`--max-attempts 2`).
 5. Whatever the outcome (done, invalid, timeout, budget stop), the workdir and its truth
    sidecar are packed into `workdirs/<wid>.tgz` and removed, and the turn stdout files are
    gzipped: no task source, answer or plain-text tool output stays on disk for a later cell's

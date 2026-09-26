@@ -145,6 +145,9 @@ class Flags(unittest.TestCase):
             ("bash", {"command": "python3 -c \"import os; print(os.environ.get('X'))\""}),
             ("glob", {"pattern": "**/*.py"}),
             ("grep", {"pattern": "def ", "path": "textkit"}),
+            # the r5 pilot's false positive: "locate" inside a heredoc comment is no disk search
+            ("bash", {"command": "python3 - <<'EOF'\nimport pathlib\n# locate def fn block\nprint(1)\nEOF"}),
+            ("bash", {"command": "echo 'relocate the files' && ls"}),
         ]:
             with self.subTest(args=args):
                 self.assertEqual(self.flags(name, args), [])
@@ -158,6 +161,7 @@ class Flags(unittest.TestCase):
             ("bash", {"command": "python3 tools/probe.py > /tmp/out.txt"}, "outside"),
             ("bash", {"command": "ls ~"}, "home"),
             ("bash", {"command": "mdfind -name probe.py"}, "sensitive"),
+            ("bash", {"command": "ls && locate probe.py | head"}, "sensitive"),
             ("grep", {"pattern": "Brackenfold", "path": ".."}, "outside"),
             ("glob", {"pattern": "/**/probe.py"}, "outside"),
             ("read", {"file_path": "../w-other/tools/probe.py"}, "outside"),

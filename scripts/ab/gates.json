@@ -25,11 +25,12 @@
    "zero compaction events",
    "tape header and tool-line forms are the arm's (control long/long, arm1 short/long, arm2 short/v)",
    "structural, arm1 and arm2: per-request prefix at least 700 chars smaller than control; every tape header 76 or 78 chars",
-   "r3 only: a fold replacement of a turn-1 read exists"
+   "r3 only: a fold replacement of a turn-1 read exists",
+   "r1, r2, r4 (meta delivery): every delivery turn shows the exam's fact in a non-recall tool result (the script's output was not discarded)"
   ],
   "max_attempts": 2,
   "pair_rule": "a (task, rep) pair counts only when both the arm cell and the baseline cell are valid; dropped pairs are listed",
-  "g2_exclusion": "a cell counts for G1 but is excluded from G2 (the whole pair drops from that comparison) when, up to its exam turn, a tool call was flagged (a path, bash command or bash workdir resolving outside the cell's workdir; the session log, .truth sidecar, harness, key location or whole-disk search), or an answer-sufficient token leaked before the exam turn into assistant text or into a tool input that writes a file, or in the exam turn a non-recall tool result named an oracle token before any recall result did and before the model wrote it (oracle via the file system)"
+  "g2_exclusion": "a cell counts for G1 but is excluded from G2 (the whole pair drops from that comparison) when, up to its exam turn, a tool call was flagged (a path, bash command or bash workdir resolving outside the cell's workdir; the session log, .truth sidecar, harness, key location, or mdfind/locate as a command), or an answer-sufficient token leaked before the exam turn into assistant text or into a tool input that writes a file (r5: write/edit calls on textkit/, the required fix, excepted), or in the exam turn a non-recall tool result named an oracle token before any recall result did and before the model wrote it (oracle via the file system)"
  },
  "gates": [
   {
