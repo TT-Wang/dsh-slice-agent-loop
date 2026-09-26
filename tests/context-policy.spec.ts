@@ -167,7 +167,7 @@ describe('append-only tape sealing', () => {
     })
     expect(text).toContain(`ORIGINAL_TURN_10_${'x'.repeat(60_000)}`)
     expect(text).toContain(`ORIGINAL_TURN_1_${'x'.repeat(60_000)}`)
-    expect(text).toContain('recall_turn({"turn":"<n>","view":"dialogue"})')
+    expect(text).toContain('turn(s) sealed · recall_turn / expand_result]')
     expect(session.snapshotEvents().slice(0, before.length)).toEqual(before)
     original.forEach(({ request, response }, index) => {
       expect(session.surface.nodes).toContain(request.seq)
