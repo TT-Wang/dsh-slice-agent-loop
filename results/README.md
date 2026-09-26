@@ -1,5 +1,41 @@
 # Benchmark archives (raw, per-call ledgers)
 
+**The data is no longer in the Git tree.** Since 2026-09-27 this README is the
+only tracked file under `results/`. The 809 files that were tracked here at
+`ba12a5b` are the asset `dsh-slice-agent-loop-results-2026-09-04.tar.gz` of the
+GitHub release
+[`archive-legacy-results-2026-09-04`](https://github.com/TT-Wang/dsh-slice-agent-loop/releases/tag/archive-legacy-results-2026-09-04)
+(12,393,779 bytes, SHA-256
+`a35f17b7ec2979c3dd9f403fb817268d33a460305938d2fc4904e693d7924c18`; a `.sha256`
+file sits next to it). They moved because every `dsh plugin add github:...`
+install downloads a tarball of the whole tree, and this archive was about 95%
+of it while nothing installed or tested reads it. Git history was not
+rewritten. Restore from the repository root:
+
+```sh
+gh release download archive-legacy-results-2026-09-04 -R TT-Wang/dsh-slice-agent-loop -p 'dsh-slice-agent-loop-results-2026-09-04.tar.gz*'
+shasum -a 256 -c dsh-slice-agent-loop-results-2026-09-04.tar.gz.sha256
+tar --exclude='results/README.md' -xzf dsh-slice-agent-loop-results-2026-09-04.tar.gz
+rm dsh-slice-agent-loop-results-2026-09-04.tar.gz dsh-slice-agent-loop-results-2026-09-04.tar.gz.sha256
+```
+
+The archive's paths start with `results/`, so the offline scripts and the docs
+that cite `results/...` work unchanged after extraction. The archive also holds
+the older copy of this README; `--exclude` keeps it from replacing this one. A
+full clone can skip the download, because the release tag points at `ba12a5b`:
+`git archive archive-legacy-results-2026-09-04 results | tar --exclude='results/README.md' -x`
+writes the same 808 data files.
+
+`.gitignore` ignores everything under `results/` except this README, so
+extracted files and new experiment output stay local. To publish a new data
+set, attach an archive to a GitHub release instead of committing it;
+`npm run check:size` fails CI once tracked files pass 8 MiB.
+
+Pulling this change into an older checkout deletes these files from it: Git
+removes files that a commit stops tracking, whatever `.gitignore` says.
+Untracked files already there, such as `*.log`, stay. Run the restore above
+afterwards; the restored files are then ignored.
+
 > **Architecture status.** Everything here was measured on the **retired
 > custom loop**, before the 2026-09-08 native DSH alpha.2 migration. These
 > ledgers do not establish the current policy's quality or cost.
@@ -21,8 +57,9 @@ slim 0.1704 / 0.1660, n1 ctl 0.0221 / n1 slim 0.0203. Verified 2026-09-10.
 **No driver stdout is committed.** This file previously claimed "`.log` files
 are the driver's stdout for the same runs"; there are zero tracked `.log` files
 (`git ls-files results | grep -c '\.log$'` → 0, `find results -name '*.log' |
-wc -l` → 0), because `.gitignore:19` ignores `*.log` globally. The logs exist
-only in the maintainer's working checkout. Corrected 2026-09-10.
+wc -l` → 0), because `.gitignore` ignores `*.log` globally. The logs exist
+only in the maintainer's working checkout; the release archive has none
+either. Corrected 2026-09-10.
 
 Per-run metadata is thin: no archived JSON records a commit SHA
 (`grep -rl '"commit"' results --include='*.json'` → 0). Directory date prefixes
@@ -35,7 +72,7 @@ are the only provenance; cross-reference `git log` for the matching commit.
 | `20260831-reasoning-ab/` | reasoning-passback A/B (slice on/off) + the transcript strip experiment (dnorm/dstrip) |
 | `sidecars/` | call-ledger sidecars (per-turn seed bytes + per-call usage) for `scripts/attribute-miss.mts`; first entries are the 20260901 n2+n3 tool-validation runs (slice arm, v4-flash) |
 
-Scenario definitions for the n-series ship in
+Scenario definitions for the n-series are in the archive under
 `20260826-retention/scenarios-snapshot/`. Session-level ground truth (the
 durable event logs the ledgers were summed from) lives in each runner's
 `~/.dsh/sessions/` and is not committed.

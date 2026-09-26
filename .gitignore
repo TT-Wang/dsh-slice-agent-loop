@@ -22,7 +22,11 @@ __pycache__/
 # 系统噪音
 .DS_Store
 *.log
-results/replay-worktrees/
+
+# Experiment output stays local. The 2026-08-26..09-04 archive that used to be
+# tracked here is a GitHub release asset; results/README.md says how to restore it.
+results/*
+!results/README.md
 
 # Local unit-coverage reports; CI reproduces these from source.
 coverage/
