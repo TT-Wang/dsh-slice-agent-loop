@@ -13,6 +13,21 @@
    ]
   }
  ],
- "source": "dsh-slice/scenarios/r2d_superseded_fact: prompts P1,P2,P4,P6,P10,P13,P14 (verbatim); setup.py and verify.py unchanged; the user-requested deletion turn P8 is replaced by hooks.after_turn(4).",
- "stressor": "superseded fact: stamp A printed in T2, stamp B printed in T4 after a config fix; config and script deleted after T4; decoys in the T3/T5 floods; exam T6 asks for the value in effect (B), so the model must pick between two tool results from different turns."
+ "source": "dsh-slice/scenarios/r2d_superseded_fact: prompts P1,P2,P4,P6,P10,P13,P14 (verbatim except P2 and P6, which since the pilot ask to run the script as is, without redirection or a pipe); setup.py and verify.py unchanged; the user-requested deletion turn P8 is replaced by hooks.after_turn(4).",
+ "stressor": "superseded fact: stamp A printed in T2, stamp B printed in T4 after a config fix; config and script deleted after T4; decoys in the T3/T5 floods; exam T6 asks for the value in effect (B), so the model must pick between two tool results from different turns.",
+ "delivery": [
+  {
+   "turn": 2,
+   "tokens": [
+    "81d29c44"
+   ]
+  },
+  {
+   "turn": 4,
+   "tokens": [
+    "8d2e0fac"
+   ]
+  }
+ ],
+ "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27)."
 }

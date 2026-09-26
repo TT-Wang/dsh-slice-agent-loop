@@ -289,6 +289,20 @@ class Recall(unittest.TestCase):
         m = build(lambda g: g.call(2, 1, "write", {"file_path": "answers/dr.txt", "content": "Brackenfold"}))
         self.assertFalse(m["exams"][0]["oracle_via_fs"])
 
+    def test_delivery(self):
+        # the pilot's failure mode: T1 ran the script with its output sent to /dev/null, so nothing reached the model
+        g = Log()
+        g.call(1, 1, "bash", {"command": "python3 tools/probe.py --region us > /dev/null 2>&1; echo exit=$?"}, result="exit=0")
+        g.end(1)
+        g.call(2, 1, "bash", {"command": "python3 tools/probe.py --region eu"}, result="probe region=eu\nshipping         43     291\n")
+        g.end(2)
+        g.call(3, 1, "expand_result", {"seq": 3, "formatVersion": 4}, result="shipping        177     690")  # recall never counts as delivery
+        g.end(3)
+        m = M.metrics(g.ev, delivery=[(1, ["shipping        177     690"]), (2, ["shipping         43     291"])], prices=M.load_prices())
+        self.assertEqual([(d["turn"], d["delivered"], d["tool"]) for d in m["delivery"]], [(1, False, None), (2, True, "bash")])
+        self.assertNotIn("shipping", json.dumps(m["delivery"]))  # no oracle token in the row
+        self.assertEqual(M.metrics(g.ev, prices=M.load_prices())["delivery"], [])
+
     def test_attempt_usage_is_billed_but_not_a_request(self):
         g = Log()
         g.add("assistant/attempt", {"turn": 1, "step": 1, "stream": [{"type": "chunk", "chunk": {"type": "usage", "usage": {"inputTokens": 500, "cacheReadTokens": 0, "outputTokens": 3}}}]})

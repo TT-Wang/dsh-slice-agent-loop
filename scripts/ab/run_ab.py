@@ -494,6 +494,11 @@ def validity(ctx, arm, meta, turns, row, complete=True):
         tr = meta["require_fold_of_read_turn"]
         if not any(r["turn"] == tr and r["fold_of_read"] for r in row.get("in_turn", [])):
             reasons.append(f"no fold replacement of a turn-{tr} read (task needs the condensed view)")
+    # Delivery (meta "delivery"): the exam's fact must have reached the model in its delivery turn through a
+    # non-recall tool result; otherwise the exam cannot measure recall (e.g. output redirected to /dev/null).
+    for d in row.get("delivery", []):
+        if not d["delivered"] and d["turn"] <= len(turns):  # a turn that never ran is reported by its own reason
+            reasons.append(f"fact not delivered: no turn-{d['turn']} tool result carried it (output discarded or never produced)")
     return reasons
 
 
@@ -592,7 +597,7 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir):
         cell["log"] = log_path
         events, bad = ab_metrics.load_events(log_path)
         row = ab_metrics.metrics(events, exams=meta.get("exams", []), in_turn=[(e["turn"], e["tokens"]) for e in meta.get("in_turn", [])],
-                                 prices=ctx["prices"], bad_lines=bad)
+                                 prices=ctx["prices"], bad_lines=bad, delivery=[(e["turn"], e["tokens"]) for e in meta.get("delivery", [])])
         cell["metrics"] = row
     reasons = validity(ctx, arm, meta, cell["turns"], row, complete)
     if not complete:

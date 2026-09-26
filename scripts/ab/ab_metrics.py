@@ -4,6 +4,7 @@
 usage:
   ab_metrics.py <session.v4.jsonl.zstd | session.jsonl> [--workdir DIR]
                 [--exam TURN:TOKEN[,TOKEN...]]... [--in-turn TURN:TOKEN[,TOKEN...]]...
+                [--delivery TURN:TOKEN[,TOKEN...]]...
                 [--prices prices.json] [--pretty]
 
 Prints one JSON object. Library use: `metrics(load_events(path), ...)`.
@@ -28,7 +29,10 @@ Metric definitions are in docs/p110-native-ab.md ("Metrics"). In short:
 - exams: whether an oracle token reached the model through a recall tool in
   the exam turn, through the file system instead (a non-recall result naming it
   first), and whether an answer-sufficient token leaked earlier into assistant
-  text or a tool input that writes a file.
+  text or a tool input that writes a file;
+- delivery: whether the fact an exam asks for reached the model at all, i.e. a
+  non-recall tool result of its delivery turn carried it (a run whose output was
+  redirected to /dev/null leaves nothing to recall).
 """
 import hashlib
 import json
@@ -565,7 +569,7 @@ def usage_totals(events, turns=None):
     return tot
 
 
-def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0):
+def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0, delivery=()):
     prices = prices or load_prices()
     session = next((e for e in events if e.get("type") == "session"), {}) or {}
     cwd = workdir or session.get("cwd") or (session.get("data") or {}).get("cwd")
@@ -1022,6 +1026,18 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
                 folded_read = True
         in_rows.append({"turn": turn, "n_tokens": len(toks), "first_source_tool": src, "fold_of_read": folded_read})
     row["in_turn"] = in_rows
+    # Delivery: the exam's fact must have reached the model in its delivery turn through a non-recall tool
+    # result (the tokens themselves stay out of the row, like the exam tokens).
+    deliv_rows = []
+    for turn, toks in delivery:
+        src = None
+        for cid in call_order:
+            c = calls[cid]
+            if c["turn"] == turn and c["name"] not in RECALL_TOOLS and has((results.get(cid) or {}).get("text", ""), toks):
+                src = c["name"]
+                break
+        deliv_rows.append({"turn": turn, "n_tokens": len(toks), "delivered": src is not None, "tool": src})
+    row["delivery"] = deliv_rows
     row["per_turn"] = {str(k): v for k, v in sorted(per_turn.items(), key=lambda kv: (kv[0] is None, kv[0] or 0))}
     return row
 
@@ -1042,7 +1058,7 @@ def main(argv):
         return 0
     path = argv[0]
     opts = {"--workdir": None, "--prices": None}
-    exams, in_turn, pretty = [], [], False
+    exams, in_turn, delivery, pretty = [], [], [], False
     i = 1
     while i < len(argv):
         a = argv[i]
@@ -1055,13 +1071,17 @@ def main(argv):
         elif a == "--in-turn":
             in_turn.append(parse_spec(argv[i + 1]))
             i += 2
+        elif a == "--delivery":
+            delivery.append(parse_spec(argv[i + 1]))
+            i += 2
         elif a == "--pretty":
             pretty = True
             i += 1
         else:
             raise SystemExit(f"unknown argument {a}")
     events, bad = load_events(path)
-    row = metrics(events, workdir=opts["--workdir"], exams=exams, in_turn=in_turn, prices=load_prices(opts["--prices"]), bad_lines=bad)
+    row = metrics(events, workdir=opts["--workdir"], exams=exams, in_turn=in_turn, prices=load_prices(opts["--prices"]), bad_lines=bad,
+                  delivery=delivery)
     row["log"] = path
     print(json.dumps(row, sort_keys=True, ensure_ascii=False, indent=1 if pretty else None))
     return 0

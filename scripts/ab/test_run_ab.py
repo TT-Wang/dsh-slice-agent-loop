@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Unit tests for run_ab.py's pure parts (budget accounting, turn classification, answer classes, attempt
-numbering on --resume):  python3 scripts/ab/test_run_ab.py"""
+"""Unit tests for run_ab.py's pure parts (budget accounting, turn classification, answer classes, cell validity,
+attempt numbering on --resume):  python3 scripts/ab/test_run_ab.py"""
 import json
 import os
 import shutil
@@ -86,6 +86,23 @@ class AnswerClass(unittest.TestCase):
         self.assertEqual(A.answer_class(False, "LOSS: DECOY fx-8b69ed7a (a user-flood log line) | how: 'x'", {}), "decoy")
         self.assertEqual(A.answer_class(False, "LOSS: STALE cfg-81d29c44 (the T2 value)", {}), "stale")
         self.assertEqual(A.answer_class(False, "whatever", {"exam_class": "wrong"}), "wrong")
+
+
+class Validity(unittest.TestCase):
+    def test_undelivered_fact_invalidates_the_cell(self):
+        row = {"validity": {"tools_count": 16, "tool_lists_distinct": 1, "system_distinct": 1, "system_has_host_path": False, "compaction_events": 0,
+                            "user_prompts": 4, "turn_ends": 4, "goal_messages": 0, "system_sha": "s", "slice_tools_sha": "t"},
+               "prefix": {"prefix_chars": 18311}, "tape": {"header_forms": {}, "header_lengths": [], "tool_line_forms": {}},
+               "in_turn": [], "delivery": [{"turn": 1, "n_tokens": 1, "delivered": False, "tool": None}, {"turn": 2, "n_tokens": 1, "delivered": True, "tool": "bash"}]}
+        turns = [{"turn": n, "infra": False, "exit": 0, "turn_end": {"kind": "completed"}} for n in range(1, 5)]
+        ctx = {"fingerprints": None}
+        reasons = A.validity(ctx, "control", {"turns": 4}, turns, row)
+        self.assertEqual(reasons, ["fact not delivered: no turn-1 tool result carried it (output discarded or never produced)"])
+        row["delivery"][0]["delivered"] = True
+        self.assertEqual(A.validity(ctx, "control", {"turns": 4}, turns, row), [])
+        # a delivery turn that never ran is reported by the incomplete-cell reason, not by this one
+        row["delivery"][1]["delivered"] = False
+        self.assertEqual(A.validity(ctx, "control", {"turns": 4}, turns[:1], row, complete=False), [])
 
 
 class ResumeNumbering(unittest.TestCase):

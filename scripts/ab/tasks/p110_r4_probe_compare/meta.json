@@ -36,6 +36,21 @@
   }
  ],
  "oracle_answer": "shipping,690,291",
- "source": "new for P1-10",
- "stressor": "two small probe outputs (T1 us, T2 eu), never restated; tools/ deleted after T2; filler T3; exam T4 needs one row from each output, so two cross-turn locators from different turns. Swapped regions are detected."
+ "source": "new for P1-10; since the pilot T1 and T2 ask to run the probe exactly as written, without redirection or a pipe",
+ "stressor": "two small probe outputs (T1 us, T2 eu), never restated; tools/ deleted after T2; filler T3; exam T4 needs one row from each output, so two cross-turn locators from different turns. Swapped regions are detected.",
+ "delivery": [
+  {
+   "turn": 1,
+   "tokens": [
+    "shipping        177     690"
+   ]
+  },
+  {
+   "turn": 2,
+   "tokens": [
+    "shipping         43     291"
+   ]
+  }
+ ],
+ "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27)."
 }

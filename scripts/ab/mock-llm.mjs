@@ -3,11 +3,13 @@
 //
 // Default script, per turn (one action per model request, then a text closeout):
 //   1. bash `ls`;
-//   2. `read` the first existing file the user prompt names;
-//   3. `read` it again (a same-turn unchanged re-read, so the metric has data);
-//   4. expand_result on the newest tape tool line, parsed in whichever form the arm renders
+//   2. when the first existing file the user prompt names is a script under tools/, bash `python3 <it>`
+//      (plus the prompt's `--region R`), so the tasks' delivery turns show its output as a real run does;
+//   3. `read` that file;
+//   4. `read` it again (a same-turn unchanged re-read, so the metric has data);
+//   5. expand_result on the newest tape tool line, parsed in whichever form the arm renders
 //      (`expand_result({"seq":N,"formatVersion":V})` or `seq N · … · vV]`);
-//   5. text "MOCK-DONE".
+//   6. text "MOCK-DONE".
 // Inapplicable actions are skipped. The MOCK-* keywords keep the scouting probes working.
 //
 // Failure injection (budget accounting tests): with AB_MOCK_FAIL_EVERY=N (N >= 2) the 1st, (N+1)th, ...
@@ -106,6 +108,10 @@ export function apply(ctx) {
         const locator = tapeLocator(tape)
         /** @type {Array<() => import('@deepseek-ai/dsh-llm').StreamChunk[]>} */
         const script = [() => call('bash', { command: 'ls', description: 'list the workspace' })]
+        if (file && /^tools\/[\w-]+\.py$/.test(file)) {
+          const region = /--region (\w+)/.exec(ask)?.[1]
+          script.push(() => call('bash', { command: `python3 ${file}${region ? ` --region ${region}` : ''}`, description: 'run the script' }))
+        }
         if (file) script.push(() => call('read', { file_path: file }), () => call('read', { file_path: file }))
         if (locator) script.push(() => call('expand_result', locator))
         const next = script[after]
