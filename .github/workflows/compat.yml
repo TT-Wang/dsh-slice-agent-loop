@@ -1,14 +1,29 @@
 name: Peer compatibility
-# The regular CI pins one supported DSH release. This job probes npm latest,
-# first checking that it remains inside our explicitly declared peer ranges.
-# A newer unsupported release must fail rather than produce a misleading green.
-# Supporting it requires a reviewed manifest and runtime compatibility change.
+# The regular CI pins one supported DSH release. This job probes the newest
+# published DSH release candidate, first checking that it remains inside our
+# explicitly declared peer ranges. A newer unsupported release must fail rather
+# than produce a misleading green. Supporting it requires a reviewed manifest and
+# runtime compatibility change; run the source check in
+# docs/dsh-0.1.7-compatibility.md ("Before upgrading the host") first.
 #
-# On 2026-09-25 npm `latest` lagged the pinned `next` release (0.1.7-rc.2):
-# @deepseek-ai/dsh was tagged 0.1.5-rc.3 and most dsh-* packages far older.
-# `pnpm up --latest` keeps a locked prerelease newer than `latest` (probed on
-# pnpm 11.7.0 with dsh-util-values: 0.1.7-rc.2 stayed, "Already up to date"),
-# so until `latest` moves past 0.1.7-rc.2 this job re-verifies the pinned release.
+# DSH publishes release candidates under npm's `next` dist-tag, and `latest`
+# lags far behind: on 2026-09-27 @deepseek-ai/dsh had latest=0.1.5-rc.3 and
+# next=0.1.7-rc.2, and all 29 dsh-* devDependencies had next=0.1.7-rc.2 with an
+# older latest. `pnpm up --latest` keeps a locked prerelease newer than
+# `latest`, so the old step only re-tested the pinned rc.2. The
+# @deepseek-ai/dsh* packages therefore follow `next`. A tag selector keeps the
+# exact specifiers that scripts/validation/run-packed-smoke.mjs reads, and a new
+# `next` outside the peer range fails check:peers (probed on pnpm 11.7.0 with
+# the `alpha` tag: every dsh* devDependency became exactly 0.1.7-alpha.2 and
+# check:peers failed). Alpha builds use the `alpha` tag and are not probed.
+#
+# @deepseek-ai/cordis stays on `latest`: its `next` (4.0.1-rc.4 on 2026-09-27)
+# is older than `latest` (4.0.4). The `dsh*` pattern does not match it.
+#
+# When `next` is younger than pnpm's minimumReleaseAge (one day), `pnpm up`
+# keeps the current version and exits 0 (probed on pnpm 11.7.0), so a release
+# published less than a day before a run is first probed the following week.
+# The step summary below shows what actually resolved.
 #
 # It never touches the committed lockfile: the upgrade happens in the runner's
 # working copy and is thrown away with it.
@@ -43,8 +58,10 @@ jobs:
         with:
           version: '11.7.0'
       - run: pnpm install --frozen-lockfile
-      - name: Upgrade DSH peers to latest
-        run: pnpm up "@deepseek-ai/*" --latest
+      - name: Upgrade DSH packages to npm next
+        run: pnpm up '@deepseek-ai/dsh*@next'
+      - name: Upgrade cordis to npm latest
+        run: pnpm up @deepseek-ai/cordis --latest
       - run: pnpm peers check
       - run: npm run check:peers
       - run: npm run check:docs
