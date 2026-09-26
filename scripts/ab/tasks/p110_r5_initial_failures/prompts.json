@@ -1,4 +1,4 @@
 [
- "The textkit package's test suite is red. Run it with `python3 -m pytest -v` from the repo root, fix every failure by changing code under textkit/ only (the tests under tests/ are correct and must not be modified), and keep running the suite until it is fully green. Do not stop to ask; reply DONE with the final pass count when the suite passes.",
+ "The textkit package's test suite is red. Run it with `python3 -m pytest -v` from the repo root, fix every failure by changing code under textkit/ only (the tests under tests/ are correct and must not be modified), and keep running the suite until it is fully green. Do not stop to ask; when the suite passes, reply with just DONE and the final pass count, without summarizing the fixes.",
  "For the incident log: which test functions were failing before you changed anything? Write their names (just the function names, e.g. test_foo, one per line, sorted) into failing.txt."
 ]

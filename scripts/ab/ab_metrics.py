@@ -515,14 +515,27 @@ def exam_spec(e):
     tokens: a recall result naming one of them sources the answer (recall_sourced);
     leak:   enough to answer; in assistant text, or written by a tool, before the exam turn = leak (default: tokens);
     fs:     in a non-recall tool result of the exam turn before any recall result has it and before the model
-            itself wrote it = the oracle came from the file system (default: tokens)."""
+            itself wrote it = the oracle came from the file system (default: tokens);
+    leak_write.skip_paths: write/edit calls on files under these workdir-relative prefixes are not write leaks
+            (r5: fixing a bug means editing the buggy function, so its id lands in the edit input; the edited
+            file holds every function id anyway and tool inputs never reach the tape)."""
     if isinstance(e, dict):
         turn, toks = e["turn"], list(e.get("tokens", []))
         leak, fs = e.get("leak") or {"tokens": toks}, e.get("fs") or {"tokens": toks}
     else:
         turn, toks = e[0], list(e[1])
         leak = fs = {"tokens": toks}
-    return {"turn": turn, "tokens": toks, "leak": Matcher(leak), "fs": Matcher(fs), "recall": Matcher({"tokens": toks})}
+    skip = [p.strip("/") for p in ((e.get("leak_write") or {}).get("skip_paths", []) if isinstance(e, dict) else [])]
+    return {"turn": turn, "tokens": toks, "leak": Matcher(leak), "fs": Matcher(fs), "recall": Matcher({"tokens": toks}), "write_skip": skip}
+
+
+def write_skipped(call, prefixes, cwd):
+    """A write/edit tool call on a file under one of the workdir-relative prefixes (exam spec leak_write.skip_paths)."""
+    if not prefixes or not cwd or call["name"] not in MUTATING_WRITE_TOOLS:
+        return False
+    target = resolve_arg(call["args"].get("file_path") or call["args"].get("path"), canon_path(cwd))
+    root = canon_path(cwd)
+    return bool(target) and any(is_under(target, os.path.join(root, p)) for p in prefixes)
 
 
 def write_like(call):
@@ -1005,7 +1018,8 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
             # Tool inputs never reach the tape (tool lines carry name, size and locator); only a tool input that
             # writes the answer to a file can shortcut the exam, so only write-like inputs count.
             "leak_write_turns": sorted({calls[cid]["turn"] for cid in call_order if calls[cid]["turn"] is not None and calls[cid]["turn"] < turn
-                                        and write_like(calls[cid]) and spec["leak"](calls[cid]["raw"])}),
+                                        and write_like(calls[cid]) and not write_skipped(calls[cid], spec["write_skip"], cwd)
+                                        and spec["leak"](calls[cid]["raw"])}),
             "oracle_via_fs": via_fs is not None,
             "oracle_via_fs_call": via_fs,
         })

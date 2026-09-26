@@ -255,6 +255,19 @@ class Recall(unittest.TestCase):
         g2.end(1)
         m2 = M.metrics(g2.ev, exams=[spec], prices=M.load_prices())
         self.assertEqual((m2["exams"][0]["leak_assistant_turns"], m2["exams"][0]["leak_write_turns"]), ([1], [1]))
+        # the r5 pilot: the bug fix edits the buggy function by name; with leak_write.skip_paths ["textkit/"] such an
+        # edit (relative, absolute or through /tmp) is no write leak, while a notes file outside textkit/ still is
+        W = "/private/tmp/x/work/w-1"
+        g3 = Log()
+        g3.ev[0]["cwd"] = W
+        g3.call(1, 1, "edit", {"file_path": "textkit/tokens.py", "old_string": "def tokens_f3(s, n=3):\n    x", "new_string": "def tokens_f3(s, n=3):\n    y"})
+        g3.call(1, 2, "write", {"file_path": "/tmp/x/work/w-1/textkit/tokens.py", "content": "def tokens_f3(s): pass"})
+        g3.end(1)
+        skip = dict(spec, leak_write={"skip_paths": ["textkit/"]})
+        self.assertEqual(M.metrics(g3.ev, exams=[spec], prices=M.load_prices())["exams"][0]["leak_write_turns"], [1])
+        self.assertEqual(M.metrics(g3.ev, exams=[skip], prices=M.load_prices())["exams"][0]["leak_write_turns"], [])
+        g3.call(1, 3, "write", {"file_path": "notes.txt", "content": "fixed tokens_f3"})
+        self.assertEqual(M.metrics(g3.ev, exams=[skip], prices=M.load_prices())["exams"][0]["leak_write_turns"], [1])
 
     def test_oracle_via_the_file_system(self):
         W = "/private/tmp/x/p110ab/results/b/work/w-abc123"
