@@ -17,6 +17,10 @@
 > found errors. §14.6 shows what the decision depends on: F fails G3 if a rejected write/edit
 > is not counted as a mutation, and nothing ships if the minimum pair counts scale with the
 > pooled reps. Sections 1–13 and 15 are unchanged since the pre-registration commit `f70d584`.
+>
+> **Rulings (2026-09-27, §14.12):** ship A + C; **do not ship F**. The literal minimum pair counts
+> and the arbitration reading are accepted. A + C waits in a draft PR for the next release that
+> changes the prefix anyway.
 
 ## 1. Question
 
@@ -972,6 +976,44 @@ string in any logged message or tool result.
   - the reports, the cache cross-check and the secrets scan;
   - `verification/`, with the verifiers' scripts, their per-cell rows and the G3 sensitivity
     re-run.
+
+### 14.12 Rulings (2026-09-27)
+
+The owner delegated these rulings. They are recorded here, after the results, and they
+change nothing above.
+
+- **F (arm 2) is not shipped.** By the rule as frozen, F passes, but it has no room anywhere it
+  matters:
+  - its G4 request check sits exactly at the limit (+1; +2 in the batch alone);
+  - its G3 pass depends on counting a write or edit that DSH rejected as a mutation (§14.6);
+    under the other reading it fails by 5.5;
+  - it re-reads more than arm 1 under both readings (87 vs 73 and 77 vs 58);
+  - it takes more extra hops (4 vs 2).
+
+  Arm 2 is arm 1 plus F, so these differences belong to F. The ruling errs toward not
+  shipping, and the evidence is kept. F stays on `exp/p110-ab-arm2` (`147d2d4`) for a
+  separate, F-only A/B that counts only successful mutations.
+- **A + C ships.** Arm 1 passes every gate with room, and it keeps passing under every
+  alternative reading except scaled minimum pairs:
+  - re-reads 73 vs 79, and 58 vs 54 success-only, against a limit of 71.5;
+  - cost ratios 0.979 median and 0.967 summed.
+- **Minimum pair counts: the literal reading is accepted.** The G2 exclusions come from
+  access flags, not from recall outcomes. Every recall cell in every arm, excluded ones
+  included, answered correctly from a recall tool, with 0 recall errors and 0
+  formatVersion rejections. Scaling the minimum would discard agreement the data does
+  show.
+- **The arbitration reading is accepted:** all seven tasks, the same seed (§14.2).
+- **Timing.** A + C changes the cached prefix. The ship PR stays a draft and rides the
+  next release that changes the prefix anyway, as the P1-10 decision said. Merging it
+  alone costs each session active at deploy one full-miss request. That is 8.7K–59K
+  tokens, about $0.002–0.013 at the off-peak miss price, so merging earlier is also
+  reasonable.
+- **Isolation caveats for the next run (§14.5, §14.10):**
+  - concurrent arms' workdirs and the A/B root were readable;
+  - three cells read the batch manifest;
+  - one read a sibling cell's finished answer.
+
+  None changed a verdict. The next harness should run each arm in its own sandbox root.
 
 ## 15. Revisions before any paid call (2026-09-27)
 
