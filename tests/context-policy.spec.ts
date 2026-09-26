@@ -322,7 +322,7 @@ describe('append-only tape sealing', () => {
     expect(session.deriveMessages().some(message => message.role === 'tool')).toBe(false)
     expect(session.deriveMessages().flatMap(message => message.content).some(block => block.type === 'tool-call')).toBe(false)
     const text = surfaceText(session)
-    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · expand_result({"seq":${result.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
+    expect(text).toContain(`[tool turn 1 step 1 seq ${result.seq} · read · 18 chars · v${SESSION_FORMAT_VERSION}]`)
     expect(text).not.toContain('DURABLE_FILE_BYTES')
     expect(renderSealedTurn(session.snapshotEvents(), 1, { view: 'full' })?.rendered).toContain('DURABLE_FILE_BYTES')
   })
