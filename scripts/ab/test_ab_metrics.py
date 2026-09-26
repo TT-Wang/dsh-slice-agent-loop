@@ -98,6 +98,82 @@ class Reads(unittest.TestCase):
         self.assertEqual(r["reread_same_turn_unchanged"], 0)
 
 
+class ReadRanges(unittest.TestCase):
+    def count(self, *cmds):
+        g = Log()
+        for i, c in enumerate(cmds, 1):
+            name, args = c if isinstance(c, tuple) else ("bash", {"command": c})
+            g.call(1, i, name, args)
+        g.end(1)
+        return M.metrics(g.ev, prices=M.load_prices())["reads"]["reread_same_turn_unchanged"]
+
+    def test_line_ranges(self):
+        self.assertEqual(self.count("sed -n '1,10p' f.py", "sed -n '50,60p' f.py"), 0)   # disjoint pages
+        self.assertEqual(self.count("sed -n '1,10p' f.py", "sed -n '5,20p' f.py"), 1)
+        self.assertEqual(self.count("head -20 f.py", "tail -20 f.py"), 0)                 # tail: unknown position
+        self.assertEqual(self.count("tail -20 f.py", "tail -20 f.py"), 0)
+        self.assertEqual(self.count("head -n 50 f.py", "tail -n +100 f.py"), 0)          # 1-50 vs 100-end
+        self.assertEqual(self.count("head -n 50 f.py", "tail -n +40 f.py"), 1)
+        self.assertEqual(self.count("cat f.py | head -20", "sed -n '10,30p' f.py"), 1)
+        self.assertEqual(self.count("cat -n f.py", "sed -n '/def /p' f.py"), 0)          # a regex print is a range of unknown position
+        self.assertEqual(self.count(("read", {"file_path": "f.py", "offset": 1, "limit": 40}), "sed -n '30,60p' f.py"), 1)
+
+    def test_bash_workdir_parameter(self):
+        self.assertEqual(self.count(("read", {"file_path": "sub/x.py"}), ("bash", {"command": "cat x.py", "workdir": "sub"})), 1)
+        self.assertEqual(self.count(("read", {"file_path": "x.py"}), ("bash", {"command": "cat x.py", "workdir": "sub"})), 0)
+        self.assertEqual(self.count(("read", {"file_path": "sub/x.py"}), ("bash", {"command": "cat x.py", "workdir": "/w/sub"})), 1)
+
+
+class Flags(unittest.TestCase):
+    W = "/private/tmp/c/impl/p110ab/results/p110-20260927/work/w-abc123"
+
+    def flags(self, name, args):
+        call = {"seq": 1, "turn": 1, "step": 1, "name": name, "args": args, "raw": json.dumps(args)}
+        return M.access_flags({"c": call}, ["c"], self.W)
+
+    def test_inside_the_workdir_is_not_flagged(self):
+        for name, args in [
+            ("read", {"file_path": self.W + "/docs/runbook.txt"}),                       # the old '/p110ab/' false positive
+            ("read", {"file_path": "/tmp/c/impl/p110ab/results/p110-20260927/work/w-abc123/docs/runbook.txt"}),
+            ("bash", {"command": "cd %s && python3 tools/probe.py --region us" % self.W}),
+            ("bash", {"command": "python3 -m pytest -v 2>&1 | tail -20"}),
+            ("bash", {"command": "sed -n '/night/p' docs/runbook.txt"}),
+            ("bash", {"command": "python3 -c \"print(1 / 3)\""}),
+            ("bash", {"command": "mkdir -p answers && echo 64471 > answers/ext.txt 2>/dev/null"}),
+            ("bash", {"command": "cat x.py", "workdir": "sub"}),
+            ("bash", {"command": "ls -la /usr/bin/python3 && /usr/bin/env python3 -V"}),
+            ("bash", {"command": "python3 -c \"import os; print(os.environ.get('X'))\""}),
+            ("glob", {"pattern": "**/*.py"}),
+            ("grep", {"pattern": "def ", "path": "textkit"}),
+        ]:
+            with self.subTest(args=args):
+                self.assertEqual(self.flags(name, args), [])
+
+    def test_outside_home_sensitive_and_secret(self):
+        cases = [
+            ("bash", {"command": "find / -name runbook.txt"}, "outside"),
+            ("bash", {"command": "grep -i backup ../../../../selfcheck/r3-untouched/docs/runbook.txt"}, "outside"),
+            ("bash", {"command": "cd .. && ls"}, "outside"),
+            ("bash", {"command": "cat x.py", "workdir": "/tmp"}, "workdir outside"),
+            ("bash", {"command": "python3 tools/probe.py > /tmp/out.txt"}, "outside"),
+            ("bash", {"command": "ls ~"}, "home"),
+            ("bash", {"command": "mdfind -name probe.py"}, "sensitive"),
+            ("grep", {"pattern": "Brackenfold", "path": ".."}, "outside"),
+            ("glob", {"pattern": "/**/probe.py"}, "outside"),
+            ("read", {"file_path": "../w-other/tools/probe.py"}, "outside"),
+            ("bash", {"command": "cat ../w-abc123.truth.json"}, "sensitive"),
+            ("bash", {"command": "cat $DSH_HOME/.env"}, "secret"),
+            ("read", {"file_path": "/Users/u/.dsh/.env"}, "secret"),
+        ]
+        for name, args, why in cases:
+            with self.subTest(args=args):
+                f = self.flags(name, args)
+                self.assertEqual(len(f), 1)
+                self.assertTrue(any(why in r for r in f[0]["reasons"]), f[0]["reasons"])
+        self.assertTrue(self.flags("bash", {"command": "cat $DSH_HOME/.env"})[0]["secret"])
+        self.assertFalse(self.flags("bash", {"command": "find / -name x"})[0]["secret"])
+
+
 class Recall(unittest.TestCase):
     def build(self, tool_line):
         g = Log()
@@ -157,8 +233,85 @@ class Recall(unittest.TestCase):
         g.end(2)
         m = M.metrics(g.ev, exams=[(3, ["8b69ed6e"])], prices=M.load_prices())
         self.assertEqual(m["exams"][0]["leak_assistant_turns"], [1])
-        self.assertEqual(m["exams"][0]["leak_tool_input_turns"], [2])
+        self.assertEqual(m["exams"][0]["leak_write_turns"], [2])
         self.assertEqual(len(m["flagged_access"]), 1)
+        self.assertNotIn("tokens", m["exams"][0])  # oracle tokens never land in cells/*.json
+
+    def test_tool_inputs_leak_only_when_they_write_the_answer(self):
+        g = Log()
+        # R5 shape: running one failing test by name is not a leak (tool inputs never reach the tape) ...
+        g.call(1, 1, "bash", {"command": "python3 -m pytest tests/test_tokens.py::test_tokens_f3_0 -q"}, result="1 failed")
+        g.call(1, 2, "edit", {"file_path": "textkit/tokens.py", "old_string": "n + 1", "new_string": "n"})
+        g.assistant(1, 3, text="DONE: 400 passed")
+        g.end(1)
+        spec = {"turn": 2, "tokens": ["test_tokens_f3_0"], "leak": {"regex": ["(?<![A-Za-z0-9])tokens_f3(?!\\d)"]}}
+        m = M.metrics(g.ev, exams=[spec], prices=M.load_prices())
+        self.assertEqual((m["exams"][0]["leak_assistant_turns"], m["exams"][0]["leak_write_turns"]), ([], []))
+        # ... but naming the fixed function in assistant text is (the tape keeps it verbatim), and so is writing it to a file
+        g2 = Log()
+        g2.call(1, 1, "bash", {"command": "echo test_tokens_f3_0 >> notes.txt"})
+        g2.assistant(1, 2, text="Fixed tokens_f3; 400 passed.")
+        g2.assistant(1, 3, text="tokens_f30 is fine")
+        g2.end(1)
+        m2 = M.metrics(g2.ev, exams=[spec], prices=M.load_prices())
+        self.assertEqual((m2["exams"][0]["leak_assistant_turns"], m2["exams"][0]["leak_write_turns"]), ([1], [1]))
+
+    def test_oracle_via_the_file_system(self):
+        W = "/private/tmp/x/p110ab/results/b/work/w-abc123"
+
+        def build(first):
+            g = Log()
+            g.ev[0]["cwd"] = W
+            g.call(1, 1, "read", {"file_path": "docs/runbook.txt"}, result="... backup datacenter is Brackenfold ...")
+            g.end(1)
+            first(g)
+            g.call(2, 9, "bash", {"command": "cat answers/dr.txt"}, result="Brackenfold")
+            g.end(2)
+            return M.metrics(g.ev, exams=[(2, ["Brackenfold"])], prices=M.load_prices())
+
+        # a relative escape into another copy of the task: flagged by path and by content
+        m = build(lambda g: g.call(2, 1, "bash", {"command": "grep -i backup ../../../../selfcheck/r3-untouched/docs/runbook.txt"}, result="the backup datacenter is Brackenfold"))
+        self.assertTrue(m["exams"][0]["oracle_via_fs"])
+        self.assertEqual(m["exams"][0]["oracle_via_fs_call"]["tool"], "bash")
+        self.assertTrue(any("outside" in r for f in m["flagged_access"] for r in f["reasons"]))
+        # the grep tool on '..' (no path in any command string): content still catches it
+        m = build(lambda g: g.call(2, 1, "grep", {"pattern": "backup", "path": ".."}, result="w-9/docs/runbook.txt:300: Brackenfold"))
+        self.assertTrue(m["exams"][0]["oracle_via_fs"])
+        # recall first, then the model's own answer file read back: not via the file system, not flagged
+        def recalled(g):
+            g.call(2, 1, "expand_result", {"seq": 3, "formatVersion": 4, "grep": "backup"}, result="the backup datacenter is Brackenfold")
+            g.call(2, 2, "write", {"file_path": "answers/dr.txt", "content": "Brackenfold\n"})
+        m = build(recalled)
+        self.assertFalse(m["exams"][0]["oracle_via_fs"])
+        self.assertTrue(m["exams"][0]["recall_sourced"])
+        self.assertEqual(m["flagged_access"], [])
+        # the model writes the answer (from the tape, say) and then cats it: authored first, not via fs
+        m = build(lambda g: g.call(2, 1, "write", {"file_path": "answers/dr.txt", "content": "Brackenfold"}))
+        self.assertFalse(m["exams"][0]["oracle_via_fs"])
+
+    def test_attempt_usage_is_billed_but_not_a_request(self):
+        g = Log()
+        g.add("assistant/attempt", {"turn": 1, "step": 1, "stream": [{"type": "chunk", "chunk": {"type": "usage", "usage": {"inputTokens": 500, "cacheReadTokens": 0, "outputTokens": 3}}}]})
+        g.add("assistant/attempt", {"turn": 1, "step": 1, "stream": [{"type": "text-chunks", "texts": ["par"]}]})  # no sample
+        g.assistant(1, 1, text="ok", usage=(10, 100, 5))
+        g.end(1)
+        u = M.metrics(g.ev, prices=M.load_prices())["usage"]
+        self.assertEqual((u["requests"], u["attempts_failed"], u["unpriced_records"]), (1, 2, 1))
+        self.assertEqual((u["miss"], u["hit"], u["out"]), (510, 100, 8))
+        self.assertEqual((u["attempt_miss"], u["attempt_out"]), (500, 3))
+        self.assertEqual(M.usage_totals(g.ev, turns={1}), {"miss": 510, "hit": 100, "out": 8, "cache_write": 0, "messages": 1, "attempts": 2, "unpriced": 1})
+
+    def test_prompt_turn_alignment(self):
+        g = Log()
+        g.add("user/message", {"content": [{"type": "text", "text": "go"}], "source": {"kind": "user"}, "role": "user"})
+        g.add("turn/start", {"turn": 1})
+        g.assistant(1, 1, text="done")
+        g.end(1)
+        g.add("user/message", {"content": [{"type": "text", "text": "<goal_round>"}], "source": {"kind": "goal"}, "role": "user"})
+        g.add("turn/start", {"turn": 2})
+        g.end(2, kind="error")
+        v = M.metrics(g.ev, prices=M.load_prices())["validity"]
+        self.assertEqual((v["user_prompts"], v["goal_messages"], v["turn_ends"]), (1, 1, 2))
 
     def test_usage_and_costs(self):
         g = Log()
@@ -188,9 +341,15 @@ class MockLogs(unittest.TestCase):
                 events, bad = M.load_events(c["log"])
                 m = M.metrics(events, prices=M.load_prices(), bad_lines=bad)
                 self.assertEqual(bad, 0)
-                self.assertEqual(m["validity"]["tools_count"], 19)
+                self.assertEqual(m["validity"]["tools_count"], 16)
                 self.assertFalse(m["validity"]["system_has_host_path"])
                 self.assertEqual(m["finish"]["turns"], len(c["turns"]))
+                self.assertEqual((m["validity"]["user_prompts"], m["validity"]["turn_ends"], m["validity"]["goal_messages"]), (len(c["turns"]), len(c["turns"]), 0))
+                # the scripted mock only touches its own workdir and never restates an oracle
+                self.assertEqual(m["flagged_access"], [])
+                self.assertFalse(c.get("g2_excluded"))
+                # the cell's workdir and truth sidecar were packed away at the end of the cell
+                self.assertFalse(os.path.exists(c["workdir"]) or os.path.exists(c["workdir"] + ".truth.json"))
                 # the log's assistant messages are exactly the step_end events of the turns' stdout
                 self.assertEqual(m["usage"]["requests"], sum(t["steps"] for t in c["turns"]))
                 self.assertEqual(m["usage"]["miss"], sum(t["usage"]["inputTokens"] for t in c["turns"]))

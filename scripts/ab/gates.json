@@ -9,12 +9,18 @@
   "reps": 3,
   "pairing": "same task and rep index; the arms of a pair ran concurrently (--parallel-arms)"
  },
+ "min_pairs": {
+  "all": 17,
+  "recall_g2": 10,
+  "_note": "A check evaluated on fewer valid pairs than this (of 21 for scope all, of 15 for recall_g2) is 'insufficient', which blocks the ship decision. n/a is non-blocking only for checks marked na_ok."
+ },
  "validity": {
   "cell_counts_only_if": [
-   "every turn exited 0 or ended with a model-attributable turn_end (the step cap, reason kind 'blocked'); never TRANSPORT, RATE_LIMIT, MISSING_CREDENTIAL, a timeout or a budget kill",
+   "every turn exited 0 or ended with a model-attributable turn_end (the step cap 'blocked', 'max-tokens', or 'error' with a code outside the infra list); never an infra error (TRANSPORT, RATE_LIMIT, SERVER, TIMEOUT, EMPTY_RESPONSE, MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH, QUOTA, ACCOUNT_QUOTA, NO_ADAPTER, HTTP 5xx), a missing turn_end, a harness timeout or a budget kill",
    "the session log was found",
    "system prompt and slice tool fingerprints equal the arm's entry in fingerprints.json",
-   "19 tools, one tool list and one system prompt for the whole session",
+   "16 tools (the fingerprinted count), one tool list and one system prompt for the whole session",
+   "one turn per prompt: user prompts = turn ends = prompts, no goal-round messages",
    "the system prompt contains no /private or /Users",
    "zero compaction events",
    "tape header and tool-line forms are the arm's (control long/long, arm1 short/long, arm2 short/v)",
@@ -23,7 +29,7 @@
   ],
   "max_attempts": 2,
   "pair_rule": "a (task, rep) pair counts only when both the arm cell and the baseline cell are valid; dropped pairs are listed",
-  "g2_exclusion": "a cell with flagged access (session log, .truth sidecar, harness paths) or an oracle leak (token in assistant text or tool input before the exam turn) counts for G1 but is excluded from G2; the exclusion drops the whole pair from that comparison"
+  "g2_exclusion": "a cell counts for G1 but is excluded from G2 (the whole pair drops from that comparison) when, up to its exam turn, a tool call was flagged (a path, bash command or bash workdir resolving outside the cell's workdir; the session log, .truth sidecar, harness, key location or whole-disk search), or an answer-sufficient token leaked before the exam turn into assistant text or into a tool input that writes a file, or in the exam turn a non-recall tool result named an oracle token before any recall result did and before the model wrote it (oracle via the file system)"
  },
  "gates": [
   {
@@ -72,7 +78,7 @@
   {
    "id": "G6", "name": "Arm 2 only: locators", "applies_to": ["arm2"],
    "checks": [
-    {"id": "G6.first_try", "desc": "first-try success rate of expand_result on a target in an earlier turn", "metric": "cross_turn_first_try", "scope": "all", "rule": "rate_ge_base_minus", "margin": 0.10, "min_targets": 1},
+    {"id": "G6.first_try", "desc": "first-try success rate of expand_result on a target in an earlier turn", "metric": "cross_turn_first_try", "scope": "all", "rule": "rate_ge_base_minus", "margin": 0.10, "min_targets": 1, "na_ok": true},
     {"id": "G6.extra_hops", "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave", "metric": "extra_hops", "scope": "all", "rule": "le_base_plus", "margin": 2, "count": true},
     {"id": "G6.vs_arm1.G2c", "baseline": "arm1", "metric": "fv_rejections", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
     {"id": "G6.vs_arm1.G2c.recovered", "baseline": "arm1", "metric": "fv_rejections_unrecovered", "scope": "recall_g2", "rule": "arm_eq", "value": 0, "count": true},
@@ -84,7 +90,8 @@
   "pass": "the check holds",
   "arbitrate": "missed by exactly one unit beyond its margin (one count; 0.05 of a ratio; one request; one cross-turn target)",
   "fail": "missed by more than one unit",
-  "n/a": "not evaluable (G6.first_try when either side has no cross-turn target); reported, does not block"
+  "n/a": "not evaluable, allowed only for checks marked na_ok (G6.first_try when either side has no cross-turn target); reported, does not block",
+  "insufficient": "any other check that cannot be evaluated, or has fewer valid pairs than min_pairs; blocks the ship decision for that arm (only the single arbitration batch may add pairs)"
  },
  "decision": {
   "arm1": "ship A + C as one PR if G1-G5 all pass; ride on the next release that already changes the prefix unless the owner accepts one full cache miss per session active at deploy (8.7K-59K tokens measured)",
@@ -92,7 +99,7 @@
   "miss": "any gate missed by more than one unit: do not ship that arm (for arm1 the next step is a split A/B, header only vs prefix only, outside this batch)"
  },
  "arbitration": {
-  "trigger": "a check verdict 'arbitrate' and no 'fail' for that arm",
+  "trigger": "a check verdict 'arbitrate' or 'insufficient' and no 'fail' for that arm",
   "extra_reps": 3,
   "tasks": "the tasks driving the miss",
   "arms": "all arms, same concurrent pairing",

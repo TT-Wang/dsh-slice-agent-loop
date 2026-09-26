@@ -24,6 +24,12 @@ def _classify(body):
     if "CANNOT-RECOVER" in text.upper():
         return "cannot_recover", "declared CANNOT-RECOVER (honest but lost)"
     lines = [l.strip().strip("`") for l in text.splitlines() if l.strip() and not l.strip().startswith("```")]
+    if len(lines) == 2:
+        # Pre-declared (docs/p110-native-ab.md §4): one leading CSV header line whose value fields are not
+        # numbers (e.g. "endpoint,us_p95_ms,eu_p95_ms") is ignored; the data line decides.
+        head = [p.strip() for p in lines[0].split(",")]
+        if len(head) == 3 and not any(re.fullmatch(r"\d+(?:\.\d+)?", p) for p in head[1:]):
+            lines = lines[1:]
     if len(lines) != 1:
         return "hedged", "hedged: %d lines in compare.csv" % len(lines)
     parts = [p.strip() for p in lines[0].split(",")]

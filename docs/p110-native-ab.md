@@ -382,3 +382,50 @@ form the arm renders.
 ## 14. Results
 
 _Empty until the batch and the report exist._
+
+## 15. Revisions before any paid call (2026-09-27)
+
+A review of the build found these faults; all were fixed and re-tested offline before the
+key was linked. None changes an arm, a prompt or a gate margin.
+
+1. **Access flags.** The pattern `/p110ab/` matched every absolute path inside the cell's
+   own workdir, while `find /`, `../` escapes and the grep tool on `..` went unflagged.
+   Paths are now resolved against the workdir, and the oracle's arrival through a
+   non-recall result is checked by content (§6).
+2. **Vacuous gates.** A check with no valid pairs returned n/a, which counted as a pass:
+   with every recall pair excluded, G2 passed and the report said "ship". Such checks are
+   now "insufficient", with minimum pair counts, and block the decision (§8, §9).
+3. **Budget undercount.** The ledger priced only `step_end` usage, which the projector
+   drops for a whole step after any usage-less attempt, the retry-storm case the cap
+   guards. Such steps and open steps are now charged $0.05 each, each turn is reconciled
+   with its session log, and a retry storm stops the run (§10). Metrics bill failed
+   attempts too. The mock can inject failed attempts with or without usage.
+4. **Oracle copies on disk.** Self-check workdirs, development and guard batches and the
+   scout's workdirs held task sources and correct answers where a `find /` would reach
+   them, and a stopped or retried attempt left its workdir behind. They were packed away,
+   and every cell now removes its workdir when it ends (§5 step 2).
+5. **Leak rule.** Any oracle token in any earlier tool input counted as a leak, so r5's
+   test names typed into `pytest` would have dropped most r5 cells, while the real r5
+   shortcut (function ids in T1's text) went unseen. Tokens now have roles, and only
+   write-like tool inputs count (§4, §6).
+6. **Re-read metric.** The bash `workdir` parameter was ignored, and `sed -n`, `head` and
+   `tail` counted as whole-file reads, so paging inflated G3. Line ranges are now parsed
+   (§6).
+7. **Goal rounds.** With the goal tools enabled, a `create_goal` call could start extra
+   turns inside one process and shift every turn-addressed metric. The tools are disabled
+   in the parity overlay (16 tools) and one turn per prompt is a validity check (§3, §7).
+8. **Infra rule.** Every exit ≠ 0 with an error `turn_end` was infra, so a context
+   overflow or a rejected request would have been rerun and dropped instead of counted.
+   Only provider, network, credential and quota codes are infra now (§7).
+9. **Budget margin and resume.** The cap holds only if the margin covers what concurrent
+   turns spend between polls; that invariant is now stated and the defaults follow it
+   (§10). `--resume` restarted attempt numbers at 1, reusing workdirs, turn files and
+   ledger keys; attempt numbers now continue.
+10. **Answer classes.** The r1/r2 class was read from the whole verify detail, including
+    the model's own `how.md` text, even when the cell passed; an r4 CSV header line made a
+    right answer "hedged". A passing verify is now always correct, only the verdict part is
+    read, and one header line is ignored (§4, §6).
+11. **Secrets and fingerprints.** `$DSH_HOME/.env` is readable from bash; references to
+    it are flagged and their logs held back from the archive (§5 step 7). The fallback for
+    provider-dependent fingerprints is pre-declared (§3), and the manifest records the
+    `DSH_*` variable names.

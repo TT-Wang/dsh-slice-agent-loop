@@ -13,7 +13,26 @@
     "PRB-eu-559cd122",
     "shipping        177     690",
     "shipping         43     291"
-   ]
+   ],
+   "leak": {
+    "regex": [
+     "shipping[^\\n]{0,40}?(?<!\\d)690(?!\\d)",
+     "shipping[^\\n]{0,40}?(?<!\\d)291(?!\\d)"
+    ]
+   },
+   "fs": {
+    "tokens": [
+     "PRB-us-7537d2a4",
+     "PRB-eu-559cd122",
+     "shipping        177     690",
+     "shipping         43     291"
+    ],
+    "regex": [
+     "shipping[^\\n]{0,40}?(?<!\\d)690(?!\\d)",
+     "shipping[^\\n]{0,40}?(?<!\\d)291(?!\\d)"
+    ]
+   },
+   "_note": "tokens: a recall result naming one sources the answer. leak: the shipping values (enough to answer; the run ids are not). fs: anything printed by the probe."
   }
  ],
  "oracle_answer": "shipping,690,291",

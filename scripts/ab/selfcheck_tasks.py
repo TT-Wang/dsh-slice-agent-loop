@@ -2,13 +2,27 @@
 """Oracle self-check for every A/B task: verify() fails on the untouched workdir, passes on a correct
 end state, and names the failure class of typical wrong answers. No model, no network.
 
-    python3 scripts/ab/selfcheck_tasks.py [scratch-dir]
+    python3 scripts/ab/selfcheck_tasks.py [scratch-dir] [--keep]
 
 C1/C2 use reference_fix.py from ~/code/sliceagent/evals/h2h when it is present (skipped otherwise).
+Every workdir holds task sources and correct answers, i.e. oracle copies a model could find on disk, so
+they are removed when the check ends (and a temporary scratch dir with them) unless --keep is given.
 """
-import importlib.util, json, os, shutil, subprocess, sys, tempfile
+import atexit, importlib.util, json, os, shutil, subprocess, sys, tempfile
 W = os.path.dirname(os.path.abspath(__file__))
-SCR = sys.argv[1] if len(sys.argv) > 1 else tempfile.mkdtemp(prefix="ab-selfcheck-")
+ARGS = [a for a in sys.argv[1:] if a != "--keep"]
+KEEP = "--keep" in sys.argv[1:]
+SCR = ARGS[0] if ARGS else tempfile.mkdtemp(prefix="ab-selfcheck-")
+CREATED = []
+def cleanup():
+    if KEEP:
+        return
+    for root in CREATED:
+        shutil.rmtree(root, ignore_errors=True)
+        if os.path.exists(root + ".truth.json"): os.remove(root + ".truth.json")
+    if not ARGS:
+        shutil.rmtree(SCR, ignore_errors=True)
+atexit.register(cleanup)
 RUN = os.path.join(W, "run_ab.py")
 def call(task, fn, root, n=None):
     cmd = [sys.executable, RUN, "_task_call", os.path.join(W, "tasks", task), fn, root] + ([str(n)] if n else [])
@@ -18,6 +32,7 @@ def fresh(task, name):
     shutil.rmtree(root, ignore_errors=True)
     if os.path.exists(root + ".truth.json"): os.remove(root + ".truth.json")
     os.makedirs(root)
+    CREATED.append(root)
     call(task, "setup", root)
     return root
 def w(root, rel, text):
@@ -69,6 +84,7 @@ def r4(line):
 check("r4-untouched", "p110_r4_probe_compare", lambda r: None, False)
 check("r4-correct", "p110_r4_probe_compare", r4("shipping,690,291\n"), True, "correct")
 check("r4-swapped", "p110_r4_probe_compare", r4("shipping,291,690\n"), False, "wrong")
+check("r4-header", "p110_r4_probe_compare", r4("endpoint,us_p95_ms,eu_p95_ms\nshipping,690,291\n"), True, "correct")
 # R5 (reference fix from f3's oracle)
 def r5(failing):
     def f(root):

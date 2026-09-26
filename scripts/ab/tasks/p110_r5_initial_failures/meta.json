@@ -22,7 +22,20 @@
     "test_tokens_f3_1",
     "test_validate_f2_0",
     "test_validate_f2_1"
-   ]
+   ],
+   "leak": {
+    "regex": [
+     "(?<![A-Za-z0-9])(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)(?!\\d)"
+    ]
+   },
+   "fs": {
+    "regex": [
+     "(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)_[01]\\b[^\\n]{0,120}\\bFAILED",
+     "\\bFAILED\\b[^\\n]{0,160}(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)_[01]\\b",
+     "\"failing\"\\s*:"
+    ]
+   },
+   "_note": "tokens: the failing test names (recall sourcing). leak: the five buggy function ids; with them and the tests/ tree the list follows (test_<fn>_0/_1). fs: a FAILED marker for one of those tests, or the truth file's key, in a non-recall result of T2 (the suite is green in the cell's own workdir by then)."
   }
  ],
  "source": "dsh-tool-result-fold/bench/scenarios/f3_test_suite_fix: prompts verbatim; setup.py and verify.py unchanged except the truth file location (<workdir>.truth.json) and the exam class returned by verify.",

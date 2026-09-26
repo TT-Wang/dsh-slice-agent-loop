@@ -9,6 +9,12 @@
 //      (`expand_result({"seq":N,"formatVersion":V})` or `seq N · … · vV]`);
 //   5. text "MOCK-DONE".
 // Inapplicable actions are skipped. The MOCK-* keywords keep the scouting probes working.
+//
+// Failure injection (budget accounting tests): with AB_MOCK_FAIL_EVERY=N (N >= 2) the 1st, (N+1)th, ...
+// request of each process ends with a retryable TRANSPORT error instead of its action, so the host
+// records an assistant/attempt and retries. AB_MOCK_FAIL_USAGE=1 lets that failed attempt report a usage
+// sample first; otherwise it reports none, and the headless --json projector then drops the usage of the
+// whole step (its step_end carries no usage).
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { existsSync, realpathSync, statSync } from 'node:fs'
@@ -20,6 +26,7 @@ const llm = await import(pathToFileURL(host.resolve('@deepseek-ai/dsh-llm')).hre
 export const name = 'ab-mock-llm'
 export const inject = ['llm']
 let n = 0
+let requests = 0
 /** @param {number} i @returns {import('@deepseek-ai/dsh-llm').StreamChunk} */
 const usage = i => ({ type: 'usage', usage: { inputTokens: 100 + i, cacheReadTokens: 1000, outputTokens: 7 } })
 /** @param {string} value @returns {import('@deepseek-ai/dsh-llm').StreamChunk[]} */
@@ -35,6 +42,8 @@ const call = (tool, args) => [
   { type: 'block-end', index: 0, block: { type: 'tool-call', id: llm.ToolCallId(`mock-${++n}-${Date.now()}`), name: tool, arguments: JSON.stringify(args) } },
   usage(0), { type: 'finish', reason: { kind: 'tool-calls' } },
 ]
+/** A retryable transport failure that ends an attempt (AB_MOCK_FAIL_EVERY). @type {import('@deepseek-ai/dsh-llm').StreamChunk} */
+const transportDrop = { type: 'finish', reason: { kind: 'error', failure: { message: 'mock transport drop', code: 'TRANSPORT' } } }
 /** @param {any} message @returns {string[]} */
 const texts = message => (message?.content ?? []).flatMap((/** @type {any} */ b) => (b.type === 'text' ? [b.text] : []))
 /** @param {any} message @returns {string|undefined} */
@@ -105,6 +114,13 @@ export function apply(ctx) {
       // AB_MOCK_DELAY_MS slows every request, so the harness's mid-turn budget kill can be exercised offline.
       const delay = Number(process.env.AB_MOCK_DELAY_MS ?? 0)
       if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
+      requests += 1
+      const failEvery = Number(process.env.AB_MOCK_FAIL_EVERY ?? 0)
+      if (failEvery >= 2 && requests % failEvery === 1) {
+        if (process.env.AB_MOCK_FAIL_USAGE === '1') yield usage(1000)
+        yield transportDrop
+        return
+      }
       for (const chunk of out) yield chunk
     }
   }

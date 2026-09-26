@@ -11,16 +11,24 @@ Prints one JSON object. Library use: `metrics(load_events(path), ...)`.
 
 Metric definitions are in docs/p110-native-ab.md ("Metrics"). In short:
 - usage: miss = inputTokens, hit = cacheReadTokens, out = outputTokens of every
-  assistant/message (they add up to totalTokens);
-- reads: `read` calls and single-file bash reads, per turn, with same-turn
-  re-reads split into "unchanged" and "after the model's own edit";
+  assistant/message and every failed assistant/attempt (billed tokens of retried
+  attempts live only in the attempt's stream); requests = committed messages;
+- reads: `read` calls and single-file bash reads with their line ranges (sed -n
+  ranges, head -n N; tail is a range of unknown position), per turn, with
+  same-turn re-reads split into "unchanged" and "after the model's own edit";
+  the bash tool's `workdir` parameter is honoured;
 - recall: calls and errors per recall tool, formatVersion rejections, the
   shape of every expand_result call and where its locator came from;
 - validity: system prompt and slice tool fingerprints, tool count, host paths
-  in the system prompt, compaction events, tape header and tool-line forms;
+  in the system prompt, compaction events, tape header and tool-line forms,
+  prompt/turn alignment (no goal rounds);
+- access flags: every path argument, bash command and bash workdir resolved
+  against the cell's workdir; reaching outside it, the session log, the oracle
+  sidecar, the harness or the model key is flagged;
 - exams: whether an oracle token reached the model through a recall tool in
-  the exam turn, and whether it leaked into assistant text or tool input
-  earlier.
+  the exam turn, through the file system instead (a non-recall result naming it
+  first), and whether an answer-sufficient token leaked earlier into assistant
+  text or a tool input that writes a file.
 """
 import hashlib
 import json
@@ -34,11 +42,25 @@ RECALL_TOOLS = ("recall_turn", "recall_search", "recall_step", "expand_result")
 LOCATOR_TOOLS = ("recall_turn", "recall_search", "recall_step")
 TAPE_KIND = "plugin:slice:history"
 FV_REJECT = "requires formatVersion"
-# Bash access to the durable log, the oracle sidecar or the harness itself.
-FLAG_PATTERNS = ("sessions/", ".zstd", ".truth", "session.v4", "/home-control", "/home-arm", "wt-harness", "scripts/ab/", "/p110ab/")
 READ_COMMANDS = {"cat", "head", "tail", "nl", "less", "more", "sed"}
 MUTATING_WRITE_TOOLS = ("write", "edit", "multiedit", "apply_patch")
 BIG = 10 ** 9
+
+# ---- access flags. The sandbox confines writes only; reads are allowed anywhere on disk. Every path
+# argument, bash command and bash `workdir` is therefore resolved against the cell's workdir and flagged
+# when it leaves it. Locations an ordinary program run touches are exempt.
+SYSTEM_PREFIXES = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/dev/tty", "/dev/fd/", "/dev/zero", "/dev/urandom", "/dev/random",
+                   "/usr/", "/bin/", "/sbin/", "/System/", "/Library/", "/opt/homebrew/", "/opt/local/", "/private/etc/", "/proc/")
+# Flagged wherever they resolve: the durable session log, the oracle sidecar, the harness, whole-disk search.
+SENSITIVE_RE = re.compile(r"sessions/|/sessions\b|\.zstd\b|\.truth\b|session\.v4|/home-(?:control|arm\d)\b|wt-harness|scripts/ab/|(?:^|[\s;&|(])(?:mdfind|locate)\s")
+# Flagged, and held back from the archive until the owner has looked: anything that can reach the model key.
+SECRET_RE = re.compile(r"\bDSH_HOME\b|\bDSH_PROFILE_DIR\b|(?<![\w.])\.env(?![\w])|/\.dsh[\w-]*\b")
+HOME_RE = re.compile(r"(?:^|[\s'\"=:(])~(?:/|$|[\s'\")])|\$\{?(?:HOME|TMPDIR|OLDPWD)\b")
+PATH_IN_TEXT = re.compile(r"(?<![\w.~$:/\\-])(/[\w.@+~-][^\s'\"`;|&<>(),]*)")
+PARENT_IN_TEXT = re.compile(r"(?<![\w.])(\.\.(?:/[^\s'\"`;|&<>(),]*)?)(?![\w.])")
+PATTERN_FIRST = {"sed", "awk", "gawk", "perl", "grep", "egrep", "fgrep", "rg", "jq"}
+FS_WALKERS = {"find", "ls", "du", "tree", "grep", "egrep", "fgrep", "rg", "cat", "head", "tail", "stat", "file", "cd", "pushd", "less", "more", "open"}
+WRITE_TEXT_RE = re.compile(r"(?:^|[;&|\n(]\s*)(?:echo|printf|cat)\b[^\n]*?(?:>>?|\btee\b)|<<")
 
 
 def load_events(path):
@@ -112,8 +134,8 @@ def norm_path(path, cwd):
     return os.path.normpath(path)
 
 
-def split_segments(command):
-    """Split a shell command on ;, &&, || and newlines (not inside quotes); pipes stay inside a segment."""
+def split_top(command, seps=(";", "\n", "&&", "||")):
+    """Split a shell command on the given separators outside quotes."""
     segments, buf, quote, i = [], [], None, 0
     while i < len(command):
         ch = command[i]
@@ -124,19 +146,33 @@ def split_segments(command):
             elif ch == "\\" and quote == '"' and i + 1 < len(command):
                 buf.append(command[i + 1])
                 i += 1
-        elif ch in "'\"":
+            i += 1
+            continue
+        if ch in "'\"":
             quote = ch
             buf.append(ch)
-        elif ch in ";\n" or command.startswith("&&", i) or command.startswith("||", i):
+            i += 1
+            continue
+        sep = next((s for s in seps if command.startswith(s, i)), None)
+        if sep:
             segments.append("".join(buf))
             buf = []
-            if command.startswith("&&", i) or command.startswith("||", i):
-                i += 1
-        else:
-            buf.append(ch)
+            i += len(sep)
+            continue
+        buf.append(ch)
         i += 1
     segments.append("".join(buf))
     return [s.strip() for s in segments if s.strip()]
+
+
+def split_segments(command):
+    """Split a shell command on ;, &&, || and newlines (not inside quotes); pipes stay inside a segment."""
+    return split_top(command)
+
+
+def split_pipes(segment):
+    """Split one segment into its pipeline stages (| outside quotes; || was split earlier)."""
+    return split_top(segment, ("|",))
 
 
 def tokens(segment):
@@ -146,42 +182,131 @@ def tokens(segment):
         return segment.split()
 
 
-def bash_read_target(command):
-    """Path read by a pure single-file read command (cat/head/tail/nl/less/more/sed -n), else None.
+def _num(s):
+    return int(s) if isinstance(s, str) and s.isdigit() else None
 
-    A leading `cd DIR &&` is allowed; the path is then returned relative to DIR."""
+
+def sed_ranges(scripts):
+    """Line ranges printed by `sed -n` scripts made only of `Np`, `a,bp` and `a,$p` commands, else None (unknown)."""
+    out = []
+    for script in scripts:
+        for part in re.split(r"[;\n]", script):
+            part = part.strip()
+            if not part:
+                continue
+            m = re.fullmatch(r"(\d+)(?:\s*,\s*(\d+|\$))?\s*p", part)
+            if not m:
+                return None
+            a = int(m.group(1))
+            b = a if m.group(2) is None else (BIG if m.group(2) == "$" else int(m.group(2)))
+            out.append((a, max(a, b)))
+    return out or None
+
+
+def head_range(args):
+    """(1, N) for head -n N / -N / --lines=N (default 10); None for byte counts."""
+    n, i = 10, 0
+    while i < len(args):
+        a = args[i]
+        if a in ("-c", "--bytes") or a.startswith(("-c", "--bytes=")):
+            return None
+        if a in ("-n", "--lines") and i + 1 < len(args):
+            n = _num(args[i + 1].lstrip("+")) or n
+            i += 2
+            continue
+        if a.startswith("--lines="):
+            n = _num(a.split("=", 1)[1]) or n
+        elif re.fullmatch(r"-n?\d+", a):
+            n = int(a.lstrip("-n"))
+        i += 1
+    return [(1, n)]
+
+
+def tail_range(args):
+    """`tail -n +N` reads from line N to the end; any other tail is a range of unknown position (None)."""
+    for i, a in enumerate(args):
+        v = args[i + 1] if a in ("-n", "--lines") and i + 1 < len(args) else (a[2:] if a.startswith("-n+") else a.split("=", 1)[1] if a.startswith("--lines=") else None)
+        if v and v.startswith("+") and _num(v[1:]):
+            return [(int(v[1:]), BIG)]
+    return None
+
+
+def operands_of(cmd, args):
+    """Non-option operands; skips the values of head/tail -n/-c and sed -e."""
+    operands, skip = [], False
+    for a in args:
+        if skip:
+            skip = False
+            continue
+        if cmd in ("head", "tail") and a in ("-n", "-c", "--lines", "--bytes"):
+            skip = True
+            continue
+        if cmd == "sed" and a in ("-e", "--expression"):
+            skip = True
+            continue
+        if a.startswith("-") or (cmd == "tail" and a.startswith("+")):
+            continue
+        operands.append(a)
+    return operands
+
+
+def bash_read(command, workdir=None):
+    """(path, ranges) read by a pure single-file read command, else None.
+
+    Commands: cat/nl/less/more (whole file), head (lines 1..N), tail (unknown position unless -n +N),
+    sed -n with numeric `p` ranges; optionally piped into head/sed -n/tail, which narrows the range.
+    `ranges` is a list of 1-based inclusive line ranges, or None for a range of unknown position (it
+    never overlaps another read). A leading `cd DIR &&` and the bash tool's own `workdir` parameter are
+    honoured: the path is returned joined to them (relative to the session cwd when they are relative)."""
     segs = split_segments(command)
-    base = None
+    base = workdir if isinstance(workdir, str) and workdir.strip() else None
     if len(segs) == 2 and tokens(segs[0])[:1] == ["cd"] and len(tokens(segs[0])) == 2:
-        base = tokens(segs[0])[1]
+        cd = tokens(segs[0])[1]
+        base = cd if base is None or os.path.isabs(cd) else os.path.join(base, cd)
         segs = segs[1:]
     if len(segs) != 1 or re.search(r"(?<![0-9&])>", segs[0]):
         return None
-    first = segs[0].split("|", 1)[0]
-    toks = tokens(first)
+    stages = split_pipes(segs[0])
+    toks = tokens(stages[0])
     if not toks or toks[0] not in READ_COMMANDS:
         return None
     cmd, args = toks[0], toks[1:]
     if cmd == "sed":
-        if "-n" not in args or any(a == "-i" or a.startswith("-i") for a in args):
+        if not any(a == "-n" or re.fullmatch(r"-n[a-zA-Z]*", a) or a == "--quiet" for a in args) or any(a == "-i" or a.startswith(("-i", "--in-place")) for a in args):
             return None
-        rest = [a for a in args if not a.startswith("-")]
-        operands = rest[1:]  # first non-flag is the sed script
+        scripts = [args[i + 1] for i, a in enumerate(args) if a in ("-e", "--expression") and i + 1 < len(args)]
+        ops = operands_of(cmd, args)
+        if not scripts:
+            if not ops:
+                return None
+            scripts, ops = [ops[0]], ops[1:]
+        ranges = sed_ranges(scripts)
+    elif cmd == "head":
+        ops, ranges = operands_of(cmd, args), head_range(args)
+    elif cmd == "tail":
+        ops, ranges = operands_of(cmd, args), tail_range(args)
     else:
-        operands, skip = [], False
-        for a in args:
-            if skip:
-                skip = False
-                continue
-            if cmd in ("head", "tail") and a in ("-n", "-c"):
-                skip = True
-                continue
-            if a.startswith("-"):
-                continue
-            operands.append(a)
-    if len(operands) != 1:
+        ops, ranges = operands_of(cmd, args), [(1, BIG)]
+    if len(ops) != 1:
         return None
-    return operands[0] if base is None or os.path.isabs(operands[0]) else os.path.join(base, operands[0])
+    for stage in stages[1:2]:  # the first downstream stage may narrow a whole-file read
+        st = tokens(stage)
+        if not st:
+            break
+        if st[0] == "head" and ranges == [(1, BIG)]:
+            ranges = head_range(st[1:])
+        elif st[0] == "sed" and ranges == [(1, BIG)] and "-n" in st:
+            ranges = sed_ranges([a for a in st[1:] if not a.startswith("-")][:1])
+        elif st[0] == "tail" and ranges == [(1, BIG)]:
+            ranges = tail_range(st[1:])
+    path = ops[0]
+    return (path if base is None or os.path.isabs(path) else os.path.join(base, path)), ranges
+
+
+def bash_read_target(command, workdir=None):
+    """Path of bash_read(), or None (kept for callers that only need the path)."""
+    r = bash_read(command, workdir)
+    return r[0] if r else None
 
 
 def bash_mutations(command):
@@ -191,7 +316,7 @@ def bash_mutations(command):
         if target not in ("/dev/null",) and not target.startswith("&"):
             out.append(target)
     for seg in split_segments(command):
-        for piece in seg.split("|"):
+        for piece in split_pipes(seg):
             toks = tokens(piece)
             if not toks:
                 continue
@@ -208,6 +333,236 @@ def bash_mutations(command):
             elif cmd == "perl" and any(a.startswith("-i") or a.startswith("-pi") for a in args):
                 out.extend(operands[1:])
     return out
+
+
+# ---------------------------------------------------------------------------- access flags
+
+def canon_path(p):
+    """normpath plus macOS's /tmp, /var and /etc symlinks, so /tmp/x and /private/tmp/x compare equal."""
+    p = os.path.normpath(p)
+    for a, b in (("/tmp", "/private/tmp"), ("/var", "/private/var"), ("/etc", "/private/etc")):
+        if p == a or p.startswith(a + "/"):
+            return b + p[len(a):]
+    return p
+
+
+def is_under(p, root):
+    root = root.rstrip("/") or "/"
+    return p == root or p.startswith(root + "/")
+
+
+def outside(p, root):
+    """True when the resolved path p leaves the workdir root and is not an exempt system location."""
+    if root is None:
+        return False
+    if is_under(p, root):
+        return False
+    return not any(p == s.rstrip("/") or p.startswith(s) for s in SYSTEM_PREFIXES)
+
+
+def resolve_arg(p, cwd):
+    """Absolute canonical path of a path argument resolved against cwd; None for ~ (home) forms."""
+    if not isinstance(p, str) or not p.strip():
+        return None
+    p = p.strip()
+    if p.startswith("~"):
+        return None
+    return canon_path(p if os.path.isabs(p) else os.path.join(cwd or "/", p))
+
+
+def text_paths(text, whole=False):
+    """Path-like substrings of one shell word: absolute paths and ../ escapes embedded in it, plus the word
+    itself when it looks like a path (whole=True: it contains a slash or is `..`)."""
+    out = []
+    if whole and (text.startswith(("/", "..", "./")) or "/" in text or text == ".."):
+        out.append(text)
+    out += PATH_IN_TEXT.findall(text)
+    out += PARENT_IN_TEXT.findall(text)
+    return out
+
+
+def bash_access(command, cwd, root):
+    """Reasons a bash command reaches outside the workdir root, following `cd` segments."""
+    reasons = []
+    if HOME_RE.search(command):
+        reasons.append("home or temp directory")
+    for seg in split_segments(command):
+        for piece in split_pipes(seg):
+            toks = tokens(piece)
+            while toks and re.match(r"^[A-Za-z_]\w*=", toks[0]):
+                for p in text_paths(toks[0].split("=", 1)[1], whole=True):
+                    r = resolve_arg(p, cwd)
+                    if r and outside(r, root):
+                        reasons.append("outside: " + r)
+                toks = toks[1:]
+            if not toks:
+                continue
+            cmd = os.path.basename(toks[0])
+            if cmd in ("cd", "pushd"):
+                target = toks[1] if len(toks) > 1 else "~"
+                r = resolve_arg(target, cwd)
+                if r is None or target.startswith("$"):
+                    reasons.append("cd to " + target)
+                    cwd = None
+                else:
+                    if outside(r, root):
+                        reasons.append("outside: " + r)
+                    cwd = r
+                continue
+            skip_pattern = cmd in PATTERN_FIRST and not any(a in ("-e", "--regexp", "--expression", "-f") for a in toks[1:])
+            skip_next = False
+            for i, a in enumerate(toks):
+                if skip_next:
+                    skip_next = False
+                    continue
+                if i > 0 and cmd in PATTERN_FIRST and a in ("-e", "--regexp", "--expression"):
+                    skip_next = True
+                    continue
+                if i > 0 and skip_pattern and not a.startswith("-"):
+                    skip_pattern = False
+                    continue
+                if a in ("/", "/.", "/..") or re.fullmatch(r"/+\.?", a):
+                    if cmd in FS_WALKERS:
+                        reasons.append("outside: / (%s)" % cmd)
+                    continue
+                for p in text_paths(a, whole=True):
+                    if cwd is None and not os.path.isabs(p):
+                        reasons.append("relative path after cd to an unknown directory: " + p)
+                        continue
+                    r = resolve_arg(p, cwd)
+                    if r and outside(r, root):
+                        reasons.append("outside: " + r)
+    return reasons
+
+
+def access_flags(calls, call_order, cwd):
+    """Tool calls that reach outside the workdir (cwd), touch the session log, oracle sidecar or harness,
+    or can reach the model key. One entry per flagged call."""
+    root = canon_path(cwd) if cwd else None
+    flagged = []
+    for cid in call_order:
+        c = calls[cid]
+        a, name, raw = c["args"], c["name"], c["raw"] or ""
+        reasons = []
+        if name == "bash":
+            command = str(a.get("command", ""))
+            bcwd = root
+            wd = a.get("workdir")
+            if isinstance(wd, str) and wd.strip():
+                bcwd = resolve_arg(wd, root)
+                if bcwd is None or outside(bcwd, root):
+                    reasons.append("bash workdir outside: %s" % wd)
+            reasons += bash_access(command, bcwd, root)
+            probe = command + " " + (wd or "")
+        else:
+            probe = raw
+            for key in ("file_path", "path", "notebook_path"):
+                v = a.get(key)
+                if isinstance(v, str) and v.strip():
+                    if v.strip().startswith("~"):
+                        reasons.append("home: " + v)
+                        continue
+                    r = resolve_arg(v, root)
+                    if r and outside(r, root):
+                        reasons.append("outside: " + r)
+            if name == "glob" and isinstance(a.get("pattern"), str):
+                pat = a["pattern"]
+                prefix = re.split(r"[*?\[{]", pat, 1)[0]
+                if pat.startswith("~"):
+                    reasons.append("home: " + pat)
+                elif prefix and (os.path.isabs(prefix) or ".." in prefix):
+                    base = resolve_arg(a.get("path") or ".", root) or root
+                    r = resolve_arg(prefix, base)
+                    if r and outside(r, root):
+                        reasons.append("outside: " + r)
+        if SENSITIVE_RE.search(probe):
+            reasons.append("sensitive: " + SENSITIVE_RE.search(probe).group(0).strip())
+        secret = bool(SECRET_RE.search(probe))
+        if secret:
+            reasons.append("secret: " + SECRET_RE.search(probe).group(0))
+        if reasons:
+            flagged.append({"turn": c["turn"], "tool": name, "arg": probe[:160], "reasons": sorted(set(reasons))[:6], "secret": secret})
+    return flagged
+
+
+# ---------------------------------------------------------------------------- oracle specs
+
+class Matcher:
+    """Case-insensitive substring tokens plus regexes; built from an exam spec part {tokens, regex}."""
+
+    def __init__(self, spec):
+        spec = spec or {}
+        self.tokens = [t.lower() for t in spec.get("tokens", [])]
+        self.regex = [re.compile(r, re.I) for r in spec.get("regex", [])]
+
+    def __bool__(self):
+        return bool(self.tokens or self.regex)
+
+    def __call__(self, text):
+        if not text:
+            return False
+        low = text.lower()
+        return any(t in low for t in self.tokens) or any(r.search(text) for r in self.regex)
+
+
+def exam_spec(e):
+    """Normalize an exam given as (turn, tokens) or {turn, tokens, leak, fs}.
+
+    tokens: a recall result naming one of them sources the answer (recall_sourced);
+    leak:   enough to answer; in assistant text, or written by a tool, before the exam turn = leak (default: tokens);
+    fs:     in a non-recall tool result of the exam turn before any recall result has it and before the model
+            itself wrote it = the oracle came from the file system (default: tokens)."""
+    if isinstance(e, dict):
+        turn, toks = e["turn"], list(e.get("tokens", []))
+        leak, fs = e.get("leak") or {"tokens": toks}, e.get("fs") or {"tokens": toks}
+    else:
+        turn, toks = e[0], list(e[1])
+        leak = fs = {"tokens": toks}
+    return {"turn": turn, "tokens": toks, "leak": Matcher(leak), "fs": Matcher(fs), "recall": Matcher({"tokens": toks})}
+
+
+def write_like(call):
+    """Tool input that writes literal text to a file: write/edit content, or bash echo/printf/cat into a file or tee."""
+    if call["name"] in MUTATING_WRITE_TOOLS:
+        return True
+    return call["name"] == "bash" and bool(WRITE_TEXT_RE.search(str(call["args"].get("command", ""))))
+
+
+def stream_usage(stream):
+    """The last usage chunk of an assistant stream (the adapter-reported sample), if any."""
+    for rec in reversed(stream or []):
+        if isinstance(rec, dict) and rec.get("type") == "chunk" and (rec.get("chunk") or {}).get("type") == "usage":
+            return (rec.get("chunk") or {}).get("usage")
+    return None
+
+
+def usage_of(event):
+    """Usage of one assistant/message (data.usage, else its stream) or assistant/attempt (its stream)."""
+    d = event.get("data") or {}
+    if event.get("type") == "assistant/message" and d.get("usage") is not None:
+        return d["usage"]
+    return stream_usage(d.get("stream"))
+
+
+def usage_totals(events, turns=None):
+    """Billed tokens of every assistant/message and assistant/attempt (optionally only those turns):
+    {miss, hit, out, cache_write, messages, attempts, unpriced} where unpriced counts records without a sample."""
+    tot = {"miss": 0, "hit": 0, "out": 0, "cache_write": 0, "messages": 0, "attempts": 0, "unpriced": 0}
+    for e in events:
+        if e.get("type") not in ("assistant/message", "assistant/attempt"):
+            continue
+        if turns is not None and (e.get("data") or {}).get("turn") not in turns:
+            continue
+        tot["messages" if e["type"] == "assistant/message" else "attempts"] += 1
+        u = usage_of(e)
+        if u is None:
+            tot["unpriced"] += 1
+            continue
+        tot["miss"] += u.get("inputTokens") or 0
+        tot["hit"] += u.get("cacheReadTokens") or 0
+        tot["out"] += u.get("outputTokens") or 0
+        tot["cache_write"] += u.get("cacheWriteTokens") or 0
+    return tot
 
 
 def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0):
@@ -263,6 +618,13 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
         "compaction_events": sum(1 for e in events if "compact" in str(e.get("type", ""))),
         "provider": ((headers[0].get("config") or {}).get("provider") if headers else None),
         "model": ((headers[0].get("config") or {}).get("model") if headers else None),
+        # Prompt/turn alignment: exams are addressed by turn number = prompt index, which holds only when every
+        # turn was started by one harness prompt (no goal rounds or other self-started turns).
+        "user_prompts": sum(1 for e in events if e.get("type") == "user/message" and ((e.get("data") or {}).get("source") or {}).get("kind") == "user"),
+        "goal_messages": sum(1 for e in events if e.get("type") == "user/message" and ((e.get("data") or {}).get("source") or {}).get("kind") == "goal"),
+        "turn_starts": sum(1 for e in events if e.get("type") == "turn/start"),
+        "turn_ends": sum(1 for e in events if e.get("type") == "turn/end"),
+        "goal_tool_calls": sum(1 for e in events if e.get("type") == "tool/call" and (e.get("data") or {}).get("name") in ("create_goal", "update_goal", "get_goal")),
     }
     row["prefix"] = {
         "system_chars": len(system),
@@ -272,31 +634,44 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     }
 
     # ------------------------------------------------------------ usage
-    usage = {"requests": 0, "miss": 0, "hit": 0, "out": 0, "cache_write": 0, "turn_first_miss": 0, "later_step_miss": 0}
+    # Billed tokens include failed attempts (assistant/attempt keeps a retried attempt's usage only in its
+    # stream); `requests` counts committed messages only, so retries (provider weather) stay out of G4.requests.
+    usage = {"requests": 0, "miss": 0, "hit": 0, "out": 0, "cache_write": 0, "turn_first_miss": 0, "later_step_miss": 0,
+             "attempts_failed": 0, "attempt_miss": 0, "attempt_hit": 0, "attempt_out": 0, "unpriced_records": 0}
     per_turn = {}
     last_assistant = {}
     first_hit = []
     for e in events:
-        if e.get("type") != "assistant/message":
+        if e.get("type") not in ("assistant/message", "assistant/attempt"):
             continue
         d = e.get("data") or {}
-        u = d.get("usage") or {}
+        u = usage_of(e)
+        if u is None:
+            usage["unpriced_records"] += 1
+            u = {}
         miss, hit, out, cw = (u.get("inputTokens") or 0), (u.get("cacheReadTokens") or 0), (u.get("outputTokens") or 0), (u.get("cacheWriteTokens") or 0)
-        usage["requests"] += 1
         usage["miss"] += miss
         usage["hit"] += hit
         usage["out"] += out
         usage["cache_write"] += cw
+        pt = per_turn.setdefault(d.get("turn"), {"requests": 0, "miss": 0, "hit": 0, "out": 0, "max_step": 0, "attempts_failed": 0})
+        pt["miss"] += miss
+        pt["hit"] += hit
+        pt["out"] += out
+        if e.get("type") == "assistant/attempt":
+            usage["attempts_failed"] += 1
+            usage["attempt_miss"] += miss
+            usage["attempt_hit"] += hit
+            usage["attempt_out"] += out
+            pt["attempts_failed"] += 1
+            continue
+        usage["requests"] += 1
         if d.get("step") == 1:
             usage["turn_first_miss"] += miss
             first_hit.append(hit)
         else:
             usage["later_step_miss"] += miss
-        pt = per_turn.setdefault(d.get("turn"), {"requests": 0, "miss": 0, "hit": 0, "out": 0, "max_step": 0})
         pt["requests"] += 1
-        pt["miss"] += miss
-        pt["hit"] += hit
-        pt["out"] += out
         pt["max_step"] = max(pt["max_step"], d.get("step") or 0)
         content = (d.get("message") or {}).get("content", []) or []
         last_assistant[d.get("turn")] = {"tool": any(isinstance(b, dict) and b.get("type") == "tool-call" for b in content), "text": bool(text_of(d.get("message")).strip())}
@@ -307,17 +682,22 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     row["usage"] = usage
 
     # ------------------------------------------------------------ finish
-    turn_end = {}
+    turn_end, error_codes = {}, {}
     for e in events:
         if e.get("type") == "turn/end":
             d = e.get("data") or {}
-            turn_end[d.get("turn")] = ((d.get("reason") or {}).get("kind"))
+            reason = d.get("reason") or {}
+            turn_end[d.get("turn")] = reason.get("kind")
+            if reason.get("kind") == "error":
+                code = str((reason.get("error") or {}).get("code"))
+                error_codes[code] = error_codes.get(code, 0) + 1
     kinds = {}
     for k in turn_end.values():
         kinds[k] = kinds.get(k, 0) + 1
     row["finish"] = {
         "turns": len(turn_end),
         "reasons": kinds,
+        "error_codes": error_codes,
         "completed": sum(1 for k in turn_end.values() if k == "completed"),
         "closeout": sum(1 for t, la in last_assistant.items() if la["text"] and not la["tool"] and turn_end.get(t) == "completed"),
         # maxStepsPerTurn refusing a step ends the turn with reason kind "blocked" (DSH 0.1.7-rc.2).
@@ -487,21 +867,23 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     for cid in call_order:
         c = calls[cid]
         t, a, name = c["turn"], c["args"], c["name"]
-        key, rng = None, (1, BIG)
+        key, rngs = None, [(1, BIG)]  # rngs None: a range of unknown position (tail, sed /re/p, head -c)
         if name == "read":
             key = norm_path(a.get("file_path") or a.get("path"), cwd)
             off = as_int(a.get("offset")) or 1
             lim = as_int(a.get("limit"))
-            rng = (off, off + lim - 1 if lim else BIG)
+            rngs = [(off, off + lim - 1 if lim else BIG)]
         elif name == "bash":
             cmd = str(a.get("command", ""))
-            target = bash_read_target(cmd)
+            bwd = a.get("workdir") if isinstance(a.get("workdir"), str) and a.get("workdir").strip() else None
+            target = bash_read(cmd, bwd)
             if target:
-                key = norm_path(target, cwd)
+                key, rngs = norm_path(target[0], cwd), target[1]
                 bash_reads += 1
             else:
+                base = norm_path(bwd, cwd) if bwd else cwd
                 for p in bash_mutations(cmd):
-                    mutate(t, norm_path(p, cwd))
+                    mutate(t, norm_path(p, base))
                 continue
         elif name in MUTATING_WRITE_TOOLS:
             mutate(t, norm_path(a.get("file_path") or a.get("path"), cwd))
@@ -514,14 +896,14 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
         if key in pending.get(t, set()):
             rr_after_edit += 1
             pending[t].discard(key)
-        elif any(rng[0] <= p[1] and p[0] <= rng[1] for p in prior):
+        elif rngs is not None and any(r[0] <= p[1] and p[0] <= r[1] for r in rngs for p in prior):
             rr_unchanged += 1
             earlier = read_calls.get(t, {}).get(key, [])
             if any(folded_sources.get((results.get(e) or {}).get("seq"), BIG) < c["seq"] for e in earlier):
                 fold_then_reread += 1
         elif any(tt < t for tt in seen_ever.get(key, set())):
             rr_cross += 1
-        tseen.setdefault(key, []).append(rng)
+        tseen.setdefault(key, []).extend(rngs or [])
         seen_ever.setdefault(key, set()).add(t)
         read_calls.setdefault(t, {}).setdefault(key, []).append(cid)
     reminders = 0
@@ -572,13 +954,7 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     }
 
     # ------------------------------------------------------------ flags, exams, leaks
-    flagged = []
-    for cid in call_order:
-        c = calls[cid]
-        probe = str(c["args"].get("command", "")) if c["name"] == "bash" else str(c["args"].get("file_path") or c["args"].get("path") or c["args"].get("pattern") or "")
-        if any(p in probe for p in FLAG_PATTERNS):
-            flagged.append({"turn": c["turn"], "tool": c["name"], "arg": probe[:160]})
-    row["flagged_access"] = flagged
+    row["flagged_access"] = access_flags(calls, call_order, cwd)
 
     def has(text, toks):
         low = text.lower()
@@ -586,21 +962,48 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
 
     assistant_texts = [((e.get("data") or {}).get("turn"), text_of((e.get("data") or {}).get("message"))) for e in events if e.get("type") == "assistant/message"]
     exam_rows = []
-    for turn, toks in exams:
+    for spec in (exam_spec(e) for e in exams):
+        turn = spec["turn"]
         found = None
         for cid in call_order:
             c = calls[cid]
-            if c["turn"] == turn and c["name"] in RECALL_TOOLS and has((results.get(cid) or {}).get("text", ""), toks):
+            if c["turn"] == turn and c["name"] in RECALL_TOOLS and spec["recall"]((results.get(cid) or {}).get("text", "")):
                 found = c["name"]
                 break
+        # Content-based: walk the exam turn in log order. The oracle reached the model through the file system
+        # when a non-recall tool result names it before any recall result did and before the model itself
+        # wrote it (in assistant text or a tool input, e.g. its own answer file read back).
+        recalled = authored = False
+        via_fs = None
+        for e in events:
+            d = e.get("data") or {}
+            if d.get("turn") != turn:
+                continue
+            if e.get("type") == "assistant/message" and spec["fs"](text_of(d.get("message"))):
+                authored = True
+            elif e.get("type") == "tool/call" and spec["fs"](d.get("arguments") or ""):
+                authored = True
+            elif e.get("type") == "tool/result" and op_of(e) == "append":
+                m = d.get("message") or {}
+                c = calls.get(m.get("toolCallId")) or {}
+                text = text_of(m)
+                if c.get("name") in RECALL_TOOLS:
+                    recalled = recalled or spec["fs"](text) or spec["recall"](text)
+                elif not recalled and not authored and via_fs is None and spec["fs"](text):
+                    via_fs = {"tool": c.get("name"), "arg": (c.get("raw") or "")[:160]}
         exam_rows.append({
             "turn": turn,
-            "tokens": list(toks),
+            "n_tokens": len(spec["tokens"]),  # the tokens themselves stay out of cells/*.json (no oracle copies on disk)
             "recall_sourced": found is not None,
             "recall_tool": found,
             "recall_calls": sum(1 for cid in call_order if calls[cid]["turn"] == turn and calls[cid]["name"] in RECALL_TOOLS),
-            "leak_assistant_turns": sorted({t for t, txt in assistant_texts if t is not None and t < turn and has(txt, toks)}),
-            "leak_tool_input_turns": sorted({calls[cid]["turn"] for cid in call_order if calls[cid]["turn"] is not None and calls[cid]["turn"] < turn and has(calls[cid]["raw"], toks)}),
+            "leak_assistant_turns": sorted({t for t, txt in assistant_texts if t is not None and t < turn and spec["leak"](txt)}),
+            # Tool inputs never reach the tape (tool lines carry name, size and locator); only a tool input that
+            # writes the answer to a file can shortcut the exam, so only write-like inputs count.
+            "leak_write_turns": sorted({calls[cid]["turn"] for cid in call_order if calls[cid]["turn"] is not None and calls[cid]["turn"] < turn
+                                        and write_like(calls[cid]) and spec["leak"](calls[cid]["raw"])}),
+            "oracle_via_fs": via_fs is not None,
+            "oracle_via_fs_call": via_fs,
         })
     row["exams"] = exam_rows
     in_rows = []
@@ -617,7 +1020,7 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
             bc = calls.get(base.get("call")) or {}
             if rp["turn"] == turn and bc.get("name") == "read":
                 folded_read = True
-        in_rows.append({"turn": turn, "tokens": list(toks), "first_source_tool": src, "fold_of_read": folded_read})
+        in_rows.append({"turn": turn, "n_tokens": len(toks), "first_source_tool": src, "fold_of_read": folded_read})
     row["in_turn"] = in_rows
     row["per_turn"] = {str(k): v for k, v in sorted(per_turn.items(), key=lambda kv: (kv[0] is None, kv[0] or 0))}
     return row

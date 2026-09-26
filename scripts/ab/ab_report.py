@@ -60,6 +60,7 @@ def cell_metrics(c):
         "cross_turn_first_try_ok": rc["expand_cross_turn"]["first_try_ok"],
         "extra_hops": rc["extra_hops"],
         "recall_calls": sum(v["calls"] for v in rc["tools"].values()),
+        "attempts_failed": us.get("attempts_failed", 0),
         "wall_s": c.get("wall_s") or 0,
     }
 
@@ -100,12 +101,21 @@ def pairs(cells, arm, base, tasks, g2=False):
     return kept, dropped
 
 
-def evaluate(check, kept, pooled_mult):
+def not_evaluable(check, out, note):
+    """n/a is non-blocking only for checks gates.json marks na_ok (G6.first_try without a cross-turn target);
+    anything else that cannot be evaluated is 'insufficient', which blocks the ship decision."""
+    return dict(out, verdict="n/a" if check.get("na_ok") else "insufficient", note=note)
+
+
+def evaluate(check, kept, pooled_mult, min_pairs=0):
     mult = pooled_mult if check.get("count") else 1
     rule, metric = check["rule"], check["metric"]
-    out = {"id": check["id"], "desc": check.get("desc", metric), "metric": metric, "rule": rule, "pairs": len(kept)}
+    need = check.get("min_pairs", min_pairs) or 0
+    out = {"id": check["id"], "desc": check.get("desc", metric), "metric": metric, "rule": rule, "pairs": len(kept), "min_pairs": need}
     if not kept:
-        return dict(out, verdict="n/a", note="no valid pairs")
+        return not_evaluable(check, out, "no valid pairs")
+    if len(kept) < need:
+        return dict(out, verdict="insufficient", note=f"{len(kept)} valid pairs < {need} required")
     if metric == "cross_turn_first_try":
         ta = sum(a["cross_turn_targets"] for _, a, _ in kept)
         tb = sum(b["cross_turn_targets"] for _, _, b in kept)
@@ -113,7 +123,7 @@ def evaluate(check, kept, pooled_mult):
         ob = sum(b["cross_turn_first_try_ok"] for _, _, b in kept)
         out.update(arm={"ok": oa, "targets": ta}, base={"ok": ob, "targets": tb})
         if ta < check.get("min_targets", 1) or tb < check.get("min_targets", 1):
-            return dict(out, verdict="n/a", note="no cross-turn target on one side")
+            return not_evaluable(check, out, "no cross-turn target on one side")
         ra, rb = oa / ta, ob / tb
         need = rb - check["margin"]
         out.update(arm_rate=round(ra, 4), base_rate=round(rb, 4), threshold=round(need, 4))
@@ -156,7 +166,9 @@ def evaluate(check, kept, pooled_mult):
         short = worst[0]
     elif rule == "median_ratio_le":
         ratios = [a[metric] / b[metric] for _, a, b in kept if b[metric] > 0]
-        med = statistics.median(ratios) if ratios else math.nan
+        if not ratios:
+            return not_evaluable(check, out, "no pair with a positive baseline")
+        med = statistics.median(ratios)
         out.update(median=round(med, 4), n=len(ratios), base="paired")
         thr = check["value"]
         short = (med - thr) / check["arbitration_unit"]
@@ -178,12 +190,24 @@ def evaluate(check, kept, pooled_mult):
 
 
 def gate_verdict(checks):
+    """fail > insufficient > arbitrate > pass; an n/a check (only na_ok checks can be n/a) does not block."""
     vs = [c["verdict"] for c in checks]
-    if "fail" in vs:
-        return "fail"
-    if "arbitrate" in vs:
-        return "arbitrate"
+    for v in ("fail", "insufficient", "arbitrate"):
+        if v in vs:
+            return v
     return "pass"
+
+
+def decide(gs, ids, ship, drop):
+    """Decision for one arm from its gate verdicts (pre-registered, docs/p110-native-ab.md §9)."""
+    vs = [gs.get(i) for i in ids]
+    if all(v == "pass" for v in vs):
+        return ship
+    if "fail" in vs:
+        return drop + " (a gate failed)"
+    if "insufficient" in vs:
+        return drop + " on this batch (too few valid pairs; only the single arbitration batch may add pairs)" + (" / arbitration" if "arbitrate" in vs else "")
+    return "arbitration (a gate missed by one unit)"
 
 
 def median(xs):
@@ -221,6 +245,11 @@ def main(argv):
                 "median_cost_usd": median([m["cost"] for m in ms]), "median_requests": median([m["requests"] for m in ms]),
                 "rereads_same_turn": sum(m["rereads_same_turn"] for m in ms), "recall_errors": sum(m["recall_errors"] for m in ms),
                 "fv_rejections": sum(m["fv_rejections"] for m in ms), "flagged_or_leak": sum(1 for c in valid if c.get("g2_excluded")),
+                "flagged": sum(1 for c in valid if c.get("flagged")), "leak": sum(1 for c in valid if c.get("leak")),
+                "oracle_via_fs": sum(1 for c in valid if c.get("oracle_via_fs")),
+                "model_error_turns": sum(len(c.get("model_error_turns") or []) for c in cs),
+                "goal_tool_calls": sum(((c.get("metrics") or {}).get("validity") or {}).get("goal_tool_calls", 0) for c in cs),
+                "attempts_failed": sum(m["attempts_failed"] for m in ms),
             }
     # gates
     results = {}
@@ -235,11 +264,11 @@ def main(argv):
                     continue
                 b = ch.get("baseline", base)
                 if b not in arms:
-                    checks.append({"id": ch["id"], "verdict": "n/a", "note": f"baseline {b} not in data"})
+                    checks.append(not_evaluable(ch, {"id": ch["id"]}, f"baseline {b} not in data"))
                     continue
                 scope_tasks = recall_tasks if ch["scope"] == "recall_g2" else tasks
                 kept, dropped = pairs(cells, arm, b, scope_tasks, g2=ch["scope"] == "recall_g2")
-                r = evaluate(ch, kept, mult)
+                r = evaluate(ch, kept, mult, gates.get("min_pairs", {}).get(ch["scope"], 0))
                 r["baseline"] = b
                 r["dropped_pairs"] = [f"{k[1]}.r{k[2]} ({k[0]}): {why}" for k, why in dropped]
                 checks.append(r)
@@ -250,20 +279,29 @@ def main(argv):
             gres.append({"id": g["id"], "name": g["name"], "verdict": gate_verdict(checks), "checks": checks, "report_only": report_only})
         results[arm] = gres
 
-    def passes(arm, ids):
-        gs = {g["id"]: g["verdict"] for g in results.get(arm, [])}
-        return all(gs.get(i) == "pass" for i in ids), gs
-
     decision = {}
-    ok1, gs1 = passes("arm1", ["G1", "G2", "G3", "G4", "G5"])
     if "arm1" in results:
-        decision["arm1"] = "ship A + C (G1-G5 pass)" if ok1 else ("arbitration (a gate missed by one unit)" if "arbitrate" in gs1.values() and "fail" not in gs1.values() else "do not ship (a gate failed)")
-    ok2, gs2 = passes("arm2", ["G1", "G2", "G3", "G4", "G5", "G6"])
+        decision["arm1"] = decide({g["id"]: g["verdict"] for g in results["arm1"]}, ["G1", "G2", "G3", "G4", "G5"], "ship A + C (G1-G5 pass)", "do not ship")
     if "arm2" in results:
-        decision["arm2"] = "add F (G1-G6 pass)" if ok2 else ("arbitration (a gate missed by one unit)" if "arbitrate" in gs2.values() and "fail" not in gs2.values() else "drop F (a gate failed)")
+        decision["arm2"] = decide({g["id"]: g["verdict"] for g in results["arm2"]}, ["G1", "G2", "G3", "G4", "G5", "G6"], "add F (G1-G6 pass)", "drop F")
 
     invalid = [{"cell": c["cell"], "batch": c["_batch"], "reasons": c.get("invalid_reasons"), "infra": c.get("infra"), "attempts": len(c.get("attempts") or [])}
                for c in cells.values() if not c.get("valid")]
+    # Per arm: turns ended by a model-attributable error (they count as failures, never as infra), G2
+    # exclusions with their cause, and tool calls that referenced the key location (held back from the archive).
+    model_errors, exclusions, secrets = {}, {}, []
+    for c in sorted(cells.values(), key=lambda c: c["cell"]):
+        for t in c.get("model_error_turns") or []:
+            model_errors.setdefault(c["arm"], []).append({"cell": c["cell"], "batch": c["_batch"], "turn": t["turn"], "kind": t["kind"], "code": t["code"], "valid": c.get("valid")})
+        if c.get("g2_excluded"):
+            m = c.get("metrics") or {}
+            exclusions.setdefault(c["arm"], []).append({
+                "cell": c["cell"], "batch": c["_batch"], "flagged": c.get("flagged"), "leak": c.get("leak"), "oracle_via_fs": c.get("oracle_via_fs"),
+                "flags": [{"turn": f["turn"], "tool": f["tool"], "reasons": f["reasons"]} for f in (m.get("flagged_access") or [])][:5],
+                "via_fs": [e.get("oracle_via_fs_call") for e in (m.get("exams") or []) if e.get("oracle_via_fs")]})
+        for f in ((c.get("metrics") or {}).get("flagged_access") or []):
+            if f.get("secret"):
+                secrets.append({"cell": c["cell"], "batch": c["_batch"], "turn": f["turn"], "tool": f["tool"], "reasons": f["reasons"]})
     reruns = [a for a in attempts if a.get("status") != "done"]
     spend = None
     if args.ledger and os.path.exists(args.ledger):
@@ -293,6 +331,7 @@ def main(argv):
         "invalid_cells": invalid, "non_final_attempts": [{k: a.get(k) for k in ("cell", "attempt", "status", "infra", "reasons")} for a in reruns],
         "time_range": [min((c.get("started") or "~") for c in cells.values()) if cells else None, max((c.get("ended") or "") for c in cells.values()) if cells else None],
         "spend": spend, "table": table, "totals": totals, "warmup": warmup, "gates": results, "decision": decision,
+        "model_error_turns": model_errors, "g2_exclusions": exclusions, "secret_references": secrets,
         "structure": {a: {k: f.get(k) for k in ("system_chars", "slice_tools_json_chars", "prefix_chars", "prefix_delta_vs_control", "tape_header_lengths", "mean_tool_line_chars")} for a, f in (fps or {}).get("arms", {}).items()},
     }
     out = args.out or args.batch_dirs[0]
@@ -327,14 +366,14 @@ def render_md(s):
         L += ["", "## Totals over valid gated cells", "", "| arm | cells | $ off-peak | $ peak | miss | hit | out | requests | turn-first miss |", "|---|---|---|---|---|---|---|---|---|"]
         for a, t in sorted(s["totals"].items()):
             L.append(f"| {a} | {t['cells']} | {t['cost_offpeak_usd']:.4f} | {t['cost_peak_usd']:.4f} | {t['miss']} | {t['hit']} | {t['out']} | {t['requests']} | {t['turn_first_miss']} |")
-    L += ["", "## Per arm and task (valid cells)", "", "| arm | task | valid/cells | pass | recall-sourced | exam classes | median $ (off-peak) | median requests | same-turn rereads | recall errors | fv rejections | excluded from G2 |", "|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    L += ["", "## Per arm and task (valid cells)", "", "| arm | task | valid/cells | pass | recall-sourced | exam classes | median $ (off-peak) | median requests | same-turn rereads | recall errors | fv rejections | excluded from G2 (flag/leak/fs) | model-error turns | goal calls | failed attempts |", "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
     for arm, tasks in sorted(s["table"].items()):
         for task, t in sorted(tasks.items()):
             mc = f"{t['median_cost_usd']:.4f}" if t["median_cost_usd"] is not None else "-"
-            L.append(f"| {arm} | {task} | {t['valid']}/{t['cells']} | {t['pass']} | {t['recall_sourced_correct']} | {','.join(t['exam_classes']) or '-'} | {mc} | {t['median_requests'] if t['median_requests'] is not None else '-'} | {t['rereads_same_turn']} | {t['recall_errors']} | {t['fv_rejections']} | {t['flagged_or_leak']} |")
+            L.append(f"| {arm} | {task} | {t['valid']}/{t['cells']} | {t['pass']} | {t['recall_sourced_correct']} | {','.join(t['exam_classes']) or '-'} | {mc} | {t['median_requests'] if t['median_requests'] is not None else '-'} | {t['rereads_same_turn']} | {t['recall_errors']} | {t['fv_rejections']} | {t['flagged_or_leak']} ({t['flagged']}/{t['leak']}/{t['oracle_via_fs']}) | {t['model_error_turns']} | {t['goal_tool_calls']} | {t['attempts_failed']} |")
     L += ["", "## Gates", ""]
     for arm, gs in sorted(s["gates"].items()):
-        L += [f"### {arm}", "", "| gate | check | arm | baseline | threshold | verdict | pairs |", "|---|---|---|---|---|---|---|"]
+        L += [f"### {arm}", "", "| gate | check | arm | baseline | threshold | verdict | pairs/min |", "|---|---|---|---|---|---|---|"]
         for g in gs:
             for c in g["checks"]:
                 arm_v = c.get("arm_rate", c.get("median", c.get("ratio", c.get("arm", ""))))
@@ -343,11 +382,28 @@ def render_md(s):
                     arm_v = f"{arm_v['ok']}/{arm_v['targets']}"
                 if isinstance(base_v, dict):
                     base_v = f"{base_v['ok']}/{base_v['targets']}"
-                L.append(f"| {g['id']} ({g['verdict']}) | {c['id']}: {c.get('desc', '')} | {arm_v} | {base_v} ({c.get('baseline', '')}) | {c.get('threshold', '')} | {c['verdict']}{' (' + str(c['shortfall_units']) + ' units)' if c.get('shortfall_units') else ''}{' ' + c['note'] if c.get('note') else ''} | {c.get('pairs', '')} |")
+                L.append(f"| {g['id']} ({g['verdict']}) | {c['id']}: {c.get('desc', '')} | {arm_v} | {base_v} ({c.get('baseline', '')}) | {c.get('threshold', '')} | {c['verdict']}{' (' + str(c['shortfall_units']) + ' units)' if c.get('shortfall_units') else ''}{' ' + c['note'] if c.get('note') else ''} | {c.get('pairs', '')}/{c.get('min_pairs', '')} |")
             if g.get("report_only"):
                 arm_r = ", ".join("%s %s" % (k, v["arm"]) for k, v in g["report_only"].items())
                 base_r = ", ".join("%s %s" % (k, v["base"]) for k, v in g["report_only"].items())
                 L.append(f"| {g['id']} | report only | {arm_r} | {base_r} | - | - | - |")
+        L.append("")
+    if s.get("model_error_turns"):
+        L += ["## Turns ended by a model-attributable error (counted as failures, not infra)", ""]
+        for arm, rows in sorted(s["model_error_turns"].items()):
+            L.append(f"- {arm}: " + "; ".join(f"{r['cell']} T{r['turn']} {r['kind']} {r['code'] or ''}".strip() for r in rows))
+        L.append("")
+    if s.get("g2_exclusions"):
+        L += ["## G2 exclusions (flagged access, leak, oracle via the file system)", ""]
+        for arm, rows in sorted(s["g2_exclusions"].items()):
+            for r in rows:
+                why = ", ".join(k for k in ("flagged", "leak", "oracle_via_fs") if r.get(k))
+                L.append(f"- {arm} {r['cell']}: {why}; " + "; ".join(f"T{f['turn']} {f['tool']} {', '.join(f['reasons'])}" for f in r["flags"])[:300])
+        L.append("")
+    if s.get("secret_references"):
+        L += ["## Tool calls that referenced the key location (hold these logs back from the archive)", ""]
+        for r in s["secret_references"]:
+            L.append(f"- {r['cell']} ({r['batch']}) T{r['turn']} {r['tool']}: {', '.join(r['reasons'])}")
         L.append("")
     if s["invalid_cells"]:
         L += ["## Invalid cells (not counted)", ""]

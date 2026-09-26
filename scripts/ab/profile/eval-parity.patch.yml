@@ -31,3 +31,10 @@
   disabled: true
 - id: tool-skill
   disabled: true
+# One turn per harness prompt: no goal tools and no goal-round driver. A create_goal call would
+# let the driver start extra turns (Agent.followup) inside the same headless process, so session
+# turn numbers would stop matching prompt indices (exams, leaks and in-turn metrics address turns).
+- id: tool-goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
