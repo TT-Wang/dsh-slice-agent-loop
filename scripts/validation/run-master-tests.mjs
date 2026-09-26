@@ -29,8 +29,12 @@ writeFileSync(config, `import { standardDecoratorPlugin } from ${JSON.stringify(
 const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: host, encoding: 'utf8', timeout: 30_000 })
 if (commit.status !== 0) throw new Error('Cannot identify source checkout revision')
 const vitest = join(dirname(requirePlugin.resolve('vitest/package.json')), 'vitest.mjs')
+// Some Harness source runs code in a worker thread through tsx (0.1.7's JSONL
+// migration verifier), which bypasses the Vite aliases above. Point tsx at the
+// same path map so the worker also loads source rather than unbuilt lib/.
+const env = { ...process.env, TSX_TSCONFIG_PATH: join(host, 'tsconfig.base.json') }
 const result = spawnSync(process.execPath, [vitest, 'run', '--config', config, '--reporter=json', `--outputFile=${report}`], {
-  cwd: plugin, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000,
+  cwd: plugin, env, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, timeout: 180_000,
 })
 writeFileSync(join(directory, 'command.log'), (result.stdout ?? '') + (result.stderr ?? ''))
 writeFileSync(join(directory, 'metadata.json'), JSON.stringify({ hostCommit: commit.stdout.trim(), node: process.version, status: result.status }, null, 2) + '\n')

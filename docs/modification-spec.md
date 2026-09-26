@@ -1,6 +1,6 @@
 > ⚠️ **已被取代（2026-09-10）——本文是 2026-09-08 原生重构**之前**的修改 spec，
 > 仅作历史记录保留。**
-> - 本文基线固定为历史 `HEAD caa4d9f` / 154 门；不要把它当作当前测试数量。现役验证见 `docs/dsh-0.1.5-compatibility.md`。
+> - 本文基线固定为历史 `HEAD caa4d9f` / 154 门；不要把它当作当前测试数量。现役验证见 `docs/dsh-0.1.7-compatibility.md`。
 > - 它规划的改动面大半已随重构消失。逐条核对(2026-09-10):`../src/driver.ts`、
 >   `../src/slice/regions.ts` 与 `../src/system-prompt.ts` **三个文件都已不存在**
 >   (前两个随原生迁移删除，`system-prompt.ts` 由本次 A-RT-07 修复删除)，因此文中
