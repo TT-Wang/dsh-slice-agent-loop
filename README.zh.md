@@ -16,7 +16,7 @@
 
 一条条目按顺序渲染：
 
-- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":4}) returns a tool result]`；
+- 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn / expand_result]`；
 - 每个被封存的轮：`[turn N]`，然后按原顺序保留该段内每条可见助手文本，各有回复包装与来源定位；默认保留全文和空白，包括调用工具之前的助手消息；
 - 该轮的**读索引**行（见下）；
 - 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":4})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。

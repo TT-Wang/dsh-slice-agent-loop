@@ -15,7 +15,7 @@ _Avoid_: 静态部分、system 区
 _Avoid_: 动态部分、boilerplate
 
 **教学点 (teaching site)**：
-规则在插件发出文本里的陈述位置：`KERNEL`（`src/index.ts`，注册为 `slice:kernel` system 段）与工具描述（`recall_search` / `recall_turn` / `recall_step` / `expand_result`）。条目内的调用例是冻结的定位提示。「每条规则一个教学点」是设计目标，不是已经验证的模型质量保证。旧渲染器的提示实验见已 superseded 的 ADR-0001。
+规则在插件发出文本里的陈述位置：`KERNEL`（`src/index.ts`，注册为 `slice:kernel` system 段）与工具描述（`recall_search` / `recall_turn` / `recall_step` / `expand_result`）。KERNEL 只陈述行为（召回文本是历史数据，记录的读取不是当前文件，不越过截断猜测）并点名四个召回工具；调用语法与相对成本只写在各工具自己的描述里。fold 说明与 `recall_step` 条款只点名工具，不重复语法。tape 条目头只列工具名（`recall_turn / expand_result`）；工具行里的 `expand_result` 调用例是冻结的定位提示。已冻结的旧条目保留写入时的文本，不重写。「每条规则一个教学点」在 2026-09-27 的一次原生 A/B（P1-10，`docs/p110-native-ab.md`）中未见大幅退化；每任务每臂 n = 6、任务与召回正确率都在上限，这不是等价证明，也不是模型质量保证。旧渲染器的提示实验见已 superseded 的 ADR-0001。
 _Avoid_: 重复提醒、reinforcement
 
 ## 现役机制锚点

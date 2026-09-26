@@ -16,7 +16,7 @@ Frozen entries preserve their bytes, but this does **not** guarantee that each r
 
 One entry renders, in order:
 
-- a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":4}) returns a tool result]`;
+- a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn / expand_result]`;
 - per sealed turn: `[turn N]`, then every visible assistant text message in that span, in source order, each with a reply wrapper and its source locator; by default the entire text is preserved, including whitespace and messages preceding a tool call;
 - the turn's **read index** line (below);
 - the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":4})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
