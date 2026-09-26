@@ -167,4 +167,4 @@ SearchCompressor(每文件配额、首末必留、`[... and N more matches in fi
 本身的对照,未采用)、CacheAligner / 代理层缓存稳定化(我们按构造只追加,不需要)。
 
 契约测试:`tests/fold-plugin.spec.ts`(挂真实原生 loop + 请求重建不变量;含钉住前几步、展开退避)、`tests/result-digest-*.spec.ts`。
-账本:`results/20260903-fold/`、`results/20260903-fold-ab/`。
+账本:`results/20260903-fold/`、`results/20260903-fold-ab/`。`results/` 自 2026-09-27 起不再纳入 Git,这些账本在 GitHub release `archive-legacy-results-2026-09-04` 里,恢复方法见 [results/README.md](../results/README.md)。

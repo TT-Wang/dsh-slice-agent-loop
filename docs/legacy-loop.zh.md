@@ -1,4 +1,6 @@
 > Historical results for the retired custom loop, before the native DSH alpha.2 migration. These measurements do not establish the upgraded policy’s quality or cost.
+>
+> 下文引用的 `results/` 原始账本和场景快照自 2026-09-27 起不再纳入 Git，现在在 GitHub release `archive-legacy-results-2026-09-04` 里，恢复方法见 [results/README.md](../results/README.md)。基准脚本写进 `results/` 的输出只留在本机。
 
 # dsh-slice-agent-loop
 

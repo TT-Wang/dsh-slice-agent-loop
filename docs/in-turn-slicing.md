@@ -81,3 +81,4 @@ transcript 贵 36%——reasoning 爆到 52.6K(为导航封存态重推理;单�
 
 场景:`results/20260902-longturn-v2/scenarios-snapshot/`;逐 cell 账本:
 `results/20260902-longturn-v2/` 与 `-v2-fixed/`;汇总 `scripts/ab-summary.mts`。
+`results/` 自 2026-09-27 起不再纳入 Git,这些文件在 GitHub release `archive-legacy-results-2026-09-04` 里,恢复方法见 [results/README.md](../results/README.md)。
