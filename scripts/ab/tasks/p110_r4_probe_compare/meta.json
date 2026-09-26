@@ -1,0 +1,56 @@
+{
+ "name": "p110_r4_probe_compare",
+ "alias": "r4",
+ "turns": 4,
+ "max_steps_per_turn": 12,
+ "turn_timeout_s": 900,
+ "recall": true,
+ "exams": [
+  {
+   "turn": 4,
+   "tokens": [
+    "PRB-us-7537d2a4",
+    "PRB-eu-559cd122",
+    "shipping        177     690",
+    "shipping         43     291"
+   ],
+   "leak": {
+    "regex": [
+     "shipping[^\\n]{0,40}?(?<!\\d)690(?!\\d)",
+     "shipping[^\\n]{0,40}?(?<!\\d)291(?!\\d)"
+    ]
+   },
+   "fs": {
+    "tokens": [
+     "PRB-us-7537d2a4",
+     "PRB-eu-559cd122",
+     "shipping        177     690",
+     "shipping         43     291"
+    ],
+    "regex": [
+     "shipping[^\\n]{0,40}?(?<!\\d)690(?!\\d)",
+     "shipping[^\\n]{0,40}?(?<!\\d)291(?!\\d)"
+    ]
+   },
+   "_note": "tokens: a recall result naming one sources the answer. leak: the shipping values (enough to answer; the run ids are not). fs: anything printed by the probe."
+  }
+ ],
+ "oracle_answer": "shipping,690,291",
+ "source": "new for P1-10; since the pilot T1 and T2 ask to run the probe exactly as written, without redirection or a pipe",
+ "stressor": "two small probe outputs (T1 us, T2 eu), never restated; tools/ deleted after T2; filler T3; exam T4 needs one row from each output, so two cross-turn locators from different turns. Swapped regions are detected.",
+ "delivery": [
+  {
+   "turn": 1,
+   "tokens": [
+    "shipping        177     690"
+   ]
+  },
+  {
+   "turn": 2,
+   "tokens": [
+    "shipping         43     291"
+   ]
+  }
+ ],
+ "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27)."
+}
