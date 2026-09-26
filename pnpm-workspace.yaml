@@ -1,6 +1,5 @@
 allowBuilds:
   esbuild: true
-  fs-ext: true
   koffi: true
 # pnpm 11 defaults minimum-release-age to 1440 minutes (one day); restated here
 # so the policy is explicit rather than inherited, without changing behaviour.
