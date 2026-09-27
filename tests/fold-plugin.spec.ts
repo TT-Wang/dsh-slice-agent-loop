@@ -17,7 +17,7 @@ import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import InvariantService from '@deepseek-ai/dsh-invariants'
 import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
-import fold, { EXPAND_TOOL_NAME, FOLD_AFFORDANCE, FOLD_STATS, foldAffordance, fullResultAt } from '../src/fold/index.js'
+import fold, { EXPAND_TOOL_NAME, FOLD_AFFORDANCE, FOLD_STATS, expandResultToolDefinition, foldAffordance, fullResultAt } from '../src/fold/index.js'
 import { DEFAULT_DIGEST_POLICY, digestData } from '../src/slice/result-digest.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
 
@@ -130,7 +130,7 @@ describe('the fold affordance states the real grep/glob contract', () => {
     expect(FOLD_AFFORDANCE).toContain('[... and N more matches in <file>]')
     // 独立挂载(没有 slice loop)时不宣告 recall_step;slice 挂着时才加,见 fold-reject-step.spec.ts。
     expect(FOLD_AFFORDANCE).not.toContain('recall_step')
-    expect(foldAffordance(true)).toContain('recall_step({"turn": t, "step": s})')
+    expect(foldAffordance(true)).toContain('recall_step returns a whole step')
   })
 
   it('condenses a huge grep result with that exact marker', async () => {
@@ -192,7 +192,10 @@ describe('the fold affordance states the real data/document contract', () => {
     expect(FOLD_AFFORDANCE).toContain('keeps only its first few lines, later lines whose key has not appeared yet')
     // 取回路径必须同时写明:丢的是行,不是内容。
     expect(FOLD_AFFORDANCE).toContain('…[+N lines / M chars]…')
-    expect(FOLD_AFFORDANCE).toContain('"grep": <regex> or "lines": "a-b"')
+    // 取回写法(含 grep/lines 局部取回)只在 expand_result 自己的描述里讲一次,可供性只点名那一个调用。
+    expect(FOLD_AFFORDANCE).toContain('names the expand_result call that returns the full result')
+    expect(FOLD_AFFORDANCE).not.toContain('"grep": <regex>')
+    expect(expandResultToolDefinition().description).toContain('much cheaper than the whole result')
   })
 
   it('caps a run of all-new keys inside prose, so the text cannot promise every new key either', () => {

@@ -57,8 +57,12 @@ describe('fold affordance under the slice loop', () => {
       await nativeSend(handle.agent, 'go')
       const system = h.adapter.requests[0]!.messages.filter(message => message.role === 'system')
         .flatMap(message => message.content.flatMap(block => block.type === 'text' ? [block.text] : [])).join('\n')
-      expect(system).toContain('expand_result({"turn": t, "step": s, "call": n})')
-      expect(system).toContain('recall_step({"turn": t, "step": s})')      // 注册了却无人教学 → 已修
+      // 前缀点名两个工具(注册了却无人教学 → 已修);调用写法只在各自的工具定义里讲一次。
+      expect(system).toContain('names the expand_result call')
+      expect(system).toContain('recall_step returns a whole step')
+      const tools = (h.adapter.requests[0]!.tools ?? []).map(tool => tool.name)
+      expect(tools).toContain('expand_result')
+      expect(tools).toContain('recall_step')
       expect(system).toContain('[... and N more matches in <file>]')
       expect(system).not.toContain('grep/glob results are never condensed')
     } finally { await h.ctx.fiber.dispose() }
