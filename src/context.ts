@@ -322,7 +322,7 @@ interface Shrink { tools: boolean; readChars: number; reply: ReplyCaps | null; c
 function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [number, number], count: number, shrink: Shrink, history: ReadHistory): string {
   const lines = [shrink.compact
     ? `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · details: recall_turn({"turn":"${range[0]}"}); repeat for each turn through ${range[1]}]`
-    : `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn({"turn":"<n>","view":"dialogue"}) returns a turn's dialogue; expand_result({"seq":<q>,"formatVersion":${SESSION_FORMAT_VERSION}}) returns a tool result]`]
+    : `${TAPE_PREFIX}${range[0]}-${range[1]} · ${count} turn(s) sealed · recall_turn / expand_result]`]
   for (const item of items) {
     if (item.kind === 'earlier') { lines.push(`[earlier checkpoint covered turns ${item.turns[0]}-${item.turns[1]}; recall_turn for details]`); continue }
     lines.push(`[turn ${item.turn}]`)

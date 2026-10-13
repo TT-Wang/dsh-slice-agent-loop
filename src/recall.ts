@@ -582,7 +582,7 @@ export function recallToolDefinition(): ToolDefinition {
       view: {
         type: 'string',
         enum: ['dialogue', 'full'],
-        description: '"dialogue" (default): text once, tool results as locators. "full": text plus all original records (reasoning and every tool output; can be ~100x larger).',
+        description: '"dialogue" (default): text once, tool results as locators. "full": text plus all original records (reasoning and every tool output).',
       },
     },
     output: {
