@@ -1,0 +1,11 @@
+packages:
+  - .
+nodeLinker: hoisted
+autoInstallPeers: false
+# pnpm 11 applies minimumReleaseAge 1440 by default. No exemption list is needed
+# here: `run_ab.py prepare` installs only the arm's plugin tarball into this
+# profile, the plugin has no registry dependencies, and its peers resolve to the
+# frozen host (autoInstallPeers is off), so pnpm fetches nothing the policy
+# could gate. The batch recorded in docs/p110-native-ab.md ran with a copy of
+# the repository's 46-entry 0.1.7-rc.2 list here, which was inert for the same
+# reason.

@@ -1,0 +1,111 @@
+{
+ "version": 1,
+ "source": "docs/p110-native-ab.md (Gates, pre-registered). ab_report.py evaluates this file; the doc is the normative text.",
+ "baseline": "control",
+ "arms": ["arm1", "arm2"],
+ "unit": {
+  "tasks": ["r1", "r2", "r3", "r4", "r5", "c1", "c2"],
+  "recall_tasks": ["r1", "r2", "r3", "r4", "r5"],
+  "reps": 3,
+  "pairing": "same task and rep index; the arms of a pair ran concurrently (--parallel-arms)"
+ },
+ "min_pairs": {
+  "all": 17,
+  "recall_g2": 10,
+  "_note": "A check evaluated on fewer valid pairs than this (of 21 for scope all, of 15 for recall_g2) is 'insufficient', which blocks the ship decision. n/a is non-blocking only for checks marked na_ok."
+ },
+ "validity": {
+  "cell_counts_only_if": [
+   "every turn exited 0 or ended with a model-attributable turn_end (the step cap 'blocked', 'max-tokens', or 'error' with a code outside the infra list); never an infra error (TRANSPORT, RATE_LIMIT, SERVER, TIMEOUT, EMPTY_RESPONSE, MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH, QUOTA, ACCOUNT_QUOTA, NO_ADAPTER, HTTP 5xx), a missing turn_end, a harness timeout or a budget kill",
+   "the session log was found",
+   "system prompt and slice tool fingerprints equal the arm's entry in fingerprints.json",
+   "16 tools (the fingerprinted count), one tool list and one system prompt for the whole session",
+   "one turn per prompt: user prompts = turn ends = prompts, no goal-round messages",
+   "the system prompt contains no /private or /Users",
+   "zero compaction events",
+   "tape header and tool-line forms are the arm's (control long/long, arm1 short/long, arm2 short/v)",
+   "structural, arm1 and arm2: per-request prefix at least 700 chars smaller than control; every tape header 76 or 78 chars",
+   "r3 only: a fold replacement of a turn-1 read exists",
+   "r1, r2, r4 (meta delivery): every delivery turn shows the exam's fact in a non-recall tool result (the script's output was not discarded)"
+  ],
+  "max_attempts": 2,
+  "pair_rule": "a (task, rep) pair counts only when both the arm cell and the baseline cell are valid; dropped pairs are listed",
+  "g2_exclusion": "a cell counts for G1 but is excluded from G2 (the whole pair drops from that comparison) when, up to its exam turn, a tool call was flagged (a path, bash command or bash workdir resolving outside the cell's workdir; the session log, .truth sidecar, harness, key location, or mdfind/locate as a command), or an answer-sufficient token leaked before the exam turn into assistant text or into a tool input that writes a file (r5: write/edit calls on textkit/, the required fix, excepted), or in the exam turn a non-recall tool result named an oracle token before any recall result did and before the model wrote it (oracle via the file system)"
+ },
+ "gates": [
+  {
+   "id": "G1", "name": "Task success (non-inferiority)", "applies_to": ["arm1", "arm2"],
+   "checks": [
+    {"id": "G1.total", "metric": "pass", "scope": "all", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G1.per_task", "metric": "pass", "scope": "all", "rule": "no_task_drop", "drop": 2, "count": true}
+   ]
+  },
+  {
+   "id": "G2", "name": "Recall correctness (15 recall cells)", "applies_to": ["arm1", "arm2"],
+   "checks": [
+    {"id": "G2a", "desc": "recall-sourced correct exam answers", "metric": "recall_sourced_correct", "scope": "recall_g2", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G2b", "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns", "metric": "recall_errors", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G2c", "desc": "formatVersion rejections", "applies_to": ["arm1"], "metric": "fv_rejections", "scope": "recall_g2", "rule": "le_base_plus", "margin": 1, "count": true},
+    {"id": "G2c", "desc": "formatVersion rejections", "applies_to": ["arm2"], "metric": "fv_rejections", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G2c.recovered", "desc": "every arm 2 rejection recovered in the same turn", "applies_to": ["arm2"], "metric": "fv_rejections_unrecovered", "scope": "recall_g2", "rule": "arm_eq", "value": 0, "count": true},
+    {"id": "G2d", "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers", "metric": "bad_exam_answers", "scope": "recall_g2", "rule": "le_base_plus", "margin": 1, "count": true}
+   ]
+  },
+  {
+   "id": "G3", "name": "Same-turn repeated reads", "applies_to": ["arm1", "arm2"],
+   "checks": [
+    {"id": "G3", "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 cells", "metric": "rereads_same_turn", "scope": "all", "rule": "le_factor_base_plus", "factor": 1.25, "margin": 2, "count": true}
+   ],
+   "report_only": ["fold_then_reread", "reread_cross_turn", "repeat_tool_reminders"]
+  },
+  {
+   "id": "G4", "name": "Cost (behavioural non-inferiority)", "applies_to": ["arm1", "arm2"],
+   "checks": [
+    {"id": "G4.median_ratio", "desc": "median paired cost ratio arm/control", "metric": "cost", "scope": "all", "rule": "median_ratio_le", "value": 1.10, "arbitration_unit": 0.05},
+    {"id": "G4.total", "desc": "sum of cost", "metric": "cost", "scope": "all", "rule": "le_factor_base_plus", "factor": 1.10, "margin": 0, "arbitration_unit": 0.05, "relative_unit": true},
+    {"id": "G4.requests", "desc": "median paired request-count delta per cell", "metric": "requests", "scope": "all", "rule": "median_delta_le", "value": 1, "arbitration_unit": 1},
+    {"id": "G4.full_views", "desc": "recall_turn view \"full\" calls", "metric": "recall_turn_full", "scope": "all", "rule": "le_base_plus", "margin": 2, "count": true}
+   ],
+   "structural": "enforced per cell as validity (prefix >= 700 chars smaller, header 76/78); a structurally invalid arm cell is rerun, never counted",
+   "note": "Peak prices are exactly twice off-peak for every field, so cost ratios do not depend on the sheet. The expected saving (1-4% of cacheRead) is below what n = 3 resolves; the saving is argued structurally."
+  },
+  {
+   "id": "G5", "name": "Finish", "applies_to": ["arm1", "arm2"],
+   "checks": [
+    {"id": "G5.closeout", "desc": "completed turns ending in a text closeout", "metric": "closeout_turns", "scope": "all", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G5.step_limit", "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)", "metric": "step_limit_turns", "scope": "all", "rule": "le_base_plus", "margin": 1, "count": true}
+   ]
+  },
+  {
+   "id": "G6", "name": "Arm 2 only: locators", "applies_to": ["arm2"],
+   "checks": [
+    {"id": "G6.first_try", "desc": "first-try success rate of expand_result on a target in an earlier turn", "metric": "cross_turn_first_try", "scope": "all", "rule": "rate_ge_base_minus", "margin": 0.10, "min_targets": 1, "na_ok": true},
+    {"id": "G6.extra_hops", "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave", "metric": "extra_hops", "scope": "all", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G6.vs_arm1.G2c", "baseline": "arm1", "metric": "fv_rejections", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G6.vs_arm1.G2c.recovered", "baseline": "arm1", "metric": "fv_rejections_unrecovered", "scope": "recall_g2", "rule": "arm_eq", "value": 0, "count": true},
+    {"id": "G6.vs_arm1.G2d", "baseline": "arm1", "metric": "bad_exam_answers", "scope": "recall_g2", "rule": "le_base_plus", "margin": 1, "count": true}
+   ]
+  }
+ ],
+ "verdicts": {
+  "pass": "the check holds",
+  "arbitrate": "missed by exactly one unit beyond its margin (one count; 0.05 of a ratio; one request; one cross-turn target)",
+  "fail": "missed by more than one unit",
+  "n/a": "not evaluable, allowed only for checks marked na_ok (G6.first_try when either side has no cross-turn target); reported, does not block",
+  "insufficient": "any other check that cannot be evaluated, or has fewer valid pairs than min_pairs; blocks the ship decision for that arm (only the single arbitration batch may add pairs)"
+ },
+ "decision": {
+  "arm1": "ship A + C as one PR if G1-G5 all pass; ride on the next release that already changes the prefix unless the owner accepts one full cache miss per session active at deploy (8.7K-59K tokens measured)",
+  "arm2": "add F to the same PR if G1-G6 all pass; otherwise drop F",
+  "miss": "any gate missed by more than one unit: do not ship that arm (for arm1 the next step is a split A/B, header only vs prefix only, outside this batch)"
+ },
+ "arbitration": {
+  "trigger": "a check verdict 'arbitrate' or 'insufficient' and no 'fail' for that arm",
+  "extra_reps": 3,
+  "tasks": "the tasks driving the miss",
+  "arms": "all arms, same concurrent pairing",
+  "decide_on": "pooled 6 reps",
+  "count_margin_multiplier": 2,
+  "once": true
+ }
+}

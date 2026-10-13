@@ -1,0 +1,5 @@
+[
+ "Please read docs/runbook.txt with the read tool. I only need one fact from it: the phone extension to dial for the night-shift escalation. Write just that extension number to answers/ext.txt (nothing else in the file). Don't restate anything else from the runbook to me; reply EXT-OK when you are done.",
+ "Add a function slugify(s) to lib/slug.py: lower-case the string, turn every run of characters that are not letters or digits into a single hyphen, and strip leading and trailing hyphens. Then import it once to check there are no syntax errors.",
+ "The runbook file you read at the start of this session has been removed from disk. According to that runbook, which datacenter is the backup datacenter? Write only its name to answers/dr.txt, and in answers/how.md write one line saying whether you remembered it or where in the session you looked it up. If you really cannot get it back, write only CANNOT-RECOVER in answers/dr.txt; do not guess."
+]

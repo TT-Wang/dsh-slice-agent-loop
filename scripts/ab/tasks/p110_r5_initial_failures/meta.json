@@ -1,0 +1,48 @@
+{
+ "name": "p110_r5_initial_failures",
+ "alias": "r5",
+ "turns": 2,
+ "max_steps_per_turn": 60,
+ "turn_timeout_s": [
+  2400,
+  900
+ ],
+ "recall": true,
+ "exams": [
+  {
+   "turn": 2,
+   "tokens": [
+    "test_dates_f5_0",
+    "test_dates_f5_1",
+    "test_hashing_f7_0",
+    "test_hashing_f7_1",
+    "test_slugs_f0_0",
+    "test_slugs_f0_1",
+    "test_tokens_f3_0",
+    "test_tokens_f3_1",
+    "test_validate_f2_0",
+    "test_validate_f2_1"
+   ],
+   "leak": {
+    "regex": [
+     "(?<![A-Za-z0-9])(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)(?!\\d)"
+    ]
+   },
+   "fs": {
+    "regex": [
+     "(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)_[01]\\b[^\\n]{0,120}\\bFAILED",
+     "\\bFAILED\\b[^\\n]{0,160}(?:dates_f5|hashing_f7|slugs_f0|tokens_f3|validate_f2)_[01]\\b",
+     "\"failing\"\\s*:"
+    ]
+   },
+   "_note": "tokens: the failing test names (recall sourcing). leak: the five buggy function ids; with them and the tests/ tree the list follows (test_<fn>_0/_1). fs: a FAILED marker for one of those tests, or the truth file's key, in a non-recall result of T2 (the suite is green in the cell's own workdir by then). leak_write.skip_paths: edits of textkit/ are the required bug fix and name the fixed function by necessity; the file holds every function id anyway and tool inputs never reach the tape, so only other writes (a notes file, say) count as write leaks (pilot change, 2026-09-27).",
+   "leak_write": {
+    "skip_paths": [
+     "textkit/"
+    ]
+   }
+  }
+ ],
+ "source": "dsh-tool-result-fold/bench/scenarios/f3_test_suite_fix: prompts verbatim except T1, which since the pilot asks for a reply of just DONE and the pass count, without summarizing the fixes (the pilot closeout named all five fixed functions, a leak by the rule); setup.py and verify.py unchanged except the truth file location (<workdir>.truth.json) and the exam class returned by verify.",
+ "stressor": "T1 fixes a red 400-test suite with 5 planted bugs (rich same-turn read/edit data, folded test logs); T2 asks which tests failed before any change, which is only in T1 tool output because the suite is green afterwards."
+}

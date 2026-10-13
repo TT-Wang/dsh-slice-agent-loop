@@ -1,0 +1,15 @@
+{
+  "name": "ab-profile",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-headless",
+        "@dsh-external/dsh-slice-agent-loop"
+      ]
+    }
+  }
+}

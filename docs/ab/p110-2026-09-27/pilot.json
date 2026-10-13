@@ -1,0 +1,1240 @@
+{
+ "created": "2026-09-27",
+ "note": "Warmup and control pilots of the P1-10 native A/B (docs/p110-native-ab.md §13). Each cell as recorded at run time plus 'valid_frozen'/'reasons_frozen': its validity recomputed from the session log under the frozen harness 58363c5 (delivery rule, r5 write-leak exception, disk-search flag). No oracle token and no model answer text is kept here.",
+ "harness_frozen": "58363c56736967c1fdf4c6b076efd193411839b1",
+ "batches": {
+  "warm": {
+   "harness_commit": "8d88eb7042d668f67c9b55d15b05085497e6626d",
+   "started_utc": "2026-09-26T19:36:32+00:00",
+   "host_version": "0.1.7-rc.2",
+   "arms": [
+    "control",
+    "arm1",
+    "arm2"
+   ],
+   "tasks": [
+    "hello"
+   ],
+   "reps": 2,
+   "cells": [
+    {
+     "cell": "hello.r1.arm1",
+     "alias": "hello",
+     "arm": "arm1",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 2.2,
+     "turn_wall_s": [
+      1.9
+     ],
+     "spend_peak_usd": 0.002052,
+     "usage": {
+      "requests": 1,
+      "miss": 4651,
+      "hit": 0,
+      "out": 4
+     },
+     "first_request_hits": [
+      0
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "hello.r1.arm2",
+     "alias": "hello",
+     "arm": "arm2",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 2.2,
+     "turn_wall_s": [
+      1.9
+     ],
+     "spend_peak_usd": 0.002052,
+     "usage": {
+      "requests": 1,
+      "miss": 4652,
+      "hit": 0,
+      "out": 4
+     },
+     "first_request_hits": [
+      0
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "hello.r1.control",
+     "alias": "hello",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 2.7,
+     "turn_wall_s": [
+      2.4
+     ],
+     "spend_peak_usd": 0.00193,
+     "usage": {
+      "requests": 1,
+      "miss": 4358,
+      "hit": 512,
+      "out": 4
+     },
+     "first_request_hits": [
+      512
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "hello.r2.arm1",
+     "alias": "hello",
+     "arm": "arm1",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 1.8,
+     "turn_wall_s": [
+      1.6
+     ],
+     "spend_peak_usd": 0.000199,
+     "usage": {
+      "requests": 1,
+      "miss": 301,
+      "hit": 4352,
+      "out": 4
+     },
+     "first_request_hits": [
+      4352
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "hello.r2.arm2",
+     "alias": "hello",
+     "arm": "arm2",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 1.9,
+     "turn_wall_s": [
+      1.6
+     ],
+     "spend_peak_usd": 0.000198,
+     "usage": {
+      "requests": 1,
+      "miss": 300,
+      "hit": 4352,
+      "out": 4
+     },
+     "first_request_hits": [
+      4352
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "hello.r2.control",
+     "alias": "hello",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": null,
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 1.7,
+     "turn_wall_s": [
+      1.4
+     ],
+     "spend_peak_usd": 0.000184,
+     "usage": {
+      "requests": 1,
+      "miss": 260,
+      "hit": 4608,
+      "out": 4
+     },
+     "first_request_hits": [
+      4608
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [],
+     "flags": 0,
+     "exam": null,
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 0,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "targets": 0,
+       "first_try_ok": 0
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     }
+    }
+   ]
+  },
+  "pilot": {
+   "harness_commit": "8d88eb7042d668f67c9b55d15b05085497e6626d",
+   "started_utc": "2026-09-26T19:37:09+00:00",
+   "host_version": "0.1.7-rc.2",
+   "arms": [
+    "control"
+   ],
+   "tasks": [
+    "r1",
+    "r3",
+    "r4"
+   ],
+   "reps": 1,
+   "cells": [
+    {
+     "cell": "p110_r1_fixture_fp.r1.control",
+     "alias": "r1",
+     "arm": "control",
+     "status": "done",
+     "pass": false,
+     "exam_class": "cannot_recover",
+     "valid_at_run": true,
+     "valid_frozen": false,
+     "reasons_frozen": [
+      "fact not delivered: no turn-1 tool result carried it (output discarded or never produced)"
+     ],
+     "wall_s": 42.2,
+     "turn_wall_s": [
+      5.7,
+      10.2,
+      2.0,
+      2.3,
+      15.2,
+      5.9
+     ],
+     "spend_peak_usd": 0.014082,
+     "usage": {
+      "requests": 21,
+      "miss": 10745,
+      "hit": 182656,
+      "out": 5149
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      5120,
+      7808,
+      9856,
+      10112
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": false,
+       "tool": null
+      }
+     ],
+     "flags": 0,
+     "exam": {
+      "turn": 5,
+      "recall_sourced": false,
+      "recall_tool": null,
+      "recall_calls": 4,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 2,
+       "expand_result": 2
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 2,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 2,
+       "targets": 2,
+       "first_try_ok": 2
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 2,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 6,
+      "completed": 6,
+      "closeout": 6,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "p110_r3_runbook_middle.r1.control",
+     "alias": "r3",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 22.8,
+     "turn_wall_s": [
+      4.7,
+      11.4,
+      6.2
+     ],
+     "spend_peak_usd": 0.007492,
+     "usage": {
+      "requests": 15,
+      "miss": 6210,
+      "hit": 92288,
+      "out": 2627
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      5376
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [],
+     "flags": 0,
+     "exam": {
+      "turn": 3,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 3,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 3
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 3,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 3,
+       "targets": 3,
+       "first_try_ok": 3
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 2,
+      "folds": 1,
+      "reread_same_turn_unchanged": 1,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 1
+     },
+     "finish": {
+      "turns": 3,
+      "completed": 3,
+      "closeout": 3,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "p110_r4_probe_compare.r1.control",
+     "alias": "r4",
+     "arm": "control",
+     "status": "done",
+     "pass": false,
+     "exam_class": "cannot_recover",
+     "valid_at_run": true,
+     "valid_frozen": false,
+     "reasons_frozen": [
+      "fact not delivered: no turn-1 tool result carried it (output discarded or never produced)"
+     ],
+     "wall_s": 28.8,
+     "turn_wall_s": [
+      3.3,
+      2.8,
+      9.2,
+      12.9
+     ],
+     "spend_peak_usd": 0.009468,
+     "usage": {
+      "requests": 15,
+      "miss": 7294,
+      "hit": 99968,
+      "out": 3681
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      4992,
+      5248
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": false,
+       "tool": null
+      },
+      {
+       "turn": 2,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "flags": 0,
+     "exam": {
+      "turn": 4,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 3,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 1,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 2
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 2,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 2,
+       "targets": 2,
+       "first_try_ok": 2
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 1
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 4,
+      "completed": 4,
+      "closeout": 4,
+      "step_limit_cut": 0
+     }
+    }
+   ]
+  },
+  "pilot2": {
+   "harness_commit": "fe8bb76f115107b51bc3d09fc66ca1f089f15cef",
+   "started_utc": "2026-09-26T19:45:02+00:00",
+   "host_version": "0.1.7-rc.2",
+   "arms": [
+    "control"
+   ],
+   "tasks": [
+    "r1",
+    "r2",
+    "r4"
+   ],
+   "reps": 1,
+   "cells": [
+    {
+     "cell": "p110_r1_fixture_fp.r1.control",
+     "alias": "r1",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 30.9,
+     "turn_wall_s": [
+      2.8,
+      9.3,
+      2.6,
+      1.9,
+      7.5,
+      6.0
+     ],
+     "spend_peak_usd": 0.010833,
+     "usage": {
+      "requests": 19,
+      "miss": 9977,
+      "hit": 159104,
+      "out": 3194
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      4992,
+      7680,
+      9856,
+      9984
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "flags": 0,
+     "exam": {
+      "turn": 5,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 2,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 1,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 1
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 1,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 1,
+       "targets": 1,
+       "first_try_ok": 1
+      },
+      "recall_turn_views": {
+       "dialogue": 1,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 4,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 3,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 6,
+      "completed": 6,
+      "closeout": 6,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "alias": "r2",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 55.9,
+     "turn_wall_s": [
+      24.1,
+      3.3,
+      2.3,
+      5.0,
+      2.8,
+      11.5,
+      6.0
+     ],
+     "spend_peak_usd": 0.021393,
+     "usage": {
+      "requests": 26,
+      "miss": 15793,
+      "hit": 250752,
+      "out": 8283
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      5888,
+      8960,
+      9088,
+      12160,
+      12288
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [
+      {
+       "turn": 2,
+       "delivered": true,
+       "tool": "bash"
+      },
+      {
+       "turn": 4,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "flags": 0,
+     "exam": {
+      "turn": 6,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 3,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 3
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 3,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 3,
+       "targets": 3,
+       "first_try_ok": 3
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 7,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 1,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 7,
+      "completed": 7,
+      "closeout": 7,
+      "step_limit_cut": 0
+     }
+    },
+    {
+     "cell": "p110_r4_probe_compare.r1.control",
+     "alias": "r4",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 25.3,
+     "turn_wall_s": [
+      3.4,
+      3.0,
+      11.1,
+      7.2
+     ],
+     "spend_peak_usd": 0.007107,
+     "usage": {
+      "requests": 14,
+      "miss": 4268,
+      "hit": 82048,
+      "out": 3091
+     },
+     "first_request_hits": [
+      4480,
+      4864,
+      4992,
+      5248
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": true,
+       "tool": "bash"
+      },
+      {
+       "turn": 2,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "flags": 0,
+     "exam": {
+      "turn": 4,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 2,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 2
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 2,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 2,
+       "targets": 2,
+       "first_try_ok": 2
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 0,
+      "folds": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 4,
+      "completed": 4,
+      "closeout": 4,
+      "step_limit_cut": 0
+     }
+    }
+   ]
+  },
+  "pilot-r5": {
+   "harness_commit": "fe8bb76f115107b51bc3d09fc66ca1f089f15cef",
+   "started_utc": "2026-09-26T19:47:26+00:00",
+   "host_version": "0.1.7-rc.2",
+   "arms": [
+    "control"
+   ],
+   "tasks": [
+    "r5"
+   ],
+   "reps": 1,
+   "cells": [
+    {
+     "cell": "p110_r5_initial_failures.r1.control",
+     "alias": "r5",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 34.0,
+     "turn_wall_s": [
+      22.0,
+      11.6
+     ],
+     "spend_peak_usd": 0.01567,
+     "usage": {
+      "requests": 13,
+      "miss": 14820,
+      "hit": 125952,
+      "out": 5595
+     },
+     "first_request_hits": [
+      4480,
+      4864
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [],
+     "flags": 0,
+     "exam": {
+      "turn": 2,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 4,
+      "leak_assistant_turns": [
+       1
+      ],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": true,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 4
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 4,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 4,
+       "targets": 4,
+       "first_try_ok": 4
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 6,
+      "folds": 3,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 1,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 2,
+      "completed": 2,
+      "closeout": 2,
+      "step_limit_cut": 0
+     }
+    }
+   ]
+  },
+  "pilot-r5b": {
+   "harness_commit": "5e25c0d6c03ea61ea73067a554f1f1310f123d39",
+   "started_utc": "2026-09-26T19:50:30+00:00",
+   "host_version": "0.1.7-rc.2",
+   "arms": [
+    "control"
+   ],
+   "tasks": [
+    "r5"
+   ],
+   "reps": 1,
+   "cells": [
+    {
+     "cell": "p110_r5_initial_failures.r1.control",
+     "alias": "r5",
+     "arm": "control",
+     "status": "done",
+     "pass": true,
+     "exam_class": "correct",
+     "valid_at_run": true,
+     "valid_frozen": true,
+     "reasons_frozen": [],
+     "wall_s": 43.3,
+     "turn_wall_s": [
+      19.3,
+      23.5
+     ],
+     "spend_peak_usd": 0.027806,
+     "usage": {
+      "requests": 16,
+      "miss": 36397,
+      "hit": 242688,
+      "out": 6359
+     },
+     "first_request_hits": [
+      4608,
+      4864
+     ],
+     "tools_count": 16,
+     "system_sha": "f323bf5f14b4",
+     "slice_tools_sha": "6699b32a319b",
+     "delivery": [],
+     "flags": 0,
+     "exam": {
+      "turn": 2,
+      "recall_sourced": true,
+      "recall_tool": "expand_result",
+      "recall_calls": 7,
+      "leak_assistant_turns": [],
+      "leak_write_turns": [],
+      "oracle_via_fs": false
+     },
+     "g2_excluded_frozen": false,
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 3,
+       "expand_result": 4
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "recall_output": 0,
+       "fold_view": 0,
+       "tape": 4,
+       "none": 0
+      },
+      "cross_turn": {
+       "calls": 4,
+       "targets": 3,
+       "first_try_ok": 3
+      },
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads": {
+      "reads": 5,
+      "folds": 2,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 5,
+      "fold_then_reread": 0
+     },
+     "finish": {
+      "turns": 2,
+      "completed": 2,
+      "closeout": 2,
+      "step_limit_cut": 0
+     }
+    }
+   ]
+  }
+ },
+ "spend_peak_usd_by_batch": {
+  "warm": 0.006615,
+  "pilot": 0.031042,
+  "pilot2": 0.039334,
+  "pilot-r5": 0.01567,
+  "pilot-r5b": 0.027806
+ },
+ "spend_peak_usd_total": 0.120467,
+ "ledger_rows": 40,
+ "unpriced_steps_charged": 0
+}

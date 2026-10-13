@@ -79,7 +79,7 @@ export function apply(ctx, config) {
       const system = request.messages[0].content.filter(block => block.type === 'text').map(block => block.text).join('\n')
       assert.ok(system.includes('Packed plugin validation fixture.'))
       assert.ok(system.includes('<slice>'))
-      // DSH 0.1.7 projects the runtime snapshot after it opens the turn, so the
+      // Since 0.1.7 DSH projects the runtime snapshot after it opens the turn, so the
       // snapshot belongs to turn 1 and recall_turn serves it back verbatim as
       // generated context. Only that explicit recall result may repeat it; the
       // surface itself (system, users, tape, assistant) carries one live copy.
@@ -160,7 +160,7 @@ export function apply(ctx, config) {
     assert.notEqual(recallResult.data.message.isError, true, 'recall_turn must succeed')
     assert.ok(JSON.stringify(recallResult).includes('First packed request'))
     // Sealed tool lines cite durable results by numeric seq in the host's
-    // current session format; the supported 0.1.7 hosts write format V4.
+    // current session format; both supported hosts (0.1.7-rc.2 and 0.2.0-rc.2) write V4.
     assert.equal(sessions.SESSION_FORMAT_VERSION, 4, 'the supported hosts write session format V4')
     const locator = `expand_result(${JSON.stringify({ seq: recallResult.seq, formatVersion: sessions.SESSION_FORMAT_VERSION })})`
     assert.ok(tapeNodes(before).some(seq => JSON.stringify(sessions.deriveEventMessage(before[seq])).includes(JSON.stringify(locator).slice(1, -1))), 'the sealed tool line must cite the recall result with a V4 seq locator')

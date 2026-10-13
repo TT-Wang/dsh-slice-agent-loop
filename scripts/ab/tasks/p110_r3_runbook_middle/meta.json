@@ -1,0 +1,27 @@
+{
+ "name": "p110_r3_runbook_middle",
+ "alias": "r3",
+ "turns": 3,
+ "max_steps_per_turn": 12,
+ "turn_timeout_s": 900,
+ "recall": true,
+ "exams": [
+  {
+   "turn": 3,
+   "tokens": [
+    "Brackenfold"
+   ]
+  }
+ ],
+ "in_turn": [
+  {
+   "turn": 1,
+   "tokens": [
+    "64471"
+   ]
+  }
+ ],
+ "require_fold_of_read_turn": 1,
+ "source": "new for P1-10 (seeded generator in setup.py)",
+ "stressor": "T1 reads a 28 KB prose runbook that the fold condenses before the next request; the night-shift extension sits in the dropped middle with a near-miss decoy in the kept head (in-turn fold recovery, the direct probe of the FOLD_BODY change). The harness deletes docs/ after T1; T3 asks for a second fact from the dropped middle of the same read, with a decoy on the kept last line (cross-turn recall of the T1 read result)."
+}

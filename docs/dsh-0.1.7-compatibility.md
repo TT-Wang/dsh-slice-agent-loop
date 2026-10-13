@@ -1,5 +1,7 @@
 # DSH 0.1.7 compatibility
 
+> Historical. The current build (plugin version 0.2.0) targets DSH 0.2.0-rc.2 and also admits 0.1.7-rc.2: see [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md) for the supported hosts, the upgrade procedure and the current evidence. Session format is still V4, so the contracts, V3 session resume and locator rules below still apply to the current build. The support statement, the peer range (0.1.7-rc.1 is no longer admitted) and the verification records describe the 0.1.0 build, last at main `8e3b7a3`.
+
 The plugin targets **0.1.7-rc.2** and also supports **0.1.7-rc.1**. On 2026-09-25, npm's `next` tag for `@deepseek-ai/dsh` resolved to 0.1.7-rc.2 while `latest` still resolved to **0.1.5-rc.3**. Development dependencies pin rc.2 exactly, and the peer range is limited to `0.1.7-rc.1 || 0.1.7-rc.2`. This build does not support any 0.1.5 host, including 0.1.5-rc.3. Keep a 0.1.5 profile on the previous plugin build (main at `406f513`); see the [0.1.5 notes](dsh-0.1.5-compatibility.md) for that release line.
 
 The tape, fold and recall policy is unchanged; the V4 host differences that change what the model sees are listed under [V4 host behaviour worth knowing](#v4-host-behaviour-worth-knowing). The compatibility update covers these host contracts:
@@ -45,31 +47,7 @@ The host deliberately does not rewrite message text or tool arguments, so a rest
 
 ## Before upgrading the host
 
-Before bumping the pinned packages to a new host tag, run the whole plugin suite against that tag's source. This finds host contract changes while the upgrade is still a decision: the 0.1.5-rc.1 source failed 97 tests on 2026-09-13 (positional replacements moved to `startSeq`/`endSeq`), and the 0.1.6-alpha.2 source failed 9 PTC tests on 2026-09-21 (`codeRuntime` became `ptcRuntime`). The step is manual; no CI job runs it. The weekly Peer compatibility workflow (`.github/workflows/compat.yml`) installs npm's `next` tag for the `@deepseek-ai/dsh*` packages and fails once `next` falls outside the declared peer range, which is the usual signal that a new tag needs this check.
-
-The steps are for macOS and Linux. They need git, pnpm 11.7.0, a supported Node installation that ships its headers in `<node prefix>/include/node` (the native build stops and names that path when they are missing), and a C compiler for the host's native addon: `cc`, or `musl-gcc` on musl Linux. Clone the target tag and prepare it:
-
-```sh
-TAG=dsh-v0.1.7-rc.2
-HARNESS_SOURCE_CHECKOUT="$HOME/src/deepseek-harness-$TAG"
-git clone --depth 1 --branch "$TAG" https://github.com/deepseek-ai/deepseek-harness.git "$HARNESS_SOURCE_CHECKOUT"
-cd "$HARNESS_SOURCE_CHECKOUT"
-pnpm install --filter @deepseek-ai/dsh-agent-loop... \
-  --filter @deepseek-ai/dsh-session-persistence-jsonl... \
-  --filter @deepseek-ai/dsh-tool-fs... --ignore-scripts --frozen-lockfile
-pnpm run build:native-system
-```
-
-Then run the suite from the plugin checkout, after its own `pnpm install --frozen-lockfile`:
-
-```sh
-npm run verify:master -- "$HARNESS_SOURCE_CHECKOUT"
-```
-
-- `--ignore-scripts` skips upstream's install hooks. No `fs-ext` build is needed: the 0.1.7 lockfile has no `fs-ext`, and file locking comes from the host's own `flock` addon.
-- `build:native-system` compiles that addon into `native/system/packages/<platform>-<arch>/bin/`: `system.node` on macOS, and `glibc/system.node` or `musl/system.node` on Linux. Upstream's own `pnpm test` runs the same step first. JSONL persistence loads the addon for its file lock on macOS and Linux. Without it 7 tests fail: 4 in `tests/host-format-upgrade.spec.ts` name the missing `system.node`, while 3 in `tests/native-context.spec.ts` and `tests/tape-protected.spec.ts` report only `SessionPersistenceNotFoundError` on resume. On any other OS the step exits 0 without building anything, and this procedure has not been tried there. Only macOS arm64 has been run; the Linux paths and compilers come from upstream's `native/system/scripts/build.ts`.
-- No upstream `lib/` build is needed. `scripts/validation/run-master-tests.mjs` resolves every Harness import through the checkout's `tsconfig.base.json` path map and points tsx at the same file (`TSX_TSCONFIG_PATH`). The 0.1.7 JSONL provider verifies a migrated generation in a worker thread that it loads through tsx, outside Vite's aliases. Before the script set that variable, a fresh checkout failed the 4 restore tests in `tests/host-format-upgrade.spec.ts`, which asked for unbuilt `lib/` files. Building upstream `lib/` also works (a full install plus `pnpm run build:lib:host` took 167 s on the machine below), but then the worker runs built code rather than the checked-out source.
-- The script prints the host commit, test counts and an evidence directory, and exits non-zero on any failure. Explain every failure before bumping the pins: fix the plugin, or record the host difference in the compatibility notes, as with the rc.1 tool-set notice above.
+This procedure moved to [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md#before-upgrading-the-host), where it names the current tag. The runs recorded below used it with `TAG=dsh-v0.1.7-rc.2` and `TAG=dsh-v0.1.7-rc.1`.
 
 ## Verification recorded on 2026-09-25
 

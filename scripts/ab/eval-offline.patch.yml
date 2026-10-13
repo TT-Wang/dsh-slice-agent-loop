@@ -1,0 +1,10 @@
+# Offline dry-run overlay: route the default model to the scripted mock adapter.
+# run_ab.py --offline writes a copy with __MOCK_LLM__ replaced by the absolute
+# path of scripts/ab/mock-llm.mjs and passes it with --patch.
+- id: agent-default-model
+  config:
+    provider: ab-mock
+    model: scripted
+- insert:
+    - id: ab-mock-llm
+      name: '__MOCK_LLM__'

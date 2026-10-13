@@ -1,0 +1,27 @@
+{
+ "name": "p110_r1_fixture_fp",
+ "alias": "r1",
+ "turns": 6,
+ "max_steps_per_turn": 12,
+ "turn_timeout_s": 900,
+ "recall": true,
+ "exams": [
+  {
+   "turn": 5,
+   "tokens": [
+    "8b69ed6e"
+   ]
+  }
+ ],
+ "source": "dsh-slice/scenarios/r2b_tool_only: prompts P1,P2,P6,P10,P11,P12 (verbatim except P1, which since the pilot asks to run the script as is, without redirection or a pipe); setup.py and verify.py unchanged; the user-requested deletion turn P4 is replaced by hooks.after_turn(2).",
+ "stressor": "fact only in one T1 tool output (bash stdout); script and fixtures deleted by the harness after T2; same-format decoys in the T3/T4 floods; exam T5.",
+ "delivery": [
+  {
+   "turn": 1,
+   "tokens": [
+    "8b69ed6e"
+   ]
+  }
+ ],
+ "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27)."
+}

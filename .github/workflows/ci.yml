@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   published-dsh:
-    name: published DSH 0.1.7-rc.2 (node ${{ matrix.node }})
+    name: published DSH 0.2.0-rc.2 (node ${{ matrix.node }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     strategy:
@@ -39,13 +39,15 @@ jobs:
         run: npm run check:build
       - name: Verify packed plugin through published DSH Loader
         run: npm run verify:packed
-      # The peer range also admits the previous release candidate; install the
-      # same tarball into that published host too.
-      - name: Verify compatibility with published DSH 0.1.7-rc.1
+      # The peer range also admits 0.1.7-rc.2, the previous supported host, so a
+      # deployment can roll its host back without repacking the plugin. Install
+      # the same tarball into that published host too. Everything above this
+      # step (types, tests, coverage) runs against 0.2.0-rc.2 only.
+      - name: Verify packed plugin on published DSH 0.1.7-rc.2
         if: matrix.node == '22.22.3'
         run: npm run verify:packed
         env:
-          SLICE_PACKED_DSH_VERSION: 0.1.7-rc.1
+          SLICE_PACKED_DSH_VERSION: 0.1.7-rc.2
       # A `dsh plugin add github:` install downloads a tarball of every tracked
       # file. Raw experiment data lives in GitHub releases, not the tree (see
       # results/README.md). Raising the 8 MiB ceiling should be a deliberate commit.
