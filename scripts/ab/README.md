@@ -31,6 +31,28 @@ gated tasks, without `hello`.
   change the host.
 - One packed tarball per arm (`npm pack` in a worktree whose `lib/` passed `npm run check:build`).
 
+## Host version
+
+The recorded batch ran on a frozen published 0.1.7-rc.2 host. The 0.1.7-rc.2 statements in
+this file, in the scripts and under `docs/ab/` describe that batch and stay as its record.
+The harness runs whatever host is in `$AB/host`. On a different host:
+
+- The root `package.json` of the checkout the harness runs from must admit that host in its
+  `@deepseek-ai/dsh-*` peer ranges, even for an offline dry run. The offline adapter row
+  points at `scripts/ab/mock-llm.mjs`, and the host attributes a path row to the nearest
+  `package.json` above it, which is this repository's root manifest, not the arm's tarball.
+  If those peers reject the host, the turn's `.err` file says
+  `dsh: disabling profile plugin row "ab-mock-llm"`, every turn ends with `NO_ADAPTER`, and the
+  driver retries it as an infra failure. With the range `0.1.7-rc.2 || 0.2.0-rc.2` a dry run
+  from this checkout (`prepare`, then `hello` and `r1`) completes on both published hosts
+  with empty turn stderr (2026-10-13).
+- Regenerate `fingerprints.json` on that host and run its own control arm. The request prefix
+  of the same build is 249 characters longer on 0.2.0-rc.2 than on 0.1.7-rc.2 (18311 to
+  18560, from the host's `bash` tool description; system prompt and slice tool hashes are
+  equal). Against the stored 0.1.7-rc.2 control figure the recorded arms would sit 524
+  characters under control and fail the 700-character structural check. Do not compare cost
+  or cache numbers across hosts.
+
 ## Runbook
 
 ```sh
