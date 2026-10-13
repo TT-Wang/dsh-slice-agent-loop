@@ -1,6 +1,6 @@
 # DSH 0.1.5 compatibility
 
-> Historical. The current build targets DSH 0.1.7-rc.2 / 0.1.7-rc.1 and session format V4: see [DSH 0.1.7 compatibility](dsh-0.1.7-compatibility.md). The contracts below (format 3, `tool-result` blocks, `{ kind: 'plugin', plugin }` sources) describe the 0.1.5 release line only.
+> Historical. The current build targets DSH 0.2.0-rc.2 / 0.1.7-rc.2 and session format V4: see [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md), and the [0.1.7 notes](dsh-0.1.7-compatibility.md) for the V4 contracts and V3 session resume. The contracts below (format 3, `tool-result` blocks, `{ kind: 'plugin', plugin }` sources) describe the 0.1.5 release line only.
 
 The plugin targets **0.1.5-rc.2** and also supports **0.1.5-rc.1**. On 2026-09-13, npm's `next` tag resolved to rc.2 while `latest` still resolved to rc.1. Dependencies and packed checks use exact versions; the supported peer range is limited to those two verified releases.
 

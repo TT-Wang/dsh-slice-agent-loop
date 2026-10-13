@@ -16,16 +16,20 @@ const repoRoot = fileURLToPath(new URL('../../', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(repoRoot, 'package.json'), 'utf8'))
 const packageManager = manifest.packageManager
 const hostVersion = process.env.SLICE_PACKED_DSH_VERSION ?? manifest.devDependencies['@deepseek-ai/dsh-agent']
-if (!['0.1.7-rc.1', '0.1.7-rc.2'].includes(hostVersion)) throw new Error(`Unsupported packed validation host: ${hostVersion}`)
+// Exactly the hosts the @deepseek-ai/dsh-* peer ranges in package.json admit.
+// Any other host skips the plugin at profile load, so change both together.
+if (!['0.1.7-rc.2', '0.2.0-rc.2'].includes(hostVersion)) throw new Error(`Unsupported packed validation host: ${hostVersion}`)
 // Budget for each step (install, plugin add, the session run). A cold install of
 // the published host tree over a slow registry link can exceed the default.
 const stepTimeoutMs = Number.parseInt(process.env.SLICE_PACKED_STEP_TIMEOUT_MS ?? '', 10) || 180_000
 // pnpm 11 applies a 1440-minute minimumReleaseAge by default, and a release
-// candidate is verified on the day it ships. Carry the repository's own
-// release-age policy, whose exclude list tracks the pinned DSH release, into
-// every throwaway workspace instead of disabling the policy: the smoke then
-// follows the same exemptions as CI. The published host's own closure is wider
-// than this repository's tree; see installHost() for how that is handled.
+// candidate may be verified on the day it ships. Carry the repository's own
+// release-age policy into every throwaway workspace instead of disabling the
+// policy: the smoke then follows the same exemptions as CI. Its exclude list
+// names a pinned DSH release only while that release is under a day old and is
+// empty otherwise, so the key must be present but may be `[]`. The published
+// host's own closure is wider than this repository's tree; see installHost()
+// for how that is handled.
 /** @type {{minimumReleaseAge?: unknown, minimumReleaseAgeExclude?: unknown}} */
 const repoWorkspace = parseYaml(readFileSync(join(repoRoot, 'pnpm-workspace.yaml'), 'utf8')) ?? {}
 const { minimumReleaseAge, minimumReleaseAgeExclude } = repoWorkspace

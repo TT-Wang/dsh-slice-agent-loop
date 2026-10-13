@@ -2,7 +2,7 @@
 
 [中文](README.zh.md)
 
-A conversational-context retention policy for **DeepSeek Harness 0.1.7-rc.2 / 0.1.7-rc.1** (session format V4). It runs alongside the stock agent loop, keeping the host's lifecycle, scheduler, inbox, persistence, request-series handling and full request-reconstruction invariant. The patch is additive: it adds this plugin and nothing else.
+A conversational-context retention policy for **DeepSeek Harness 0.2.0-rc.2 / 0.1.7-rc.2** (session format V4). It runs alongside the stock agent loop, keeping the host's lifecycle, scheduler, inbox, persistence, request-series handling and full request-reconstruction invariant. The patch is additive: it adds this plugin and nothing else.
 
 ## History model: an append-only tape
 
@@ -125,6 +125,6 @@ Implementation fixes and their verification scope: [2026-09-13 review fixes](doc
 
 ## Verification and compatibility
 
-The current change passed **342 tests across 38 files**, coverage gates, type checks and packed installation/recall/resume on DSH **0.1.7-rc.1 and 0.1.7-rc.2**. The peer range is `0.1.7-rc.1 || 0.1.7-rc.2`; 0.1.5 hosts, including npm `latest` 0.1.5-rc.3 on 2026-09-25, are not supported by this build. Format-3 sessions from 0.1.5 builds resume through the host's V3→V4 restore; two provider-written 0.1.5 session fixtures cover that path, including parallel, failed, PTC-nested and folded results. CI covers Node 22.19.0, 22.22.3 and 24.x. No new paid model evaluation was added; cost savings and task accuracy must not be inferred from content-preservation tests. Host changes, migration behaviour and the recorded evidence are in [DSH 0.1.7 compatibility](docs/dsh-0.1.7-compatibility.md).
+The current build (plugin version 0.2.0) passed **342 tests across 38 files**, coverage gates and type checks against published DSH **0.2.0-rc.2**, the same suite against the 0.2.0-rc.2 and **0.1.7-rc.2** sources, and packed installation/recall/resume on both published hosts. The peer range is the exact list `0.1.7-rc.2 || 0.2.0-rc.2`. On 2026-10-13 npm `latest` and `next` for `@deepseek-ai/dsh` both resolved to 0.2.0-rc.2, so a default install gets a supported host; 0.1.7-rc.1, every 0.1.5 host and the 0.2.1 alphas (npm `alpha`) are not supported by this build. A host outside the range still starts: it skips this plugin, prints one `dsh: skipping profile bundle …` line on stderr and runs the stock loop without the policy. Format-3 sessions from 0.1.5 builds resume through the host's V3→V4 restore; two provider-written 0.1.5 session fixtures cover that path, including parallel, failed, PTC-nested and folded results. CI covers Node 22.19.0, 22.22.3 and 24.x. No new paid model evaluation was added; cost savings and task accuracy must not be inferred from content-preservation tests. What changed in the host, the upgrade procedure, deployment notes and the recorded evidence are in [DSH 0.2.0 compatibility](docs/dsh-0.2.0-compatibility.md); the V4 contracts and migration behaviour are in the [0.1.7 notes](docs/dsh-0.1.7-compatibility.md).
 
 See [preserve dialogue by default](docs/adr/0003-preserve-dialogue-defaults.md) for the current history decision and migration, and [2026-09-21 context policy defaults](docs/context-policy-defaults-2026-09-21.md) for the earlier loop/folding changes and their recorded validation results.
