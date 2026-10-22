@@ -3,6 +3,8 @@
 //
 // Default script, per turn (one action per model request, then a text closeout):
 //   1. bash `ls`;
+//   1b. when the prompt states a correction ("应该是 X,不是 Y" / "should be X, not Y") and names an existing config
+//      file (.env/.ini/.txt/.json), bash replaces Y with X in it, as r2's T4 asks before re-running its script;
 //   2. when the user prompt names an existing script under tools/ (anywhere in the prompt), bash `python3 <it>`
 //      (plus the prompt's `--region R`), so the tasks' delivery turns show its output as a real run does
 //      (r2's T4 names config/service.env before tools/stamp.py);
@@ -130,6 +132,12 @@ export function apply(ctx) {
         const locator = tapeLocator(tape)
         /** @type {Array<() => import('@deepseek-ai/dsh-llm').StreamChunk[]>} */
         const script = [() => call('bash', { command: 'ls', description: 'list the workspace' })]
+        const fix = /应该是\s*([\w.-]+)\s*[,，]\s*不是\s*([\w.-]+)/.exec(ask) ?? /should be ([\w.-]+), not ([\w.-]+)/.exec(ask)
+        const target = fix && namedFile(ask, /\.(?:env|ini|txt|json)$/)
+        if (fix && target) {
+          const py = `import pathlib; p = pathlib.Path('${target}'); p.write_text(p.read_text().replace('${fix[2]}', '${fix[1]}'))`
+          script.push(() => call('bash', { command: `python3 -c "${py}"`, description: 'apply the correction' }))
+        }
         if (tool) {
           const region = /--region (\w+)/.exec(ask)?.[1]
           script.push(() => call('bash', { command: `python3 ${tool}${region ? ` --region ${region}` : ''}`, description: 'run the script' }))
