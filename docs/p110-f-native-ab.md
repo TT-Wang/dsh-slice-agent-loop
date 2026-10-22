@@ -1,10 +1,9 @@
 # P1-10 F-only native A/B: version-only tape tool locators
 
-> **Status: DRAFT pre-registration, 2026-10-22.** Built and dry-run offline; no paid call has been
-> made and no key is linked. The harness, arms, tasks, metrics, gates and decision rule below are
-> the proposal. The warmup and a control-only pilot (§5) come next; the pilot may still change a
-> task, as in §5 step 5. The pre-registration is frozen by the commit that fills §13; nothing in
-> §1–§12 changes after that commit. §14 "Results" stays empty until the batch and the report exist.
+> **Status: FROZEN pre-registration, 2026-10-22.** Built and dry-run offline, then the paid warmup
+> and a control-only pilot ran (§13). The commit that fills §13 freezes the harness, arms, tasks,
+> metrics, gates and decision rule; nothing in §1–§13 changes after it. No F cell of a gated task
+> has run. §14 "Results" stays empty until the batch and the report exist.
 
 ## 1. Question
 
@@ -150,16 +149,24 @@ this run confines reads with file permissions and makes sure nothing else is the
   session logs, results, manifests, ledger, truth files, packed workdirs, tarballs) and the
   `scripts/` and `docs/` directories of the three worktrees under `AB/wt` (the only places in a
   checkout that hold task oracles and the A/B records) are `chmod 000` from just before the host
-  starts until the turn's process group and every process still carrying the cell's `DSH_HOME`
-  (a background job the model left) are killed. Readable under `AB` then: the host, the offline
+  starts until the turn's process group and every process still tied to the cell (a background
+  job the model left) are killed. A process is tied to the cell when its command line or
+  environment names `live/c-<id>` (its `DSH_HOME`, `TMPDIR`, `PWD` or a path argument) or its
+  current directory lies in the cell (`lsof -d cwd`). Readable under `AB` then: the host, the offline
   adapter copy (`AB/mock`, dry runs only), the per-batch patches, the worktrees' source code, and
   the running cell's own root. The worktree roots stay readable on purpose: with a root at mode
   000, a `git worktree prune` by any other process in the main repository deletes the
   worktree's link, which happened once during the build (§11).
+- **Read-only while a turn runs.** `AB` itself, `AB/live`, `AB/patches`, the batch's patch
+  directory, `AB/mock`, `AB/wt` and `AB/host` lose their write bits for the same window, so a cell
+  cannot leave a file there for a later cell (its own root under `live/` stays writable).
 - **Tamper evidence.** The owner can chmod its own files and the sandbox allows writes under
   `/tmp`, where the A/B root lives, so a deliberate chmod is possible. After every turn the
-  harness checks that each blocked path still has mode 000 and the inode and ctime it had right
-  after blocking; any change is a breach and makes the cell invalid (§7).
+  harness checks that each blocked or read-only path still has its mode and the inode and ctime
+  it had right after blocking; any change (a chmod, a rename, a new entry) is a breach and makes
+  the cell invalid (§7). The worktrees' source trees stay writable, so between a cell's first and
+  last turn `git status` of each worktree (untracked and ignored entries included, bytecode
+  excluded) must not change, or the cell is invalid.
 - **Per cell.** A fresh root `AB/live/c-<id>/` holds a copy of the arm's template home, a private
   `TMPDIR` and the workdir `w-<id>`; ids are hashes, the same length in both arms, so neither the
   path nor `DSH_HOME` nor the profile's `package.json` names the arm. r5's truth sidecar sits in
@@ -167,18 +174,26 @@ this run confines reads with file permissions and makes sure nothing else is the
   truth sidecar and tmp are packed into the vault, the home (session log included, key link
   removed) moves there, and the cell root is removed.
 - **Quarantine.** New top-level entries of `AB` that the harness did not create, and new
-  top-level entries of `AB/..` and `/private/tmp` that the cell's own tool calls name, move into
-  the vault when the cell ends, so scratch a model wrote outside its root cannot reach a later cell.
+  top-level entries of `AB/..` and `/private/tmp` that the cell's own tool calls name (as a path,
+  or, for a name of six characters or more, as a bare word, as after `cd /tmp && mkdir x`), move
+  into the vault when the cell ends, so scratch a model wrote outside its root cannot reach a later cell.
 - **Not covered.** Other copies of this repository on the machine (the main checkout and other
   worktrees) hold the task definitions and oracles and stay readable, as do the owner's archives
   of the 2026-09-27 run. Reaching them means a path outside the workdir, which is flagged (§6),
   and an oracle arriving that way is caught by content (oracle via the file system). The cell's
   own session log is readable too (the host writes it); reading it is flagged (`sessions/`,
-  `.zstd`).
+  `.zstd`). So are a file written into a directory that already existed elsewhere under `/tmp`
+  (for example a sibling of `AB`), which survives the cell, and a background process that strips
+  its environment and also leaves the cell's directory, which is not found; both need a tool call
+  naming a path outside the workdir, which is flagged.
 
 The barrier was proven on the dry run with `run_ab.py isolation-probe` (§11): canaries in every
 protected place plus the other arm's real files, read by a scripted cell with bash, `read`,
-`glob` and `grep` after it started two background jobs, and a tamper cell per arm.
+`glob` and `grep` after it started three background jobs (one without `DSH_HOME` and `TMPDIR`),
+writes into every read-only directory, a `/tmp` plant after a `cd`, and a tamper cell per arm
+that chmods the vault and leaves a file in a worktree. The read-only directories, the wider stray
+match, the bare-name quarantine and the worktree check were added after an offline review probe
+on the first build had shown each of those channels working (§11).
 
 ## 4. Tasks
 
@@ -269,9 +284,9 @@ and slice tool fingerprints equal the arm's; 16 tools, one tool list and one sys
 session; one turn per prompt; no `/private` or `/Users` in the system prompt; zero compaction
 events; tape headers short (76 or 78 chars) and tool lines in the arm's form (control long, F `v`);
 **for F, the system prompt sha, slice tool sha and request prefix length equal control's**; **no
-isolation breach in any turn** (§3.1); for r3 a fold of the T1 read; for r1, r2 and r4 the exam's
-fact in a non-recall tool result of every delivery turn. Otherwise the cell is rerun, at most 2
-attempts. A pair counts only when both its cells are valid; dropped pairs are listed in the
+isolation breach in any turn and no worktree change during the cell** (§3.1); for r3 a fold of
+the T1 read; for r1, r2 and r4 the exam's fact in a non-recall tool result of every delivery
+turn. Otherwise the cell is rerun, at most 2 attempts. A pair counts only when both its cells are valid; dropped pairs are listed in the
 report. Infra and model-attributable endings are classified as on 2026-09-27.
 
 A cell counts for G1 but its pair is dropped from G2 when, up to its exam turn, a call was
@@ -347,12 +362,14 @@ within $0.75 of the cap; the running turn is polled every second and killed with
 (one turn runs at a time, so the margin covers 2 x 1 x $0.10 three times over); more than 40
 unpriced steps stop the run. Estimate from the 2026-09-27 batch ($2.2320 for 63 cells, about
 $0.035 per cell at peak): batch 42 cells ≈ $1.50, arbitration ≈ $1.50, warmup and pilot ≈ $0.20,
-so ≈ $3.2 with arbitration. Wall time is longer than in 2026-09-27 (one cell at a time): about
-2 minutes per cell, ≈ 1.5 hours per batch.
+so ≈ $3.2 with arbitration. Wall time is longer than in 2026-09-27 (one cell at a time): the
+pilot's recall cells took 24–72 s (§13), and the isolation checks add about 1.3 s per turn
+(`ps`, `lsof`, `git status`), so about 40–60 minutes per batch.
 
 ## 11. Offline dry run (build evidence, 2026-10-22)
 
-Harness `e9d1c5d` on `exp/p110-f-harness` (clean tree). No key existed in any home; the mock
+Harness `e9d1c5d` on `exp/p110-f-harness` (clean tree), and from "Review probe and hardening" on,
+`619703e`. No key existed in any home; the mock
 adapter (`scripts/ab/mock-llm.mjs`, provider `ab-mock`, copied to `AB/mock/`) scripted `ls`, a
 stated config correction, a run of any named `tools/` script, two reads of the first file the
 prompt names, and an `expand_result` on the newest tape tool line in whichever form the arm
@@ -408,10 +425,47 @@ renders.
   deleted their metadata; the worktrees were re-created from the unchanged branches (no commit
   lost; the one uncommitted file was carried over and diffed), and since `e9d1c5d` only
   `scripts/` and `docs/` of each worktree are blocked.
+- **Review probe and hardening (`619703e`, before the freeze).** An offline review probe on
+  `ae7221a` (two scripted cells, control then F, no key) found three ways for one cell to reach the
+  next: (1) a background job started with `env -u DSH_HOME -u TMPDIR` that forked and left its
+  session survived the turn and listed the vault 0.4 s after it became readable again; (2) a file
+  the first cell wrote into `AB/patches/<batch>/` was read by the second; (3) a directory made in
+  `/tmp` after `cd /tmp` was not quarantined (the quarantine matched full paths only) and was read
+  by the second cell. A file in a sibling directory of `AB` that already existed was read too, and
+  a task oracle was readable through the main repository's object store
+  (`git -C AB/wt/harness show HEAD:scripts/ab/tasks/…`); both are the not-covered cases of §3.1
+  and are flagged. `619703e` closes (1)–(3) and adds the worktree check (§3.1).
+- **Dry run `offline3`** (harness `619703e`, validated against the fingerprints), 09:29–09:32 UTC:
+  16/16 cells valid on the first attempt, 64/64 turns exit 0; no flag, leak, breach, stray,
+  quarantined entry or worktree change; host digest unchanged. The cells' summed wall time was
+  183 s against 102 s for `offline2`: the added `ps`, `lsof` and `git status` checks.
+- **Isolation probe `isoprobe-v2`** (`--target-batch offline3`), per arm: 31/31 targets denied,
+  0 canaries in any tool result, own files readable, `AB/live` showed only the probing cell;
+  2 background jobs killed as strays after the turn (1 in the build's probe, which had no job
+  without `DSH_HOME`), 0 processes tied to the cell and 0 escapees left; 7/7 writes into the read-only directories refused; the `/tmp` plant quarantined. Tamper
+  cell: the vault chmod was detected and the file left in `wt/control/src/` was detected
+  (`isolation: worktree control changed during the cell`); the cell was invalid. Afterwards every
+  mode was restored, `AB/live` was empty, no `.blocked.json`, all worktrees clean.
+- **The review's own probe script, re-run on `619703e`** (a copy writing to its own directory,
+  batch `review-probe-v2`): the write into `patches/<batch>/` was refused, the `/tmp` directory was
+  quarantined, the escapee was killed after the turn (1 stray) and never reached the vault; only
+  the pre-existing sibling directory of `AB` still carried its marker to the next cell (§3.1).
+- **Tests on `619703e`:** `test_run_ab.py` 18/18 (new: read-only directories, bare-name
+  quarantine, the stray marker and a process found by its cwd alone, the worktree state),
+  `test_ab_metrics.py` 23 (19 pass, 4 skip without data), `test_ab_report.py` 14/14,
+  `selfcheck_tasks.py` 25/25. `619703e` changes only `scripts/ab/run_ab.py` and its test.
 - Fingerprints, tarball checksums and the probe and dry-run summaries are in
-  [docs/ab/p110-f-2026-10-22/](ab/p110-f-2026-10-22/fingerprints.json).
+  [docs/ab/p110-f-2026-10-22/](ab/p110-f-2026-10-22/fingerprints.json) (`probe-v2.json` and the
+  `offline3` entry of `dryrun.json` are the hardened harness's).
 
 ## 12. Risks and limits
+
+- Shared provider cache: both arms send a byte-identical request prefix, so the provider's prefix
+  cache is shared across arms (in the warmup, F's first request hit the 4,480 tokens control had
+  just written). Every cell after the first of a batch finds the prefix cached whichever arm ran
+  before it, and the per-cell context after the prefix ends the shared part (in the warmup, rep 2's
+  identical prompt hit the same 4,480 tokens as rep 1, not more), so only the first request of a
+  batch is affected; the first arm rotates (§3.1) in any case.
 
 - Low power: n = 3 per task and arm (6 with arbitration); a pass is "no large regression".
 - F acts only from the second turn of a session on (the first sealed entry). c2 has a single turn
@@ -428,11 +482,94 @@ renders.
 - Host: cost and cache figures on 0.2.0-rc.2 are not comparable with the 2026-09-27 figures
   (0.1.7-rc.2), and F's effect here is measured against A + C, not against the old control.
 
-## 13. Frozen parameters and pilot
+## 13. Frozen parameters and pilot (pre-registration, committed before the batch)
 
-To be filled at the freeze commit: harness commit and tree, arms and tarballs, host, model,
-fingerprints after the warmup comparison, price sheet, budget and ledger state, the batch command
-and seed, the tasks tree, the pilot cells and any change made at the pilot.
+- **Harness:** code at `619703e` (`scripts/ab/` tree `da99d24`; tasks tree `00bae6a`, unchanged
+  since `8ce3e51`). The freeze commit that fills this section changes only this file, the text
+  of `scripts/ab/README.md` and `docs/ab/p110-f-2026-10-22/`; every batch manifest records the
+  commit it ran from (`harness_commit`), and
+  `git diff 619703e <that commit> -- scripts/ab ':!scripts/ab/README.md'` must be empty. The
+  warmup and the pilot ran on `ae7221a`, whose task, metric, validity and gate code equals
+  `619703e`'s: `619703e` changes only the isolation (§3.1, §11) and adds one validity reason (a
+  worktree change during the cell); all worktrees were clean after the pilot.
+- **Arms:** control `70e6e55`, F `f819bb3`; tarballs and sha256 in §2 and
+  `docs/ab/p110-f-2026-10-22/SHA256SUMS` (identical to `AB/vault/artifacts/SHA256SUMS`, checked
+  with `shasum -c` at the freeze).
+- **Host and model:** DSH 0.2.0-rc.2 (frozen copy; host tree digest `9f7289f19134…` at the start
+  and end of every batch so far); provider `deepseek-official`, model `deepseek-flash`,
+  `reasoningEffort` high, `maxTokens` 256000 (request headers of the warmup logs); sandbox
+  `workspace-write`, approval `ask`.
+- **Fingerprints:** §3, unchanged by the warmup: `run_ab.py fingerprints --compare` on `warm`
+  found no changed field and no delta mismatch, so `docs/ab/p110-f-2026-10-22/fingerprints.json`
+  stands (the §3 fallback was not needed). The pilot and `warm2` cells were validated against it.
+- **Price sheet:** §10 and `scripts/ab/prices.json`: peak miss $0.44/M, hit $0.014/M, out
+  $1.32/M (off-peak half of each); the budget prices every turn at peak.
+- **Budget:** `--budget-usd 10` over the single ledger `AB/vault/spend.jsonl`, which holds the
+  warmup, the pilot and the smoke run below: 28 turns, **$0.0582** at peak, no unpriced step;
+  reserve $0.75, margin $0.60, $0.05 per unpriced step, stop after 40 unpriced steps.
+- **Batch:** `python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks all --reps 3 --seed
+  20261022 --budget-usd 10 --batch p110f-20261022` (continued with `--resume` after a stop),
+  `--max-attempts 2`, fingerprints `AB/vault/fingerprints.json`, gates `scripts/ab/gates-f.json`.
+  Task order per rep is seeded by `20261022:<rep>`; control goes first in reps 1 and 3, F in rep 2.
+- **Arbitration** (only if §9 triggers it): the same command with `--seed 20261023 --batch
+  p110f-20261022-arb`, F first in reps 1 and 3; decided by `ab_report.py <batch> <arb> --pooled`.
+- **Tasks:** r1 `p110_r1_fixture_fp`, r2 `p110_r2_superseded_stamp`, r3 `p110_r3_runbook_middle`,
+  r4 `p110_r4_probe_compare`, r5 `p110_r5_initial_failures`, c1 `lh1_incremental_build`, c2
+  `m3_consistency_bugfix`, exactly as in the tasks tree above; no task changed at the pilot.
+- **Gates and decision:** §8, §9 and `scripts/ab/gates-f.json`, unchanged: the margins; minimum
+  valid pairs 17 of 21 (G1, G3, G4, G5, G6) and 10 of 15 (G2) per batch, 34 of 42 and 20 of 30
+  pooled; F ships only if every check passes with at least one unit of room; one arbitration
+  batch (all seven tasks, +3 reps, seed 20261023), no second.
+- **G2 exclusion:** as drafted in §7, a flagged call up to the exam turn drops the pair from G2
+  even when the access was denied. No change was asked for before the freeze. The pilot shows its
+  cost (r2 below); the r3 and r4 filler fix removed the cause of the 2026-09-27 searches in
+  those two tasks.
+
+### Warmup (paid, 09:15:19–09:15:33 UTC)
+
+`hello` x 2 reps x 2 arms, one cell at a time, `--fingerprints none` (harness `ae7221a`): 4/4
+cells valid and passed; step-1 cacheRead in rep 2: control 4,480, F 4,480 tokens (required
+≥ 4,000). In rep 1, control's request was the batch's first (0 hit) and F's, seconds later, hit
+4,480 (§12). 16 tools; system sha `46c592c8…`, slice-tool sha `4d9ca4cc…`, prefix 17,787 chars
+in both arms; no `/private` or `/Users` in any system prompt; the fingerprint comparison found
+no changed field and no delta mismatch. $0.0026 at peak.
+
+### Pilot (control only, harness `ae7221a`, 09:16:31–09:19:54 UTC)
+
+r1–r5 x 1 rep (the five recall tasks, on a host they had not run on, r3 and r4 with the filler
+fix). All five passed and were valid on the first attempt; every exam was recall-sourced; no
+leak, no oracle via the file system, no isolation breach, stray, quarantined entry or step-limit
+cut; every delivery turn carried its fact (r1 T1; r2 T2 and T4; r4 T1 and T2); the r3 T1 read
+was folded; tape headers 76 chars, tool lines in the long form.
+
+| task | pass | valid | G2-eligible | exam source | recall-tool errors | cross-turn `expand_result` first try | extra hops | wall | peak $ |
+|---|---|---|---|---|---|---|---|---|---|
+| r1 | yes | yes | yes | `expand_result`, its locator taken from a `recall_turn` dialogue view | 0 | 1 of 1 | 1 | 40 s | 0.0103 |
+| r2 | yes | yes | **no** (flag in T6, below) | `recall_step` of the T4 and T2 runs; the current value | 0 | – | 0 | 72 s | 0.0184 |
+| r3 | yes | yes | yes | `expand_result` with `grep` on the T1 read's tape locator | 1 (an invalid regex `(?i)…`, fixed by the next call) | 0 of 1 (2 calls) | 0 | 24 s | 0.0058 |
+| r4 | yes | yes | yes | `expand_result` x 3 on tape locators | 0 | 3 of 3 | 0 | 30 s | 0.0068 |
+| r5 | yes | yes | yes | `expand_result` x 3 and `recall_step` of T1 | 0 | 3 of 3 | 0 | 32 s | 0.0141 |
+
+- The r3 and r4 filler turns found `lib/slug.py` and `lib/fmt.py` in place; neither cell made a
+  call outside its workdir (0 flags), where 2026-09-27 models had searched the disk for them.
+- r2's exclusion: in the exam turn, after recalling the value with `recall_step`, the model ran
+  `find .. -maxdepth 4 -name 'service.env' -o -maxdepth 4 -name 'stamp.py'`, looking for the
+  sources deleted after T4. `..` is the cell root (its home and tmp), so the call is flagged
+  ("outside"); it found nothing. By §7 such a pair drops from G2. The behaviour is the model's
+  and the same in both arms, and control passes r2, so the task stays as it is (§5 step 5).
+- r3's recall error is an `expand_result` regex the tool rejects (inline `(?i)` flag); the next
+  call without it succeeded. It counts in G2b and as a failed first try in G6 for whichever arm
+  does it.
+- **Changes made at the pilot:** none to tasks, prompts, metrics or gates. The harness change
+  `619703e` came from the offline review (§11), not from the pilot. It was followed by a paid
+  smoke run `warm2` (`hello` x 1 x 2 arms on `619703e`, validated against the fingerprints,
+  09:34:01–09:34:10 UTC): 2/2 valid, step-1 cacheRead 4,480 in both arms, $0.0003.
+
+Spend so far: **$0.0582** at peak (warmup $0.0026, pilot $0.0553, smoke $0.0003), no unpriced
+step. The pilot's recall cells cost $0.006–0.018 ($0.011 mean); at the 2026-09-27 mean of $0.035
+per cell (c1 and c2 included) the 42-cell batch costs about $1.5 and an arbitration as much, well
+inside the cap. Per-cell records, without oracle tokens or answer text:
+[docs/ab/p110-f-2026-10-22/pilot.json](ab/p110-f-2026-10-22/pilot.json).
 
 ## 14. Results
 

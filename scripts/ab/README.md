@@ -70,17 +70,28 @@ removes everything else a cell could read:
   runs. `--parallel-arms` is refused.
 - **Blocked while a turn runs.** `$AB/vault` and the `scripts/` and `docs/` directories of every
   worktree under `$AB/wt` are `chmod 000` from just before the host starts until the turn's
-  process group and every process still carrying the cell's `DSH_HOME` are gone (a background job
-  the model started is killed). The worktree roots stay readable: with a root at mode 000, a
+  process group and every process still tied to the cell are gone (a background job the model
+  started is killed). A process is the cell's when its command line or environment names
+  `live/c-<id>` (its `DSH_HOME`, `TMPDIR`, `PWD` or a path argument) or its current directory lies
+  in the cell (`lsof -d cwd`), so a job that dropped `DSH_HOME` and `TMPDIR` and left the turn's
+  session is found too. The worktree roots stay readable: with a root at mode 000, a
   `git worktree prune` run by any other process in the main repository takes the worktree for
   missing and deletes its link, which happened once during the build. The harness reads the turn's
   stdout for the budget through a file it opened before blocking, and writes nothing into a
   blocked directory meanwhile. Turn stdout, stderr and patches are opened or read by path only
   outside that window, except the stdout the host writes through its inherited descriptor.
+- **Read-only while a turn runs.** `$AB` itself, `live/`, `patches/`, `patches/<batch>/`, `mock/`,
+  `wt/` and `host/` lose their write bits for the same window, so no file can be added there for a
+  later cell; the running cell's own root under `live/` stays writable. Contents below the first
+  level of `host/` and the worktrees' source trees are not covered by this; the host digest and the
+  worktree check below are.
 - **Tamper evidence.** The owner can chmod its own files, and the workspace-write sandbox allows
   writes under `/tmp`, where the A/B root lives. After each turn the harness checks that every
-  blocked path still has mode 000 and the inode and ctime it had right after blocking; a chmod,
-  chflags, rename or replacement is a breach, and the cell is invalid (`isolation breached …`).
+  blocked or read-only path still has its mode and the inode and ctime it had right after
+  blocking; a chmod, chflags, rename, replacement or new entry is a breach, and the cell is invalid
+  (`isolation breached …`). Between a cell's first and last turn, `git status` (untracked and
+  ignored entries included, bytecode excluded) of every worktree under `$AB/wt` must not change,
+  or the cell is invalid (`isolation: worktree … changed`).
 - **Per cell.** A fresh copy of the arm's template home (arm-neutral name `live/c-<id>/home`,
   installed from `plugin-<sha12>.tgz`, so neither `DSH_HOME` nor the profile's `package.json`
   names the arm), a private `TMPDIR`, and the r5 truth sidecar moved into the vault before the
@@ -88,25 +99,31 @@ removes everything else a cell could read:
   are packed into `vault/results/<batch>/workdirs/<wid>.tgz`, the home (session log included,
   key link removed) moves to `vault/results/<batch>/homes/`, and the cell root is removed.
 - **Quarantine.** New top-level entries of `$AB` that the harness did not create, and new
-  top-level entries of `$AB/..` and `/private/tmp` that the cell's own tool calls name, are moved
+  top-level entries of `$AB/..` and `/private/tmp` that the cell's own tool calls name (as a path,
+  or for a name of 6 or more characters as a bare word, as after `cd /tmp && mkdir x`), are moved
   into `vault/results/<batch>/quarantine/<cell>/` when the cell ends, so scratch files a model
   wrote outside its root cannot reach a later cell.
 - **Not covered.** Copies of this repository elsewhere on disk (the main checkout, other
   worktrees) hold the task definitions and oracles and stay readable; so do the owner's archives.
   Any access outside the workdir is flagged by path and the oracle's arrival by content (`ab_metrics`),
   as before. The cell's own session log in its home is readable too (the host writes it);
-  reading it is flagged (`sessions/`, `.zstd`) and caught by content.
+  reading it is flagged (`sessions/`, `.zstd`) and caught by content. A file written into a
+  directory that already existed elsewhere under `/tmp` (for example a sibling of `$AB`) survives
+  the cell, and a background process that strips its environment and also leaves the cell's
+  directory is not found; both need a tool call naming a path outside the workdir, which is flagged.
 
 `run_ab.py isolation-probe` proves the barrier on a dry run: it plants canaries in the other arm's
 template home, the A/B state, a manifest, a truth file and the worktrees' `scripts/` and `docs/`, adds the other arm's real
 finished session log, packed workdir, manifest, index, ledger and a task oracle, and runs one
 scripted cell per arm that reads them with bash, `read`, `glob` and `grep`, lists `$AB/live` and
-reads its own files, after starting two background jobs (one in its own session). It then runs one
-tamper cell per arm that chmods the vault open and back. Exit 0 only if every protected read was
-denied, no canary reached a tool result, the cell's own files were readable, `$AB/live` held only
-that cell, no process with the cell's `DSH_HOME` outlived the turn, and every tamper made its cell
-invalid. The
-report is `vault/results/<batch>/probe.json`.
+reads its own files, after starting three background jobs (one in its own session, one also
+without `DSH_HOME` and `TMPDIR`), trying to write a file into each read-only directory, and
+planting a directory in `/tmp` after a `cd`. It then runs one tamper cell per arm that chmods the
+vault open and back and leaves a file in a worktree's `src/`. Exit 0 only if every protected read
+was denied, no canary reached a tool result, the cell's own files were readable, `$AB/live` held
+only that cell, no process tied to the cell outlived the turn, every write was refused, the `/tmp`
+plant was quarantined, and every tamper made its cell invalid (both the chmod and the worktree
+file). The report is `vault/results/<batch>/probe.json`.
 
 After a crash while a turn ran, `run_ab.py unblock --ab-root $AB` restores the modes recorded in
 `$AB/.blocked.json`; `run` refuses to start while that file exists.
@@ -152,7 +169,7 @@ python3 $H/run_ab.py isolation-probe --ab-root $AB --arms control,F --target-bat
 python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks hello --reps 2 --budget-usd 10 \
   --fingerprints none --batch warm
 python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/warm --compare $AB/vault/fingerprints.json
-python3 $H/run_ab.py --ab-root $AB --arms control --tasks r3,r4 --reps 1 --budget-usd 10 --batch pilot
+python3 $H/run_ab.py --ab-root $AB --arms control --tasks r1,r2,r3,r4,r5 --reps 1 --budget-usd 10 --batch pilot
 python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks all --reps 3 --seed 20261022 \
   --budget-usd 10 --batch p110f-<yyyymmdd>                         # add --resume to continue
 python3 $H/ab_report.py $AB/vault/results/p110f-<yyyymmdd> \
@@ -182,14 +199,14 @@ writes it to a file.
    [--patch …/eval-offline.patch.yml] [--session-id SID] --json -` with the prompt on stdin,
    cwd = workdir, `TMPDIR` = the cell's tmp, stdout and stderr to
    `vault/results/<batch>/turns/<cell>.a<k>.t<n>.{jsonl,err}`; after the process exits, kill the
-   turn's process group and every process carrying the cell's `DSH_HOME`, check for tampering,
+   turn's process group and every process tied to the cell, check for tampering,
    unblock; then `hooks.after_turn(n, workdir)`.
 3. `verify(workdir)` (with the truth sidecar back in place) returns `(ok, detail[, info])`; the log
    is `home/sessions/*/<SID>/session.v4.jsonl.zstd`; `ab_metrics` adds the metrics row.
 4. Validity (see the doc): turn exits, log found, fingerprints, 16 tools, one turn per prompt, no
    host path in the system prompt, no compaction, tape header / tool-line form of the arm,
    structural checks (F: the request prefix equal to control's; headers 76/78 chars), no isolation
-   breach, the r3 fold, and for r1, r2 and r4 the delivery of the exam's fact in a non-recall tool
+   breach, no worktree change, the r3 fold, and for r1, r2 and r4 the delivery of the exam's fact in a non-recall tool
    result of its delivery turn (meta `delivery`). An invalid cell is rerun once (`--max-attempts 2`).
 5. Whatever the outcome (done, invalid, timeout, budget stop), the workdir with its truth sidecar
    and tmp is packed into `workdirs/<wid>.tgz`, the home moves into `homes/`, the cell root is
@@ -232,8 +249,8 @@ moves into the vault. `prepare` never creates it and refuses to rebuild a home t
 mirrors `~/.dsh-slicey/bin/slicey-dsh`: the inherited proxy variables plus `NODE_USE_ENV_PROXY=1`
 and `NODE_OPTIONS=--disable-warning=UNDICI-EHPA`, and `DSH_TELEMETRY_DISABLED=1` as the owner's
 login shell sets it; every other inherited `DSH_*` variable is removed. The manifest records
-variable names, never values. `kill_strays` matches the cell's `DSH_HOME=` in `ps -E` output and
-keeps only pids.
+variable names, never values. `kill_strays` matches the cell's `live/c-<id>` in `ps -E` output
+and in `lsof -d cwd` output and keeps only pids.
 
 The bash tool exports `DSH_HOME`, so a model could read `$DSH_HOME/.env` of its own cell home.
 `ab_metrics` flags any tool call naming `.env` (not a `*.env` glob or an attribute access), `DSH_HOME`
