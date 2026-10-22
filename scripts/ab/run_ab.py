@@ -22,7 +22,8 @@ Subcommands (system python3; stdlib only, plus zstandard through ab_metrics):
 
   run_ab.py isolation-probe --ab-root AB --arms control,F [--batch isoprobe] [--target-batch offline]
       Offline only. Plants canary files in every place a cell must not read (the other arm's template home and finished
-      cell homes with their session logs, the A/B state, manifests, truth files, packed workdirs, the worktrees) and
+      cell homes with their session logs, the A/B state, manifests, truth files, packed workdirs, the worktrees'
+      scripts/ and docs/) and
       runs one scripted probe cell per arm that tries to read them with bash, read, glob and grep; then one tamper cell
       per arm that chmods the vault open. Exit 0 only if every protected read was denied, no canary reached a tool
       result, the cell's own files were readable, and every tamper was detected (the cell invalid).
@@ -41,9 +42,10 @@ Subcommands (system python3; stdlib only, plus zstandard through ab_metrics):
 
 Isolation (docs/p110-f-native-ab.md §3): DSH's sandbox confines writes only, and every cell runs as the same user, so
 reads are confined with POSIX permissions instead. While any turn runs, AB/vault (template homes, finished cell homes and
-session logs, results, manifests, ledger, truth files, packed workdirs) and AB/wt (the worktrees: task oracles, docs) are
-mode 000, and no other cell exists: the only readable things under AB are the host, the offline adapter copy, the
-per-batch patches and the running cell's own root. After the turn the harness kills any process still carrying the
+session logs, results, manifests, ledger, truth files, packed workdirs) and the scripts/ and docs/ directories of every
+worktree under AB/wt (task oracles, self-checks, the A/B records) are mode 000, and no other cell exists: the only
+readable things under AB are the host, the offline adapter copy, the per-batch patches, the worktrees' source code and
+the running cell's own root. After the turn the harness kills any process still carrying the
 cell's DSH_HOME, checks that every blocked path still has mode 000 and an unchanged inode and ctime (a chmod, chflags,
 rename or replacement while blocked is a breach and makes the cell invalid), and only then unblocks.
 
@@ -98,6 +100,10 @@ REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 BIN_REL = os.path.join("host", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
 PROFILE = "ab"
 VAULT, LIVE, PATCHES, MOCK, WT = "vault", "live", "patches", "mock", "wt"
+# Inside each worktree under AB/wt only these hold task oracles (tasks, self-checks, test fixtures, the A/B records). The
+# worktree roots stay readable: with a root at mode 000, a `git worktree prune` run by any other process in the main
+# repository takes the worktree for missing and deletes its link (it happened once during the build, 2026-10-22).
+WT_BLOCKED = ("scripts", "docs")
 BLOCK_STATE = ".blocked.json"
 # The current experiment's gates (and arm structure); gates.json is the frozen file of the 2026-09-27 A/B.
 GATES_DEFAULT = os.path.join(HERE, "gates-f.json")
@@ -481,6 +487,15 @@ def kill_strays(marker):
         except ProcessLookupError:
             pass
     return killed
+
+
+def survivors(marker):
+    """How many processes still carry `marker` in their environment (pids only, never their environment)."""
+    try:
+        out = subprocess.run(["ps", "-axEww", "-o", "pid=,command="], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        return -1
+    return sum(1 for line in out.splitlines() if marker in line and not line.lstrip().startswith(str(os.getpid()) + " "))
 
 
 def top_entries(d):
@@ -1007,6 +1022,15 @@ def write_offline_adapter(ab):
     return os.path.join(d, "mock-llm.mjs")
 
 
+def worktree_blocks(ab):
+    """scripts/ and docs/ of every worktree under AB/wt (see WT_BLOCKED)."""
+    out = []
+    wt = os.path.join(ab, WT)
+    for name in sorted(os.listdir(wt)) if os.path.isdir(wt) else []:
+        out += [os.path.join(wt, name, sub) for sub in WT_BLOCKED if os.path.isdir(os.path.join(wt, name, sub))]
+    return out
+
+
 def load_gates(path):
     return load_json(path) or {}
 
@@ -1038,7 +1062,7 @@ def make_ctx(args, ab, tasks, offline, batch):
     no_fp = (getattr(args, "fingerprints", None) or "").lower() == "none"
     fp_path = None if no_fp else (getattr(args, "fingerprints", None) or vault(ab, "fingerprints.json"))
     gates = load_gates(getattr(args, "gates", None) or GATES_DEFAULT)
-    blocked = [vault(ab)] + ([os.path.join(ab, WT)] if os.path.isdir(os.path.join(ab, WT)) else []) + list(getattr(args, "block", None) or [])
+    blocked = [vault(ab)] + worktree_blocks(ab) + list(getattr(args, "block", None) or [])
     ctx = {
         "ab_root": ab, "bin": os.path.join(ab, BIN_REL), "tasks": tasks, "batch": batch, "batch_dir": batch_dir,
         "offline": offline, "resume": getattr(args, "resume", False), "max_attempts": getattr(args, "max_attempts", 2), "prices": prices,
@@ -1165,10 +1189,10 @@ def _probe_targets(ctx, arm, other_arms, target_batch):
     out.append((vault(ab, "probe-canary.txt"), "A/B state root", True))
     out.append((os.path.join(ctx["batch_dir"], "manifest-probe-canary.json"), "run manifest", True))
     out.append((os.path.join(ctx["batch_dir"], "truth", "w-probecanary.truth.json"), "truth file", True))
-    if os.path.isdir(os.path.join(ab, WT)):
-        out.append((os.path.join(ab, WT, "probe-canary.txt"), "worktrees", True))
-        for p in sorted(glob.glob(os.path.join(ab, WT, "*", "scripts", "ab", "tasks", "p110_r4_probe_compare", "meta.json")))[:1]:
-            out.append((p, "task oracle in a worktree", None))
+    for d in worktree_blocks(ab):
+        out.append((os.path.join(d, "probe-canary.txt"), "worktree " + os.path.relpath(d, os.path.join(ab, WT)), True))
+    for p in sorted(glob.glob(os.path.join(ab, WT, "*", "scripts", "ab", "tasks", "p110_r4_probe_compare", "meta.json"))):
+        out.append((p, "task oracle in a worktree", None))
     tb = vault(ab, "results", target_batch)
     cells = [load_json(p) or {} for p in sorted(glob.glob(os.path.join(tb, "cells", "*.json")))]
     for p in sorted(glob.glob(os.path.join(tb, "manifest-*.json")))[-1:]:
@@ -1193,6 +1217,8 @@ def _probe_targets(ctx, arm, other_arms, target_batch):
         if os.path.exists(vault(ab, name)):
             out.append((vault(ab, name), "A/B state", None))
     out.append((vault(ab), "A/B state root (listing)", None))
+    for d in worktree_blocks(ab):
+        out.append((d, "worktree " + os.path.relpath(d, os.path.join(ab, WT)) + " (listing)", None))
     out.append((vault(ab, "homes"), "template homes (listing)", None))
     return out
 
@@ -1222,6 +1248,10 @@ def probe_builder_for(mode, target_batch, arms):
             canary = targets[[t["class"] for t in targets].index("A/B state root")]
             lines.append(f"BASH: chmod 755 '{v}' && cat '{canary['path']}'; chmod 000 '{v}'")
         else:
+            # background jobs that outlive the bash call, one in its own session (beyond the turn's process group):
+            # both must be gone before the vault is readable again
+            lines.append("BASH: nohup sleep 600 >/dev/null 2>&1 &")
+            lines.append("BASH: python3 -c 'import os, sys, time; os.fork() and sys.exit(0); os.setsid(); time.sleep(600)' >/dev/null 2>&1 &")
             lines.append("BASH: for p in " + quoted + "; do if out=$( (if [ -d \"$p\" ]; then ls -la \"$p\"; else head -c 400 \"$p\"; fi) 2>&1); "
                          "then printf 'READ-OK %s %s\\n' \"$p\" \"$(printf %s \"$out\" | tr '\\n' ' ' | head -c 300)\"; "
                          "else printf 'DENIED %s %s\\n' \"$p\" \"$(printf %s \"$out\" | tr '\\n' ' ' | head -c 160)\"; fi; done")
@@ -1231,8 +1261,8 @@ def probe_builder_for(mode, target_batch, arms):
                     lines.append("READ: " + t["path"])
             lines.append("GLOB: " + vault(ctx["ab_root"]))
             lines.append("GREP: " + vault(ctx["ab_root"]))
-            if os.path.isdir(os.path.join(ctx["ab_root"], WT)):
-                lines.append("GREP: " + os.path.join(ctx["ab_root"], WT))
+            for d in worktree_blocks(ctx["ab_root"]):
+                lines.append("GREP: " + d)
             lines.append("READ: probe-own.txt")
         public = {"mode": mode, "targets": targets, "own_canary": own, "cell_root": cell_root, "live": os.path.join(ctx["ab_root"], LIVE)}
         ctx.setdefault("probe_specs", {})[(meta["alias"], arm)] = public
@@ -1263,8 +1293,11 @@ def probe_evaluate(ctx, meta, cell, events):
     live_ok = live_names == [os.path.basename(spec.get("cell_root", ""))]
     tool_errors = [ab_metrics.text_of((e.get("data") or {}).get("message"))[:200] for e in events
                    if e.get("type") == "tool/result" and ((e.get("data") or {}).get("message") or {}).get("isError")]
+    strays = sum(max((t.get("isolation") or {}).get("strays_killed") or 0, 0) for t in cell["turns"])
+    left = survivors("DSH_HOME=" + cell["home"])
     return {"mode": "read", "targets": rows, "own_files_readable": own_ok, "live_shows_only_this_cell": live_ok and bool(live_listing),
-            "live_entries": live_names, "tool_errors": tool_errors, "ok": ok and own_ok and live_ok}
+            "live_entries": live_names, "tool_errors": tool_errors, "strays_killed": strays, "processes_left": left,
+            "ok": ok and own_ok and live_ok and left == 0}
 
 
 def cmd_probe(args):
