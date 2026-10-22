@@ -9,7 +9,7 @@ import * as SpillPolicy from '@deepseek-ai/dsh-spill-policy'
 import { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { isAppendSurfaceEvent, isReplacementSurfaceEvent, SessionId } from '@deepseek-ai/dsh-session'
 import { FOLD_STATS } from '../src/fold/index.js'
-import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
+import { nativeHarness, nativeSend, nativeText, nativeTool, presentPerStep, type NativeHarness } from './native-harness.js'
 import { FixtureCodeRuntime } from './fixture-code-runtime.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => i % 10 === 0 ? `section_${i / 10}: heading` : `row ${i} payload ${'x'.repeat(30)}`).join('\n')
@@ -62,7 +62,7 @@ async function boot(program: string, spill: boolean, body = BIG) {
   }
   h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: body }] }))
   const { agent } = await h.ctx.agents.create({ sessionId: SessionId(`code-${program}-${spill}`), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
-  agent.ctx.tools.presentAs('both')
+  presentPerStep(h, agent)
   await nativeSend(agent, 'read then recover its omitted evidence')
   expect(h.errors).toEqual([])
   // Session format V4: each result reaches the model as its own tool-role message.
@@ -90,7 +90,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
     await h.ctx.plugin(DistinctRuntime)
     h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: BIG }] }))
     const { agent } = await h.ctx.agents.create({ sessionId: SessionId('distinct-nested'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
-    agent.ctx.tools.presentAs('both')
+    presentPerStep(h, agent)
     await nativeSend(agent, 'recover both originals')
     expect(h.errors).toEqual([])
     expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 2, folded: 2, backedOff: ['["read","path","data.txt"]'] })
@@ -173,7 +173,7 @@ describe('nested recovery preserves only forwarded evidence', () => {
     await h.ctx.plugin(ReusedRuntime)
     h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'read', parameters: { file_path: { type: 'string' } }, execute: async () => [{ type: 'text', text: BIG }] }))
     const { agent } = await h.ctx.agents.create({ sessionId: SessionId('reused-ids'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
-    agent.ctx.tools.presentAs('both')
+    presentPerStep(h, agent)
     await nativeSend(agent, 'first')
     await nativeSend(agent, 'second')
     expect(FOLD_STATS.get(agent.session)).toMatchObject({ expanded: 4, backedOff: [] })

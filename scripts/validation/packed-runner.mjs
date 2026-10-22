@@ -160,7 +160,7 @@ export function apply(ctx, config) {
     assert.notEqual(recallResult.data.message.isError, true, 'recall_turn must succeed')
     assert.ok(JSON.stringify(recallResult).includes('First packed request'))
     // Sealed tool lines cite durable results by numeric seq in the host's
-    // current session format; both supported hosts (0.1.7-rc.2 and 0.2.0-rc.2) write V4.
+    // current session format; both supported hosts (0.2.0-rc.2 and 0.2.1-rc.2) write V4.
     assert.equal(sessions.SESSION_FORMAT_VERSION, 4, 'the supported hosts write session format V4')
     const locator = `expand_result(${JSON.stringify({ seq: recallResult.seq, formatVersion: sessions.SESSION_FORMAT_VERSION })})`
     assert.ok(tapeNodes(before).some(seq => JSON.stringify(sessions.deriveEventMessage(before[seq])).includes(JSON.stringify(locator).slice(1, -1))), 'the sealed tool line must cite the recall result with a V4 seq locator')
@@ -180,9 +180,7 @@ export function apply(ctx, config) {
     assert.deepEqual(finalEvents[firstEntrySeq], firstEntry)
     assert.equal(tapeNodes(finalEvents).length, 3, 'resume must seal the previous completed turn')
     checkDialogue(finalEvents)
-    const shim = await import(pathToFileURL(createRequire(new URL('./home/profiles/slice-packed/package.json', import.meta.url)).resolve('@dsh-external/dsh-slice-agent-loop/invariant')).href)
-    assert.equal(typeof shim.apply, 'function', 'the exported invariant compatibility shim must load')
-    const summary = { invariantSubpathLoaded: true, status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, sessionFormatVersion: sessions.SESSION_FORMAT_VERSION, nativeSystemMessageRetained: true, systemPromptNodeZero: true, runtimeContextSource: true, tapeSourceKind: 'plugin:slice:history', frozenTapeRetained: true, originalUserNodeRetained: true, completeAssistantTextsRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
+    const summary = { status: 'passed', dsh: host('@deepseek-ai/dsh/package.json').version, requests: requests.length, turns: 4, persistenceReload: true, adapterEffortInherited: true, sessionFormatVersion: sessions.SESSION_FORMAT_VERSION, nativeSystemMessageRetained: true, systemPromptNodeZero: true, runtimeContextSource: true, tapeSourceKind: 'plugin:slice:history', frozenTapeRetained: true, originalUserNodeRetained: true, completeAssistantTextsRetained: true, tapeEntries: tapeNodes(finalEvents).length, replacements: finalEvents.filter(sessions.isReplacementSurfaceEvent).length, errors }
     await mkdir(config.outputDir, { recursive: true })
     await writeFile(join(config.outputDir, 'requests.json'), JSON.stringify(requests, null, 2) + '\n')
     await writeFile(join(config.outputDir, 'events.json'), JSON.stringify(finalEvents, null, 2) + '\n')

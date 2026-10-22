@@ -2,7 +2,7 @@
 
 DSH 原生 agent loop 上的切片上下文策略：每轮第一步把已完成轮中可封存的助手／工具段替换成冻结的 tape 条目，保留原生上下文来源与原日志召回能力。本表是项目的规范词汇——输出（issue 标题、提案、测试名）用这里的词。
 
-> 2026-09-21 校准至默认保留对话的现役实现：`src/context.ts` 的 `planSeal` / `sealCompletedTurns`、`src/context-reads.ts` 的读取观察，以及 `src/index.ts` 的 `KERNEL` 与 `history.*`。压力归档和自建渲染器均已退役。2026-09-25 校准至 DSH 0.1.7 的会话格式 V4：工具结果是 tool 角色消息，消息来源直接写 kind，system prompt 是 surface 第 0 个节点。V4 契约与旧会话续跑见 [DSH 0.1.7 兼容说明](docs/dsh-0.1.7-compatibility.md)。2026-10-13 起现役宿主是 DSH 0.2.0-rc.2，同时支持 0.1.7-rc.2；会话格式仍是 V4，本表词汇不变。宿主变化与升级步骤见 [DSH 0.2.0 兼容说明](docs/dsh-0.2.0-compatibility.md)。
+> 2026-09-21 校准至默认保留对话的现役实现：`src/context.ts` 的 `planSeal` / `sealCompletedTurns`、`src/context-reads.ts` 的读取观察，以及 `src/index.ts` 的 `KERNEL` 与 `history.*`。压力归档和自建渲染器均已退役。2026-09-25 校准至 DSH 0.1.7 的会话格式 V4：工具结果是 tool 角色消息，消息来源直接写 kind，system prompt 是 surface 第 0 个节点。V4 契约与旧会话续跑见 [DSH 0.1.7 兼容说明](docs/dsh-0.1.7-compatibility.md)。2026-10-22 起现役宿主是 DSH 0.2.1-rc.2，同时支持 0.2.0-rc.2，不再支持 0.1.7-rc.2；会话格式仍是 V4，本表词汇不变。宿主变化、升级步骤，以及 0.2.1 写入过 job 事件的会话为何不能回到 0.2.0，见 [DSH 0.2.1 兼容说明](docs/dsh-0.2.1-compatibility.md)，0.2.0-rc.2 宿主见 [DSH 0.2.0 兼容说明](docs/dsh-0.2.0-compatibility.md)。
 
 ## Language
 

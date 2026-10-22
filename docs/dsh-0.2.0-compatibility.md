@@ -1,5 +1,7 @@
 # DSH 0.2.0 compatibility
 
+> Historical for the build, current for the host. The current build (plugin version 0.3.0) targets DSH 0.2.1-rc.2 and also admits 0.2.0-rc.2: see [DSH 0.2.1 compatibility](dsh-0.2.1-compatibility.md) for the supported hosts, the upgrade procedure and the current evidence. What this file says about the 0.2.0-rc.2 host (its contracts, request prefix, composition and deployment behaviour) still applies to it, with two exceptions: the `./invariant` export and the invariant rows below no longer exist in this repository, and the rollback statement under [Deploying this build](#deploying-this-build) does not hold for sessions a 0.2.1 host has written jobs into. The support statement, the peer range and the verification record describe the 0.2.0 build, last at main `70e6e55`.
+
 The plugin targets **0.2.0-rc.2** and also supports **0.1.7-rc.2**. On 2026-10-13, npm's `latest` and `next` tags for `@deepseek-ai/dsh` both resolved to 0.2.0-rc.2 (published 2026-09-29). The `alpha` tag resolved to 0.2.1-alpha.2, which this build does not support. Development dependencies pin 0.2.0-rc.2 exactly, and the peer range is the exact list `0.1.7-rc.2 || 0.2.0-rc.2`. 0.1.7-rc.2 stays in the range so that a deployment can roll its host back without repacking the plugin. 0.1.7-rc.1 is no longer admitted; the last build that admits it is main at `8e3b7a3` (plugin version 0.1.0).
 
 This build is plugin version **0.2.0**. The host bump itself needed no plugin source change. The only `src/` and `lib/` difference from the 0.1.0 build is the P1-10 teaching-text change (A + C in [the native A/B record](p110-native-ab.md), §14.12): the tape entry legend is shorter and each recall rule is taught in one place. It ships here because the host bump changes the request prefix anyway. The version moved because `dsh plugin add` does not reinstall a tarball whose name and version are already installed (see [Deploying this build](#deploying-this-build)). Session format is still V4. The V4 contracts, V3 session resume and the rules for old numeric locators are in the [0.1.7 notes](dsh-0.1.7-compatibility.md) and apply unchanged.
@@ -117,6 +119,8 @@ Not covered by this record: CI on Linux and on Node 22.19.0 and 24.x has not run
 - **Do not paper over a stale install with `dsh plugin allow-version`.** The skip line suggests it, but the exemption is keyed on the plugin's name and version and keeps the peer check off for every later build with that version.
 
 ## The next host line: 0.2.1
+
+> Superseded by [DSH 0.2.1 compatibility](dsh-0.2.1-compatibility.md), which records what 0.2.1-rc.2 actually changed and how this repository was ported. The text below is the heads-up written on 2026-10-13.
 
 0.2.1 is on npm's `alpha` tag (0.2.1-alpha.2, published 2026-10-09). It is not a target of this build, the exact peer list keeps it out, and the weekly workflow does not probe `alpha`. What is known from the upstream tags and upgrade guides, read on 2026-10-13 and not tested:
 

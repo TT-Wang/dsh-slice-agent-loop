@@ -1,5 +1,5 @@
 // offline/experimental — not on the runtime path. Nothing under src/lab is reachable
-// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// from the published entry points (src/index.ts, src/fold/index.ts);
 // tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /**
  * state-ledger.ts — 世界状态循环(World-State Loop)的纯函数层。

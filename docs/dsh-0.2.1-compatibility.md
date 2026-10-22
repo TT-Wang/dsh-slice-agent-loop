@@ -1,0 +1,155 @@
+# DSH 0.2.1 compatibility
+
+The plugin targets **0.2.1-rc.2** and also supports **0.2.0-rc.2**. On 2026-10-22, npm's `latest` and `next` tags for `@deepseek-ai/dsh` both resolved to 0.2.1-rc.2 (published 2026-10-17), and `alpha` resolved to 0.2.1-alpha.5. Development dependencies pin 0.2.1-rc.2 exactly, and the peer range is the exact list `0.2.0-rc.2 || 0.2.1-rc.2`. 0.2.0-rc.2 stays in the range because the live deployment runs it: this build can be installed there before the host switch, and the host can be rolled back afterwards without repacking (for which sessions that works, see [Session format and rollback](#session-format-and-rollback)). **0.1.7-rc.2 is no longer admitted**; the last build that admits it is plugin version 0.2.0, main at `70e6e55`.
+
+This build is plugin version **0.3.0**. Slice's own behaviour did not change: under `src/`, `src/invariant.ts` is gone and the header comments of `src/lab/` (which is not built) no longer name it; nothing else changed. The rebuilt `lib/` differs from the 0.2.0 build only by `lib/invariant.js` and `lib/types/invariant.d.ts`. The package's `./invariant` export is removed (see [Runtime invariants removed](#runtime-invariants-removed)), which is a breaking change and the reason for the minor version. The version had to move anyway, because `dsh plugin add` does not reinstall a tarball whose name and version are already installed. Session format is still V4; the V4 contracts and locator rules in the [0.1.7 notes](dsh-0.1.7-compatibility.md) apply unchanged. The 0.2.0-rc.2 host is described in the [0.2.0 notes](dsh-0.2.0-compatibility.md), which stay accurate for that host.
+
+## What changed for a plugin between 0.2.0-rc.2 and 0.2.1-rc.2
+
+This section was read from the upstream tags `dsh-v0.2.0-rc.2` (`639ed01`) and `dsh-v0.2.1-rc.2` (`687f282`), 1925 commits apart, and from upstream's upgrade guides under `docs/upgrade-guide/`, on 2026-10-22.
+
+The 0.2.0 build (main `70e6e55`) passed **315 of 342** tests against the 0.2.1-rc.2 source. The 27 failures were in `tests/host-format-upgrade.spec.ts` (10), `tests/fold-code-dispatch.spec.ts` (7), `tests/recall-v4-results.spec.ts` (5), `tests/native-context.spec.ts` (3), `tests/read-provenance.spec.ts` (1) and `tests/tape-protected.spec.ts` (1). None was in slice's code. Each came from a test fixture that relied on a 0.2.0 host contract; the next three subsections give the causes and the fixes. The fourth covers a type change that broke the typecheck against 0.2.1 but none of the 27. With those fixes the suite passes 342 of 342 against both hosts' sources and against the published 0.2.1-rc.2 packages (see [Verification recorded on 2026-10-22](#verification-recorded-on-2026-10-22)).
+
+The hooks and services slice relies on (`agent/pre-step`, `agent/request`, `tools/result`, `tools/post-execute`, tool registration, system-prompt sections, the spill store, model-info lookup) kept their names and payloads. Surface replacement rules, message source kinds, the system prompt as node 0, the runtime-context source kind, JSONL migrations and the PTC dispatch events are the same. Two imports did not survive: the 0.2.0 build and the heap-growth benchmark that main gained in PR #19 used the invariant modules and the JSONL default export, which 0.2.1 no longer has (both covered below). On this branch every value that `src/`, `tests/` and `scripts/` import from a DSH package exists at 0.2.1-rc.2. The four typechecks resolve those imports against the published 0.2.1-rc.2 declarations. The packed smoke runner and the A/B mock adapter, which load host modules at run time, ran on it.
+
+### Runtime invariants removed
+
+0.2.1 publishes neither `@deepseek-ai/dsh-invariants` nor any `<package>/invariant` subpath (upstream `f028f25667`; guide `v0.2.0-rc.2/remove-runtime-invariants`). npm has no 0.2.1 version of `@deepseek-ai/dsh-invariants`. A profile row that names one of those modules fails to load, and nothing replaces them. For this repository:
+
+- **The `./invariant` export is removed.** It re-exported `@deepseek-ai/dsh-agent-loop/invariant`. On a 0.2.1 host that import fails with `ERR_PACKAGE_PATH_NOT_EXPORTED`, and against the 0.2.1 type declarations the build fails with TS2307. On 0.2.0-rc.2, a profile that named `@dsh-external/dsh-slice-agent-loop/invariant` can name `@deepseek-ai/dsh-agent-loop/invariant` instead: the export was that same plugin, so the rest of such a profile, including its `@deepseek-ai/dsh-invariants` row, stays as it is. A fallback that loads nothing on 0.2.1 was not kept, because it would make a 0.2.1 profile look checked when nothing checks it. No shipped composition and not the live deployment mounted this export.
+- **The development dependency on `@deepseek-ai/dsh-invariants` is dropped.**
+- **The test suite keeps the check it relied on.** Every native-loop test mounted the agent-loop invariant, so a request that differed from its session's durable derivation failed the turn. `tests/request-reconstruction.ts` restates that 0.2.0-rc.2 check: a loop-built request must be frozen, name a live session that has a `step/start` and a `request/header`, carry exactly `session.deriveMessages()`, and match the folded header's model, sampling fields and tools. `tests/native-harness.ts` and `tests/fold-plugin.spec.ts` mount it on both hosts. The tamper test in `tests/native-context.spec.ts` now targets this check under a new name. The session invariant (relational checks on the event log) is not restated; upstream dropped it with the rest.
+- **The packed smoke mounts no invariant rows** and no longer imports the `./invariant` shim. Its runner already compares every request with the durable surface and header itself.
+- **The heap-growth benchmark** (`scripts/bench/heap-growth.mts`) mounts the same test-owned check instead of the three stock plugins, takes `JsonlPersistence` from the native harness, and reads the DSH and plugin versions it records from the installed packages. The [2026-10-22 heap record](heap-growth-2026-10-22.md) was measured on 0.2.0-rc.2 with the stock plugins. Its CPU and wall-time figures with invariants on are therefore not comparable with later runs.
+
+Before this change the source run hid most of the removal. `scripts/validation/run-master-tests.mjs` aliased only the modules in the checkout's `tsconfig.base.json` paths, so the three invariant imports loaded this repository's 0.2.0-rc.2 copies from `node_modules`. `tests/fold-plugin.spec.ts` passed with invariants that never fired (they check only requests marked through their own 0.2.0 copy of `dsh-llm`, and the 0.2.1 loop marks requests through its own), and the tamper test failed on its assertion instead of at import. The script now maps any `@deepseek-ai/dsh*` module the checkout does not provide to a path that does not exist, so such an import fails to load.
+
+### JSONL persistence is a namespace plugin
+
+`@deepseek-ai/dsh-session-persistence-jsonl` has no default export any more (upstream `dfca3c3c6f`; guide `v0.2.1-alpha.1/jsonl-persistence-plugin`). The module itself is the plugin (`name`, `Config`, `apply`), and `import X from` gives `undefined`, which cordis rejects with `invalid plugin, expect function or object with an "apply" method, received undefined`. That accounted for 13 of the 27 failures: all 10 in `tests/host-format-upgrade.spec.ts`, 2 in `tests/native-context.spec.ts` and 1 in `tests/tape-protected.spec.ts`. `tests/native-harness.ts` now exports `JsonlPersistence` as `default ?? namespace`, which is the class on 0.2.0 and the namespace on 0.2.1. A profile row that names the package loads either shape, so deployments are not affected.
+
+### run_code needs a working-directory service
+
+The new `@deepseek-ai/dsh-working-directory` service owns each session's current directory (upstream `79bd3d8da7`; guide `v0.2.1-alpha.1/working-directory`). An Agent-owned `run_code` call asks `ctx.workingDirectory.ensure(agent)` for its directory before the program runs, and without the service it fails with `dsh-tools: run_code with an Agent requires workingDirectory`. dsh-base mounts the service; the test harness did not. No fixture program ran, so 13 tests saw no nested `expand_result`, no `tool/ptc-dispatch` event and no nested evidence: 7 in `tests/fold-code-dispatch.spec.ts`, 5 in `tests/recall-v4-results.spec.ts` and 1 in `tests/read-provenance.spec.ts`. The harness now mounts `FixtureWorkingDirectory` (in `tests/fixture-code-runtime.ts`), which returns the process directory; 0.2.0 never reads it. The real service cannot be mounted on both hosts, because the package does not exist at 0.2.0-rc.2.
+
+The same release gives `PtcRuntime` a `programFormat` getter and a `release(owner)` method, and `run_code` releases an Agent's state when the Agent is disposed. `FixtureCodeRuntime` now has both, with the base class defaults (`'function-body'` and a resolved promise). Without them the suite still passed.
+
+The service also changes what a real session carries. It contributes a required runtime-context entry, so every runtime-context snapshot now has a `Current working directory: "<path>"` paragraph right after its header line, and it records a `working-directory/change` event when the directory changes. dsh-base adds a `working_directory` tool. Slice handles the entry like any runtime-context content and needs no change. The [composition section](#request-prefix-and-composition) has the consequences for the request prefix.
+
+### Tool presentation is native or ptc
+
+`tools.presentAs()` and the tools `mode` accept only `native` and `ptc` (guide `v0.2.1-alpha.1/tool-presentation-mode`); `both` is rejected in configuration and is a type error in code. `native` hides `run_code`, and `ptc` refuses every direct call except `run_code`. Upstream's note says an agent now uses one invocation form. Five tests called `presentAs('both')`. `tests/read-provenance.spec.ts` only ever calls `run_code`, so it presents `ptc`. `tests/fold-code-dispatch.spec.ts` and `tests/recall-v4-results.spec.ts` interleave direct calls with `run_code` in one session, as a 0.2.0 `both` session left them in its log. The new `presentPerStep()` helper in `tests/native-harness.ts` switches between the two supported modes when a step ends, according to the next scripted response, so each request lists exactly the tools its step calls. The loop assembles a step's tools and system prompt before `agent/pre-step`, so a switch made inside `agent/pre-step` would only reach the next request. Each switch adds a tool-registry `developer/message` and a system-prompt replacement to those logs, as a real change of presentation would. No assertion changed.
+
+### Smaller changes that need no plugin change
+
+- **Admission.** The peer rule is unchanged when a package has no `engines.dsh`: every `@deepseek-ai/dsh` and `@deepseek-ai/dsh-*` peer range must contain the host version (`semver.satisfies` with `includePrerelease`). New since 0.2.1-alpha.3: a package's own `engines.dsh` range, when present, decides on its own and the peers are ignored (guide `v0.2.1-alpha.3/plugin-engines-dsh`). This package declares no `engines.dsh`, because 0.2.0 hosts, `check:peers` and `pnpm peers check` read only the peers. Refusals now print `requirements {...}` where 0.2.0 printed `peerDependencies {...}`. `dsh plugin add` on 0.2.1 rejects an incompatible package outright: adding the 0.2.0 build printed `dsh: installation rejected: Plugin @dsh-external/dsh-slice-agent-loop@0.2.0 is incompatible with dsh 0.2.1-rc.2: requirements {...}` and `dsh: restored package.json, pnpm-lock.yaml, and node_modules.`, and exited 1. A profile that already holds an incompatible bundle is still skipped at load with `dsh: skipping profile bundle "<name>": Error: Plugin <name>@<version> is incompatible with dsh 0.2.1-rc.2: requirements {...}`.
+- **Loop timing.** The pre-step fallback now projects the runtime-context snapshot inside `next()`, and at request admission the loop calls `systemPrompt.refreshContext()`, which re-renders the pending runtime-context candidate in place. Both slice listeners call `next()` first and never add or remove that message, so they see the same messages as before.
+- **PTC dispatch events.** `tool/ptc-dispatch` gains an optional `meta` field. Slice's readers ignore it.
+- **Deprecated log reads.** `Session.eventAt()`, `snapshotEvents()` and `ownEvents()` are still exported and still marked `@deprecated` ("new calls are prohibited"). Sealing, folding and every recall tool use them. Expect a later release to remove them.
+- **cordis.** 4.0.4 to 4.0.5 is a version bump only (no source change in `vendor/cordis/src`). The 0.2.1 packages want `@deepseek-ai/cordis ~4.0.5`, `cordis-plugin-include ~1.0.10` and `cordis-plugin-group ~1.0.5`. The cordis peer of this package stays `~4.0.4`, which 4.0.5 meets; host admission does not check cordis.
+- **CLI.** `dsh plugin` reads `--profile` only before the forwarded pnpm arguments; every command in this repository already puts it there. `--from-default-profile` now replaces an existing custom profile instead of refusing; never run it against a deployment profile.
+
+### Session format and rollback
+
+`SESSION_FORMAT_VERSION` is 4 at both tags, and 0.2.1 reads 0.2.0 logs. 0.2.1 adds three event types that are required (not ignorable): `working-directory/change`, `job/registered` and `job/settled`. 0.2.1 writes the job pair for every job, and every `bash` call is one. 0.2.0-rc.2 refuses a log that contains an event type it does not know. So:
+
+- **Forward is safe.** A session written on 0.2.0-rc.2 by this build (one offline A/B turn) resumed on 0.2.1-rc.2 with exit 0 and empty stderr. The first 0.2.1 request sealed turn 1 into a tape entry, logged one `request/header` with reason `resume` and 16 tools, and wrote a new runtime-context snapshot that names the working directory.
+- **Rollback is per session.** A session that ran one 0.2.1 turn with one `bash` call could not be reopened on 0.2.0-rc.2. The host exited 1 with `dsh: failed to observe session "<id>": session "<id>" contains event type "job/registered" (seq 15) unknown to this harness and not marked ignorable; refusing to interpret the log — it was likely written by a newer harness`. Rolling the host back therefore works for new sessions, and for an existing session only if 0.2.1 wrote none of the three new event types into it; a single `bash` call writes the job pair. Otherwise restore the session's files from before the switch, which loses the 0.2.1 turns, or start a new session. This weakens the [0.2.0 rollback statement](dsh-0.2.0-compatibility.md#deploying-this-build), which assumed both hosts read and write the same file.
+
+### Request prefix and composition
+
+Measured with the offline A/B harness (dsh-base, dsh-headless and this build, scripted model, the parity overlay in `scripts/ab/profile/eval-parity.patch.yml`) on both published hosts:
+
+| | 0.2.0-rc.2 | 0.2.1-rc.2 |
+| --- | --- | --- |
+| request prefix | 17787 characters | 17974 characters |
+| tool schemas | 14136 characters | 14323 characters |
+| system prompt | 3651 characters | 3651 characters, same hash |
+| slice tool schemas | 5266 characters | 5266 characters, same hash |
+| tools | 16 | 16 (17 without the parity row below) |
+
+The 187 extra characters are the host's own tool descriptions: `bash` +57, `edit` +75, `write` +55. On the first request of every resumed session after the switch, the tools header changes, so that request misses the provider cache once in full. The runtime-context snapshot changes too, because it now names the working directory. Cost and cache figures recorded on 0.2.0-rc.2 or 0.1.7-rc.2 are not comparable with runs on 0.2.1-rc.2.
+
+dsh-base 0.2.1 adds the `working_directory` tool (row `tool-working-directory`). The parity overlay now disables that row to keep the 16-tool set; on 0.2.0-rc.2, where the row does not exist, `--dump-config` prints one `patch: entry "tool-working-directory" not found` line and applies the rest. [scripts/ab/README.md](../scripts/ab/README.md) has the other host notes for the harness.
+
+The Web composition changes more. These points were read from upstream's patch files and were not measured here:
+
+- dsh-web-app drops `personaSuffix: Your working directory is {{cwd}}.`, and the loop no longer registers the `{{cwd}}` prompt variable. The Harness checkout path and the Web URL move from the system prompt into optional runtime context. So on the first 0.2.1 turn the system prompt is replaced once.
+- The standard, ptc and cordis presets of dsh-web-app add `time-context`, a user-role clock reading (source kind `time-context`, at most every 10 minutes by default), and `tool-schedule` (`schedule_create`, `schedule_delete`, `schedule_list`, `schedule_update`). dsh-web-app also adds `schedule`, `ui-schedule`, `harness-dev-context`, `ui-secret-mask` and `ui-deepseek-model-label-1017`; dsh-base adds `remote-access`, `working-directory`, `tool-working-directory` and `web-deepseek-api`, and drops `skill-badge` and `tool-ralph`.
+- Time readings and working-directory change notices are user-role messages that slice did not write. Like every such message, they stay raw at their nodes and can split a turn's seal into several entries.
+- Stored credentials now take precedence over environment variables, and `.env` files come last (guide `v0.2.1-alpha.2/stored-credentials-precedence`).
+
+## Before upgrading the host
+
+Before bumping the pinned packages to a new host tag, run the whole plugin suite against that tag's source. This finds host contract changes while the upgrade is still a decision: the 0.1.5-rc.1 source failed 97 tests on 2026-09-13, the 0.1.6-alpha.2 source failed 9 PTC tests on 2026-09-21, the 0.2.0-rc.2 source passed all 342 on 2026-10-13, and the 0.2.1-rc.2 source failed 27 on 2026-10-22 (see above). The step is manual; no CI job runs it. The weekly Peer compatibility workflow (`.github/workflows/compat.yml`) installs npm's `next` tag for the `@deepseek-ai/dsh*` packages and fails once `next` falls outside the declared peer range, which is the usual signal that a new tag needs this check. For 0.2.1-rc.2 the scheduled run of 2026-10-19 failed at `pnpm peers check`.
+
+The steps are for macOS and Linux. They need git, pnpm, a supported Node installation that ships its headers in `<node prefix>/include/node` (the native build stops and names that path when they are missing), and a C compiler for the host's native addon: `cc`, or `musl-gcc` on musl Linux. Clone the target tag and prepare it:
+
+```sh
+TAG=dsh-v0.2.1-rc.2
+HARNESS_SOURCE_CHECKOUT="$HOME/src/deepseek-harness-$TAG"
+git clone --depth 1 --branch "$TAG" https://github.com/deepseek-ai/deepseek-harness.git "$HARNESS_SOURCE_CHECKOUT"
+cd "$HARNESS_SOURCE_CHECKOUT"
+pnpm install --filter @deepseek-ai/dsh-agent-loop... \
+  --filter @deepseek-ai/dsh-session-persistence-jsonl... \
+  --filter @deepseek-ai/dsh-tool-fs... --ignore-scripts --frozen-lockfile
+pnpm run build:native-system
+```
+
+Then run the suite from the plugin checkout, after its own `pnpm install --frozen-lockfile`:
+
+```sh
+npm run verify:master -- "$HARNESS_SOURCE_CHECKOUT"
+```
+
+- Inside the 0.2.1 checkout, pnpm 11.7.0 switches itself to the version upstream pins in its `packageManager` field (11.28.5 at this tag). That install is the checkout's own; the plugin repository still uses pnpm 11.7.0.
+- `--ignore-scripts` skips upstream's install hooks. No `fs-ext` build is needed; file locking comes from the host's own `flock` addon.
+- `build:native-system` compiles that addon into `native/system/packages/<platform>-<arch>/bin/`: `system.node` on macOS, and `glibc/system.node` or `musl/system.node` on Linux. JSONL persistence loads it for its file lock. Without it, 7 tests failed on the 0.1.7-rc.2 source (2026-09-27). Only macOS arm64 has been run; the Linux paths come from upstream's `native/system/scripts/build.ts`.
+- No upstream `lib/` build is needed. `scripts/validation/run-master-tests.mjs` resolves every Harness import through the checkout's `tsconfig.base.json` path map and points tsx at the same file (`TSX_TSCONFIG_PATH`), because the JSONL provider verifies a migrated generation in a worker thread that it loads through tsx. Any `@deepseek-ai/dsh*` module the path map does not list now fails to load instead of resolving to this repository's pinned copy.
+- The script prints `hostCommit` (the checkout's HEAD), `hostVersion` (the version in the checkout's root `package.json`, read from disk), test counts and an evidence directory, and exits non-zero on any failure. If the two name different releases, the checkout's files and HEAD disagree; trust neither until `git status` is clean. Explain every failure before bumping the pins: fix the plugin or a fixture, or record the host difference in these notes.
+
+A passing source run is necessary, not sufficient. It does not typecheck against the published type declarations and does not install anything, so the bump itself must also touch, in one change: the `@deepseek-ai/dsh-*` peer ranges and devDependencies in `package.json`, any cordis-family devDependency the new packages want (here `cordis-plugin-group` and `cordis-plugin-include`, or `pnpm peers check` fails), `pnpm-lock.yaml`, the host allowlist in `scripts/validation/run-packed-smoke.mjs`, the second host in `.github/workflows/ci.yml`, and `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` when the new release is under a day old. Bump the plugin version too.
+
+## Verification recorded on 2026-10-22
+
+Machine: Node 22.22.3, pnpm 11.7.0, macOS arm64. Plugin: version 0.3.0, the branch that adds this file, rebased on main `96932b8`.
+
+| Check | Host | Result |
+| --- | --- | --- |
+| Source suite, `npm run verify:master`, before this change (main `70e6e55`) | `dsh-v0.2.1-rc.2`, commit `687f282`: fresh shallow clone, prepared as above | 315/342; the 27 failures listed above |
+| Source suite, `npm run verify:master` | `dsh-v0.2.1-rc.2`, commit `687f282`: the same fresh clone | **342/342 across 38 files**, zero skipped; `hostVersion` 0.2.1-rc.2 |
+| Source suite, `npm run verify:master` | `dsh-v0.2.1-rc.2`, commit `687f282`: a second, previously prepared checkout | **342/342**, zero skipped; `hostVersion` 0.2.1-rc.2 |
+| Source suite, `npm run verify:master` | `dsh-v0.2.0-rc.2`, commit `639ed01`: fresh shallow clone, prepared as above, `git status` clean | **342/342 across 38 files**, zero skipped; `hostVersion` 0.2.0-rc.2 |
+| `pnpm install --frozen-lockfile`, `pnpm peers check`, `check:peers`, `check:docs`, typechecks (source, tests, scripts, gates) | published 0.2.1-rc.2 packages | all passed |
+| `npx vitest run` | published 0.2.1-rc.2 packages | **342/342 across 38 files** |
+| `npm run test:coverage` | published 0.2.1-rc.2 packages | **342/342**; coverage 86.63 % statements, 79.89 % branches, 87.12 % functions, 90.95 % lines (floors 85/78/86/90) |
+| `npm run check:build`, `npm run check:size` | published 0.2.1-rc.2 packages | rebuilt `lib/` matches the committed artifacts; 2.63 MiB tracked across 270 files (limit 8 MiB) |
+| Each commit with its own pins: the test-harness commit and the benchmark commit (0.2.0-rc.2 pins), and the build commit that moves the pins to 0.2.1-rc.2 | published packages of the pinned host | typechecks passed, 342/342 and `check:build` passed at each of the three |
+| Packed install, `npm run verify:packed` | published 0.2.1-rc.2 CLI | passed |
+| Packed install, `SLICE_PACKED_DSH_VERSION=0.2.0-rc.2 npm run verify:packed` | published 0.2.0-rc.2 CLI | passed |
+| Offline A/B dry run (`prepare`, then task `hello`, control arm) | published 0.2.1-rc.2 and 0.2.0-rc.2 | both cells valid, 16 tools, empty turn stderr; A/B unit tests 19 (4 skipped), 10 and 6 passed |
+| Heap-growth benchmark, short runs (`--arm slice --turns 10`, `--arm stock --turns 6 --persist`) | published 0.2.1-rc.2 packages, and 0.2.0-rc.2 at the benchmark commit | exit 0 on both; `meta` reports the installed host and plugin versions |
+| Weekly compat job, replayed locally (`pnpm up '@deepseek-ai/dsh*@next'`, cordis `--latest`, then every later step of the job: `pnpm peers check`, `check:peers`, `check:docs`, typechecks, `test:coverage`, `check:build`, `verify:packed`) | npm `next` = 0.2.1-rc.2 | passed, 342/342 |
+
+Both packed runs installed the same tarball (`dsh-external-dsh-slice-agent-loop-0.3.0.tgz`, SHA-256 `62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322` for that run) with `dsh plugin add`; the A/B dry runs and the deployment rehearsals below used the same tarball. Each made five model requests over four turns, reported session format 4, kept the system prompt as a single `system/message` at node 0, carried one live `runtime-context` snapshot, wrote three frozen tape entries with source `plugin:slice:history`, reloaded JSONL persistence, and reported zero agent errors. Neither printed a `skipping profile bundle`, `disabling profile plugin` or `did not activate` line. The digest identifies that run's build only; a rebuild that changes `lib/`, `package.json` or a README changes it. No release-age exemption applied: `minimumReleaseAgeExclude` is empty, and both runs reported zero exemptions carried, zero added for the host's wider closure and zero appended by pnpm.
+
+The heap-growth runs mounted the test-owned request check. A 120-turn stock run took 4.3 s with the check and 0.6 s with `--no-invariants`, so the check runs on every request.
+
+Wall time for a fresh clone with a warm pnpm store: for 0.2.1-rc.2, clone 7 s, filtered install 12 s (832 packages, all from the store), native build 3 s, and `verify:master` 16 s on the first run and about 6 s after. For 0.2.0-rc.2, clone 5 s, filtered install 9 s (837 packages, all from the store) and native build 3 s.
+
+An earlier run of this record used a reused 0.2.0-rc.2 checkout (`deepseek-harness-020rc2`). Its HEAD and index sit at `dsh-v0.2.1-rc.2` while its files are still `dsh-v0.2.0-rc.2`, because its reflog records a checkout to the newer tag without a file update. That run's `hostCommit` therefore read `687f282`, which is why `verify:master` now records `hostVersion` too. The 0.2.0-rc.2 row above comes from a fresh clone, where `hostCommit` and `hostVersion` agree.
+
+Not covered by this record: CI on Linux and on Node 22.19.0 and 24.x has not run this change yet, no model was called, the Web composition was not started, and these checks do not measure cost or model success rate.
+
+## Deploying this build
+
+- **Install under a new name and version.** This build is 0.3.0, so `npm pack` names it `dsh-external-dsh-slice-agent-loop-0.3.0.tgz`. Keep the 0.2.0 tarball. `dsh plugin add` of a name and version that is already installed does not replace the installed build.
+- **This build runs on the current host too.** On a copy of the live profile (`dsh-base`, `dsh-web-app`, slice, raft-channel), with the 0.2.0-rc.2 binary and a scratch `DSH_HOME`, installing only this tarball beside raft-channel 0.1.1 composed both rows, and a copy of `bin/slicey-dsh` with only `DSH_HOME` and the final `exec` changed reached its launch line. So slice can move first, on 0.2.0-rc.2, without the host switch.
+- **Installing 0.3.0 ends the 0.1.7-rc.2 rollback.** The live launcher's comment says the previous host in `$DSH_HOME/host` (0.1.7-rc.2) is a rollback (`SLICEY_HOST=$HOME/.dsh-slicey/host`), because both plugin builds admit either host. 0.3.0 does not admit 0.1.7-rc.2. On the same profile copy with 0.3.0 installed, the launcher copy with `SLICEY_HOST` set to that host exited 78 with `dsh: skipping profile bundle "@dsh-external/dsh-slice-agent-loop": Error: Plugin @dsh-external/dsh-slice-agent-loop@0.3.0 is incompatible with dsh 0.1.7-rc.2: peerDependencies {...}`; on `host-0.2.0-rc.2` it reached its launch line. To go back to 0.1.7-rc.2, reinstall the kept 0.2.0 tarball first. Rehearsed on that copy: `plugin add` of `dsh-external-dsh-slice-agent-loop-0.2.0.tgz` with the 0.1.7-rc.2 binary exited 0, the profile then held 0.2.0, and the launcher copy reached its launch line on both 0.1.7-rc.2 and 0.2.0-rc.2.
+- **Switch the host only together with a 0.2.1 raft-channel build.** raft-channel 0.1.1 admits only 0.1.7-rc.2 and 0.2.0-rc.2. On the same profile copy with the 0.2.1-rc.2 binary, `plugin add` of this tarball exited 0 but warned that raft-channel 0.1.1 is incompatible, and the launcher copy exited 78 with the `skipping profile bundle "@dsh-external/dsh-raft-channel"` line. With a raft-channel build whose peers also list 0.2.1-rc.2 (a probe build, `0.1.1-probe021`), both rows composed and the launcher copy reached its launch line on both hosts.
+- **The launcher's checks still hold.** On 0.2.1-rc.2 the binary path is unchanged, `--profile` and `--dump-config` behave the same, the rows still print at column 0 as `- id: slice-agent-loop` and `- id: raft-channel`, and the `skipping profile bundle` and `disabling profile plugin` texts are unchanged. Two lines need editing, at different times. The comment ("both plugin builds admit either host, so SLICEY_HOST=$HOME/.dsh-slicey/host rolls back") becomes false as soon as 0.3.0 is installed, so edit it then. The `HOST` default (`host-0.2.0-rc.2`) changes at the host switch.
+- **Swap in one stopped window.** Stop the host, back up the session logs, run `plugin add` for both new tarballs with the binary of the host that will run the profile and with `DSH_HOME` set to the deployment's home, switch the host, then start. Do not run `plugin add` against a live host.
+- **Back up sessions before the switch.** A rollback to 0.2.0-rc.2 cannot reopen a session in which 0.2.1 ran a `bash` call; see [Session format and rollback](#session-format-and-rollback). Copy each live session's `session.v4.jsonl.zstd` (and its projection cache) first.
+- **Expect one prefix reset, then decide on the new rows.** The first 0.2.1 turn of each session replaces the system prompt once (the cwd clause leaves the Web persona), changes the tool set (`working_directory` and the `schedule_*` tools join), and writes a new runtime-context snapshot. After that, time readings arrive as user-role messages. If those rows are not wanted, decide before the first start. `tool-working-directory` is a top-level row, and a `- id: tool-working-directory` entry with `disabled: true` in the profile patch turns it off, as the A/B overlay does. `time-context` and `tool-schedule` sit inside the preset's own configuration, so a top-level entry naming them does not reach them; how to turn those two off was not worked out here. The row placement was read from upstream's patch files.
+- **Check the credential store.** If the deployment's `.credentials.yaml` stores a key under the same name as its `.env` key, the stored value now wins.
+- **Check the install, not the exit code**, as for 0.2.0: the profile's `node_modules/@dsh-external/dsh-slice-agent-loop/package.json` must show 0.3.0, and `--dump-config` must print nothing on stderr and list the `slice-agent-loop` row. Do not paper over a skipped plugin with `dsh plugin allow-version`.

@@ -10,6 +10,10 @@
   disabled: true
 - id: tool-web
   disabled: true
+# DSH 0.2.1 adds a working_directory tool (row tool-working-directory) to dsh-base;
+# keep the 16-tool set every recorded batch used. The row does not exist on 0.2.0-rc.2.
+- id: tool-working-directory
+  disabled: true
 - id: system-prompt
   config:
     personaPrefix: ''

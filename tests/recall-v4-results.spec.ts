@@ -13,7 +13,7 @@ import { expandResultToolDefinition } from '../src/fold/index.js'
 import { recallStepToolDefinition, renderSealedStepPage } from '../src/recall-step.js'
 import { renderSealedTurn, searchSessionEvents } from '../src/recall.js'
 import { FixtureCodeRuntime } from './fixture-code-runtime.js'
-import { nativeHarness, nativeSend, nativeText, nativeTool, type NativeHarness } from './native-harness.js'
+import { nativeHarness, nativeSend, nativeText, nativeTool, presentPerStep, type NativeHarness } from './native-harness.js'
 
 const CONFIG = `PORT_SENTINEL=7443\n${'filler line of configuration text\n'.repeat(60)}`
 const NESTED = 'NESTED_ONLY_SENTINEL from the program'
@@ -70,7 +70,7 @@ async function session(id: string) {
     execute: async () => [{ type: 'text', text: NESTED }],
   }))
   const { agent } = await h.ctx.agents.create({ sessionId: SessionId(id), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
-  agent.ctx.tools.presentAs('both')
+  presentPerStep(h, agent)
   await nativeSend(agent, 'USER_ONE_SENTINEL read, fail and run code')
   await nativeSend(agent, 'wrap up')
   expect(h.errors).toEqual([])
