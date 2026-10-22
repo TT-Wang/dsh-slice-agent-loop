@@ -1,4 +1,4 @@
-# Additive context policy. Keep the stock factory, projections and invariant.
+# Additive context policy. Keep the stock factory and projections.
 - insert:
     - id: slice-agent-loop
       name: '@dsh-external/dsh-slice-agent-loop'

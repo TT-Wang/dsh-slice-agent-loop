@@ -4,33 +4,40 @@ name: Peer compatibility
 # explicitly declared peer ranges. A newer unsupported release must fail rather
 # than produce a misleading green. Supporting it requires a reviewed manifest and
 # runtime compatibility change; run the source check in
-# docs/dsh-0.2.0-compatibility.md ("Before upgrading the host") first.
+# docs/dsh-0.2.1-compatibility.md ("Before upgrading the host") first.
 #
-# DSH publishes release candidates under npm's `next` dist-tag. On 2026-10-13
-# the umbrella package @deepseek-ai/dsh had latest = next = 0.2.0-rc.2, but all
-# 29 dsh-* devDependencies of this plugin had next = 0.2.0-rc.2 with a much
-# older `latest` (0.0.1-rc.1 to 0.1.6-alpha.1). `pnpm up --latest` keeps a
-# locked prerelease newer than `latest`, so that selector would only re-test
-# the pinned version. The @deepseek-ai/dsh* packages therefore follow `next`. A
-# tag selector keeps the exact specifiers that
-# scripts/validation/run-packed-smoke.mjs reads, and a new `next` outside the
-# peer range fails check:peers (probed on pnpm 11.7.0 on 2026-09-27 with the
-# `alpha` tag: every dsh* devDependency became exactly 0.1.7-alpha.2 and
-# check:peers failed).
+# DSH publishes release candidates under npm's `next` dist-tag. On 2026-10-22
+# the umbrella package @deepseek-ai/dsh had latest = next = 0.2.1-rc.2, but the
+# dsh-* devDependencies of this plugin had next = 0.2.1-rc.2 with a much older
+# `latest` (for example 0.0.1-rc.1 for dsh-tools and dsh-session, 0.1.0-rc.6
+# for dsh-agent-loop). `pnpm up --latest` keeps a locked prerelease newer than
+# `latest`, so that selector would only re-test the pinned version. The
+# @deepseek-ai/dsh* packages therefore follow `next`. A tag selector keeps the
+# exact specifiers that scripts/validation/run-packed-smoke.mjs reads, and a
+# new `next` outside the peer range fails check:peers (probed on pnpm 11.7.0 on
+# 2026-09-27 with the `alpha` tag: every dsh* devDependency became exactly
+# 0.1.7-alpha.2 and check:peers failed).
 #
-# That failure is the designed signal, and it has fired once. 0.2.0-rc.2 reached
-# `next` on 2026-09-29 while the peer range was still 0.1.7-only, and the
-# scheduled runs of 2026-10-05 and 2026-10-12 failed at check:peers on all
-# three Node versions. The remedy was the reviewed bump: the peer range and the
-# host allowlist in scripts/validation/run-packed-smoke.mjs both had to admit
-# 0.2.0-rc.2. Expect the same failure when the next release candidate or 0.2.0
-# final reaches `next`.
+# That failure is the designed signal, and it has fired twice. 0.2.0-rc.2
+# reached `next` on 2026-09-29 while the peer range was still 0.1.7-only, and
+# the scheduled runs of 2026-10-05 and 2026-10-12 failed at check:peers.
+# 0.2.1-rc.2 reached `next` on 2026-10-17; the scheduled run of 2026-10-19
+# failed one step earlier, at `pnpm peers check`. A local replay showed why: the
+# new packages also want newer cordis plugins (cordis-plugin-include ~1.0.10
+# and cordis-plugin-group ~1.0.5) than the lockfile held. Both are now direct
+# devDependencies; a later move of the cordis family can fail this job at
+# `pnpm peers check` in the same way. The remedy each time was the reviewed
+# bump: the peer range and the host allowlist in
+# scripts/validation/run-packed-smoke.mjs both had to admit the new release.
+# Expect the same failure when the next release candidate or 0.2.1 final
+# reaches `next`.
 #
-# Alpha builds use the `alpha` tag (0.2.1-alpha.2 on 2026-10-13), which this
+# Alpha builds use the `alpha` tag (0.2.1-alpha.5 on 2026-10-22), which this
 # job does not probe.
 #
-# @deepseek-ai/cordis stays on `latest`: its `next` (4.0.1-rc.4 on 2026-10-13)
-# is older than `latest` (4.0.4). The `dsh*` pattern does not match it.
+# @deepseek-ai/cordis stays on `latest`: its `next` (4.0.1-rc.4 on 2026-10-22)
+# is older than `latest` (4.0.5). The `dsh*` pattern does not match it or the
+# cordis plugins, whose `next` tags are older than `latest` too.
 #
 # When `next` is younger than pnpm's minimumReleaseAge (one day), `pnpm up`
 # keeps the current version and exits 0 (probed on pnpm 11.7.0), so a release

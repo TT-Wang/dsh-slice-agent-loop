@@ -2,7 +2,7 @@
 
 [English](README.md)
 
-面向 **DeepSeek Harness 0.2.0-rc.2 / 0.1.7-rc.2**（会话格式 V4）的对话上下文保留策略。它与原生 agent loop 并行运行，生命周期、调度器、收件箱、持久化、请求序列与完整请求重建不变量全部保留在宿主侧。这个 patch 是增量的：它只新增本插件。
+面向 **DeepSeek Harness 0.2.1-rc.2 / 0.2.0-rc.2**（会话格式 V4）的对话上下文保留策略。它与原生 agent loop 并行运行：生命周期、调度器、收件箱、持久化与请求序列全部保留在宿主侧，每个请求仍由宿主从持久会话日志构造。这个 patch 是增量的：它只新增本插件。
 
 ## 历史模型：只追加的磁带
 
@@ -103,7 +103,7 @@
 dsh plugin --profile <name> add github:TT-Wang/dsh-slice-agent-loop
 ```
 
-`dsh plugin` 在 profile 目录里调用 pnpm。pnpm 下载默认分支当前 commit 的 tarball，不含 Git 历史；DSH 会选中 `package.json` 声明的 `cordis.patch.yml` bundle。Git 安装不执行构建，所以 Git 包内含已生成的 `lib/` 产物。**保持 `agent-loop`、`agent-loop-invariant` 与原生 session projections 启用。** 没有开启热重载的 profile 在下次启动时生效。
+`dsh plugin` 在 profile 目录里调用 pnpm。pnpm 下载默认分支当前 commit 的 tarball，不含 Git 历史；DSH 会选中 `package.json` 声明的 `cordis.patch.yml` bundle。Git 安装不执行构建，所以 Git 包内含已生成的 `lib/` 产物。**保持 `agent-loop` 与原生 session projections 启用。** 在 0.2.0-rc.2 宿主上，如果组合里挂了原生 `agent-loop-invariant` 行，也保留它；0.2.1 已删除所有 invariant 行。没有开启热重载的 profile 在下次启动时生效。
 
 本包已经自带一份工具结果折叠，和独立插件 [`dsh-tool-result-fold`](https://github.com/TT-Wang/dsh-tool-result-fold) 最初同源，也以 `./fold` 导出。**不要在同一个 profile 里再装那个独立插件**：两者都会注册 `expand_result`，第二次注册会在加载时直接失败（`tool "expand_result" is already registered`）。只有想在不装 slice 策略的原生 loop 上单独用折叠时，才单独挂 `./fold`（或那个独立插件）。
 
@@ -125,6 +125,6 @@ dsh plugin --profile <name> add github:TT-Wang/dsh-slice-agent-loop
 
 ## 验证与兼容范围
 
-当前版本（插件版本 0.2.0）在已发布的 DSH **0.2.0-rc.2** 上通过 **38 个文件中的 342 个测试**、覆盖率门槛与类型检查；同一套测试在 0.2.0-rc.2 与 **0.1.7-rc.2** 源码上也全部通过，两个已发布宿主上的打包安装／召回／恢复均通过。peer 范围是精确列表 `0.1.7-rc.2 || 0.2.0-rc.2`。2026-10-13 时 `@deepseek-ai/dsh` 的 npm `latest` 与 `next` 都指向 0.2.0-rc.2，默认安装得到的就是受支持的宿主；本版本不支持 0.1.7-rc.1、所有 0.1.5 宿主，以及 npm `alpha` 上的 0.2.1 alpha。范围之外的宿主照常启动：它跳过本插件，在 stderr 打印一行 `dsh: skipping profile bundle …`，然后以不带本策略的原生 loop 运行。0.1.5 版本写下的格式 3 会话经宿主 V3→V4 恢复后可以续跑，这条路径由两份 provider 实际写出的 0.1.5 会话夹具覆盖，含并行、失败、PTC 嵌套与已折叠的结果。CI 覆盖 Node 22.19.0、22.22.3 和 24.x。本次没有新增付费模型评测；内容保留测试不能直接证明成本收益或任务准确率。宿主变化、升级步骤、部署注意事项与验证记录见 [DSH 0.2.0 兼容说明](docs/dsh-0.2.0-compatibility.md)；V4 契约与迁移行为见 [0.1.7 说明](docs/dsh-0.1.7-compatibility.md)。
+当前版本（插件版本 0.3.0）在已发布的 DSH **0.2.1-rc.2** 上通过 **38 个文件中的 342 个测试**、覆盖率门槛与类型检查；同一套测试在 0.2.1-rc.2 与 **0.2.0-rc.2** 源码上也全部通过，两个已发布宿主上的打包安装／召回／恢复均通过。peer 范围是精确列表 `0.2.0-rc.2 || 0.2.1-rc.2`。2026-10-22 时 `@deepseek-ai/dsh` 的 npm `latest` 与 `next` 都指向 0.2.1-rc.2，默认安装得到的就是受支持的宿主；本版本不支持 0.1.7-rc.2 及更早的宿主，也不支持 npm `alpha` 上的 0.2.1 alpha；最后一个接受 0.1.7-rc.2 的版本是插件版本 0.2.0（main 的 `70e6e55`）。0.3.0 还删除了 `./invariant` 导出，因为 0.2.1 已没有可供它转导出的 invariant 模块。范围之外的宿主照常启动：它跳过本插件，在 stderr 打印一行 `dsh: skipping profile bundle …`，然后以不带本策略的原生 loop 运行。0.1.5 版本写下的格式 3 会话经宿主 V3→V4 恢复后可以续跑，这条路径由两份 provider 实际写出的 0.1.5 会话夹具覆盖，含并行、失败、PTC 嵌套与已折叠的结果。CI 覆盖 Node 22.19.0、22.22.3 和 24.x。本次没有新增付费模型评测；内容保留测试不能直接证明成本收益或任务准确率。宿主变化、升级步骤、部署注意事项（包括 0.2.1 跑过 job 的会话为何不能回到 0.2.0 打开）与验证记录见 [DSH 0.2.1 兼容说明](docs/dsh-0.2.1-compatibility.md)；0.2.0-rc.2 宿主见 [0.2.0 说明](docs/dsh-0.2.0-compatibility.md)，V4 契约与迁移行为见 [0.1.7 说明](docs/dsh-0.1.7-compatibility.md)。
 
 当前历史策略与迁移见 [默认保留对话](docs/adr/0003-preserve-dialogue-defaults.md)；此前循环／折叠策略变更及其已记录验证结果见 [2026-09-21 上下文策略默认值](docs/context-policy-defaults-2026-09-21.md)。
