@@ -1,5 +1,5 @@
 // offline/experimental — not on the runtime path. Nothing under src/lab is reachable
-// from the published entry points (src/index.ts, src/fold/index.ts, src/invariant.ts);
+// from the published entry points (src/index.ts, src/fold/index.ts);
 // tsconfig.json excludes this directory, so it never reaches lib/ or the package.
 /**
  * bench-tools — 评测用的两个"一次给一整份"的工具(2026-09-04):
