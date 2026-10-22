@@ -1,11 +1,14 @@
 # Upgrade verification: 2026-09-08
 
 > Historical alpha.2 receipt. Current released-host instructions and evidence are
-> in [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md); the
-> [DSH 0.1.7 compatibility](dsh-0.1.7-compatibility.md) and
-> [DSH 0.1.5 compatibility](dsh-0.1.5-compatibility.md) notes are also history.
+> in [DSH 0.2.1 compatibility](dsh-0.2.1-compatibility.md); the
+> [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md) notes still describe that
+> host, and the [DSH 0.1.7 compatibility](dsh-0.1.7-compatibility.md) and
+> [DSH 0.1.5 compatibility](dsh-0.1.5-compatibility.md) notes are history.
 > To check a current tag's source, follow
-> [Before upgrading the host](dsh-0.2.0-compatibility.md#before-upgrading-the-host).
+> [Before upgrading the host](dsh-0.2.1-compatibility.md#before-upgrading-the-host).
+> Since 0.2.1 the host has no invariant plugins; the invariant rows mentioned
+> below no longer exist.
 > Source-checkout verification is manual-only, not a scheduled or required CI
 > gate. The `fs-ext` native build steps below apply only to this historical host.
 
@@ -67,9 +70,9 @@ No API credentials are needed.
 
 ## Repeat the source check
 
-Use a separate Harness checkout at the desired upstream revision. For a 0.1.7
-or 0.2.0 tag, prepare it as described in
-[Before upgrading the host](dsh-0.2.0-compatibility.md#before-upgrading-the-host).
+Use a separate Harness checkout at the desired upstream revision. For a 0.2.0
+or 0.2.1 tag, prepare it as described in
+[Before upgrading the host](dsh-0.2.1-compatibility.md#before-upgrading-the-host).
 The commands below are for this historical host only. They install the required
 source dependency closure and build the one native persistence dependency
 (`fs-ext`) that host used:

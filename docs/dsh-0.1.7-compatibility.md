@@ -1,6 +1,6 @@
 # DSH 0.1.7 compatibility
 
-> Historical. The current build (plugin version 0.2.0) targets DSH 0.2.0-rc.2 and also admits 0.1.7-rc.2: see [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md) for the supported hosts, the upgrade procedure and the current evidence. Session format is still V4, so the contracts, V3 session resume and locator rules below still apply to the current build. The support statement, the peer range (0.1.7-rc.1 is no longer admitted) and the verification records describe the 0.1.0 build, last at main `8e3b7a3`.
+> Historical. The current build (plugin version 0.3.0) targets DSH 0.2.1-rc.2 and also admits 0.2.0-rc.2; it no longer admits 0.1.7-rc.2, and the last build that does is plugin version 0.2.0, main at `70e6e55`. See [DSH 0.2.1 compatibility](dsh-0.2.1-compatibility.md) for the supported hosts, the upgrade procedure and the current evidence. Session format is still V4, so the contracts, V3 session resume and locator rules below still apply to the current build. The support statement, the peer range (0.1.7-rc.1 is no longer admitted) and the verification records describe the 0.1.0 build, last at main `8e3b7a3`.
 
 The plugin targets **0.1.7-rc.2** and also supports **0.1.7-rc.1**. On 2026-09-25, npm's `next` tag for `@deepseek-ai/dsh` resolved to 0.1.7-rc.2 while `latest` still resolved to **0.1.5-rc.3**. Development dependencies pin rc.2 exactly, and the peer range is limited to `0.1.7-rc.1 || 0.1.7-rc.2`. This build does not support any 0.1.5 host, including 0.1.5-rc.3. Keep a 0.1.5 profile on the previous plugin build (main at `406f513`); see the [0.1.5 notes](dsh-0.1.5-compatibility.md) for that release line.
 
@@ -47,7 +47,7 @@ The host deliberately does not rewrite message text or tool arguments, so a rest
 
 ## Before upgrading the host
 
-This procedure moved to [DSH 0.2.0 compatibility](dsh-0.2.0-compatibility.md#before-upgrading-the-host), where it names the current tag. The runs recorded below used it with `TAG=dsh-v0.1.7-rc.2` and `TAG=dsh-v0.1.7-rc.1`.
+This procedure moved to [DSH 0.2.1 compatibility](dsh-0.2.1-compatibility.md#before-upgrading-the-host), where it names the current tag. The runs recorded below used it with `TAG=dsh-v0.1.7-rc.2` and `TAG=dsh-v0.1.7-rc.1`.
 
 ## Verification recorded on 2026-09-25
 

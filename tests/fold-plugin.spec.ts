@@ -3,7 +3,8 @@
  *   ① 大的数据型结果在下一步请求里是折叠视图,原文仍在日志(追加态节点被替换事件遮蔽);
  *   ② 源代码结果不折;错误结果不折;
  *   ③ expand_result 逐字取回原文;
- *   ④ 原生 loop 的请求重建不变量(request == deriveMessages)在替换后仍成立。
+ *   ④ 原生 loop 的请求重建不变量(request == deriveMessages)在替换后仍成立
+ *     (由 tests/request-reconstruction.ts 检查;0.2.1 起宿主不再自带 invariant 插件)。
  */
 import { Context } from '@deepseek-ai/cordis'
 import { SESSION_FORMAT_VERSION } from '@deepseek-ai/dsh-session'
@@ -15,11 +16,10 @@ import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import StockAgentLoop from '@deepseek-ai/dsh-agent-loop'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
-import InvariantService from '@deepseek-ai/dsh-invariants'
-import * as agentLoopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
 import fold, { EXPAND_TOOL_NAME, FOLD_AFFORDANCE, FOLD_STATS, expandResultToolDefinition, foldAffordance, fullResultAt } from '../src/fold/index.js'
 import { DEFAULT_DIGEST_POLICY, digestData } from '../src/slice/result-digest.js'
 import { MockAdapter, textResponse, toolCallResponse } from './mock-adapter.js'
+import { requireReconstructableRequests } from './request-reconstruction.js'
 
 const BIG = Array.from({ length: 120 }, (_, i) => (i % 10 === 0 ? `section_${i / 10}: header` : `row ${i} payload ${'x'.repeat(30)} ${i * 7}`)).join('\n')
 const CODE = Array.from({ length: 80 }, (_, i) => `def f${i}(x):\n    return x + ${i}`).join('\n')
@@ -36,8 +36,7 @@ async function harness(adapter: MockAdapter, tools: Array<{ name: string; text: 
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRegistry)
   await ctx.plugin(AgentRegistry)
-  await ctx.plugin(InvariantService)
-  await ctx.plugin(agentLoopInvariant)
+  requireReconstructableRequests(ctx)
   await ctx.plugin(SessionProjections)      // 原生 loop 依赖会话投影服务
   await ctx.plugin(StockAgentLoop, {} as never)
   await ctx.plugin(fold, config as never)
@@ -93,7 +92,7 @@ describe('tool-result-fold on the stock loop', () => {
     const stats = FOLD_STATS.get(handle.agent.session)!
     expect(stats.folded).toBe(1)
     expect(stats.charsAfter).toBeLessThan(stats.charsBefore * 0.55)
-    // ④ 不变量:三次请求都通过了 agent-loop 的 request == deriveMessages 检查(失败会抛)
+    // ④ 不变量:三次请求都通过了 request == deriveMessages 检查(失败会抛)
     expect(adapter.requests).toHaveLength(3)
   })
 
@@ -564,7 +563,7 @@ describe('spill preview arm', () => {
     const adapter = new MockAdapter([toolCallResponse('c1', 'bash', { file_path: 'run' }), toolCallResponse('c2', 'bash', { file_path: 'run' }), toolCallResponse('c3', 'bash', { file_path: 'run' }), textResponse('done')])
     const ctx = new Context()
     await ctx.plugin(LlmService); await ctx.plugin(SessionStore); await ctx.plugin(SystemPrompt); await ctx.plugin(ToolRegistry); await ctx.plugin(AgentRegistry)
-    await ctx.plugin(InvariantService); await ctx.plugin(agentLoopInvariant); await ctx.plugin(SessionProjections); await ctx.plugin(StockAgentLoop, {} as never)
+    requireReconstructableRequests(ctx); await ctx.plugin(SessionProjections); await ctx.plugin(StockAgentLoop, {} as never)
     await ctx.plugin(SpillLocal, { root: mkdtempSync(join(tmpdir(), 'spill-')) } as never)
     await ctx.plugin(SpillPolicy, { maxInlineTokens: 12_500 })   // DSH 0.1.7 token budget, about 50 KB of this ASCII log
     await ctx.plugin(fold, { pinSteps: 0, spillPreviewMinBytes: 50000 } as never)

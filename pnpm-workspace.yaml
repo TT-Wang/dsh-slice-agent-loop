@@ -11,8 +11,9 @@ allowBuilds:
 # that output must not be read as "no policy".
 minimumReleaseAge: 1440
 # Exemptions from the policy above, as exact `name@version` entries. The list is
-# empty because the pinned @deepseek-ai/dsh release (0.2.0-rc.2, published
-# 2026-09-29) is more than a day old. Add entries only when bumping to a release
+# empty because the pinned @deepseek-ai/dsh release (0.2.1-rc.2, published
+# 2026-10-17) and the cordis family it needs (published 2026-10-16) are more
+# than a day old. Add entries only when bumping to a release
 # published less than a day earlier, one per exact name@version so every other
 # version stays covered, and remove them at the next bump. The policy covers
 # transitive dependencies too; with minimumReleaseAgeStrict off pnpm appends

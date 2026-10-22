@@ -138,13 +138,32 @@ the parity overlay applies as is, 16 tools remain, a turn cut by `maxStepsPerTur
 other host:
 
 - The root `package.json` of the checkout the harness runs from must admit that host in its
-  `@deepseek-ai/dsh-*` peer ranges, even for an offline dry run: `$AB/mock/package.json` copies
-  those peers, and the host attributes the offline adapter's path row to it. If those peers reject
-  the host, the turn's `.err` file says `dsh: disabling profile plugin row "ab-mock-llm"`, every
-  turn ends with `NO_ADAPTER`, and the driver retries it as an infra failure.
-- Regenerate `fingerprints.json` on that host and run its own control arm. The request prefix of
-  the same build differs between hosts (the host's own tool descriptions); do not compare cost or
-  cache numbers across hosts.
+  `@deepseek-ai/dsh-*` peer ranges, even for an offline dry run. `run_ab.py` copies the
+  scripted adapter to `$AB/mock/` next to a `package.json` that carries those peers, and the
+  host attributes the offline adapter's path row to that manifest, not to the arm's tarball.
+  If those peers reject the host, the turn's `.err` file says
+  `dsh: disabling profile plugin row "ab-mock-llm"`, every turn ends with `NO_ADAPTER`, and the
+  driver retries it as an infra failure. With the range `0.1.7-rc.2 || 0.2.0-rc.2` a dry run
+  from this checkout (`prepare`, then `hello` and `r1`) completed on both of those published
+  hosts with empty turn stderr (2026-10-13). With the range `0.2.0-rc.2 || 0.2.1-rc.2` a dry
+  run (`prepare`, then `hello`, control arm of plugin 0.3.0) completed and was valid on
+  0.2.0-rc.2 and 0.2.1-rc.2, again with empty turn stderr (2026-10-22). A 0.1.7-rc.2 host is
+  no longer admitted from this checkout.
+- 0.2.1 adds a `working_directory` tool to dsh-base. `profile/eval-parity.patch.yml` disables
+  its row (`tool-working-directory`) so every arm keeps the 16 tools the checks expect;
+  without that row a 0.2.1 cell is invalid with `tools_count 17 != 16`. On 0.2.0-rc.2 the row
+  does not exist, and `--dump-config` prints one `patch: entry "tool-working-directory" not
+  found` line.
+- Regenerate `fingerprints.json` on that host and run its own control arm. The request prefix
+  of the same build is 249 characters longer on 0.2.0-rc.2 than on 0.1.7-rc.2 (18311 to
+  18560, from the host's `bash` tool description; system prompt and slice tool hashes are
+  equal). Against the stored 0.1.7-rc.2 control figure the recorded arms would sit 524
+  characters under control and fail the 700-character structural check. For plugin 0.3.0 the
+  prefix is 17787 characters on 0.2.0-rc.2 and 17974 on 0.2.1-rc.2 (the host's `bash`, `edit`
+  and `write` descriptions, +187), and the system prompt (3651 characters) and slice tool
+  schemas hash the same on both. Do not compare cost or cache numbers across hosts.
+- A session that a 0.2.1 host ran a `bash` call in cannot be reopened by 0.2.0-rc.2 (it now
+  logs `job/registered`); keep each batch on one host.
 
 ## Runbook (F-only A/B)
 
