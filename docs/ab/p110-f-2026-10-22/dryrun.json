@@ -1,0 +1,1349 @@
+{
+ "_note": "Offline dry runs of the F-only A/B build (docs/p110-f-native-ab.md §11), scripted mock adapter, no key. Per batch and cell: validity, turns, exits, flags, isolation counters. No oracle tokens, no answer text; paths normalized.",
+ "batches": {
+  "offline": {
+   "cells": [
+    {
+     "alias": "hello",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "hello.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.8
+    },
+    {
+     "alias": "hello",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "hello.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.9
+    },
+    {
+     "alias": "c1",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "lh1_incremental_build.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 7
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 5,
+     "rereads_success_only": 5,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 21
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 8,
+     "valid": true,
+     "wall_s": 11.3
+    },
+    {
+     "alias": "c1",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "lh1_incremental_build.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 7
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 5,
+     "rereads_success_only": 5,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 21
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 8,
+     "valid": true,
+     "wall_s": 10.6
+    },
+    {
+     "alias": "c2",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "m3_consistency_bugfix.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.8
+    },
+    {
+     "alias": "c2",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "m3_consistency_bugfix.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.8
+    },
+    {
+     "alias": "r1",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r1_fixture_fp.r1.F",
+     "delivered": [
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 5
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 12
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 6,
+     "valid": true,
+     "wall_s": 8.8
+    },
+    {
+     "alias": "r1",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r1_fixture_fp.r1.control",
+     "delivered": [
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 5
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 12
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 6,
+     "valid": true,
+     "wall_s": 8.1
+    },
+    {
+     "alias": "r2",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r2_superseded_stamp.r1.F",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 6
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 18
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 7,
+     "valid": true,
+     "wall_s": 10.7
+    },
+    {
+     "alias": "r2",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 6
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 18
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 7,
+     "valid": true,
+     "wall_s": 11.6
+    },
+    {
+     "alias": "r3",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r3_runbook_middle.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 2
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [
+      true
+     ],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 7
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 3,
+     "valid": true,
+     "wall_s": 4.2
+    },
+    {
+     "alias": "r3",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r3_runbook_middle.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 2
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [
+      true
+     ],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 7
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 3,
+     "valid": true,
+     "wall_s": 4.6
+    },
+    {
+     "alias": "r4",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r4_probe_compare.r1.F",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 3
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 3,
+     "rereads_success_only": 3,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 13
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 4,
+     "valid": true,
+     "wall_s": 7.1
+    },
+    {
+     "alias": "r4",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r4_probe_compare.r1.control",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 3
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 3,
+     "rereads_success_only": 3,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 13
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 4,
+     "valid": true,
+     "wall_s": 6.6
+    },
+    {
+     "alias": "r5",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r5_initial_failures.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 1
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 1
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 2,
+     "valid": true,
+     "wall_s": 4.0
+    },
+    {
+     "alias": "r5",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r5_initial_failures.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 1
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 1
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 2,
+     "valid": true,
+     "wall_s": 2.9
+    }
+   ],
+   "ended": "2026-10-22T08:41:22+00:00",
+   "fingerprints": "none (not checked)",
+   "harness_commit": "e9d1c5d60f61f9433a80b81e8448f041a3f74388",
+   "host_unchanged": true,
+   "host_version": "0.2.0-rc.2",
+   "isolation": {
+    "blocked_while_a_turn_runs": [
+     "$AB/vault",
+     "$AB/wt/control/docs",
+     "$AB/wt/control/scripts",
+     "$AB/wt/f/docs",
+     "$AB/wt/f/scripts",
+     "$AB/wt/harness/docs",
+     "$AB/wt/harness/scripts"
+    ],
+    "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}",
+    "one_cell_at_a_time": true
+   },
+   "started": "2026-10-22T08:39:34+00:00",
+   "totals": {
+    "cells": 16,
+    "turns": 64,
+    "valid_first_attempt": 16
+   }
+  },
+  "offline2": {
+   "cells": [
+    {
+     "alias": "hello",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "hello.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.7
+    },
+    {
+     "alias": "hello",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "hello.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.6
+    },
+    {
+     "alias": "c1",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "lh1_incremental_build.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 7
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 5,
+     "rereads_success_only": 5,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 21
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 8,
+     "valid": true,
+     "wall_s": 11.2
+    },
+    {
+     "alias": "c1",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "lh1_incremental_build.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 7
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 5,
+     "rereads_success_only": 5,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 21
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 8,
+     "valid": true,
+     "wall_s": 15.0
+    },
+    {
+     "alias": "c2",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "m3_consistency_bugfix.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 2.0
+    },
+    {
+     "alias": "c2",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "m3_consistency_bugfix.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 0
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [],
+     "tool_line_forms": {},
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 1,
+     "valid": true,
+     "wall_s": 1.7
+    },
+    {
+     "alias": "r1",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r1_fixture_fp.r1.F",
+     "delivered": [
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 5
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 12
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 6,
+     "valid": true,
+     "wall_s": 9.2
+    },
+    {
+     "alias": "r1",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r1_fixture_fp.r1.control",
+     "delivered": [
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 5
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 1,
+     "rereads_success_only": 1,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 12
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 6,
+     "valid": true,
+     "wall_s": 9.5
+    },
+    {
+     "alias": "r2",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r2_superseded_stamp.r1.F",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 6
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 18
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 7,
+     "valid": true,
+     "wall_s": 9.6
+    },
+    {
+     "alias": "r2",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 6
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 18
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 7,
+     "valid": true,
+     "wall_s": 10.2
+    },
+    {
+     "alias": "r3",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r3_runbook_middle.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 2
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [
+      true
+     ],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 7
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 3,
+     "valid": true,
+     "wall_s": 6.7
+    },
+    {
+     "alias": "r3",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r3_runbook_middle.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 2
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [
+      true
+     ],
+     "rereads_any_mutation": 2,
+     "rereads_success_only": 2,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 7
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 3,
+     "valid": true,
+     "wall_s": 4.5
+    },
+    {
+     "alias": "r4",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r4_probe_compare.r1.F",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 3
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 3,
+     "rereads_success_only": 3,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 13
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 4,
+     "valid": true,
+     "wall_s": 6.4
+    },
+    {
+     "alias": "r4",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r4_probe_compare.r1.control",
+     "delivered": [
+      true,
+      true
+     ],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 3
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 3,
+     "rereads_success_only": 3,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 13
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 4,
+     "valid": true,
+     "wall_s": 6.9
+    },
+    {
+     "alias": "r5",
+     "arm": "F",
+     "attempts": 1,
+     "cell": "p110_r5_initial_failures.r1.F",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 1
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "v": 1
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 2,
+     "valid": true,
+     "wall_s": 3.0
+    },
+    {
+     "alias": "r5",
+     "arm": "control",
+     "attempts": 1,
+     "cell": "p110_r5_initial_failures.r1.control",
+     "delivered": [],
+     "exits": [
+      0
+     ],
+     "expand_locator_source": {
+      "fold_view": 0,
+      "none": 0,
+      "recall_output": 0,
+      "tape": 1
+     },
+     "flags": 0,
+     "fv_rejections": 0,
+     "isolation_breaches": 0,
+     "leak": false,
+     "oracle_via_fs": false,
+     "prefix_chars": 17787,
+     "quarantined": 0,
+     "r3_fold": [],
+     "rereads_any_mutation": 0,
+     "rereads_success_only": 0,
+     "strays_killed": 0,
+     "tape_header_lengths": [
+      76
+     ],
+     "tool_line_forms": {
+      "long": 1
+     },
+     "tools": 16,
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "turns": 2,
+     "valid": true,
+     "wall_s": 3.0
+    }
+   ],
+   "ended": "2026-10-22T08:43:25+00:00",
+   "fingerprints": "$AB/vault/fingerprints.json",
+   "harness_commit": "e9d1c5d60f61f9433a80b81e8448f041a3f74388",
+   "host_unchanged": true,
+   "host_version": "0.2.0-rc.2",
+   "isolation": {
+    "blocked_while_a_turn_runs": [
+     "$AB/vault",
+     "$AB/wt/control/docs",
+     "$AB/wt/control/scripts",
+     "$AB/wt/f/docs",
+     "$AB/wt/f/scripts",
+     "$AB/wt/harness/docs",
+     "$AB/wt/harness/scripts"
+    ],
+    "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}",
+    "one_cell_at_a_time": true
+   },
+   "started": "2026-10-22T08:41:34+00:00",
+   "totals": {
+    "cells": 16,
+    "turns": 64,
+    "valid_first_attempt": 16
+   }
+  }
+ }
+}
