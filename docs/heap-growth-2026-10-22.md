@@ -13,7 +13,7 @@ About 97% of the growth is the host's in-memory session event log. Plugin-owned 
 
 ## Method
 
-[scripts/bench/heap-growth.mts](../scripts/bench/heap-growth.mts) uses the same stock composition as [tests/native-harness.ts](../tests/native-harness.ts): LlmRuntime, SessionStore, SessionProjections, SystemPrompt, ToolRegistry, AgentRegistry, the stock AgentLoop, and the three invariant plugins. A scripted adapter replaces the model. The driver runs one session for N turns and keeps nothing that grows with N:
+[scripts/bench/heap-growth.mts](../scripts/bench/heap-growth.mts) uses the same stock composition as [tests/native-harness.ts](../tests/native-harness.ts): LlmRuntime, SessionStore, SessionProjections, SystemPrompt, ToolRegistry, AgentRegistry, the stock AgentLoop, and the three invariant plugins of DSH 0.2.0-rc.2 (see [Caveats](#caveats)). A scripted adapter replaces the model. The driver runs one session for N turns and keeps nothing that grows with N:
 
 - responses are generated per turn;
 - a request is measured only on checkpoint turns, and only its size is kept;
@@ -163,6 +163,7 @@ The production tape does not plateau, by design: the code says "there is no requ
 ## Caveats
 
 - **Composition.** This is the minimal harness composition. The CLI bundle adds compaction, spill and output-retention plugins, which this benchmark does not measure.
+- **Invariants.** These runs used DSH 0.2.0-rc.2 and mounted its three stock invariant plugins. DSH 0.2.1 removed those plugins, so the benchmark now mounts the test-owned request check from [tests/request-reconstruction.ts](../tests/request-reconstruction.ts) instead, on either host, and `invariants: true` in a run's `meta` means only that check. The "invariants on" CPU and wall-time figures in this record are not comparable with runs made after that change.
 - **Content profile.** The profile is synthetic: about 57 KB of log JSON per turn under slice. Heap scales with the log, so a heavier session scales the slope, not its shape.
 - **Stock baseline.** The stock arm is a heap baseline only. Its 25 M-char request at turn 800 would be far past any model's context window.
 - **Old regime.** The 2026-09-11 builds were not re-run; they need the DSH builds of that time. "Does not reproduce" means the current code under this driver.

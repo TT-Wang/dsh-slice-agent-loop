@@ -25,22 +25,21 @@
 import { Context } from '@deepseek-ai/cordis'
 import AgentRegistry from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import * as loopInvariant from '@deepseek-ai/dsh-agent-loop/invariant'
-import Invariants from '@deepseek-ai/dsh-invariants'
 import LlmRuntime, { createUserMessage, LlmAdapter, ReasoningEffortId, ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionStore, { SESSION_FORMAT_VERSION, SessionId, type Session, type SessionEvent } from '@deepseek-ai/dsh-session'
-import * as sessionInvariant from '@deepseek-ai/dsh-session/invariant'
-import JsonlPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionProjections from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRegistry, { defineContentToolFixture } from '@deepseek-ai/dsh-tools'
 import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { getHeapSpaceStatistics, writeHeapSnapshot } from 'node:v8'
 import SliceLoopPlugin, { type Config } from '../../src/index.ts'
+import { JsonlPersistence } from '../../tests/native-harness.ts'
+import { requireReconstructableRequests } from '../../tests/request-reconstruction.ts'
 
 const { values: opt } = parseArgs({
   options: {
@@ -230,11 +229,10 @@ if (opt.persist !== undefined) {
   await ctx.plugin(JsonlPersistence, { root: opt.persist, compression: 'none' })
 }
 await ctx.plugin(AgentLoop, { agents: [] })
-if (!opt['no-invariants']) {
-  await ctx.plugin(Invariants)
-  await ctx.plugin(sessionInvariant)
-  await ctx.plugin(loopInvariant)
-}
+// DSH 0.2.1 ships no runtime invariants. "Invariants" here is the test-owned request
+// check that tests/native-harness.ts mounts on both hosts; the 2026-10-22 record was
+// measured on 0.2.0-rc.2 with the three stock invariant plugins instead.
+if (!opt['no-invariants']) requireReconstructableRequests(ctx)
 const sliceConfig = JSON.parse(opt.config!) as Config
 if (arm !== 'stock') await ctx.plugin(SliceLoopPlugin, sliceConfig)
 ctx.llm.registerAdapter(['bench-mock'], adapter)
@@ -337,6 +335,10 @@ function surfaceStats(): Record<string, number> {
   return { nodes: nodes.length, runtimeSnapshots: snapshots, sliceEntries: entries, foldedResults }
 }
 
+function packageVersion(specifier: string): string {
+  return (createRequire(import.meta.url)(specifier) as { version: string }).version
+}
+
 function gitHead(): string {
   try { return execFileSync('git', ['rev-parse', '--short', 'HEAD'], { encoding: 'utf8' }).trim() } catch { return 'unknown' }
 }
@@ -382,7 +384,8 @@ const result = {
   meta: {
     arm, turns: TURNS, every: EVERY, seed: SEED, recallEvery: arm === 'slice-recall' ? RECALL_EVERY : null,
     config: arm === 'stock' ? null : sliceConfig, invariants: !opt['no-invariants'], persist: opt.persist !== undefined,
-    node: process.version, dsh: '0.2.0-rc.2', plugin: '0.2.0', git: gitHead(),
+    node: process.version, dsh: packageVersion('@deepseek-ai/dsh-agent-loop/package.json'),
+    plugin: packageVersion('../../package.json'), git: gitHead(),
     date: new Date().toISOString(), wallMs: Date.now() - started, warns: [...new Set(warns)].slice(0, 10),
   },
   checkpoints,
