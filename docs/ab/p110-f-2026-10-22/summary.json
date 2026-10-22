@@ -1,0 +1,2767 @@
+{
+ "note": "P1-10 F-only native A/B results (docs/p110-f-native-ab.md §14). 'pooled' is the ab_report.py --pooled output over the batch p110f-20261022 and the single arbitration batch p110f-20261022-arb (count margins x2, minimum pairs x2); it decides (§9). 'batch' is the batch alone, which triggered the arbitration; 'arbitration_alone' is the arbitration batch alone (not a decision input). Paths are normalized ($AB = the scratch A/B root, $SP = the scratchpad, ~ = the owner's home). No oracle token and no model answer text is kept here. These are the frozen instrument's outputs, not edited for §14.5.",
+ "created": "2026-10-22",
+ "harness_commit": "84911068b242668710848fe1c839890b5e20ccf8 (git diff 619703e 8491106 -- scripts/ab ':!scripts/ab/README.md' is empty)",
+ "decision": {
+  "F": "do not ship F (failed: G3; pass with less than 1 unit of room: G4.requests)"
+ },
+ "pooled": {
+  "arms": [
+   "F",
+   "control"
+  ],
+  "baseline": "control",
+  "batches": [
+   "$AB/vault/results/p110f-20261022",
+   "$AB/vault/results/p110f-20261022-arb"
+  ],
+  "cells": 84,
+  "count_margin_multiplier": 2,
+  "decision": {
+   "F": "do not ship F (failed: G3; pass with less than 1 unit of room: G4.requests)"
+  },
+  "g2_exclusions": {
+   "F": [
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r2.F",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/live/c-b6adc76c68"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $SP",
+        "outside: $AB/live/c-b6adc76c68"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022-arb",
+     "cell": "p110_r5_initial_failures.r1.F",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /private/tmp/combined.txt"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /private/tmp/combined.txt"
+       ],
+       "tool": "read",
+       "turn": 1
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "control": [
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: / (head)",
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py"
+       ],
+       "tool": "bash",
+       "turn": 7
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /private/tmp/claude-501/-Users-tongtao-code-dsh-slice-agent-loop",
+        "outside: $AB/live/c-1e1182446d"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022-arb",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: / (find)"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r5_initial_failures.r3.control",
+     "flagged": false,
+     "flags": [],
+     "leak": true,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ]
+  },
+  "gates": {
+   "F": [
+    {
+     "checks": [
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 2,
+       "rule": "ge_base_minus",
+       "threshold": 40,
+       "verdict": "pass"
+      },
+      {
+       "arm": 42,
+       "arm_sum": 42,
+       "base": 42,
+       "base_sum": 42,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 34,
+       "pairs": 42,
+       "per_task": {
+        "c1": {
+         "arm": 6,
+         "base": 6
+        },
+        "c2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r1": {
+         "arm": 6,
+         "base": 6
+        },
+        "r2": {
+         "arm": 6,
+         "base": 6
+        },
+        "r3": {
+         "arm": 6,
+         "base": 6
+        },
+        "r4": {
+         "arm": 6,
+         "base": 6
+        },
+        "r5": {
+         "arm": 6,
+         "base": 6
+        }
+       },
+       "room_units": 3,
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 4",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 25,
+       "arm_sum": 25,
+       "base": 25,
+       "base_sum": 25,
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 20,
+       "pairs": 25,
+       "room_units": 2,
+       "rule": "ge_base_minus",
+       "threshold": 23,
+       "verdict": "pass"
+      },
+      {
+       "arm": 4,
+       "arm_sum": 4,
+       "base": 4,
+       "base_sum": 4,
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 20,
+       "pairs": 25,
+       "room_units": 4,
+       "rule": "le_base_plus",
+       "threshold": 8,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 20,
+       "pairs": 25,
+       "room_units": 4,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "every F rejection recovered in the same turn",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 20,
+       "pairs": 25,
+       "room_units": null,
+       "rule": "arm_eq",
+       "threshold": 0,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 20,
+       "pairs": 25,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall pairs)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 59,
+       "arm_sum": 59,
+       "base": 41,
+       "base_sum": 41,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 pairs, a mutation counting only when its tool result is not an error",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": -3.75,
+       "rule": "le_factor_base_plus",
+       "shortfall_units": 3.75,
+       "threshold": 55.25,
+       "verdict": "fail"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads (success-only mutations)",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 4,
+       "base": 1
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 93,
+       "base": 96
+      },
+      "rereads_same_turn_any": {
+       "arm": 72,
+       "base": 43
+      }
+     },
+     "verdict": "fail"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.67922,
+       "base": "paired",
+       "base_sum": 0.676771,
+       "baseline": "control",
+       "desc": "median paired cost ratio F/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 1.0174,
+       "metric": "cost",
+       "min_pairs": 34,
+       "n": 42,
+       "pairs": 42,
+       "room_units": 1.6527,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.67922,
+       "base": "sum 0.6768",
+       "base_sum": 0.676771,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 34,
+       "pairs": 42,
+       "ratio": 1.0036,
+       "room_units": 1.9276,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.744448,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 1144,
+       "base": "paired",
+       "base_sum": 1149,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 0.5,
+       "metric": "requests",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 0.5,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 4,
+       "arm_sum": 4,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 6,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 167,
+       "arm_sum": 167,
+       "base": 164,
+       "base_sum": 164,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 5,
+       "rule": "ge_base_minus",
+       "threshold": 162,
+       "verdict": "pass"
+      },
+      {
+       "arm": 19,
+       "arm_sum": 19,
+       "base": 22,
+       "base_sum": 22,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 5,
+       "rule": "le_base_plus",
+       "threshold": 24,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": {
+        "ok": 31,
+        "targets": 34
+       },
+       "arm_rate": 0.9118,
+       "base": {
+        "ok": 45,
+        "targets": 49
+       },
+       "base_rate": 0.9184,
+       "baseline": "control",
+       "desc": "first-try success rate of expand_result on a target in an earlier turn",
+       "dropped_pairs": [],
+       "id": "G6.first_try",
+       "metric": "cross_turn_first_try",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 3,
+       "rule": "rate_ge_base_minus",
+       "threshold": 0.8184,
+       "verdict": "pass"
+      },
+      {
+       "arm": 5,
+       "arm_sum": 5,
+       "base": 4,
+       "base_sum": 4,
+       "baseline": "control",
+       "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave",
+       "dropped_pairs": [],
+       "id": "G6.extra_hops",
+       "metric": "extra_hops",
+       "min_pairs": 34,
+       "pairs": 42,
+       "room_units": 3,
+       "rule": "le_base_plus",
+       "threshold": 8,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G6",
+     "name": "Locators",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ]
+  },
+  "gates_file": "$AB/wt/harness/scripts/ab/gates-f.json",
+  "invalid_cells": [],
+  "min_pairs_multiplier": 2,
+  "model_error_turns": {},
+  "non_final_attempts": [],
+  "pooled": true,
+  "secret_references": [],
+  "spend": {
+   "by_batch": {
+    "p110f-20261022": 1.42153,
+    "p110f-20261022-arb": 1.340459,
+    "pilot": 0.055306,
+    "warm": 0.002579,
+    "warm2": 0.000336
+   },
+   "total_usd_peak_sheet": 2.82021,
+   "turns": 400
+  },
+  "structure": {
+   "F": {
+    "mean_tool_line_chars": 52.9,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": 0,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "control": {
+    "mean_tool_line_chars": 94.0,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": null,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   }
+  },
+  "table": {
+   "F": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.081039,
+     "median_requests": 89.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 34,
+     "valid": 6
+    },
+    "c2": {
+     "attempts_failed": 1,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0048185,
+     "median_requests": 9.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 2,
+     "valid": 6
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0056305,
+     "median_requests": 19.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.010280000000000001,
+     "median_requests": 30.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 1,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 6,
+     "valid": 6
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0041015,
+     "median_requests": 19.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 3,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 8,
+     "valid": 6
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.002497,
+     "median_requests": 13.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 2,
+     "valid": 6
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0062235,
+     "median_requests": 12.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 1,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 3,
+     "valid": 6
+    }
+   },
+   "control": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.07928650000000001,
+     "median_requests": 89.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 22,
+     "valid": 6
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0046865,
+     "median_requests": 9.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 3,
+     "valid": 6
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005152,
+     "median_requests": 20.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 3,
+     "flagged_or_leak": 3,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.010027,
+     "median_requests": 28.0,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 5,
+     "valid": 6
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003915500000000001,
+     "median_requests": 16.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 4,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 4,
+     "valid": 6
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.0026,
+     "median_requests": 13.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 2,
+     "valid": 6
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 6,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 1,
+     "median_cost_usd": 0.006278,
+     "median_requests": 12.5,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 6,
+     "recall_errors": 0,
+     "recall_sourced_correct": 6,
+     "rereads_same_turn": 1,
+     "valid": 6
+    }
+   }
+  },
+  "time_range": [
+   "2026-10-22T09:42:26+00:00",
+   "2026-10-22T12:49:43+00:00"
+  ],
+  "totals": {
+   "F": {
+    "cells": 42,
+    "cost_offpeak_usd": 0.67922,
+    "cost_peak_usd": 1.358446,
+    "hit": 15238656,
+    "miss": 740119,
+    "out": 620799,
+    "requests": 1144,
+    "turn_first_miss": 168300
+   },
+   "control": {
+    "cells": 42,
+    "cost_offpeak_usd": 0.676771,
+    "cost_peak_usd": 1.353548,
+    "hit": 15188864,
+    "miss": 776328,
+    "out": 605544,
+    "requests": 1149,
+    "turn_first_miss": 165863
+   }
+  },
+  "valid_cells": 84,
+  "warmup": {}
+ },
+ "batch": {
+  "arms": [
+   "F",
+   "control"
+  ],
+  "baseline": "control",
+  "batches": [
+   "$AB/vault/results/p110f-20261022"
+  ],
+  "cells": 42,
+  "count_margin_multiplier": 1,
+  "decision": {
+   "F": "arbitration (arbitrate: G4.full_views; pass with less than 1 unit of room: G4.requests): +3 reps of all seven tasks, both arms, then decide on the pooled 6 reps"
+  },
+  "g2_exclusions": {
+   "F": [
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r2.F",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: $AB/live/c-b6adc76c68"
+       ],
+       "tool": "bash",
+       "turn": 6
+      },
+      {
+       "reasons": [
+        "outside: $SP",
+        "outside: $AB/live/c-b6adc76c68"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "control": [
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: / (head)",
+        "outside: /very/long/path/to/file.py",
+        "outside: /very/long/path/to/file.py,"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /very/long/path/to/file.py"
+       ],
+       "tool": "bash",
+       "turn": 7
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /private/tmp/claude-501/-Users-tongtao-code-dsh-slice-agent-loop",
+        "outside: $AB/live/c-1e1182446d"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    },
+    {
+     "batch": "p110f-20261022",
+     "cell": "p110_r5_initial_failures.r3.control",
+     "flagged": false,
+     "flags": [],
+     "leak": true,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ]
+  },
+  "gates": {
+   "F": [
+    {
+     "checks": [
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1,
+       "rule": "ge_base_minus",
+       "threshold": 20,
+       "verdict": "pass"
+      },
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "per_task": {
+        "c1": {
+         "arm": 3,
+         "base": 3
+        },
+        "c2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r1": {
+         "arm": 3,
+         "base": 3
+        },
+        "r2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r3": {
+         "arm": 3,
+         "base": 3
+        },
+        "r4": {
+         "arm": 3,
+         "base": 3
+        },
+        "r5": {
+         "arm": 3,
+         "base": 3
+        }
+       },
+       "room_units": 1,
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 2",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 12,
+       "arm_sum": 12,
+       "base": 12,
+       "base_sum": 12,
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "pairs": 12,
+       "room_units": 1,
+       "rule": "ge_base_minus",
+       "threshold": 11,
+       "verdict": "pass"
+      },
+      {
+       "arm": 2,
+       "arm_sum": 2,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "pairs": 12,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "pairs": 12,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "every F rejection recovered in the same turn",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "pairs": 12,
+       "room_units": null,
+       "rule": "arm_eq",
+       "threshold": 0,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r1 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r2.r2 (p110f-20261022): G2 exclusion (flagged access or leak)",
+        "r5.r3 (p110f-20261022): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "pairs": 12,
+       "room_units": 1,
+       "rule": "le_base_plus",
+       "threshold": 1,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall pairs)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 28,
+       "arm_sum": 28,
+       "base": 22,
+       "base_sum": 22,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 pairs, a mutation counting only when its tool result is not an error",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1.5,
+       "rule": "le_factor_base_plus",
+       "threshold": 29.5,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads (success-only mutations)",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 1,
+       "base": 0
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 46,
+       "base": 47
+      },
+      "rereads_same_turn_any": {
+       "arm": 34,
+       "base": 23
+      }
+     },
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.350512,
+       "base": "paired",
+       "base_sum": 0.335251,
+       "baseline": "control",
+       "desc": "median paired cost ratio F/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 1.0136,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 21,
+       "pairs": 21,
+       "room_units": 1.728,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.350512,
+       "base": "sum 0.3353",
+       "base_sum": 0.335251,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 21,
+       "ratio": 1.0455,
+       "room_units": 1.0896,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.368776,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 575,
+       "base": "paired",
+       "base_sum": 580,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 1,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": -0.0,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 3,
+       "arm_sum": 3,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": -1,
+       "rule": "le_base_plus",
+       "shortfall_units": 1,
+       "threshold": 2,
+       "verdict": "arbitrate"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "arbitrate"
+    },
+    {
+     "checks": [
+      {
+       "arm": 83,
+       "arm_sum": 83,
+       "base": 82,
+       "base_sum": 82,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 2,
+       "rule": "ge_base_minus",
+       "threshold": 81,
+       "verdict": "pass"
+      },
+      {
+       "arm": 10,
+       "arm_sum": 10,
+       "base": 11,
+       "base_sum": 11,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 12,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": {
+        "ok": 18,
+        "targets": 19
+       },
+       "arm_rate": 0.9474,
+       "base": {
+        "ok": 29,
+        "targets": 31
+       },
+       "base_rate": 0.9355,
+       "baseline": "control",
+       "desc": "first-try success rate of expand_result on a target in an earlier turn",
+       "dropped_pairs": [],
+       "id": "G6.first_try",
+       "metric": "cross_turn_first_try",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 2,
+       "rule": "rate_ge_base_minus",
+       "threshold": 0.8355,
+       "verdict": "pass"
+      },
+      {
+       "arm": 4,
+       "arm_sum": 4,
+       "base": 4,
+       "base_sum": 4,
+       "baseline": "control",
+       "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave",
+       "dropped_pairs": [],
+       "id": "G6.extra_hops",
+       "metric": "extra_hops",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 6,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G6",
+     "name": "Locators",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ]
+  },
+  "gates_file": "$AB/wt/harness/scripts/ab/gates-f.json",
+  "invalid_cells": [],
+  "min_pairs_multiplier": 1,
+  "model_error_turns": {},
+  "non_final_attempts": [],
+  "pooled": false,
+  "secret_references": [],
+  "spend": {
+   "by_batch": {
+    "p110f-20261022": 1.42153,
+    "pilot": 0.055306,
+    "warm": 0.002579,
+    "warm2": 0.000336
+   },
+   "total_usd_peak_sheet": 1.479751,
+   "turns": 214
+  },
+  "structure": {
+   "F": {
+    "mean_tool_line_chars": 52.9,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": 0,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "control": {
+    "mean_tool_line_chars": 94.0,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": null,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   }
+  },
+  "table": {
+   "F": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.082535,
+     "median_requests": 91,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 20,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 1,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004472,
+     "median_requests": 9,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 0,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005218,
+     "median_requests": 19,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.010387,
+     "median_requests": 31,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 1,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003826,
+     "median_requests": 18,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 1,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.002859,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 0,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.007529,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 1,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 0,
+     "valid": 3
+    }
+   },
+   "control": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.08006,
+     "median_requests": 87,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 12,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004412,
+     "median_requests": 8,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005033,
+     "median_requests": 20,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 4,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 2,
+     "flagged_or_leak": 2,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.012253,
+     "median_requests": 30,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.00395,
+     "median_requests": 18,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 2,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.002616,
+     "median_requests": 14,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 1,
+     "median_cost_usd": 0.005833,
+     "median_requests": 12,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 0,
+     "valid": 3
+    }
+   }
+  },
+  "time_range": [
+   "2026-10-22T09:42:26+00:00",
+   "2026-10-22T11:08:53+00:00"
+  ],
+  "totals": {
+   "F": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.350512,
+    "cost_peak_usd": 0.701028,
+    "hit": 7814272,
+    "miss": 380244,
+    "out": 321456,
+    "requests": 575,
+    "turn_first_miss": 84107
+   },
+   "control": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.335251,
+    "cost_peak_usd": 0.670506,
+    "hit": 7545728,
+    "miss": 368426,
+    "out": 305119,
+    "requests": 580,
+    "turn_first_miss": 84192
+   }
+  },
+  "valid_cells": 42,
+  "warmup": {}
+ },
+ "arbitration_alone": {
+  "arms": [
+   "F",
+   "control"
+  ],
+  "baseline": "control",
+  "batches": [
+   "$AB/vault/results/p110f-20261022-arb"
+  ],
+  "cells": 42,
+  "count_margin_multiplier": 1,
+  "decision": {
+   "F": "do not ship F (failed: G3)"
+  },
+  "g2_exclusions": {
+   "F": [
+    {
+     "batch": "p110f-20261022-arb",
+     "cell": "p110_r5_initial_failures.r1.F",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: /private/tmp/combined.txt"
+       ],
+       "tool": "bash",
+       "turn": 1
+      },
+      {
+       "reasons": [
+        "outside: /private/tmp/combined.txt"
+       ],
+       "tool": "read",
+       "turn": 1
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ],
+   "control": [
+    {
+     "batch": "p110f-20261022-arb",
+     "cell": "p110_r2_superseded_stamp.r2.control",
+     "flagged": true,
+     "flags": [
+      {
+       "reasons": [
+        "outside: / (find)"
+       ],
+       "tool": "bash",
+       "turn": 6
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "via_fs": []
+    }
+   ]
+  },
+  "gates": {
+   "F": [
+    {
+     "checks": [
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.total",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1,
+       "rule": "ge_base_minus",
+       "threshold": 20,
+       "verdict": "pass"
+      },
+      {
+       "arm": 21,
+       "arm_sum": 21,
+       "base": 21,
+       "base_sum": 21,
+       "baseline": "control",
+       "desc": "pass",
+       "dropped_pairs": [],
+       "id": "G1.per_task",
+       "metric": "pass",
+       "min_pairs": 17,
+       "pairs": 21,
+       "per_task": {
+        "c1": {
+         "arm": 3,
+         "base": 3
+        },
+        "c2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r1": {
+         "arm": 3,
+         "base": 3
+        },
+        "r2": {
+         "arm": 3,
+         "base": 3
+        },
+        "r3": {
+         "arm": 3,
+         "base": 3
+        },
+        "r4": {
+         "arm": 3,
+         "base": 3
+        },
+        "r5": {
+         "arm": 3,
+         "base": 3
+        }
+       },
+       "room_units": 1,
+       "rule": "no_task_drop",
+       "threshold": "no task with arm <= base - 2",
+       "verdict": "pass",
+       "worst_task": "r5"
+      }
+     ],
+     "id": "G1",
+     "name": "Task success (non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 13,
+       "arm_sum": 13,
+       "base": 13,
+       "base_sum": 13,
+       "baseline": "control",
+       "desc": "recall-sourced correct exam answers",
+       "dropped_pairs": [
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2a",
+       "metric": "recall_sourced_correct",
+       "min_pairs": 10,
+       "pairs": 13,
+       "room_units": 1,
+       "rule": "ge_base_minus",
+       "threshold": 12,
+       "verdict": "pass"
+      },
+      {
+       "arm": 2,
+       "arm_sum": 2,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns",
+       "dropped_pairs": [
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2b",
+       "metric": "recall_errors",
+       "min_pairs": 10,
+       "pairs": 13,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "formatVersion rejections",
+       "dropped_pairs": [
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c",
+       "metric": "fv_rejections",
+       "min_pairs": 10,
+       "pairs": 13,
+       "room_units": 2,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "every F rejection recovered in the same turn",
+       "dropped_pairs": [
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2c.recovered",
+       "metric": "fv_rejections_unrecovered",
+       "min_pairs": 10,
+       "pairs": 13,
+       "room_units": null,
+       "rule": "arm_eq",
+       "threshold": 0,
+       "verdict": "pass"
+      },
+      {
+       "arm": 0,
+       "arm_sum": 0,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers",
+       "dropped_pairs": [
+        "r2.r2 (p110f-20261022-arb): G2 exclusion (flagged access or leak)",
+        "r5.r1 (p110f-20261022-arb): G2 exclusion (flagged access or leak)"
+       ],
+       "id": "G2d",
+       "metric": "bad_exam_answers",
+       "min_pairs": 10,
+       "pairs": 13,
+       "room_units": 1,
+       "rule": "le_base_plus",
+       "threshold": 1,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G2",
+     "name": "Recall correctness (15 recall pairs)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 31,
+       "arm_sum": 31,
+       "base": 19,
+       "base_sum": 19,
+       "baseline": "control",
+       "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 pairs, a mutation counting only when its tool result is not an error",
+       "dropped_pairs": [],
+       "id": "G3",
+       "metric": "rereads_same_turn",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": -5.25,
+       "rule": "le_factor_base_plus",
+       "shortfall_units": 5.25,
+       "threshold": 25.75,
+       "verdict": "fail"
+      }
+     ],
+     "id": "G3",
+     "name": "Same-turn repeated reads (success-only mutations)",
+     "report_only": {
+      "fold_then_reread": {
+       "arm": 3,
+       "base": 1
+      },
+      "repeat_tool_reminders": {
+       "arm": 0,
+       "base": 0
+      },
+      "reread_cross_turn": {
+       "arm": 47,
+       "base": 49
+      },
+      "rereads_same_turn_any": {
+       "arm": 38,
+       "base": 20
+      }
+     },
+     "verdict": "fail"
+    },
+    {
+     "checks": [
+      {
+       "arm_sum": 0.328708,
+       "base": "paired",
+       "base_sum": 0.34152,
+       "baseline": "control",
+       "desc": "median paired cost ratio F/control",
+       "dropped_pairs": [],
+       "id": "G4.median_ratio",
+       "median": 1.0211,
+       "metric": "cost",
+       "min_pairs": 17,
+       "n": 21,
+       "pairs": 21,
+       "room_units": 1.5774,
+       "rule": "median_ratio_le",
+       "threshold": 1.1,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 0.328708,
+       "base": "sum 0.3415",
+       "base_sum": 0.34152,
+       "baseline": "control",
+       "desc": "sum of cost",
+       "dropped_pairs": [],
+       "id": "G4.total",
+       "metric": "cost",
+       "min_pairs": 17,
+       "pairs": 21,
+       "ratio": 0.9625,
+       "room_units": 2.7503,
+       "rule": "le_factor_base_plus",
+       "threshold": 0.375672,
+       "verdict": "pass"
+      },
+      {
+       "arm_sum": 569,
+       "base": "paired",
+       "base_sum": 569,
+       "baseline": "control",
+       "desc": "median paired request-count delta per cell",
+       "dropped_pairs": [],
+       "id": "G4.requests",
+       "median": 0,
+       "metric": "requests",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1.0,
+       "rule": "median_delta_le",
+       "threshold": 1,
+       "verdict": "pass"
+      },
+      {
+       "arm": 1,
+       "arm_sum": 1,
+       "base": 2,
+       "base_sum": 2,
+       "baseline": "control",
+       "desc": "recall_turn view \"full\" calls",
+       "dropped_pairs": [],
+       "id": "G4.full_views",
+       "metric": "recall_turn_full",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 3,
+       "rule": "le_base_plus",
+       "threshold": 4,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G4",
+     "name": "Cost (behavioural non-inferiority)",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": 84,
+       "arm_sum": 84,
+       "base": 82,
+       "base_sum": 82,
+       "baseline": "control",
+       "desc": "completed turns ending in a text closeout",
+       "dropped_pairs": [],
+       "id": "G5.closeout",
+       "metric": "closeout_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 3,
+       "rule": "ge_base_minus",
+       "threshold": 81,
+       "verdict": "pass"
+      },
+      {
+       "arm": 9,
+       "arm_sum": 9,
+       "base": 11,
+       "base_sum": 11,
+       "baseline": "control",
+       "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)",
+       "dropped_pairs": [],
+       "id": "G5.step_limit",
+       "metric": "step_limit_turns",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 3,
+       "rule": "le_base_plus",
+       "threshold": 12,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G5",
+     "name": "Finish",
+     "report_only": {},
+     "verdict": "pass"
+    },
+    {
+     "checks": [
+      {
+       "arm": {
+        "ok": 13,
+        "targets": 15
+       },
+       "arm_rate": 0.8667,
+       "base": {
+        "ok": 16,
+        "targets": 18
+       },
+       "base_rate": 0.8889,
+       "baseline": "control",
+       "desc": "first-try success rate of expand_result on a target in an earlier turn",
+       "dropped_pairs": [],
+       "id": "G6.first_try",
+       "metric": "cross_turn_first_try",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1,
+       "rule": "rate_ge_base_minus",
+       "threshold": 0.7889,
+       "verdict": "pass"
+      },
+      {
+       "arm": 1,
+       "arm_sum": 1,
+       "base": 0,
+       "base_sum": 0,
+       "baseline": "control",
+       "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave",
+       "dropped_pairs": [],
+       "id": "G6.extra_hops",
+       "metric": "extra_hops",
+       "min_pairs": 17,
+       "pairs": 21,
+       "room_units": 1,
+       "rule": "le_base_plus",
+       "threshold": 2,
+       "verdict": "pass"
+      }
+     ],
+     "id": "G6",
+     "name": "Locators",
+     "report_only": {},
+     "verdict": "pass"
+    }
+   ]
+  },
+  "gates_file": "$AB/wt/harness/scripts/ab/gates-f.json",
+  "invalid_cells": [],
+  "min_pairs_multiplier": 1,
+  "model_error_turns": {},
+  "non_final_attempts": [],
+  "pooled": false,
+  "secret_references": [],
+  "spend": {
+   "by_batch": {
+    "p110f-20261022": 1.42153,
+    "p110f-20261022-arb": 1.340459,
+    "pilot": 0.055306,
+    "warm": 0.002579,
+    "warm2": 0.000336
+   },
+   "total_usd_peak_sheet": 2.82021,
+   "turns": 400
+  },
+  "structure": {
+   "F": {
+    "mean_tool_line_chars": 52.9,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": 0,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   },
+   "control": {
+    "mean_tool_line_chars": 94.0,
+    "prefix_chars": 17787,
+    "prefix_delta_vs_control": null,
+    "slice_tools_json_chars": 5266,
+    "system_chars": 3651,
+    "tape_header_lengths": [
+     76
+    ]
+   }
+  },
+  "table": {
+   "F": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.078204,
+     "median_requests": 89,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 14,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005235,
+     "median_requests": 9,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005781,
+     "median_requests": 20,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.010173,
+     "median_requests": 28,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.00424,
+     "median_requests": 20,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 2,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 6,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.002439,
+     "median_requests": 13,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004981,
+     "median_requests": 12,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    }
+   },
+   "control": {
+    "c1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.078976,
+     "median_requests": 92,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 10,
+     "valid": 3
+    },
+    "c2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.004961,
+     "median_requests": 10,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 0,
+     "rereads_same_turn": 2,
+     "valid": 3
+    },
+    "r1": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.005271,
+     "median_requests": 20,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 0,
+     "valid": 3
+    },
+    "r2": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 1,
+     "flagged_or_leak": 1,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.009519,
+     "median_requests": 26,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r3": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.003881,
+     "median_requests": 14,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 2,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 3,
+     "valid": 3
+    },
+    "r4": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.002584,
+     "median_requests": 12,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 0,
+     "valid": 3
+    },
+    "r5": {
+     "attempts_failed": 0,
+     "cells": 3,
+     "exam_classes": [
+      "correct",
+      "correct",
+      "correct"
+     ],
+     "flagged": 0,
+     "flagged_or_leak": 0,
+     "fv_rejections": 0,
+     "goal_tool_calls": 0,
+     "leak": 0,
+     "median_cost_usd": 0.008814,
+     "median_requests": 14,
+     "model_error_turns": 0,
+     "oracle_via_fs": 0,
+     "pass": 3,
+     "recall_errors": 0,
+     "recall_sourced_correct": 3,
+     "rereads_same_turn": 1,
+     "valid": 3
+    }
+   }
+  },
+  "time_range": [
+   "2026-10-22T11:10:46+00:00",
+   "2026-10-22T12:49:43+00:00"
+  ],
+  "totals": {
+   "F": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.328708,
+    "cost_peak_usd": 0.657418,
+    "hit": 7424384,
+    "miss": 359875,
+    "out": 299343,
+    "requests": 569,
+    "turn_first_miss": 84193
+   },
+   "control": {
+    "cells": 21,
+    "cost_offpeak_usd": 0.34152,
+    "cost_peak_usd": 0.683042,
+    "hit": 7643136,
+    "miss": 407902,
+    "out": 300425,
+    "requests": 569,
+    "turn_first_miss": 81671
+   }
+  },
+  "valid_cells": 42,
+  "warmup": {}
+ },
+ "cache_crosscheck": {
+  "tool": "dsh-slice scripts/cache-metrics.py",
+  "compared": [
+   "session miss",
+   "hit",
+   "output",
+   "requests",
+   "turn-first-step miss",
+   "per-turn step-1 cacheRead",
+   "expand_result count"
+  ],
+  "result": {
+   "cells": 84,
+   "match": 84,
+   "mismatch": []
+  }
+ },
+ "secrets_scan": {
+  "command": "run_ab.py secrets-scan --ab-root $AB",
+  "result": {
+   "secret_references": [
+    {
+     "cell": "isolation_probe.r1.F",
+     "batch": "isoprobe-v2",
+     "turn": 1,
+     "tool": "bash",
+     "reasons": [
+      "secret: DSH_HOME"
+     ],
+     "hold_back": [
+      "$AB/vault/results/isoprobe-v2/homes/c-d376147601/sessions/--private-tmp-claude-501--Users-tongtao-code-dsh-slice-agent-loop-0e4b8700-2b22-463f-9470-489b8db791fc-scratchpad-fab-live-c-d376147601-w-0d92b01322--/session-ffdc8968-3700-4b00-b037-cff3ff640f71/session.v4.jsonl.zstd",
+      "$AB/vault/results/isoprobe-v2/turns/isolation_probe.r1.F.a1792661567.t*"
+     ]
+    },
+    {
+     "cell": "isolation_probe.r1.control",
+     "batch": "isoprobe-v2",
+     "turn": 1,
+     "tool": "bash",
+     "reasons": [
+      "secret: DSH_HOME"
+     ],
+     "hold_back": [
+      "$AB/vault/results/isoprobe-v2/homes/c-e85299cc21/sessions/--private-tmp-claude-501--Users-tongtao-code-dsh-slice-agent-loop-0e4b8700-2b22-463f-9470-489b8db791fc-scratchpad-fab-live-c-e85299cc21-w-589931af24--/session-ec38912b-5678-4e98-9312-32ee715edcca/session.v4.jsonl.zstd",
+      "$AB/vault/results/isoprobe-v2/turns/isolation_probe.r1.control.a1792661558.t*"
+     ]
+    }
+   ]
+  },
+  "note": "Only the two offline isoprobe-v2 cells (they name DSH_HOME by design); no paid cell. The review-probe cells (no cell records, so outside the scan) also name DSH_HOME and are held back too."
+ }
+}
