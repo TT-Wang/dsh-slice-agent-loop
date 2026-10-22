@@ -52,5 +52,6 @@
    ]
   }
  ],
- "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27)."
+ "_delivery_note": "validity: each delivery turn must show the fact in a non-recall tool result (the pilot's control ran the script with its output sent to /dev/null, which leaves the exam unanswerable by construction); the delivery prompts ask for the command to be run as is, without redirection or a pipe (pilot change, 2026-09-27).",
+ "_filler_fix": "since 2026-10-22 setup() creates lib/fmt.py (a docstring and plural()), the file the T3 filler asks to extend; the 2026-09-27 setup never created it and models searched the disk for it (docs/p110-native-ab.md §14.8). Prompts unchanged."
 }

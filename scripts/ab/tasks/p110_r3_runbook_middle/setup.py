@@ -40,6 +40,13 @@ MIDDLE_EXTRA = {
     90: "The facilities desk answers on extension 30912 for badge and door problems.",
     240: "The staging datacenter is refreshed from snapshots every Sunday afternoon.",
 }
+SLUG_MODULE = '''"""Small text helpers for building URL slugs."""
+
+
+def collapse_spaces(s):
+    """Return s with every run of whitespace replaced by a single space."""
+    return " ".join(s.split())
+'''
 TARGET_EXT_LINE = 180
 TARGET_DR_LINE = 300
 TOTAL_LINES = 420
@@ -104,3 +111,7 @@ def setup(root):
     os.makedirs(os.path.join(root, "answers"), exist_ok=True)
     with open(os.path.join(root, "docs", "runbook.txt"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(text)
+    # The T2 filler asks to add slugify() to lib/slug.py; since 2026-10-22 that file exists (it did not on 2026-09-27,
+    # and models searched the disk for it, docs/p110-native-ab.md §14.8).
+    with open(os.path.join(root, "lib", "slug.py"), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(SLUG_MODULE)

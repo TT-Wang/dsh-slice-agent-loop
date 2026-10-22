@@ -1,0 +1,127 @@
+{
+ "version": 2,
+ "experiment": "p110-f",
+ "source": "docs/p110-f-native-ab.md (Gates, pre-registered). ab_report.py evaluates this file and run_ab.py reads the arm structure from it; the doc is the normative text. gates.json is the frozen file of the 2026-09-27 A/B.",
+ "baseline": "control",
+ "arms": ["F"],
+ "structure": {
+  "_note": "Manipulation checks per cell (validity). Control is main 70e6e55, which carries A + C: short tape header, long tool line. F changes only the tool line; its request prefix (system prompt, tool definitions) must equal control's byte for byte.",
+  "control": {"header": "short", "tool_line": "long"},
+  "F": {"header": "short", "tool_line": "v", "same_prefix_as": "control"}
+ },
+ "unit": {
+  "tasks": ["r1", "r2", "r3", "r4", "r5", "c1", "c2"],
+  "recall_tasks": ["r1", "r2", "r3", "r4", "r5"],
+  "reps": 3,
+  "pairing": "same task and rep index; the two cells of a pair ran back to back, one cell at a time, the first arm rotating with (rep - 1 + seed)"
+ },
+ "min_pairs": {
+  "all": 17,
+  "recall_g2": 10,
+  "_note": "Of 21 pairs (scope all) and 15 (recall_g2) per batch. A check evaluated on fewer valid pairs is 'insufficient', which blocks shipping. Pooled over the arbitration batch the minimums scale with the number of rep sets (x2: 34 of 42, 20 of 30)."
+ },
+ "pooled": {
+  "count_margin_multiplier": 2,
+  "min_pairs_multiplier": 2,
+  "_note": "ab_report.py --pooled: count margins and minimum pair counts double; ratio, median and rate limits do not change; the room requirement does not change."
+ },
+ "room": {
+  "required_units": 1,
+  "_note": "F ships only if every check passes with at least one unit of room (docs/p110-f-native-ab.md §9): limit minus value >= 1 count for count checks, >= 0.05 for a cost ratio, >= 1 request for the median request delta, >= 1 cross-turn target for the first-try rate, and for the per-task drop no task below control. Equality checks (every F rejection recovered) have no room: they pass or fail."
+ },
+ "validity": {
+  "cell_counts_only_if": [
+   "every turn exited 0 or ended with a model-attributable turn_end (the step cap 'blocked', 'max-tokens', or 'error' with a code outside the infra list); never an infra error (TRANSPORT, RATE_LIMIT, SERVER, TIMEOUT, EMPTY_RESPONSE, MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH, QUOTA, ACCOUNT_QUOTA, NO_ADAPTER, ABORTED, HTTP 5xx), a missing turn_end, a harness timeout or a budget kill",
+   "the session log was found",
+   "system prompt and slice tool fingerprints equal the arm's entry in fingerprints.json",
+   "16 tools (the fingerprinted count), one tool list and one system prompt for the whole session",
+   "one turn per prompt: user prompts = turn ends = prompts, no goal-round messages",
+   "the system prompt contains no /private or /Users",
+   "zero compaction events",
+   "tape header and tool-line forms are the arm's (control short/long, F short/v); every tape header 76 or 78 chars",
+   "structural, F: system prompt sha, slice tool sha and request prefix chars equal control's",
+   "isolation: no blocked path (vault, worktrees) changed mode, inode or ctime while a turn ran",
+   "r3 only: a fold replacement of a turn-1 read exists",
+   "r1, r2, r4 (meta delivery): every delivery turn shows the exam's fact in a non-recall tool result (the script's output was not discarded)"
+  ],
+  "max_attempts": 2,
+  "pair_rule": "a (task, rep) pair counts only when both the F cell and the control cell are valid; dropped pairs are listed",
+  "g2_exclusion": "a cell counts for G1 but is excluded from G2 (the whole pair drops from that comparison) when, up to its exam turn, a tool call was flagged (a path, bash command or bash workdir resolving outside the cell's workdir; the session log, .truth sidecar, harness, vault, key location, or mdfind/locate as a command), or an answer-sufficient token leaked before the exam turn into assistant text or into a tool input that writes a file (r5: write/edit calls on textkit/, the required fix, excepted), or in the exam turn a non-recall tool result named an oracle token before any recall result did and before the model wrote it (oracle via the file system)"
+ },
+ "gates": [
+  {
+   "id": "G1", "name": "Task success (non-inferiority)", "applies_to": ["F"],
+   "checks": [
+    {"id": "G1.total", "metric": "pass", "scope": "all", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G1.per_task", "metric": "pass", "scope": "all", "rule": "no_task_drop", "drop": 2, "count": true}
+   ]
+  },
+  {
+   "id": "G2", "name": "Recall correctness (15 recall pairs)", "applies_to": ["F"],
+   "checks": [
+    {"id": "G2a", "desc": "recall-sourced correct exam answers", "metric": "recall_sourced_correct", "scope": "recall_g2", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G2b", "desc": "errors on recall_turn/recall_search/recall_step/expand_result, all turns", "metric": "recall_errors", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G2c", "desc": "formatVersion rejections", "metric": "fv_rejections", "scope": "recall_g2", "rule": "le_base_plus", "margin": 2, "count": true},
+    {"id": "G2c.recovered", "desc": "every F rejection recovered in the same turn", "metric": "fv_rejections_unrecovered", "scope": "recall_g2", "rule": "arm_eq", "value": 0, "count": true},
+    {"id": "G2d", "desc": "decoy, stale, hedged, wrong or CANNOT-RECOVER exam answers", "metric": "bad_exam_answers", "scope": "recall_g2", "rule": "le_base_plus", "margin": 1, "count": true}
+   ]
+  },
+  {
+   "id": "G3", "name": "Same-turn repeated reads (success-only mutations)", "applies_to": ["F"],
+   "checks": [
+    {"id": "G3", "desc": "sum of reread_same_turn_unchanged + reread_same_turn_after_edit over all 21 pairs, a mutation counting only when its tool result is not an error", "metric": "rereads_same_turn", "scope": "all", "rule": "le_factor_base_plus", "factor": 1.25, "margin": 2, "count": true}
+   ],
+   "report_only": ["rereads_same_turn_any", "fold_then_reread", "reread_cross_turn", "repeat_tool_reminders"],
+   "_note": "rereads_same_turn_any is the 2026-09-27 definition (every mutating call counts), reported as the secondary, not gated."
+  },
+  {
+   "id": "G4", "name": "Cost (behavioural non-inferiority)", "applies_to": ["F"],
+   "checks": [
+    {"id": "G4.median_ratio", "desc": "median paired cost ratio F/control", "metric": "cost", "scope": "all", "rule": "median_ratio_le", "value": 1.10, "arbitration_unit": 0.05},
+    {"id": "G4.total", "desc": "sum of cost", "metric": "cost", "scope": "all", "rule": "le_factor_base_plus", "factor": 1.10, "margin": 0, "arbitration_unit": 0.05, "relative_unit": true},
+    {"id": "G4.requests", "desc": "median paired request-count delta per cell", "metric": "requests", "scope": "all", "rule": "median_delta_le", "value": 1, "arbitration_unit": 1},
+    {"id": "G4.full_views", "desc": "recall_turn view \"full\" calls", "metric": "recall_turn_full", "scope": "all", "rule": "le_base_plus", "margin": 2, "count": true}
+   ],
+   "note": "Peak prices are exactly twice off-peak for every field, so cost ratios do not depend on the sheet. F's saving (about 41 chars per tape tool line) is below what n = 3 resolves; G4 guards against behaviour-driven cost increases."
+  },
+  {
+   "id": "G5", "name": "Finish", "applies_to": ["F"],
+   "checks": [
+    {"id": "G5.closeout", "desc": "completed turns ending in a text closeout", "metric": "closeout_turns", "scope": "all", "rule": "ge_base_minus", "margin": 1, "count": true},
+    {"id": "G5.step_limit", "desc": "turns cut by maxStepsPerTurn (turn_end kind blocked)", "metric": "step_limit_turns", "scope": "all", "rule": "le_base_plus", "margin": 1, "count": true}
+   ]
+  },
+  {
+   "id": "G6", "name": "Locators", "applies_to": ["F"],
+   "checks": [
+    {"id": "G6.first_try", "desc": "first-try success rate of expand_result on a target in an earlier turn", "metric": "cross_turn_first_try", "scope": "all", "rule": "rate_ge_base_minus", "margin": 0.10, "min_targets": 1},
+    {"id": "G6.extra_hops", "desc": "recall_turn/recall_search called only to obtain a locator the tape already gave", "metric": "extra_hops", "scope": "all", "rule": "le_base_plus", "margin": 2, "count": true}
+   ],
+   "_note": "No check here may be n/a: without a cross-turn target on either side the first-try check is insufficient, which blocks shipping F (the locator is what F changes)."
+  }
+ ],
+ "decide": {
+  "F": {
+   "gates": ["G1", "G2", "G3", "G4", "G5", "G6"],
+   "ship": "ship F (every gate passes with at least one unit of room)",
+   "drop": "do not ship F"
+  }
+ },
+ "verdicts": {
+  "pass": "the check holds",
+  "arbitrate": "missed by exactly one unit beyond its margin (one count; 0.05 of a ratio; one request; one cross-turn target)",
+  "fail": "missed by more than one unit",
+  "insufficient": "the check cannot be evaluated, or has fewer valid pairs than min_pairs; blocks shipping"
+ },
+ "arbitration": {
+  "trigger": "for F, no check fails and at least one check arbitrates, is insufficient, or passes with less than one unit of room",
+  "extra_reps": 3,
+  "tasks": "all seven gated tasks, whatever drove the trigger",
+  "seed": 20261023,
+  "arms": "both arms, same sequential pairing (the first arm rotating with (rep - 1 + seed), so over the 6 reps each arm goes first 3 times)",
+  "decide_on": "pooled 6 reps: count margins x2, minimum pairs x2, room requirement unchanged; no second arbitration",
+  "count_margin_multiplier": 2,
+  "min_pairs_multiplier": 2,
+  "once": true
+ }
+}

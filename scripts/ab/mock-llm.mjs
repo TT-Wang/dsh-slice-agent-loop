@@ -3,14 +3,19 @@
 //
 // Default script, per turn (one action per model request, then a text closeout):
 //   1. bash `ls`;
-//   2. when the first existing file the user prompt names is a script under tools/, bash `python3 <it>`
-//      (plus the prompt's `--region R`), so the tasks' delivery turns show its output as a real run does;
+//   2. when the user prompt names an existing script under tools/ (anywhere in the prompt), bash `python3 <it>`
+//      (plus the prompt's `--region R`), so the tasks' delivery turns show its output as a real run does
+//      (r2's T4 names config/service.env before tools/stamp.py);
 //   3. `read` that file;
 //   4. `read` it again (a same-turn unchanged re-read, so the metric has data);
 //   5. expand_result on the newest tape tool line, parsed in whichever form the arm renders
 //      (`expand_result({"seq":N,"formatVersion":V})` or `seq N · … · vV]`);
 //   6. text "MOCK-DONE".
 // Inapplicable actions are skipped. The MOCK-* keywords keep the scouting probes working.
+//
+// Isolation probe (run_ab.py isolation-probe): a prompt starting "[isolation-probe]" lists one action per line,
+// `BASH: <command>`, `READ: <path>`, `GLOB: <dir>` (pattern **/*) or `GREP: <dir>` (pattern CANARY); the mock issues
+// them in order, one per request, then closes with "MOCK-DONE".
 //
 // Failure injection (budget accounting tests): with AB_MOCK_FAIL_EVERY=N (N >= 2) the 1st, (N+1)th, ...
 // request of each process ends with a retryable TRANSPORT error instead of its action, so the host
@@ -66,12 +71,14 @@ function tapeLocator(tape) {
 }
 
 /**
- * First file named in the prompt that exists under the session cwd (the headless cwd is the workdir).
- * @param {string} ask @returns {string|undefined}
+ * First file named in the prompt that exists under the session cwd (the headless cwd is the workdir) and, when
+ * given, matches `only`.
+ * @param {string} ask @param {RegExp} [only] @returns {string|undefined}
  */
-function namedFile(ask) {
+function namedFile(ask, only) {
   for (const m of ask.matchAll(/[\w./-]+\.(?:py|txt|md|json|csv|env|ini)\b/g)) {
     const path = m[0].replace(/^\.\//, '')
+    if (only && !only.test(path)) continue
     try { if (existsSync(path) && statSync(path).isFile()) return path } catch { /* not a file */ }
   }
   return undefined
@@ -96,7 +103,21 @@ export function apply(ctx) {
       const tape = msgs.filter(m => kind(m) === 'plugin:slice:history').map(m => texts(m).join('\n')).join('\n')
       /** @type {import('@deepseek-ai/dsh-llm').StreamChunk[]} */
       let out
-      if (/MOCK-(RUN|READ|BADVER|RECALL|TURN)/.test(ask)) {
+      if (ask.startsWith('[isolation-probe]')) {
+        /** @type {Array<() => import('@deepseek-ai/dsh-llm').StreamChunk[]>} */
+        const actions = []
+        for (const line of ask.split('\n').slice(1)) {
+          const m = /^(BASH|READ|GLOB|GREP): (.+)$/.exec(line)
+          if (!m) continue
+          const [, op, arg] = m
+          if (op === 'BASH') actions.push(() => call('bash', { command: arg, description: 'isolation probe' }))
+          else if (op === 'READ') actions.push(() => call('read', { file_path: arg }))
+          else if (op === 'GLOB') actions.push(() => call('glob', { pattern: '**/*', path: arg }))
+          else actions.push(() => call('grep', { pattern: 'CANARY', path: arg }))
+        }
+        const next = actions[after]
+        out = next ? next() : text('MOCK-DONE')
+      } else if (/MOCK-(RUN|READ|BADVER|RECALL|TURN)/.test(ask)) {
         if (after > 0) out = text('MOCK-DONE')
         else if (ask.includes('MOCK-RUN')) out = call('bash', { command: 'cat data.txt', description: 'read data' })
         else if (ask.includes('MOCK-READ')) out = call('read', { file_path: 'data.txt' })
@@ -105,12 +126,13 @@ export function apply(ctx) {
         else out = call('recall_turn', { turn: '1' })
       } else {
         const file = namedFile(ask)
+        const tool = namedFile(ask, /^tools\/[\w-]+\.py$/)
         const locator = tapeLocator(tape)
         /** @type {Array<() => import('@deepseek-ai/dsh-llm').StreamChunk[]>} */
         const script = [() => call('bash', { command: 'ls', description: 'list the workspace' })]
-        if (file && /^tools\/[\w-]+\.py$/.test(file)) {
+        if (tool) {
           const region = /--region (\w+)/.exec(ask)?.[1]
-          script.push(() => call('bash', { command: `python3 ${file}${region ? ` --region ${region}` : ''}`, description: 'run the script' }))
+          script.push(() => call('bash', { command: `python3 ${tool}${region ? ` --region ${region}` : ''}`, description: 'run the script' }))
         }
         if (file) script.push(() => call('read', { file_path: file }), () => call('read', { file_path: file }))
         if (locator) script.push(() => call('expand_result', locator))

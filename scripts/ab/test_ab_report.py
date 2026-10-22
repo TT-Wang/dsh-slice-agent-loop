@@ -91,6 +91,89 @@ class NotEvaluable(unittest.TestCase):
         self.assertTrue(R.decide({"G1": "fail", "G2": "insufficient"}, ids, "ship", "no").startswith("no (a gate failed)"))
 
 
+class Room(unittest.TestCase):
+    """F ships only with at least one unit of room on every check (docs/p110-f-native-ab.md §9)."""
+
+    def test_room_units(self):
+        g1 = {"id": "G1.total", "metric": "pass", "rule": "ge_base_minus", "margin": 1, "count": True}
+        rows = lambda arm: kept([("r1", {"pass": a}, {"pass": 1}) for a in arm])  # noqa: E731
+        self.assertEqual(R.evaluate(g1, rows([1, 1, 1]), 1)["room_units"], 1)
+        self.assertEqual(R.evaluate(g1, rows([1, 1, 0]), 1)["room_units"], 0)         # passes at its limit
+        req = {"id": "G4.requests", "metric": "requests", "rule": "median_delta_le", "value": 1, "arbitration_unit": 1}
+        r = R.evaluate(req, kept([("r1", {"requests": 11}, {"requests": 10})] * 3), 1)
+        self.assertEqual((r["verdict"], r["room_units"]), ("pass", 0))                 # the 2026-09-27 arm 2 case
+        self.assertEqual(R.evaluate(req, kept([("r1", {"requests": 10}, {"requests": 10})]), 1)["room_units"], 1)
+        med = {"id": "G4.median_ratio", "metric": "cost", "rule": "median_ratio_le", "value": 1.10, "arbitration_unit": 0.05}
+        self.assertAlmostEqual(R.evaluate(med, kept([("r1", {"cost": 1.0}, {"cost": 1.0})]), 1)["room_units"], 2.0)
+        drop = {"id": "G1.per_task", "metric": "pass", "rule": "no_task_drop", "drop": 2, "count": True}
+        self.assertEqual(R.evaluate(drop, kept([("r1", {"pass": 1}, {"pass": 1})] * 3), 1)["room_units"], 1)
+        self.assertEqual(R.evaluate(drop, kept([("r1", {"pass": 1}, {"pass": 1})] * 2 + [("r1", {"pass": 0}, {"pass": 1})]), 1)["room_units"], 0)
+        rate = {"id": "G6.first_try", "metric": "cross_turn_first_try", "rule": "rate_ge_base_minus", "margin": 0.10, "min_targets": 1}
+        row = lambda ok, n: {"cross_turn_first_try_ok": ok, "cross_turn_targets": n}  # noqa: E731
+        self.assertEqual(R.evaluate(rate, kept([("r1", row(50, 50), row(50, 50))]), 1)["room_units"], 5)
+        self.assertEqual(R.evaluate(rate, kept([("r1", row(45, 50), row(50, 50))]), 1)["room_units"], 0)
+        eq = {"id": "G2c.recovered", "metric": "fv_rejections_unrecovered", "rule": "arm_eq", "value": 0, "count": True}
+        self.assertIsNone(R.evaluate(eq, kept([("r1", {"fv_rejections_unrecovered": 0}, {"fv_rejections_unrecovered": 0})]), 1)["room_units"])
+
+    def test_pooled_minimum_pairs_scale(self):
+        g2b = {"id": "G2b", "metric": "recall_errors", "rule": "le_base_plus", "margin": 2, "count": True}
+        nineteen = kept([("r1", {"recall_errors": 0}, {"recall_errors": 0})] * 19)
+        self.assertEqual(R.evaluate(g2b, nineteen, 1, 10)["verdict"], "pass")
+        r = R.evaluate(g2b, nineteen, 2, 10, 2)
+        self.assertEqual((r["verdict"], r["min_pairs"]), ("insufficient", 20))
+
+    def test_decision(self):
+        spec = {"gates": ["G1", "G4"], "ship": "ship F", "drop": "do not ship F"}
+        chk = lambda i, v, room: {"id": i, "verdict": v, "room_units": room}  # noqa: E731
+        gates = lambda *cs: [{"id": "G1", "checks": [cs[0]]}, {"id": "G4", "checks": list(cs[1:])}]  # noqa: E731
+        self.assertEqual(R.decide_with_room(gates(chk("G1.total", "pass", 1), chk("G4.requests", "pass", 2)), spec, False, 1), "ship F")
+        d = R.decide_with_room(gates(chk("G1.total", "pass", 1), chk("G4.requests", "pass", 0)), spec, False, 1)
+        self.assertTrue(d.startswith("arbitration") and "G4.requests" in d, d)
+        self.assertTrue(R.decide_with_room(gates(chk("G1.total", "pass", 1), chk("G4.requests", "pass", 0)), spec, True, 1).startswith("do not ship F (pooled"))
+        self.assertTrue(R.decide_with_room(gates(chk("G1.total", "fail", -3), chk("G4.requests", "pass", 0)), spec, False, 1).startswith("do not ship F (failed"))
+        self.assertTrue(R.decide_with_room(gates(chk("G1.total", "insufficient", None), chk("G4.requests", "pass", 3)), spec, False, 1).startswith("arbitration"))
+        self.assertEqual(R.decide_with_room(gates(chk("G1.total", "pass", 1), chk("G2c.recovered", "pass", None)), spec, False, 1), "ship F")
+
+
+def synthetic_cells(d, worse_arm, gates_arm):
+    import json
+    os.makedirs(os.path.join(d, "cells"))
+    tasks = {"r1": 1, "r2": 1, "r3": 1, "r4": 1, "r5": 1, "c1": 0, "c2": 0}
+    for t, recall in tasks.items():
+        for rep in (1, 2, 3):
+            for arm in ("control", gates_arm):
+                bad = arm == worse_arm and recall
+                m = {"recall": {"errors": 50 if bad else 0, "fv_rejections": 20 if bad else 0, "fv_rejections_recovered": 0, "recall_turn_views": {"full": 0},
+                                "expand_cross_turn": {"targets": 1, "first_try_ok": 1}, "extra_hops": 0, "tools": {"expand_result": {"calls": 1}}},
+                     "reads": {"reread_same_turn_unchanged": 0, "reread_same_turn_after_edit": 0, "fold_then_reread": 0, "reread_cross_turn": 0, "repeat_tool_reminders": 0},
+                     "finish": {"closeout": 3, "completed": 3, "step_limit_cut": 0}, "exams": [{"recall_sourced": not bad}],
+                     "usage": {"cost_offpeak": 1.0, "cost_peak": 2.0, "requests": 10, "miss": 1, "hit": 1, "out": 1, "turn_first_miss": 1, "attempts_failed": 0},
+                     "validity": {}}
+                cell = {"cell": f"{t}.r{rep}.{arm}", "alias": t, "arm": arm, "rep": rep, "valid": True, "pass": True, "metrics": m,
+                        "exam_class": ("decoy" if bad else "correct") if recall else None, "g2_excluded": bool(recall) and worse_arm is not None}
+                with open(os.path.join(d, "cells", cell["cell"] + ".json"), "w") as fh:
+                    json.dump(cell, fh)
+
+
+class EndToEndF(unittest.TestCase):
+    def test_equal_arms_ship_with_room_and_vacuous_g2_does_not(self):
+        import json, shutil, tempfile
+        d = tempfile.mkdtemp(prefix="ab-report-test-")
+        synthetic_cells(d, None, "F")
+        R.main([d, "--out", d, "--gates", os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-f.json")])
+        with open(os.path.join(d, "summary.json")) as fh:
+            s = json.load(fh)
+        self.assertEqual(s["decision"]["F"], "ship F (every gate passes with at least one unit of room)")
+        shutil.rmtree(d)
+        d = tempfile.mkdtemp(prefix="ab-report-test-")
+        synthetic_cells(d, "F", "F")
+        R.main([d, "--out", d])
+        with open(os.path.join(d, "summary.json")) as fh:
+            s = json.load(fh)
+        self.assertTrue(s["decision"]["F"].startswith("arbitration (insufficient: G2a"), s["decision"]["F"])
+        shutil.rmtree(d)
+
+
 class VacuousG2(unittest.TestCase):
     """End to end on synthetic cells: every recall pair excluded from G2 and arm1 much worse must not ship."""
 
@@ -113,7 +196,7 @@ class VacuousG2(unittest.TestCase):
                             "exam_class": ("decoy" if bad else "correct") if recall else None, "g2_excluded": bool(recall)}
                     with open(os.path.join(d, "cells", cell["cell"] + ".json"), "w") as fh:
                         json.dump(cell, fh)
-        R.main([d, "--out", d])
+        R.main([d, "--out", d, "--gates", os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates.json")])  # the 2026-09-27 file
         with open(os.path.join(d, "summary.json")) as fh:
             s = json.load(fh)
         g2 = next(g for g in s["gates"]["arm1"] if g["id"] == "G2")

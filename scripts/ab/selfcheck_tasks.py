@@ -98,6 +98,15 @@ def r5(failing):
 check("r5-untouched", "p110_r5_initial_failures", lambda r: None, False)
 check("r5-correct", "p110_r5_initial_failures", r5(lambda f: "\n".join(f) + "\n"), True, "correct")
 check("r5-partial", "p110_r5_initial_failures", r5(lambda f: "\n".join(f[:8]) + "\n"), False, "wrong")
+# Filler targets (2026-10-22): the files the r3 T2 and r4 T3 prompts ask to extend exist after setup, keep their
+# existing helper, and the untouched module does not yet satisfy verify's substrate check
+def filler(name, task, rel, helper):
+    root = fresh(task, name); p = os.path.join(root, rel)
+    src = open(p).read() if os.path.isfile(p) else ""
+    ok = helper in src and call(task, "verify", root)["ok"] is False
+    results.append(ok); print(("OK  " if ok else "BAD ") + name, rel, "exists" if src else "MISSING")
+filler("r3-filler-target", "p110_r3_runbook_middle", "lib/slug.py", "def collapse_spaces(")
+filler("r4-filler-target", "p110_r4_probe_compare", "lib/fmt.py", "def plural(")
 # C1, C2: reference_fix.py from the source scenario directories
 def ref(src):
     def f(root):

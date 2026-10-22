@@ -64,6 +64,15 @@ for ep in ENDPOINTS:
 ''' % (SALT, ENDPOINTS)
 
 
+FMT_MODULE = '''"""Small formatting helpers for reports."""
+
+
+def plural(n, word):
+    """Return "1 file" or "2 files" style text."""
+    return "%d %s%s" % (n, word, "" if n == 1 else "s")
+'''
+
+
 def setup(root):
     expected()
     os.makedirs(os.path.join(root, "tools"), exist_ok=True)
@@ -71,3 +80,7 @@ def setup(root):
     os.makedirs(os.path.join(root, "answers"), exist_ok=True)
     with open(os.path.join(root, "tools", "probe.py"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(PROBE)
+    # The T3 filler asks to add pct() to lib/fmt.py; since 2026-10-22 that file exists (it did not on 2026-09-27,
+    # and models searched the disk for it, docs/p110-native-ab.md §14.8).
+    with open(os.path.join(root, "lib", "fmt.py"), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(FMT_MODULE)

@@ -23,5 +23,6 @@
  ],
  "require_fold_of_read_turn": 1,
  "source": "new for P1-10 (seeded generator in setup.py)",
- "stressor": "T1 reads a 28 KB prose runbook that the fold condenses before the next request; the night-shift extension sits in the dropped middle with a near-miss decoy in the kept head (in-turn fold recovery, the direct probe of the FOLD_BODY change). The harness deletes docs/ after T1; T3 asks for a second fact from the dropped middle of the same read, with a decoy on the kept last line (cross-turn recall of the T1 read result)."
+ "stressor": "T1 reads a 28 KB prose runbook that the fold condenses before the next request; the night-shift extension sits in the dropped middle with a near-miss decoy in the kept head (in-turn fold recovery, the direct probe of the FOLD_BODY change). The harness deletes docs/ after T1; T3 asks for a second fact from the dropped middle of the same read, with a decoy on the kept last line (cross-turn recall of the T1 read result).",
+ "_filler_fix": "since 2026-10-22 setup() creates lib/slug.py (a docstring and collapse_spaces()), the file the T2 filler asks to extend; the 2026-09-27 setup never created it and models searched the disk for it (docs/p110-native-ab.md §14.8). Prompts unchanged."
 }
