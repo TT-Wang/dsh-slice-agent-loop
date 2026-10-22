@@ -321,7 +321,8 @@ describe('resume from snapshotEvents', () => {
     await nativeSend(two.agent, 'continue')
 
     expect(second.errors).toEqual([])
-    expect(requestText(second, 0)).toContain(`${EXPAND_TOOL_NAME}({\\"seq\\":${unshown.seq},\\"formatVersion\\":${SESSION_FORMAT_VERSION}})`)
+    // 工具行给出 seq 与格式版本(` · v4`),调用写法在 expand_result 的定义里。
+    expect(requestText(second, 0)).toMatch(new RegExp(`\\[tool turn \\d+ step \\d+ seq ${unshown.seq} · read · \\d+ chars · v${SESSION_FORMAT_VERSION}\\]`))
     expect(requestText(second, 0)).not.toContain('row 55 payload')
   })
 

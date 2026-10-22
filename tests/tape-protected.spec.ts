@@ -152,7 +152,7 @@ describe('what a seal leaves untouched', () => {
     })
 
     // Each pointer resolves to the untouched append record that still holds the full result.
-    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(new RegExp(`expand_result\\(\\{"seq":(\\d+),"formatVersion":${SESSION_FORMAT_VERSION}\\}\\)`, 'g'))].map(match => Number(match[1])))
+    const seqs = written.flatMap(entry => [...textOfEvent(entry).matchAll(new RegExp(`\\[tool turn \\d+ step \\d+ seq (\\d+) · [^\\]]* · v${SESSION_FORMAT_VERSION}\\]`, 'g'))].map(match => Number(match[1])))
     expect(seqs).toHaveLength(4)
     for (const seq of seqs) {
       const event = agent.session.eventAt(seq as SessionSeq)

@@ -298,7 +298,7 @@ function collectItems(session: Session, run: readonly Node[], toolNames: Map<str
       current.reads.push(...readsForResult(history, source))
       const name = toolNames.get(result.toolCallId) ?? 'tool'
       const size = result.content.reduce((n, b) => n + (b.type === 'text' ? textChars(b.text) : 0), 0)
-      current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · expand_result({"seq":${source.seq},"formatVersion":${SESSION_FORMAT_VERSION}})]`)
+      current.tools.push(`[tool turn ${turn} step ${source.data.step} seq ${source.seq} · ${name} · ${size} chars · v${SESSION_FORMAT_VERSION}]`)
     }
   }
   return items

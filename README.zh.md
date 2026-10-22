@@ -19,7 +19,7 @@
 - 头部标明跨度：`[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn / expand_result]`；
 - 每个被封存的轮：`[turn N]`，然后按原顺序保留该段内每条可见助手文本，各有回复包装与来源定位；默认保留全文和空白，包括调用工具之前的助手消息；
 - 该轮的**读索引**行（见下）；
-- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":4})]`，每轮最多 6 条，每条指向持久日志记录，而不是重复正文。
+- 该轮的工具行——`[tool turn N step S seq Q · <name> · <size> chars · v4]`，每轮最多 6 条，每条指向持久日志记录（用 `expand_result({"seq":Q,"formatVersion":4})` 取回），而不是重复正文。
 
 **默认不设条目或助手文本上限。** reasoning 与工具结果正文留在原日志中，通过召回访问；导航元数据仍有展示限制。用户消息位于条目之外，不会被条目渲染器缩短。
 

@@ -19,7 +19,7 @@ One entry renders, in order:
 - a header naming the span: `[slice tape v1 · turns N-M · K turn(s) sealed · recall_turn / expand_result]`;
 - per sealed turn: `[turn N]`, then every visible assistant text message in that span, in source order, each with a reply wrapper and its source locator; by default the entire text is preserved, including whitespace and messages preceding a tool call;
 - the turn's **read index** line (below);
-- the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · expand_result({"seq":Q,"formatVersion":4})]`, at most 6 per turn, each pointing at the durable log record instead of repeating the text.
+- the turn's tool lines — `[tool turn N step S seq Q · <name> · <size> chars · v4]`, at most 6 per turn, each pointing at the durable log record (retrieve it with `expand_result({"seq":Q,"formatVersion":4})`) instead of repeating the text.
 
 **There is no default entry or assistant-text cap.** Reasoning and tool-result bodies remain in the original log and are accessed through recall; navigation metadata still has display limits. User messages stay outside the entry and cannot be shortened by its renderer.
 
