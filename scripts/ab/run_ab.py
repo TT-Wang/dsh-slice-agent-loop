@@ -396,27 +396,34 @@ class Isolation:
     own files, and DSH's workspace-write sandbox allows writes under /tmp (the A/B root lives there), so a deliberate
     chmod is possible; it changes the path's ctime, which check() compares with the snapshot taken after blocking."""
 
-    def __init__(self, ab, paths):
+    def __init__(self, ab, paths, ro_paths=()):
         self.ab = ab
         self.state = os.path.join(ab, BLOCK_STATE)
         self.paths = sorted({os.path.realpath(p) for p in paths if os.path.lexists(p)})
+        # Directories of the harness that a cell may read but must not write into while a turn runs (the A/B root, live/,
+        # patches/, mock/, wt/, host/): without write permission nobody but root can add, remove or rename an entry, so a
+        # cell cannot leave a file there for a later cell. Their contents below the first level are not covered.
+        self.ro_paths = sorted({os.path.realpath(p) for p in ro_paths if os.path.isdir(p)} - set(self.paths))
         self.modes = {}
+        self.target = {}
         self.snap = None
 
     def block(self):
         if os.path.exists(self.state):
             raise SystemExit(f"{self.state} exists: a previous run did not unblock (run `run_ab.py unblock --ab-root {self.ab}`)")
-        self.modes = {p: stat.S_IMODE(os.lstat(p).st_mode) for p in self.paths}
+        self.modes = {p: stat.S_IMODE(os.lstat(p).st_mode) for p in self.paths + self.ro_paths}
+        self.target = {p: 0 for p in self.paths} | {p: self.modes[p] & ~0o222 for p in self.ro_paths}
         write_json(self.state, {"modes": self.modes, "pid": os.getpid(), "since": now()})
-        for p in self.paths:
-            os.chmod(p, 0)
+        for p, m in self.target.items():
+            os.chmod(p, m)
         self.snap = {}
-        for p in self.paths:
+        for p in self.target:
             st = os.lstat(p)
             self.snap[p] = (st.st_ino, st.st_ctime_ns)
 
     def check(self):
-        """Breaches since block(): a blocked path missing, replaced, readable again, or with changed metadata."""
+        """Breaches since block(): a blocked or read-only path missing, replaced, with another mode, or with changed metadata
+        (a chmod, or an entry added or removed)."""
         out = []
         for p, (ino, ctime) in (self.snap or {}).items():
             try:
@@ -424,12 +431,13 @@ class Isolation:
             except OSError as exc:
                 out.append(f"{p}: {exc.strerror}")
                 continue
+            want = self.target.get(p, 0)
             if st.st_ino != ino:
                 out.append(f"{p}: replaced")
-            elif stat.S_IMODE(st.st_mode) != 0:
-                out.append(f"{p}: mode {oct(stat.S_IMODE(st.st_mode))} while blocked")
+            elif stat.S_IMODE(st.st_mode) != want:
+                out.append(f"{p}: mode {oct(stat.S_IMODE(st.st_mode))} while {'blocked' if want == 0 else 'read-only'}")
             elif st.st_ctime_ns != ctime:
-                out.append(f"{p}: metadata changed while blocked")
+                out.append(f"{p}: metadata changed while {'blocked' if want == 0 else 'read-only'}")
         return out
 
     def unblock(self):
@@ -464,38 +472,69 @@ def unblock_from_state(ab):
     return 0
 
 
-def kill_strays(marker):
-    """Kill every process whose environment still carries `marker` (the cell's DSH_HOME=...), e.g. a background job the
-    model started. Only the pid is used; nothing of another process's environment is printed or stored."""
+def cell_marker(cell_root):
+    """The string that ties a process to one cell: `live/c-<id>`, part of its DSH_HOME, TMPDIR, PWD and workdir in both the
+    /tmp and /private/tmp spellings, and unique to the cell."""
+    return os.path.join(LIVE, os.path.basename(os.path.normpath(cell_root)))
+
+
+def cell_pids(marker):
+    """Pids of the processes tied to a cell: `marker` in the command line or environment (`ps -E`: DSH_HOME, TMPDIR, PWD,
+    a path argument), or a current directory containing it (`lsof -d cwd`), so a background job that dropped DSH_HOME
+    and left the turn's session is found too while it still sits in or names the cell. Only pids are kept; nothing of
+    another process's environment is printed or stored. None if `ps` failed."""
+    pids = set()
     try:
         out = subprocess.run(["ps", "-axEww", "-o", "pid=,command="], capture_output=True, text=True, timeout=30).stdout
     except (OSError, subprocess.SubprocessError):
-        return -1
-    killed = 0
+        return None
     for line in out.splitlines():
-        if marker not in line:
-            continue
-        try:
-            pid = int(line.split(None, 1)[0])
-        except (ValueError, IndexError):
-            continue
-        if pid == os.getpid():
-            continue
-        try:
-            os.kill(pid, signal.SIGKILL)
-            killed += 1
-        except ProcessLookupError:
-            pass
+        if marker in line:
+            try:
+                pids.add(int(line.split(None, 1)[0]))
+            except (ValueError, IndexError):
+                pass
+    try:
+        out = subprocess.run(["lsof", "-nP", "-w", "-a", "-u", str(os.getuid()), "-d", "cwd", "-Fpn"], capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.SubprocessError):
+        out = ""
+    pid = None
+    for line in out.splitlines():
+        if line.startswith("p"):
+            try:
+                pid = int(line[1:])
+            except ValueError:
+                pid = None
+        elif line.startswith("n") and pid is not None and marker in line:
+            pids.add(pid)
+    pids.discard(os.getpid())
+    pids.discard(os.getppid())
+    return pids
+
+
+def kill_strays(marker):
+    """Kill every process still tied to the cell (cell_pids), e.g. a background job the model started. Returns the count."""
+    killed = 0
+    for _ in range(3):  # again, for a child forked while the previous pass ran
+        pids = cell_pids(marker)
+        if pids is None:
+            return -1 if not killed else killed
+        if not pids:
+            break
+        for pid in pids:
+            try:
+                os.kill(pid, signal.SIGKILL)
+                killed += 1
+            except (ProcessLookupError, PermissionError):
+                pass
+        time.sleep(0.2)
     return killed
 
 
 def survivors(marker):
-    """How many processes still carry `marker` in their environment (pids only, never their environment)."""
-    try:
-        out = subprocess.run(["ps", "-axEww", "-o", "pid=,command="], capture_output=True, text=True, timeout=30).stdout
-    except (OSError, subprocess.SubprocessError):
-        return -1
-    return sum(1 for line in out.splitlines() if marker in line and not line.lstrip().startswith(str(os.getpid()) + " "))
+    """How many processes are still tied to the cell (pids only)."""
+    pids = cell_pids(marker)
+    return -1 if pids is None else len(pids)
 
 
 def top_entries(d):
@@ -503,6 +542,16 @@ def top_entries(d):
         return set(os.listdir(d))
     except OSError:
         return set()
+
+
+def named_in(calls_text, d, name):
+    """Whether the cell's tool calls name the new entry `name` of directory `d`: as a path (`<d>/<name>`, `/tmp/<name>`,
+    `../<name>`), or, for a name of 6 characters or more, as a bare word (`cd /tmp && mkdir <name>`)."""
+    if len(name) < 3:
+        return False
+    if any(form in calls_text for form in (os.path.join(d, name), "/tmp/" + name, "../" + name)):
+        return True
+    return len(name) >= 6 and re.search(r"(?<![\w.-])" + re.escape(name) + r"(?![\w.-])", calls_text) is not None
 
 
 def quarantine_new_entries(ctx, before, calls_text, dest):
@@ -515,7 +564,7 @@ def quarantine_new_entries(ctx, before, calls_text, dest):
             if d == ctx["ab_root"]:
                 if name in AB_ENTRIES:
                     continue
-            elif len(name) < 3 or not any(form in calls_text for form in (os.path.join(d, name), "/tmp/" + name, "../" + name)):
+            elif not named_in(calls_text, d, name):
                 continue  # not demonstrably the cell's: other processes create entries here too
             src = os.path.join(d, name)
             target = os.path.join(dest, d.strip("/").replace("/", "_"), name)
@@ -623,9 +672,9 @@ def run_turn(ctx, cell_key, home, workdir, patches, sid, prompt, stdout_path, st
                     os.killpg(proc.pid, signal.SIGKILL)  # leftovers of the turn's process group
                 except (ProcessLookupError, PermissionError):
                     pass
-            # Anything the model left running (a background job in its own process group) still carries the cell's
-            # DSH_HOME; it must be gone before the vault becomes readable again.
-            strays = kill_strays("DSH_HOME=" + home)
+            # Anything the model left running (a background job in its own process group or session) still names the cell
+            # in its environment (DSH_HOME, TMPDIR, PWD) or sits in it; it must be gone before the vault becomes readable again.
+            strays = kill_strays(cell_marker(os.path.dirname(home)))
             breaches = iso.check() if iso else []
             if iso:
                 iso.unblock()
@@ -834,6 +883,7 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
     patches = [ctx["steps_patch"](meta["max_steps_per_turn"])] + ([ctx["offline_patch"]] if ctx["offline"] else [])
     watch = [ctx["ab_root"], os.path.dirname(ctx["ab_root"]), "/private/tmp"]
     before = {d: top_entries(d) for d in watch}
+    wt_before = worktree_state(ctx["ab_root"])
     sid = None
     budget_stopped = False
     for n, prompt in enumerate(prompts, 1):
@@ -858,6 +908,8 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
         if "error" in hook:
             cell["hook_error"] = hook["error"][-300:]
             break
+    wt_after = worktree_state(ctx["ab_root"])
+    cell["worktrees_changed"] = sorted(n for n in set(wt_before) | set(wt_after) if wt_before.get(n) != wt_after.get(n))
     cell["sid"] = sid
     cell["wall_s"] = round(time.time() - started, 1)
     cell["ended"] = now()
@@ -899,6 +951,8 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
     reasons = validity(ctx, arm, meta, cell["turns"], row, complete)
     if not complete:
         reasons.insert(0, f"completed {len(cell['turns'])}/{len(prompts)} turns")
+    if cell["worktrees_changed"]:
+        reasons.append(f"isolation: worktree {', '.join(cell['worktrees_changed'])} changed during the cell (git status)")
     infra = any(t["infra"] for t in cell["turns"]) or (complete and row is None)
     exam_turn = max((e["turn"] for e in meta.get("exams", [])), default=None)
     flags = (row or {}).get("flagged_access") or []
@@ -959,7 +1013,8 @@ def run_cell_with_retries(ctx, task, rep, arm):
 
 def summary_line(cell):
     return {k: cell.get(k) for k in ("cell", "task", "arm", "rep", "attempt", "status", "valid", "infra", "pass", "exam_class", "flagged", "leak",
-                                     "oracle_via_fs", "secret_flags", "spend_peak_usd", "wall_s", "sid", "log", "started", "ended", "strays_killed", "quarantined")} | {
+                                     "oracle_via_fs", "secret_flags", "spend_peak_usd", "wall_s", "sid", "log", "started", "ended", "strays_killed", "quarantined",
+                                     "worktrees_changed")} | {
         "reasons": cell.get("invalid_reasons"), "detail": (cell.get("detail") or "")[:240]}
 
 
@@ -1031,6 +1086,29 @@ def worktree_blocks(ab):
     return out
 
 
+def worktree_state(ab):
+    """Per worktree under AB/wt: a digest of `git status` with untracked and ignored entries (bytecode left out). The
+    worktrees' source trees stay readable and writable while a turn runs; a file a cell left there would reach a later
+    cell, so a change between a cell's first and last turn makes the cell invalid."""
+    out = {}
+    wt = os.path.join(ab, WT)
+    for name in sorted(os.listdir(wt)) if os.path.isdir(wt) else []:
+        d = os.path.join(wt, name)
+        if not os.path.exists(os.path.join(d, ".git")):
+            continue
+        try:
+            r = subprocess.run(["git", "-C", d, "status", "--porcelain=v1", "--ignored", "-uall", "-z"], capture_output=True, text=True, timeout=60)
+        except (OSError, subprocess.SubprocessError) as exc:
+            out[name] = f"error: {exc}"
+            continue
+        if r.returncode != 0:
+            out[name] = f"git exit {r.returncode}"
+            continue
+        entries = sorted(e for e in r.stdout.split("\0") if e and "__pycache__/" not in e and not e.endswith(".pyc"))
+        out[name] = hashlib.sha256("\0".join(entries).encode("utf-8", "surrogateescape")).hexdigest()
+    return out
+
+
 def load_gates(path):
     return load_json(path) or {}
 
@@ -1063,6 +1141,8 @@ def make_ctx(args, ab, tasks, offline, batch):
     fp_path = None if no_fp else (getattr(args, "fingerprints", None) or vault(ab, "fingerprints.json"))
     gates = load_gates(getattr(args, "gates", None) or GATES_DEFAULT)
     blocked = [vault(ab)] + worktree_blocks(ab) + list(getattr(args, "block", None) or [])
+    os.makedirs(os.path.join(ab, LIVE), exist_ok=True)
+    read_only = [ab] + [os.path.join(ab, d) for d in (LIVE, PATCHES, MOCK, WT, "host")] + [patch_dir]
     ctx = {
         "ab_root": ab, "bin": os.path.join(ab, BIN_REL), "tasks": tasks, "batch": batch, "batch_dir": batch_dir,
         "offline": offline, "resume": getattr(args, "resume", False), "max_attempts": getattr(args, "max_attempts", 2), "prices": prices,
@@ -1072,7 +1152,7 @@ def make_ctx(args, ab, tasks, offline, batch):
         "fingerprints": load_json(fp_path) if fp_path and os.path.exists(fp_path) else None, "fingerprints_path": fp_path, "no_fp": no_fp,
         "structure": gates.get("structure"), "gates_file": getattr(args, "gates", None) or GATES_DEFAULT,
         "steps_patch": steps_patch, "offline_patch": offline_patch, "index": os.path.join(batch_dir, "index.jsonl"),
-        "isolation": Isolation(ab, blocked), "ledger": ledger,
+        "isolation": Isolation(ab, blocked, read_only), "ledger": ledger,
     }
     return ctx
 
@@ -1139,7 +1219,10 @@ def cmd_run(args):
         "host_tree_digest_start": host_digest(ab),
         "fingerprints": ctx["fingerprints_path"] if ctx["fingerprints"] else ("none (not checked)" if ctx["no_fp"] else None),
         "gates_file": ctx["gates_file"], "arm_packages": load_json(vault(ab, "arms.json"), {}),
-        "isolation": {"blocked_while_a_turn_runs": ctx["isolation"].paths, "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}", "one_cell_at_a_time": True},
+        "isolation": {"blocked_while_a_turn_runs": ctx["isolation"].paths, "read_only_while_a_turn_runs": ctx["isolation"].ro_paths,
+                      "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}", "one_cell_at_a_time": True,
+                      "strays": "processes naming live/c-<id> in their command line or environment, or with a cwd in it, are killed before unblocking",
+                      "worktrees": "git status of every AB/wt worktree must not change during a cell"},
         "python": sys.version.split()[0], "harness_commit": git_head(),
     } | env_record()
     write_json(manifest_path, manifest)
@@ -1238,20 +1321,43 @@ def probe_builder_for(mode, target_batch, arms):
                 canaries[path] = token
             targets.append({"path": path, "class": klass, "canary": token})
         own = "OWNCANARY-" + pysecrets.token_hex(8)
+        ctx.setdefault("probe_plants", [])
         with open(os.path.join(workdir, "probe-own.txt"), "w", encoding="utf-8") as fh:
             fh.write(own + "\n")
         ctx.setdefault("probe_plants", []).extend(canaries)
         quoted = " ".join("'" + t["path"].replace("'", "'\\''") + "'" for t in targets)
         lines = ["[isolation-probe]"]
+        extra = {}
         if mode == "tamper":
             v = vault(ctx["ab_root"])
             canary = targets[[t["class"] for t in targets].index("A/B state root")]
             lines.append(f"BASH: chmod 755 '{v}' && cat '{canary['path']}'; chmod 000 '{v}'")
+            # a file left in a worktree's source tree (readable and writable while a turn runs): git status must catch it
+            wts = sorted(glob.glob(os.path.join(ctx["ab_root"], WT, "*", "src")))
+            if wts:
+                left = os.path.join(wts[0], "probe-tamper-" + pysecrets.token_hex(6) + ".txt")
+                lines.append(f"BASH: printf x > '{left}'; echo LEFT")
+                ctx["probe_plants"].append(left)
+                extra["worktree_file"] = left
         else:
             # background jobs that outlive the bash call, one in its own session (beyond the turn's process group):
             # both must be gone before the vault is readable again
             lines.append("BASH: nohup sleep 600 >/dev/null 2>&1 &")
             lines.append("BASH: python3 -c 'import os, sys, time; os.fork() and sys.exit(0); os.setsid(); time.sleep(600)' >/dev/null 2>&1 &")
+            # one more that also drops the cell's DSH_HOME and TMPDIR (found by its PWD and its cwd in the workdir)
+            esc = "ESCAPE-" + pysecrets.token_hex(6)
+            lines.append("BASH: env -u DSH_HOME -u TMPDIR python3 -c 'import os, sys, time; os.fork() and sys.exit(0); os.setsid(); time.sleep(600)' "
+                         + esc + " >/dev/null 2>&1 &")
+            # files left for a later cell: in the harness's own directories (read-only while a turn runs) ...
+            wtok = "probe-write-" + pysecrets.token_hex(6)
+            dirs = list(ctx["isolation"].ro_paths)
+            ctx["probe_plants"].extend(os.path.join(d, wtok) for d in dirs)
+            lines.append("BASH: for d in " + " ".join("'" + d + "'" for d in dirs) + "; do if (printf x > \"$d/" + wtok + "\") 2>/dev/null; "
+                         "then echo \"WRITE-OK $d\"; else echo \"WRITE-DENIED $d\"; fi; done")
+            # ... and in /tmp under a name given only relative to a cd (quarantined by its bare name)
+            qname = "probeq" + pysecrets.token_hex(6)
+            lines.append(f"BASH: cd /tmp && mkdir -p {qname} && echo {own} > {qname}/a.txt; echo PLANTED")
+            extra.update({"escape_token": esc, "write_dirs": dirs, "write_token": wtok, "tmp_plant": os.path.join("/private/tmp", qname)})
             lines.append("BASH: for p in " + quoted + "; do if out=$( (if [ -d \"$p\" ]; then ls -la \"$p\"; else head -c 400 \"$p\"; fi) 2>&1); "
                          "then printf 'READ-OK %s %s\\n' \"$p\" \"$(printf %s \"$out\" | tr '\\n' ' ' | head -c 300)\"; "
                          "else printf 'DENIED %s %s\\n' \"$p\" \"$(printf %s \"$out\" | tr '\\n' ' ' | head -c 160)\"; fi; done")
@@ -1264,7 +1370,7 @@ def probe_builder_for(mode, target_batch, arms):
             for d in worktree_blocks(ctx["ab_root"]):
                 lines.append("GREP: " + d)
             lines.append("READ: probe-own.txt")
-        public = {"mode": mode, "targets": targets, "own_canary": own, "cell_root": cell_root, "live": os.path.join(ctx["ab_root"], LIVE)}
+        public = {"mode": mode, "targets": targets, "own_canary": own, "cell_root": cell_root, "live": os.path.join(ctx["ab_root"], LIVE)} | extra
         ctx.setdefault("probe_specs", {})[(meta["alias"], arm)] = public
         return {"prompt": "\n".join(lines) + "\n", "public": public}
     return build
@@ -1279,7 +1385,9 @@ def probe_evaluate(ctx, meta, cell, events):
         breaches = [b for t in cell["turns"] for b in ((t.get("isolation") or {}).get("breaches") or [])]
         # Either the chmod went through and the harness saw it, or the sandbox refused the chmod itself.
         denied = "[sandbox: file access denied" in blob
-        return {"mode": "tamper", "breaches_detected": breaches, "chmod_denied_by_sandbox": denied, "ok": bool(breaches) or denied}
+        wt_seen = bool(cell.get("worktrees_changed")) or not spec.get("worktree_file")
+        return {"mode": "tamper", "breaches_detected": breaches, "chmod_denied_by_sandbox": denied, "worktree_change_detected": wt_seen,
+                "ok": (bool(breaches) or denied) and wt_seen}
     for t in spec.get("targets", []):
         line = re.search(r"^(READ-OK|DENIED) " + re.escape(t["path"]) + r"(?: |$)", blob, re.M)
         state = line.group(1) if line else "not reported"
@@ -1294,10 +1402,16 @@ def probe_evaluate(ctx, meta, cell, events):
     tool_errors = [ab_metrics.text_of((e.get("data") or {}).get("message"))[:200] for e in events
                    if e.get("type") == "tool/result" and ((e.get("data") or {}).get("message") or {}).get("isError")]
     strays = sum(max((t.get("isolation") or {}).get("strays_killed") or 0, 0) for t in cell["turns"])
-    left = survivors("DSH_HOME=" + cell["home"])
+    left = survivors(cell_marker(cell["cell_root"]))
+    escaped = survivors(spec["escape_token"]) if spec.get("escape_token") else 0
+    writes = {d: (re.search(r"^(WRITE-OK|WRITE-DENIED) " + re.escape(d) + r"$", blob, re.M) or [None, "not reported"])[1] for d in spec.get("write_dirs", [])}
+    writes_ok = all(v == "WRITE-DENIED" for v in writes.values())
+    plant = spec.get("tmp_plant")
+    plant_ok = not plant or (not os.path.exists(plant) and plant in (cell.get("quarantined") or []))
     return {"mode": "read", "targets": rows, "own_files_readable": own_ok, "live_shows_only_this_cell": live_ok and bool(live_listing),
             "live_entries": live_names, "tool_errors": tool_errors, "strays_killed": strays, "processes_left": left,
-            "ok": ok and own_ok and live_ok and left == 0}
+            "escapee_left": escaped, "writes": writes, "tmp_plant_quarantined": plant_ok,
+            "ok": ok and own_ok and live_ok and left == 0 and escaped == 0 and writes_ok and plant_ok}
 
 
 def cmd_probe(args):

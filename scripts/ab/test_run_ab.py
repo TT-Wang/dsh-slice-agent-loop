@@ -183,6 +183,27 @@ class Isolation(unittest.TestCase):
         self.assertTrue(any("replaced" in b for b in breaches))
         iso.unblock()
 
+    def test_read_only_dirs_refuse_new_entries(self):
+        live = os.path.join(self.ab, "live")
+        os.makedirs(os.path.join(live, "c-0123456789"))
+        iso = A.Isolation(self.ab, [os.path.join(self.ab, "vault")], [self.ab, live])
+        iso.block()
+        with self.assertRaises(PermissionError):
+            open(os.path.join(self.ab, "note.txt"), "w").close()          # nothing can be left next to the cells for a later one
+        with self.assertRaises(PermissionError):
+            open(os.path.join(live, "note.txt"), "w").close()
+        open(os.path.join(live, "c-0123456789", "own.txt"), "w").close()   # the cell's own root stays writable
+        self.assertEqual(iso.check(), [])
+        time.sleep(0.01)
+        os.chmod(live, 0o755)                                               # a cell making live/ writable again
+        breaches = iso.check()
+        self.assertEqual(len(breaches), 1, breaches)
+        self.assertIn("while read-only", breaches[0])
+        iso.unblock()
+        open(os.path.join(self.ab, "note.txt"), "w").close()
+        self.assertEqual(oct(os.stat(live).st_mode & 0o777), "0o755")
+        self.assertFalse(os.path.exists(os.path.join(self.ab, ".blocked.json")))
+
     def test_a_stale_block_refuses_to_start(self):
         iso = self.iso()
         iso.block()
@@ -202,13 +223,66 @@ class Quarantine(unittest.TestCase):
         for p in (os.path.join(ab, "notes.txt"), os.path.join(ab, "progress.txt"), os.path.join(other, "probe_out.txt"), os.path.join(other, "unrelated")):
             open(p, "w").close()
         dest = os.path.join(base, "q")
-        moved = A.quarantine_new_entries({"ab_root": ab}, before, "cat > ../../tmpish/probe_out.txt", dest)
-        self.assertEqual(sorted(os.path.basename(m) for m in moved), ["notes.txt"])  # ../probe_out.txt is ../../tmpish/, not "../" + name
+        moved = A.quarantine_new_entries({"ab_root": ab}, before, "cat > ../../tmpish/probe_note.txt", dest)
+        self.assertEqual(sorted(os.path.basename(m) for m in moved), ["notes.txt"])  # another name: not demonstrably the cell's
         moved = A.quarantine_new_entries({"ab_root": ab}, before, "python3 x.py > " + os.path.join(other, "probe_out.txt"), dest)
         self.assertEqual([os.path.basename(m) for m in moved], ["probe_out.txt"])
         self.assertTrue(os.path.exists(os.path.join(other, "unrelated")))
         self.assertTrue(os.path.exists(os.path.join(ab, "progress.txt")))
         shutil.rmtree(base)
+
+    def test_a_bare_name_after_cd_counts(self):
+        calls = "cd /tmp && mkdir -p probeq1a2b3c && echo x > probeq1a2b3c/a.txt"
+        self.assertTrue(A.named_in(calls, "/private/tmp", "probeq1a2b3c"))
+        self.assertFalse(A.named_in(calls, "/private/tmp", "probeq"))      # a prefix of a word is not the name
+        self.assertFalse(A.named_in("ls build", "/private/tmp", "build"))  # short bare words are too common to claim
+        self.assertTrue(A.named_in("cat /tmp/build", "/private/tmp", "build"))
+
+
+class StrayMarker(unittest.TestCase):
+    def test_marker_names_the_cell_in_both_tmp_spellings(self):
+        m = A.cell_marker("/private/tmp/x/fab/live/c-0123456789/")
+        self.assertEqual(m, os.path.join("live", "c-0123456789"))
+        self.assertIn(m, "PWD=/tmp/x/fab/live/c-0123456789/w-abcdefabcd")
+
+    def test_a_process_sitting_in_the_cell_is_found(self):
+        import subprocess
+        d = os.path.realpath(tempfile.mkdtemp(prefix="ab-stray-test-"))
+        cell = os.path.join(d, "live", "c-9876543210")
+        os.makedirs(cell)
+        env = {k: v for k, v in os.environ.items() if k not in ("PWD", "OLDPWD")}
+        p = subprocess.Popen(["sleep", "30"], cwd=cell, env=env, start_new_session=True)   # no marker in argv or environment
+        try:
+            time.sleep(0.3)
+            self.assertIn(p.pid, A.cell_pids(A.cell_marker(cell)))
+            self.assertGreaterEqual(A.kill_strays(A.cell_marker(cell)), 1)
+            p.wait(timeout=5)
+            self.assertEqual(A.survivors(A.cell_marker(cell)), 0)
+        finally:
+            if p.poll() is None:
+                p.kill()
+            shutil.rmtree(d)
+
+
+class WorktreeState(unittest.TestCase):
+    def test_a_file_left_in_a_worktree_changes_the_state(self):
+        import subprocess
+        ab = os.path.realpath(tempfile.mkdtemp(prefix="ab-wt-test-"))
+        repo = os.path.join(ab, "wt", "one")
+        os.makedirs(os.path.join(repo, "src"))
+        run = lambda *a: subprocess.run(["git", "-C", repo] + list(a), check=True, capture_output=True)  # noqa: E731
+        run("init", "-q")
+        with open(os.path.join(repo, "src", "a.py"), "w") as fh:
+            fh.write("x = 1\n")
+        run("add", ".")
+        run("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "init")
+        s0 = A.worktree_state(ab)
+        os.makedirs(os.path.join(repo, "src", "__pycache__"))
+        open(os.path.join(repo, "src", "__pycache__", "a.cpython-310.pyc"), "w").close()
+        self.assertEqual(A.worktree_state(ab), s0)                        # bytecode is not a cell's note
+        open(os.path.join(repo, "src", "note.txt"), "w").close()
+        self.assertNotEqual(A.worktree_state(ab), s0)
+        shutil.rmtree(ab)
 
 
 class Structure(unittest.TestCase):
