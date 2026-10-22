@@ -123,7 +123,7 @@ describe('successful read provenance in tape entries', () => {
     await h.ctx.plugin(FixtureRuntime)
     h.ctx.tools.register(defineContentToolFixture({ name: 'read', description: 'Read fixture', parameters: { file_path: { type: 'string' }, offset: { type: 'number' }, limit: { type: 'number' } }, execute: async () => [{ type: 'text', text: returnedBody }] }))
     const { agent } = await h.ctx.agents.create({ sessionId: SessionId('native-code-read-index'), agentOptions: { provider: 'native-mock', model: 'deterministic' } })
-    agent.ctx.tools.presentAs('both')
+    agent.ctx.tools.presentAs('ptc')
     await nativeSend(agent, 'Read once')
     expect(JSON.stringify(h.adapter.requests[1]!.messages)).not.toContain(body)
     const dispatched = agent.session.snapshotEvents().find(event => event.type === 'tool/ptc-dispatch')!

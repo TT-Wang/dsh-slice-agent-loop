@@ -16,6 +16,7 @@ import { type Config } from '../src/index.js'
 import { multiToolCallResponse } from './mock-adapter.js'
 import { renderSealedTurn } from '../src/recall.js'
 import { TEST_CONTEXT_SOURCE } from './v4-fixtures.js'
+import { RequestReconstructionError } from './request-reconstruction.js'
 
 /** The host's runtime-context projection, spelled independently of the plugin under test (session format V4). */
 const RUNTIME_CONTEXT = 'runtime-context'
@@ -776,7 +777,9 @@ describe('slice context on the native DSH loop', () => {
     expect(h.errors).toEqual([])
   })
 
-  it('keeps the stock invariant capable of rejecting changed later request content', async () => {
+  // The harness check stands in for the host's agent-loop invariant, which 0.2.1
+  // removed (tests/request-reconstruction.ts). This proves it is mounted and live.
+  it('keeps the request-reconstruction check capable of rejecting changed later request content', async () => {
     const h = await boot([nativeText('one'), nativeText('two')])
     const { agent } = await create(h, 'native-tamper')
     await nativeSend(agent, 'first')
@@ -788,7 +791,8 @@ describe('slice context on the native DSH loop', () => {
     Object.freeze(messages)
     const forged = markAgentLoopRequest(Object.freeze({ ...request, messages }))
 
-    expect(() => h.ctx.llm.stream(forged)).toThrow(/durable derivation|reconstruction desync/)
+    expect(() => h.ctx.llm.stream(forged)).toThrow(RequestReconstructionError)
+    expect(() => h.ctx.llm.stream(forged)).toThrow(/durable derivation \(log-reconstruction desync\)/)
     expect(h.adapter.requests).toHaveLength(2)
   })
 })
