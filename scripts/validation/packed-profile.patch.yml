@@ -22,12 +22,6 @@
       name: '@deepseek-ai/dsh-agent-loop'
       config:
         agents: []
-    - id: invariants
-      name: '@deepseek-ai/dsh-invariants'
-    - id: session-invariant
-      name: '@deepseek-ai/dsh-session/invariant'
-    - id: agent-loop-invariant
-      name: '@deepseek-ai/dsh-agent-loop/invariant'
     - id: packed-runner
       name: '../../../runner.mjs'
       config:
@@ -35,3 +29,7 @@
 
 # The installed bundle supplies the current per-turn sealing defaults.
 # Exercise that shipped configuration without overriding its history policy.
+#
+# No runtime invariant rows: 0.2.1 removed @deepseek-ai/dsh-invariants and every
+# <package>/invariant module, and a row naming one fails to load. The runner
+# checks each request against the durable surface and header itself.

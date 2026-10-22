@@ -18,7 +18,7 @@ const packageManager = manifest.packageManager
 const hostVersion = process.env.SLICE_PACKED_DSH_VERSION ?? manifest.devDependencies['@deepseek-ai/dsh-agent']
 // Exactly the hosts the @deepseek-ai/dsh-* peer ranges in package.json admit.
 // Any other host skips the plugin at profile load, so change both together.
-if (!['0.1.7-rc.2', '0.2.0-rc.2'].includes(hostVersion)) throw new Error(`Unsupported packed validation host: ${hostVersion}`)
+if (!['0.2.0-rc.2', '0.2.1-rc.2'].includes(hostVersion)) throw new Error(`Unsupported packed validation host: ${hostVersion}`)
 // Budget for each step (install, plugin add, the session run). A cold install of
 // the published host tree over a slow registry link can exceed the default.
 const stepTimeoutMs = Number.parseInt(process.env.SLICE_PACKED_STEP_TIMEOUT_MS ?? '', 10) || 180_000
