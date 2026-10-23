@@ -2,12 +2,16 @@
 """ab_report.py: aggregate P1-10 A/B cells and evaluate the pre-registered gates.
 
 usage:
-  ab_report.py <batch-dir> [<batch-dir> ...] [--baseline control] [--gates scripts/ab/gates.json]
-               [--fingerprints AB/fingerprints.json] [--ledger AB/spend.jsonl] [--pooled] [--out DIR]
+  ab_report.py <batch-dir> [<batch-dir> ...] [--baseline control] [--gates scripts/ab/gates-f.json]
+               [--fingerprints FILE] [--ledger FILE] [--pooled] [--out DIR]
 
 Reads <batch-dir>/cells/*.json written by run_ab.py and writes summary.json and summary.md
 to --out (default: the first batch dir). Several batch dirs are pooled (the arbitration
-batch next to the main one); --pooled doubles the count margins as gates.json prescribes.
+batch next to the main one); --pooled applies the gates file's pooled multipliers (count
+margins; for gates-f.json also the minimum pair counts). Every check reports its room (how
+far the value is from its limit, in arbitration units); a gates file with a "decide"
+section ships an arm only when every check passes with the required room.
+gates-f.json is the F-only A/B (2026-10-22); gates.json the frozen file of 2026-09-27.
 Counts and paired deltas only, no p-values.
 """
 import argparse
@@ -19,6 +23,7 @@ import statistics
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+GATES_DEFAULT = os.path.join(HERE, "gates-f.json")
 BAD_EXAM = ("decoy", "stale", "hedged", "wrong", "cannot_recover")
 
 
@@ -33,6 +38,7 @@ def cell_metrics(c):
     if not m:
         return None
     rc, rd, fin, us = m["recall"], m["reads"], m["finish"], m["usage"]
+    rd_any = m.get("reads_any_mutation") or rd  # cells of 2026-09-27 have only the any-call definition
     sourced = any(e["recall_sourced"] for e in m.get("exams", []))
     return {
         "pass": 1 if c.get("pass") else 0,
@@ -42,6 +48,7 @@ def cell_metrics(c):
         "fv_rejections_unrecovered": rc["fv_rejections"] - rc["fv_rejections_recovered"],
         "bad_exam_answers": 1 if c.get("exam_class") in BAD_EXAM else 0,
         "rereads_same_turn": rd["reread_same_turn_unchanged"] + rd["reread_same_turn_after_edit"],
+        "rereads_same_turn_any": rd_any["reread_same_turn_unchanged"] + rd_any["reread_same_turn_after_edit"],
         "reread_same_turn_unchanged": rd["reread_same_turn_unchanged"],
         "reread_same_turn_after_edit": rd["reread_same_turn_after_edit"],
         "fold_then_reread": rd["fold_then_reread"],
@@ -107,10 +114,12 @@ def not_evaluable(check, out, note):
     return dict(out, verdict="n/a" if check.get("na_ok") else "insufficient", note=note)
 
 
-def evaluate(check, kept, pooled_mult, min_pairs=0):
+def evaluate(check, kept, pooled_mult, min_pairs=0, min_pairs_mult=1):
+    """Verdict of one check. room_units: distance from the limit in arbitration units (one count, 0.05 of a ratio, one
+    request, one cross-turn target); negative when the check misses. None for equality checks (they have no room)."""
     mult = pooled_mult if check.get("count") else 1
     rule, metric = check["rule"], check["metric"]
-    need = check.get("min_pairs", min_pairs) or 0
+    need = (check.get("min_pairs", min_pairs) or 0) * min_pairs_mult
     out = {"id": check["id"], "desc": check.get("desc", metric), "metric": metric, "rule": rule, "pairs": len(kept), "min_pairs": need}
     if not kept:
         return not_evaluable(check, out, "no valid pairs")
@@ -127,6 +136,8 @@ def evaluate(check, kept, pooled_mult, min_pairs=0):
         ra, rb = oa / ta, ob / tb
         need = rb - check["margin"]
         out.update(arm_rate=round(ra, 4), base_rate=round(rb, 4), threshold=round(need, 4))
+        room = oa - math.ceil(need * ta - 1e-9)
+        out["room_units"] = room
         if ra >= need - 1e-12:
             return dict(out, verdict="pass")
         short = math.ceil(need * ta - oa - 1e-9)
@@ -181,6 +192,7 @@ def evaluate(check, kept, pooled_mult, min_pairs=0):
     else:
         raise SystemExit(f"unknown rule {rule}")
     out["threshold"] = thr if isinstance(thr, str) else round(thr, 6)
+    out["room_units"] = None if rule == "arm_eq" else round(-short, 4)
     if short <= 1e-9:
         out["verdict"] = "pass"
     else:
@@ -196,6 +208,29 @@ def gate_verdict(checks):
         if v in vs:
             return v
     return "pass"
+
+
+def decide_with_room(gate_results, spec, pooled, required):
+    """Decision for one arm under a gates file's "decide" section (docs/p110-f-native-ab.md §9): ship only if every
+    check of the listed gates passes with at least `required` units of room. Batch alone: a fail drops the arm; an
+    arbitrate, insufficient or room-less pass (and no fail) calls for the single arbitration batch. Pooled: anything
+    short of ship drops the arm."""
+    by_gate = {g["id"]: g for g in gate_results}
+    checks = [c for gid in spec["gates"] for c in (by_gate.get(gid) or {}).get("checks", [])]
+    missing = [gid for gid in spec["gates"] if gid not in by_gate]
+    fails = [c["id"] for c in checks if c["verdict"] == "fail"]
+    insufficient = [c["id"] for c in checks if c["verdict"] in ("insufficient", "n/a")] + missing
+    arbitrate = [c["id"] for c in checks if c["verdict"] == "arbitrate"]
+    no_room = [c["id"] for c in checks if c["verdict"] == "pass" and c.get("room_units") is not None and c["room_units"] < required - 1e-9]
+    why = "; ".join(f"{k}: {', '.join(v)}" for k, v in (("failed", fails), ("insufficient", insufficient), ("arbitrate", arbitrate),
+                                                         (f"pass with less than {required} unit of room", no_room)) if v)
+    if fails:
+        return f"{spec['drop']} ({why})"
+    if not (insufficient or arbitrate or no_room):
+        return spec["ship"]
+    if pooled:
+        return f"{spec['drop']} (pooled: {why})"
+    return f"arbitration ({why}): +3 reps of all seven tasks, both arms, then decide on the pooled 6 reps"
 
 
 def decide(gs, ids, ship, drop):
@@ -218,7 +253,7 @@ def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("batch_dirs", nargs="+")
     ap.add_argument("--baseline", default="control")
-    ap.add_argument("--gates", default=os.path.join(HERE, "gates.json"))
+    ap.add_argument("--gates", default=GATES_DEFAULT)
     ap.add_argument("--fingerprints")
     ap.add_argument("--ledger")
     ap.add_argument("--pooled", action="store_true")
@@ -226,7 +261,9 @@ def main(argv):
     args = ap.parse_args(argv)
     gates = load(args.gates)
     cells, attempts = collect(args.batch_dirs)
-    mult = gates["arbitration"]["count_margin_multiplier"] if args.pooled else 1
+    pooled_spec = gates.get("pooled") or {"count_margin_multiplier": gates["arbitration"]["count_margin_multiplier"]}
+    mult = pooled_spec["count_margin_multiplier"] if args.pooled else 1
+    min_mult = pooled_spec.get("min_pairs_multiplier", 1) if args.pooled else 1
     tasks, recall_tasks = gates["unit"]["tasks"], gates["unit"]["recall_tasks"]
     arms = sorted({k[3] for k in cells})
     base = args.baseline
@@ -268,7 +305,7 @@ def main(argv):
                     continue
                 scope_tasks = recall_tasks if ch["scope"] == "recall_g2" else tasks
                 kept, dropped = pairs(cells, arm, b, scope_tasks, g2=ch["scope"] == "recall_g2")
-                r = evaluate(ch, kept, mult, gates.get("min_pairs", {}).get(ch["scope"], 0))
+                r = evaluate(ch, kept, mult, gates.get("min_pairs", {}).get(ch["scope"], 0), min_mult)
                 r["baseline"] = b
                 r["dropped_pairs"] = [f"{k[1]}.r{k[2]} ({k[0]}): {why}" for k, why in dropped]
                 checks.append(r)
@@ -280,9 +317,13 @@ def main(argv):
         results[arm] = gres
 
     decision = {}
-    if "arm1" in results:
+    required = (gates.get("room") or {}).get("required_units", 1)
+    for arm, spec in (gates.get("decide") or {}).items():
+        if arm in results:
+            decision[arm] = decide_with_room(results[arm], spec, args.pooled, required)
+    if "arm1" in results and "arm1" not in decision:
         decision["arm1"] = decide({g["id"]: g["verdict"] for g in results["arm1"]}, ["G1", "G2", "G3", "G4", "G5"], "ship A + C (G1-G5 pass)", "do not ship")
-    if "arm2" in results:
+    if "arm2" in results and "arm2" not in decision:
         decision["arm2"] = decide({g["id"]: g["verdict"] for g in results["arm2"]}, ["G1", "G2", "G3", "G4", "G5", "G6"], "add F (G1-G6 pass)", "drop F")
 
     invalid = [{"cell": c["cell"], "batch": c["_batch"], "reasons": c.get("invalid_reasons"), "infra": c.get("infra"), "attempts": len(c.get("attempts") or [])}
@@ -327,6 +368,7 @@ def main(argv):
                        "requests": sum(m["requests"] for m in ms), "turn_first_miss": sum(m["turn_first_miss"] for m in ms)}
     summary = {
         "batches": [os.path.realpath(b) for b in args.batch_dirs], "pooled": args.pooled, "count_margin_multiplier": mult,
+        "gates_file": os.path.realpath(args.gates), "min_pairs_multiplier": min_mult,
         "baseline": base, "arms": arms, "cells": len(cells), "valid_cells": sum(1 for c in cells.values() if c.get("valid")),
         "invalid_cells": invalid, "non_final_attempts": [{k: a.get(k) for k in ("cell", "attempt", "status", "infra", "reasons")} for a in reruns],
         "time_range": [min((c.get("started") or "~") for c in cells.values()) if cells else None, max((c.get("ended") or "") for c in cells.values()) if cells else None],
@@ -347,7 +389,7 @@ def main(argv):
 
 def render_md(s):
     L = ["# P1-10 native A/B summary", ""]
-    L.append(f"Batches: {', '.join(os.path.basename(b) for b in s['batches'])}{' (pooled, count margins x%d)' % s['count_margin_multiplier'] if s['pooled'] else ''}. "
+    L.append(f"Batches: {', '.join(os.path.basename(b) for b in s['batches'])}{' (pooled, count margins x%d, minimum pairs x%d)' % (s['count_margin_multiplier'], s.get('min_pairs_multiplier', 1)) if s['pooled'] else ''}. "
              f"Cells: {s['cells']} ({s['valid_cells']} valid). Baseline: {s['baseline']}. Time: {s['time_range'][0]} to {s['time_range'][1]}.")
     if s["spend"]:
         L.append(f"Spend (peak sheet): ${s['spend']['total_usd_peak_sheet']:.4f} over {s['spend']['turns']} turns; by batch {s['spend']['by_batch']}.")
@@ -373,7 +415,7 @@ def render_md(s):
             L.append(f"| {arm} | {task} | {t['valid']}/{t['cells']} | {t['pass']} | {t['recall_sourced_correct']} | {','.join(t['exam_classes']) or '-'} | {mc} | {t['median_requests'] if t['median_requests'] is not None else '-'} | {t['rereads_same_turn']} | {t['recall_errors']} | {t['fv_rejections']} | {t['flagged_or_leak']} ({t['flagged']}/{t['leak']}/{t['oracle_via_fs']}) | {t['model_error_turns']} | {t['goal_tool_calls']} | {t['attempts_failed']} |")
     L += ["", "## Gates", ""]
     for arm, gs in sorted(s["gates"].items()):
-        L += [f"### {arm}", "", "| gate | check | arm | baseline | threshold | verdict | pairs/min |", "|---|---|---|---|---|---|---|"]
+        L += [f"### {arm}", "", "| gate | check | arm | baseline | threshold | verdict | room (units) | pairs/min |", "|---|---|---|---|---|---|---|---|"]
         for g in gs:
             for c in g["checks"]:
                 arm_v = c.get("arm_rate", c.get("median", c.get("ratio", c.get("arm", ""))))
@@ -382,11 +424,11 @@ def render_md(s):
                     arm_v = f"{arm_v['ok']}/{arm_v['targets']}"
                 if isinstance(base_v, dict):
                     base_v = f"{base_v['ok']}/{base_v['targets']}"
-                L.append(f"| {g['id']} ({g['verdict']}) | {c['id']}: {c.get('desc', '')} | {arm_v} | {base_v} ({c.get('baseline', '')}) | {c.get('threshold', '')} | {c['verdict']}{' (' + str(c['shortfall_units']) + ' units)' if c.get('shortfall_units') else ''}{' ' + c['note'] if c.get('note') else ''} | {c.get('pairs', '')}/{c.get('min_pairs', '')} |")
+                L.append(f"| {g['id']} ({g['verdict']}) | {c['id']}: {c.get('desc', '')} | {arm_v} | {base_v} ({c.get('baseline', '')}) | {c.get('threshold', '')} | {c['verdict']}{' (' + str(c['shortfall_units']) + ' units)' if c.get('shortfall_units') else ''}{' ' + c['note'] if c.get('note') else ''} | {'-' if c.get('room_units') is None else c['room_units']} | {c.get('pairs', '')}/{c.get('min_pairs', '')} |")
             if g.get("report_only"):
                 arm_r = ", ".join("%s %s" % (k, v["arm"]) for k, v in g["report_only"].items())
                 base_r = ", ".join("%s %s" % (k, v["base"]) for k, v in g["report_only"].items())
-                L.append(f"| {g['id']} | report only | {arm_r} | {base_r} | - | - | - |")
+                L.append(f"| {g['id']} | report only | {arm_r} | {base_r} | - | - | - | - |")
         L.append("")
     if s.get("model_error_turns"):
         L += ["## Turns ended by a model-attributable error (counted as failures, not infra)", ""]

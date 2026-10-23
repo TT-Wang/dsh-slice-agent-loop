@@ -1,0 +1,1297 @@
+{
+ "created": "2026-10-22",
+ "note": "Paid warmup and control-only pilot of the F-only A/B (docs/p110-f-native-ab.md §13), plus the paid smoke cell after the isolation fix. Per cell as recorded at run time; no oracle token, no answer text, A/B paths as $AB.",
+ "batches": {
+  "warm": {
+   "harness_commit": "ae7221a777773cfc7d7762f828b0f5f61bc97dbb",
+   "started_utc": "2026-10-22T09:15:19+00:00",
+   "ended_utc": "2026-10-22T09:15:33+00:00",
+   "host_version": "0.2.0-rc.2",
+   "host_unchanged": true,
+   "arms": [
+    "control",
+    "F"
+   ],
+   "tasks": [
+    "hello"
+   ],
+   "reps": 2,
+   "seed": 20261022,
+   "fingerprints": "none (not checked)",
+   "spent_at_start": 0.0,
+   "spend_peak_usd": 0.002579,
+   "cells": [
+    {
+     "cell": "hello.r1.F",
+     "alias": "hello",
+     "arm": "F",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 2.7,
+     "turn_wall_s": [
+      2.4
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.000167,
+     "usage": {
+      "requests": 1,
+      "miss": 226,
+      "hit": 4480,
+      "out": 4,
+      "cost_peak": 0.000167
+     },
+     "first_request_hits": [
+      4480
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "hello.r1.control",
+     "alias": "hello",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 3.2,
+     "turn_wall_s": [
+      2.9
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.002078,
+     "usage": {
+      "requests": 1,
+      "miss": 4710,
+      "hit": 0,
+      "out": 4,
+      "cost_peak": 0.002078
+     },
+     "first_request_hits": [
+      0
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "hello.r2.F",
+     "alias": "hello",
+     "arm": "F",
+     "rep": 2,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 2.6,
+     "turn_wall_s": [
+      2.3
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.000167,
+     "usage": {
+      "requests": 1,
+      "miss": 226,
+      "hit": 4480,
+      "out": 4,
+      "cost_peak": 0.000167
+     },
+     "first_request_hits": [
+      4480
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "hello.r2.control",
+     "alias": "hello",
+     "arm": "control",
+     "rep": 2,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 2.8,
+     "turn_wall_s": [
+      2.5
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.000167,
+     "usage": {
+      "requests": 1,
+      "miss": 226,
+      "hit": 4480,
+      "out": 4,
+      "cost_peak": 0.000167
+     },
+     "first_request_hits": [
+      4480
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    }
+   ]
+  },
+  "pilot": {
+   "harness_commit": "ae7221a777773cfc7d7762f828b0f5f61bc97dbb",
+   "started_utc": "2026-10-22T09:16:31+00:00",
+   "ended_utc": "2026-10-22T09:19:54+00:00",
+   "host_version": "0.2.0-rc.2",
+   "host_unchanged": true,
+   "arms": [
+    "control"
+   ],
+   "tasks": [
+    "p110_r1_fixture_fp",
+    "p110_r2_superseded_stamp",
+    "p110_r3_runbook_middle",
+    "p110_r4_probe_compare",
+    "p110_r5_initial_failures"
+   ],
+   "reps": 1,
+   "seed": 20261022,
+   "fingerprints": "$AB/vault/fingerprints.json",
+   "spent_at_start": 0.002579,
+   "spend_peak_usd": 0.055309,
+   "cells": [
+    {
+     "cell": "p110_r1_fixture_fp.r1.control",
+     "alias": "r1",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": "correct",
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 39.9,
+     "turn_wall_s": [
+      4.8,
+      11.9,
+      3.8,
+      2.1,
+      10.2,
+      6.0
+     ],
+     "turn_end_kinds": [
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed"
+     ],
+     "spend_peak_usd": 0.01032,
+     "usage": {
+      "requests": 19,
+      "miss": 9396,
+      "hit": 143616,
+      "out": 3163,
+      "cost_peak": 0.01032
+     },
+     "first_request_hits": [
+      4352,
+      4736,
+      4864,
+      7552,
+      9600,
+      9856
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 5,
+      "header_lengths": [
+       76
+      ],
+      "header_forms": {
+       "short": 5
+      },
+      "tool_line_forms": {
+       "long": 12
+      },
+      "tool_lines": 12
+     },
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "r3_fold_of_read": [],
+     "exam": [
+      {
+       "turn": 5,
+       "recall_sourced": true,
+       "recall_tool": "expand_result",
+       "recall_calls": 2
+      }
+     ],
+     "recall": {
+      "calls": {
+       "recall_turn": 1,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 1
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 1,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 1,
+       "first_try_ok": 1,
+       "targets": 1
+      },
+      "extra_hops": 1,
+      "recall_turn_views": {
+       "dialogue": 1,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 1,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 1
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 6,
+      "completed": 6,
+      "closeout": 6,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "p110_r2_superseded_stamp.r1.control",
+     "alias": "r2",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": "correct",
+     "g2_excluded": true,
+     "flags": [
+      {
+       "turn": 6,
+       "tool": "bash",
+       "secret": false,
+       "reasons": [
+        "outside: $AB/live/c-9d0c5c3632"
+       ]
+      }
+     ],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 72.3,
+     "turn_wall_s": [
+      15.4,
+      8.3,
+      5.4,
+      10.8,
+      3.6,
+      20.4,
+      6.3
+     ],
+     "turn_end_kinds": [
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed",
+      "completed"
+     ],
+     "spend_peak_usd": 0.018354,
+     "usage": {
+      "requests": 26,
+      "miss": 14313,
+      "hit": 239744,
+      "out": 6591,
+      "cost_peak": 0.018354
+     },
+     "first_request_hits": [
+      4352,
+      4736,
+      5120,
+      8064,
+      8192,
+      11264,
+      11392
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 6,
+      "header_lengths": [
+       76
+      ],
+      "header_forms": {
+       "short": 6
+      },
+      "tool_line_forms": {
+       "long": 18
+      },
+      "tool_lines": 18
+     },
+     "delivery": [
+      {
+       "turn": 2,
+       "delivered": true,
+       "tool": "bash"
+      },
+      {
+       "turn": 4,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "r3_fold_of_read": [],
+     "exam": [
+      {
+       "turn": 6,
+       "recall_sourced": true,
+       "recall_tool": "recall_step",
+       "recall_calls": 2
+      }
+     ],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 2,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 5,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 7,
+      "completed": 7,
+      "closeout": 7,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "p110_r3_runbook_middle.r1.control",
+     "alias": "r3",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": "correct",
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 24.0,
+     "turn_wall_s": [
+      8.5,
+      7.6,
+      7.3
+     ],
+     "turn_end_kinds": [
+      "completed",
+      "completed",
+      "completed"
+     ],
+     "spend_peak_usd": 0.00581,
+     "usage": {
+      "requests": 15,
+      "miss": 4568,
+      "hit": 84352,
+      "out": 1984,
+      "cost_peak": 0.00581
+     },
+     "first_request_hits": [
+      4352,
+      4736,
+      5120
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 2,
+      "header_lengths": [
+       76
+      ],
+      "header_forms": {
+       "short": 2
+      },
+      "tool_line_forms": {
+       "long": 9
+      },
+      "tool_lines": 9
+     },
+     "delivery": [],
+     "r3_fold_of_read": [
+      {
+       "turn": 1,
+       "fold_of_read": true
+      }
+     ],
+     "exam": [
+      {
+       "turn": 3,
+       "recall_sourced": true,
+       "recall_tool": "expand_result",
+       "recall_calls": 2
+      }
+     ],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 2
+      },
+      "errors": 1,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 2
+      },
+      "cross_turn": {
+       "calls": 2,
+       "first_try_ok": 0,
+       "targets": 1
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 3,
+      "reread_same_turn_unchanged": 1,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 1,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 1,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 3,
+      "completed": 3,
+      "closeout": 3,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "p110_r4_probe_compare.r1.control",
+     "alias": "r4",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": "correct",
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 30.3,
+     "turn_wall_s": [
+      5.3,
+      7.8,
+      6.1,
+      10.4
+     ],
+     "turn_end_kinds": [
+      "completed",
+      "completed",
+      "completed",
+      "completed"
+     ],
+     "spend_peak_usd": 0.006761,
+     "usage": {
+      "requests": 14,
+      "miss": 4483,
+      "hit": 78848,
+      "out": 2791,
+      "cost_peak": 0.006761
+     },
+     "first_request_hits": [
+      4352,
+      4736,
+      4864,
+      5120
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 3,
+      "header_lengths": [
+       76
+      ],
+      "header_forms": {
+       "short": 3
+      },
+      "tool_line_forms": {
+       "long": 7
+      },
+      "tool_lines": 7
+     },
+     "delivery": [
+      {
+       "turn": 1,
+       "delivered": true,
+       "tool": "bash"
+      },
+      {
+       "turn": 2,
+       "delivered": true,
+       "tool": "bash"
+      }
+     ],
+     "r3_fold_of_read": [],
+     "exam": [
+      {
+       "turn": 4,
+       "recall_sourced": true,
+       "recall_tool": "expand_result",
+       "recall_calls": 3
+      }
+     ],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 3
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 3
+      },
+      "cross_turn": {
+       "calls": 3,
+       "first_try_ok": 3,
+       "targets": 3
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 1,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 4,
+      "completed": 4,
+      "closeout": 4,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    },
+    {
+     "cell": "p110_r5_initial_failures.r1.control",
+     "alias": "r5",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": "correct",
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 31.6,
+     "turn_wall_s": [
+      22.2,
+      8.9
+     ],
+     "turn_end_kinds": [
+      "completed",
+      "completed"
+     ],
+     "spend_peak_usd": 0.014064,
+     "usage": {
+      "requests": 15,
+      "miss": 18588,
+      "hit": 139392,
+      "out": 2980,
+      "cost_peak": 0.014064
+     },
+     "first_request_hits": [
+      4352,
+      4736
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 1,
+      "header_lengths": [
+       76
+      ],
+      "header_forms": {
+       "short": 1
+      },
+      "tool_line_forms": {
+       "long": 6
+      },
+      "tool_lines": 6
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [
+      {
+       "turn": 2,
+       "recall_sourced": true,
+       "recall_tool": "recall_step",
+       "recall_calls": 4
+      }
+     ],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 1,
+       "expand_result": 3
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 3
+      },
+      "cross_turn": {
+       "calls": 3,
+       "first_try_ok": 3,
+       "targets": 3
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 10,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 2,
+      "completed": 2,
+      "closeout": 2,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": null
+     }
+    }
+   ]
+  },
+  "warm2": {
+   "harness_commit": "619703e50987c6f2eb6910753409c033fbe4b467",
+   "started_utc": "2026-10-22T09:34:01+00:00",
+   "ended_utc": "2026-10-22T09:34:10+00:00",
+   "host_version": "0.2.0-rc.2",
+   "host_unchanged": true,
+   "arms": [
+    "control",
+    "F"
+   ],
+   "tasks": [
+    "hello"
+   ],
+   "reps": 1,
+   "seed": 20261022,
+   "fingerprints": "$AB/vault/fingerprints.json",
+   "spent_at_start": 0.057885,
+   "spend_peak_usd": 0.000336,
+   "cells": [
+    {
+     "cell": "hello.r1.F",
+     "alias": "hello",
+     "arm": "F",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 3.3,
+     "turn_wall_s": [
+      2.6
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.000168,
+     "usage": {
+      "requests": 1,
+      "miss": 228,
+      "hit": 4480,
+      "out": 4,
+      "cost_peak": 0.000168
+     },
+     "first_request_hits": [
+      4480
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": []
+     }
+    },
+    {
+     "cell": "hello.r1.control",
+     "alias": "hello",
+     "arm": "control",
+     "rep": 1,
+     "attempt": 1,
+     "status": "done",
+     "valid": true,
+     "reasons": [],
+     "pass": true,
+     "exam_class": null,
+     "g2_excluded": false,
+     "flags": [],
+     "leak": false,
+     "oracle_via_fs": false,
+     "wall_s": 3.6,
+     "turn_wall_s": [
+      3.0
+     ],
+     "turn_end_kinds": [
+      "completed"
+     ],
+     "spend_peak_usd": 0.000168,
+     "usage": {
+      "requests": 1,
+      "miss": 228,
+      "hit": 4480,
+      "out": 4,
+      "cost_peak": 0.000168
+     },
+     "first_request_hits": [
+      4480
+     ],
+     "tools_count": 16,
+     "system_sha": "46c592c8c95d",
+     "slice_tools_sha": "4d9ca4cc31e8",
+     "prefix_chars": 17787,
+     "tape": {
+      "entries": 0,
+      "header_lengths": [],
+      "header_forms": {},
+      "tool_line_forms": {},
+      "tool_lines": 0
+     },
+     "delivery": [],
+     "r3_fold_of_read": [],
+     "exam": [],
+     "recall": {
+      "calls": {
+       "recall_turn": 0,
+       "recall_search": 0,
+       "recall_step": 0,
+       "expand_result": 0
+      },
+      "errors": 0,
+      "fv_rejections": 0,
+      "locator_source": {
+       "fold_view": 0,
+       "none": 0,
+       "recall_output": 0,
+       "tape": 0
+      },
+      "cross_turn": {
+       "calls": 0,
+       "first_try_ok": 0,
+       "targets": 0
+      },
+      "extra_hops": 0,
+      "recall_turn_views": {
+       "dialogue": 0,
+       "full": 0
+      }
+     },
+     "reads_success_only": {
+      "reads": 0,
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0,
+      "fold_then_reread": 0,
+      "mutations_not_counted": 0
+     },
+     "reads_any_mutation": {
+      "reread_same_turn_unchanged": 0,
+      "reread_same_turn_after_edit": 0
+     },
+     "finish": {
+      "turns": 1,
+      "completed": 1,
+      "closeout": 1,
+      "step_limit_cut": 0
+     },
+     "isolation": {
+      "breaches": 0,
+      "strays_killed": 0,
+      "quarantined": 0,
+      "worktrees_changed": []
+     }
+    }
+   ]
+  }
+ }
+}

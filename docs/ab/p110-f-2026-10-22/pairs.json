@@ -1,0 +1,1062 @@
+{
+ "note": "Per (batch, task, rep) pair: same-turn re-reads R (success-only mutations; unchanged / after-edit split), the every-mutation R_any (secondary), requests and off-peak cost per arm, and the paired deltas dR and dreq (F - control). Derived from the cells/*.json metrics of both paid batches; descriptive, the gates are in summary.json.",
+ "pairs": [
+  {
+   "batch": "p110f-20261022",
+   "task": "lh1_incremental_build",
+   "rep": 1,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 3,
+    "requests": 86,
+    "cost_offpeak": 0.070314
+   },
+   "F": {
+    "R": 6,
+    "R_unchanged": 0,
+    "R_after_edit": 6,
+    "R_any": 6,
+    "requests": 91,
+    "cost_offpeak": 0.084866
+   },
+   "dR": 4,
+   "dreq": 5
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "lh1_incremental_build",
+   "rep": 2,
+   "control": {
+    "R": 4,
+    "R_unchanged": 0,
+    "R_after_edit": 4,
+    "R_any": 4,
+    "requests": 97,
+    "cost_offpeak": 0.08006
+   },
+   "F": {
+    "R": 8,
+    "R_unchanged": 1,
+    "R_after_edit": 7,
+    "R_any": 8,
+    "requests": 89,
+    "cost_offpeak": 0.082535
+   },
+   "dR": 4,
+   "dreq": -8
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "lh1_incremental_build",
+   "rep": 3,
+   "control": {
+    "R": 6,
+    "R_unchanged": 0,
+    "R_after_edit": 6,
+    "R_any": 6,
+    "requests": 87,
+    "cost_offpeak": 0.084654
+   },
+   "F": {
+    "R": 6,
+    "R_unchanged": 0,
+    "R_after_edit": 6,
+    "R_any": 7,
+    "requests": 91,
+    "cost_offpeak": 0.079543
+   },
+   "dR": 0,
+   "dreq": 4
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "m3_consistency_bugfix",
+   "rep": 1,
+   "control": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 8,
+    "cost_offpeak": 0.004412
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 9,
+    "cost_offpeak": 0.004472
+   },
+   "dR": -1,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "m3_consistency_bugfix",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 18,
+    "cost_offpeak": 0.005375
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 9,
+    "cost_offpeak": 0.005165
+   },
+   "dR": 0,
+   "dreq": -9
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "m3_consistency_bugfix",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 8,
+    "cost_offpeak": 0.004365
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 8,
+    "cost_offpeak": 0.003732
+   },
+   "dR": 0,
+   "dreq": 0
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r1_fixture_fp",
+   "rep": 1,
+   "control": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 18,
+    "cost_offpeak": 0.004881
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 19,
+    "cost_offpeak": 0.005098
+   },
+   "dR": -1,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r1_fixture_fp",
+   "rep": 2,
+   "control": {
+    "R": 3,
+    "R_unchanged": 0,
+    "R_after_edit": 3,
+    "R_any": 3,
+    "requests": 21,
+    "cost_offpeak": 0.005613
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 19,
+    "cost_offpeak": 0.005915
+   },
+   "dR": -2,
+   "dreq": -2
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r1_fixture_fp",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 20,
+    "cost_offpeak": 0.005033
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 16,
+    "cost_offpeak": 0.005218
+   },
+   "dR": 2,
+   "dreq": -4
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 30,
+    "cost_offpeak": 0.012784
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 29,
+    "cost_offpeak": 0.00992
+   },
+   "dR": 0,
+   "dreq": -1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 31,
+    "cost_offpeak": 0.012253
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 32,
+    "cost_offpeak": 0.010387
+   },
+   "dR": 1,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 3,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 26,
+    "cost_offpeak": 0.008698
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 31,
+    "cost_offpeak": 0.013027
+   },
+   "dR": 0,
+   "dreq": 5
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r3_runbook_middle",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 18,
+    "cost_offpeak": 0.004455
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 1,
+    "R_after_edit": 0,
+    "R_any": 1,
+    "requests": 19,
+    "cost_offpeak": 0.004425
+   },
+   "dR": 1,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r3_runbook_middle",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 15,
+    "cost_offpeak": 0.00395
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 18,
+    "cost_offpeak": 0.003826
+   },
+   "dR": 1,
+   "dreq": 3
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r3_runbook_middle",
+   "rep": 3,
+   "control": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 18,
+    "cost_offpeak": 0.003519
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 14,
+    "cost_offpeak": 0.003113
+   },
+   "dR": -1,
+   "dreq": -4
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r4_probe_compare",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 15,
+    "cost_offpeak": 0.002852
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.002859
+   },
+   "dR": 0,
+   "dreq": -2
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r4_probe_compare",
+   "rep": 2,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 14,
+    "cost_offpeak": 0.002494
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.002489
+   },
+   "dR": -2,
+   "dreq": -1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r4_probe_compare",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.002616
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 14,
+    "cost_offpeak": 0.003524
+   },
+   "dR": 0,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r5_initial_failures",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.004367
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.00486
+   },
+   "dR": 0,
+   "dreq": -1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r5_initial_failures",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.006723
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.007529
+   },
+   "dR": 0,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022",
+   "task": "p110_r5_initial_failures",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.005833
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 5,
+    "requests": 16,
+    "cost_offpeak": 0.008009
+   },
+   "dR": 0,
+   "dreq": 4
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "lh1_incremental_build",
+   "rep": 1,
+   "control": {
+    "R": 5,
+    "R_unchanged": 0,
+    "R_after_edit": 5,
+    "R_any": 5,
+    "requests": 101,
+    "cost_offpeak": 0.077615
+   },
+   "F": {
+    "R": 3,
+    "R_unchanged": 0,
+    "R_after_edit": 3,
+    "R_any": 4,
+    "requests": 90,
+    "cost_offpeak": 0.08413
+   },
+   "dR": -2,
+   "dreq": -11
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "lh1_incremental_build",
+   "rep": 2,
+   "control": {
+    "R": 3,
+    "R_unchanged": 0,
+    "R_after_edit": 3,
+    "R_any": 3,
+    "requests": 83,
+    "cost_offpeak": 0.079597
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 86,
+    "cost_offpeak": 0.067451
+   },
+   "dR": -1,
+   "dreq": 3
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "lh1_incremental_build",
+   "rep": 3,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 92,
+    "cost_offpeak": 0.078976
+   },
+   "F": {
+    "R": 9,
+    "R_unchanged": 0,
+    "R_after_edit": 9,
+    "R_any": 9,
+    "requests": 89,
+    "cost_offpeak": 0.078204
+   },
+   "dR": 7,
+   "dreq": -3
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "m3_consistency_bugfix",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 6,
+    "cost_offpeak": 0.003226
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 9,
+    "cost_offpeak": 0.005243
+   },
+   "dR": 2,
+   "dreq": 3
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "m3_consistency_bugfix",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 17,
+    "cost_offpeak": 0.005936
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 9,
+    "cost_offpeak": 0.005235
+   },
+   "dR": 0,
+   "dreq": -8
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "m3_consistency_bugfix",
+   "rep": 3,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 10,
+    "cost_offpeak": 0.004961
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 7,
+    "cost_offpeak": 0.004172
+   },
+   "dR": -2,
+   "dreq": -3
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r1_fixture_fp",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 20,
+    "cost_offpeak": 0.005271
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 22,
+    "cost_offpeak": 0.005781
+   },
+   "dR": 0,
+   "dreq": 2
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r1_fixture_fp",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 18,
+    "cost_offpeak": 0.004687
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 19,
+    "cost_offpeak": 0.00548
+   },
+   "dR": 0,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r1_fixture_fp",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 20,
+    "cost_offpeak": 0.006123
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 20,
+    "cost_offpeak": 0.006337
+   },
+   "dR": 1,
+   "dreq": 0
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 26,
+    "cost_offpeak": 0.008921
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 23,
+    "cost_offpeak": 0.008233
+   },
+   "dR": 0,
+   "dreq": -3
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 2,
+   "control": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 31,
+    "cost_offpeak": 0.010535
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 31,
+    "cost_offpeak": 0.011182
+   },
+   "dR": 0,
+   "dreq": 0
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r2_superseded_stamp",
+   "rep": 3,
+   "control": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 24,
+    "cost_offpeak": 0.009519
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 28,
+    "cost_offpeak": 0.010173
+   },
+   "dR": 0,
+   "dreq": 4
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r3_runbook_middle",
+   "rep": 1,
+   "control": {
+    "R": 3,
+    "R_unchanged": 1,
+    "R_after_edit": 2,
+    "R_any": 3,
+    "requests": 18,
+    "cost_offpeak": 0.003881
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 1,
+    "R_after_edit": 0,
+    "R_any": 2,
+    "requests": 20,
+    "cost_offpeak": 0.003963
+   },
+   "dR": -2,
+   "dreq": 2
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r3_runbook_middle",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 14,
+    "cost_offpeak": 0.004384
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 1,
+    "R_after_edit": 1,
+    "R_any": 2,
+    "requests": 20,
+    "cost_offpeak": 0.00424
+   },
+   "dR": 2,
+   "dreq": 6
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r3_runbook_middle",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.002894
+   },
+   "F": {
+    "R": 3,
+    "R_unchanged": 1,
+    "R_after_edit": 2,
+    "R_any": 3,
+    "requests": 21,
+    "cost_offpeak": 0.004251
+   },
+   "dR": 3,
+   "dreq": 9
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r4_probe_compare",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 1,
+    "requests": 15,
+    "cost_offpeak": 0.002762
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 13,
+    "cost_offpeak": 0.00237
+   },
+   "dR": 0,
+   "dreq": -2
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r4_probe_compare",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.002584
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.002439
+   },
+   "dR": 0,
+   "dreq": 0
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r4_probe_compare",
+   "rep": 3,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 12,
+    "cost_offpeak": 0.002408
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 14,
+    "cost_offpeak": 0.002505
+   },
+   "dR": 2,
+   "dreq": 2
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r5_initial_failures",
+   "rep": 1,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 14,
+    "cost_offpeak": 0.008814
+   },
+   "F": {
+    "R": 2,
+    "R_unchanged": 0,
+    "R_after_edit": 2,
+    "R_any": 2,
+    "requests": 13,
+    "cost_offpeak": 0.004872
+   },
+   "dR": 2,
+   "dreq": -1
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r5_initial_failures",
+   "rep": 2,
+   "control": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 0,
+    "requests": 10,
+    "cost_offpeak": 0.004669
+   },
+   "F": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 11,
+    "cost_offpeak": 0.004981
+   },
+   "dR": 1,
+   "dreq": 1
+  },
+  {
+   "batch": "p110f-20261022-arb",
+   "task": "p110_r5_initial_failures",
+   "rep": 3,
+   "control": {
+    "R": 1,
+    "R_unchanged": 0,
+    "R_after_edit": 1,
+    "R_any": 1,
+    "requests": 14,
+    "cost_offpeak": 0.013757
+   },
+   "F": {
+    "R": 0,
+    "R_unchanged": 0,
+    "R_after_edit": 0,
+    "R_any": 5,
+    "requests": 12,
+    "cost_offpeak": 0.007466
+   },
+   "dR": -1,
+   "dreq": -2
+  }
+ ],
+ "R_by_task_control_F": {
+  "lh1_incremental_build": [
+   22,
+   34
+  ],
+  "m3_consistency_bugfix": [
+   3,
+   2
+  ],
+  "p110_r1_fixture_fp": [
+   4,
+   4
+  ],
+  "p110_r2_superseded_stamp": [
+   5,
+   6
+  ],
+  "p110_r3_runbook_middle": [
+   4,
+   8
+  ],
+  "p110_r4_probe_compare": [
+   2,
+   2
+  ],
+  "p110_r5_initial_failures": [
+   1,
+   3
+  ]
+ },
+ "R_total": {
+  "control": 41,
+  "F": 59
+ },
+ "R_without_c1": {
+  "control": 19,
+  "F": 25
+ },
+ "dreq": {
+  "batch": [
+   -9,
+   -8,
+   -4,
+   -4,
+   -2,
+   -2,
+   -1,
+   -1,
+   -1,
+   0,
+   1,
+   1,
+   1,
+   1,
+   1,
+   1,
+   3,
+   4,
+   4,
+   5,
+   5
+  ],
+  "arb": [
+   -11,
+   -8,
+   -3,
+   -3,
+   -3,
+   -2,
+   -2,
+   -1,
+   0,
+   0,
+   0,
+   1,
+   1,
+   2,
+   2,
+   2,
+   3,
+   3,
+   4,
+   6,
+   9
+  ]
+ },
+ "dreq_median": {
+  "batch": 1,
+  "arb": 0,
+  "pooled": 0.5
+ }
+}

@@ -98,6 +98,46 @@ class Reads(unittest.TestCase):
         self.assertEqual(r["reread_same_turn_unchanged"], 0)
 
 
+class SuccessOnlyMutations(unittest.TestCase):
+    """G3 of the F-only A/B counts a mutation only when its tool result is not an error (docs/p110-f-native-ab.md §6);
+    reads_any_mutation keeps the 2026-09-27 definition (every mutating call) as the secondary."""
+
+    def build(self):
+        g = Log()
+        # DSH rejects an edit of a file the model has not read; the read that follows is the first read of the turn
+        g.call(1, 1, "edit", {"file_path": "a.py", "old_string": "x", "new_string": "y"},
+               result='Error: cannot modify "a.py": file has not been read — read the file, then retry', error=True)
+        g.call(1, 2, "read", {"file_path": "a.py"})
+        # a bash redirect whose command failed: non-zero exits are a trailing marker, not isError
+        g.call(1, 3, "bash", {"command": "python3 gen.py > b.txt"}, result="[stderr]\nTraceback ...\n[exit code: 1]")
+        g.call(1, 4, "read", {"file_path": "b.txt"})
+        g.call(1, 5, "bash", {"command": "echo hi > c.txt"}, result="(no output)\n[sandbox: file access denied under workspace-write mode]")
+        g.call(1, 6, "read", {"file_path": "c.txt"})
+        # a successful edit after the read: the next read is a read after the model's own edit in both readings
+        g.call(1, 7, "edit", {"file_path": "a.py", "old_string": "x", "new_string": "y"}, result="edited a.py")
+        g.call(1, 8, "read", {"file_path": "a.py"})
+        g.end(1)
+        return M.metrics(g.ev, prices=M.load_prices())
+
+    def test_rejected_or_failed_mutations_do_not_count(self):
+        m = self.build()
+        r, any_ = m["reads"], m["reads_any_mutation"]
+        self.assertEqual((r["reread_same_turn_after_edit"], r["reread_same_turn_unchanged"], r["mutations_not_counted"]), (1, 0, 3))
+        self.assertEqual((any_["reread_same_turn_after_edit"], any_["reread_same_turn_unchanged"], any_["mutations_not_counted"]), (4, 0, 0))
+        self.assertTrue(r["success_only"])
+        self.assertFalse(any_["success_only"])
+
+    def test_bash_markers(self):
+        call = {"name": "bash"}
+        self.assertTrue(M.mutation_succeeded(call, {"error": False, "text": "(no output)"}))
+        self.assertTrue(M.mutation_succeeded(call, {"error": False, "text": "line mentioning [exit code: 1] in the middle\nok"}))
+        self.assertFalse(M.mutation_succeeded(call, {"error": False, "text": "x\n[exit code: 2]"}))
+        self.assertFalse(M.mutation_succeeded(call, {"error": False, "text": "x\n[killed by signal: SIGTERM]"}))
+        self.assertFalse(M.mutation_succeeded(call, {"error": True, "text": "spawn failed"}))
+        self.assertFalse(M.mutation_succeeded(call, None))
+        self.assertTrue(M.mutation_succeeded({"name": "write"}, {"error": False, "text": "wrote 3 lines"}))
+
+
 class ReadRanges(unittest.TestCase):
     def count(self, *cmds):
         g = Log()
@@ -151,6 +191,24 @@ class Flags(unittest.TestCase):
         ]:
             with self.subTest(args=args):
                 self.assertEqual(self.flags(name, args), [])
+
+    def test_false_positives_of_2026_09_27(self):
+        # §14.10: find -path patterns, cd $PWD-style directories, *.env globs, attribute access named .env
+        for name, args in [
+            ("bash", {"command": "find . -type f -not -path '*/.git/*' -name '*.py'"}),
+            ("bash", {"command": "find . -path './node_modules' -prune -o -name '*.env' -print"}),
+            ("bash", {"command": "cd $PWD && ls"}),
+            ("bash", {"command": "cd $(pwd) && cat x.py"}),
+            ("bash", {"command": "cd \"$DSH_WORKSPACE\" && python3 -m pytest -q"}),
+            ("glob", {"pattern": "**/*.env"}),
+            ("bash", {"command": "python3 -c \"from calc import Calculator; c = Calculator(); print(c.eval('x = 1'), Calculator().env)\""}),
+        ]:
+            with self.subTest(args=args):
+                self.assertEqual(self.flags(name, args), [])
+        # still flagged: a real key path, find from /, a cd to an unknown directory
+        self.assertTrue(self.flags("bash", {"command": "find / -name .env"})[0]["secret"])
+        self.assertTrue(self.flags("bash", {"command": "cd $SOMEWHERE && cat x"}))
+        self.assertTrue(self.flags("bash", {"command": "ls ../../vault"}))
 
     def test_outside_home_sensitive_and_secret(self):
         cases = [
@@ -273,6 +331,22 @@ class Recall(unittest.TestCase):
         g3.call(1, 3, "write", {"file_path": "notes.txt", "content": "fixed tokens_f3"})
         self.assertEqual(M.metrics(g3.ev, exams=[skip], prices=M.load_prices())["exams"][0]["leak_write_turns"], [1])
 
+    def test_heredoc_leaks_only_when_it_writes_a_file(self):
+        spec = {"turn": 2, "tokens": ["test_tokens_f3_0"], "leak": {"regex": ["(?<![A-Za-z0-9])tokens_f3(?!\\d)"]}}
+
+        def leak(command):
+            g = Log()
+            g.call(1, 1, "bash", {"command": command})
+            g.end(1)
+            return M.metrics(g.ev, exams=[spec], prices=M.load_prices())["exams"][0]["leak_write_turns"]
+        # §14.5 item 2: a script on stdin that only prints is no write
+        self.assertEqual(leak("python3 - <<'EOF'\nfor f in ['tokens_f3']:\n    print(f)\nEOF"), [])
+        self.assertEqual(leak("python3 - <<'EOF' > notes.txt\nprint('tokens_f3')\nEOF"), [1])
+        self.assertEqual(leak("python3 - <<'EOF'\nopen('notes.txt', 'w').write('tokens_f3')\nEOF"), [1])
+        self.assertEqual(leak("cat > notes.md <<'EOF'\nfixed tokens_f3\nEOF"), [1])
+        self.assertEqual(leak("tee notes.md <<EOF\nfixed tokens_f3\nEOF"), [1])
+        self.assertEqual(leak("python3 - <<'EOF' 2>&1\nprint('tokens_f3')\nEOF"), [])
+
     def test_oracle_via_the_file_system(self):
         W = "/private/tmp/x/p110ab/results/b/work/w-abc123"
 
@@ -366,7 +440,11 @@ class MockLogs(unittest.TestCase):
             with open(path, encoding="utf-8") as fh:
                 cells.append(json.load(fh))
         self.assertGreater(len(cells), 0)
-        forms = {"control": ("long", "long"), "arm1": ("short", "long"), "arm2": ("short", "v")}
+        # arm structure: gates-f.json (control short/long, F short/v), or AB_GATES for an older batch
+        with open(os.environ.get("AB_GATES") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-f.json"), encoding="utf-8") as fh:
+            structure = json.load(fh).get("structure") or {"control": {"header": "long", "tool_line": "long"}, "arm1": {"header": "short", "tool_line": "long"},
+                                                           "arm2": {"header": "short", "tool_line": "v"}}
+        forms = {a: (v["header"], v["tool_line"]) for a, v in structure.items() if isinstance(v, dict)}
         for c in cells:
             with self.subTest(cell=c["cell"]):
                 events, bad = M.load_events(c["log"])
@@ -379,8 +457,10 @@ class MockLogs(unittest.TestCase):
                 # the scripted mock only touches its own workdir and never restates an oracle
                 self.assertEqual(m["flagged_access"], [])
                 self.assertFalse(c.get("g2_excluded"))
-                # the cell's workdir and truth sidecar were packed away at the end of the cell
+                # the cell's workdir and truth sidecar were packed away at the end of the cell, and its root removed
                 self.assertFalse(os.path.exists(c["workdir"]) or os.path.exists(c["workdir"] + ".truth.json"))
+                if c.get("cell_root"):
+                    self.assertFalse(os.path.exists(c["cell_root"]))
                 # the log's assistant messages are exactly the step_end events of the turns' stdout
                 self.assertEqual(m["usage"]["requests"], sum(t["steps"] for t in c["turns"]))
                 self.assertEqual(m["usage"]["miss"], sum(t["usage"]["inputTokens"] for t in c["turns"]))

@@ -1,46 +1,146 @@
 # scripts/ab: native A/B harness (P1-10)
 
-Drives the published DSH 0.1.7-rc.2 `headless` app, one process per turn, against several
-packed builds of this plugin and compares them on pre-registered gates. The experiment it was
-built for, with hypothesis, arms, tasks, metrics and gates, is
-[docs/p110-native-ab.md](../../docs/p110-native-ab.md). This file says how to run it.
+Drives the published DSH `headless` app, one process per turn, against packed builds of this
+plugin and compares them on pre-registered gates. Two experiments used it:
+
+- the F-only A/B of 2026-10-22 on DSH 0.2.0-rc.2, control = main `70e6e55` against F (the
+  version-only tape tool locator): [docs/p110-f-native-ab.md](../../docs/p110-f-native-ab.md),
+  gates [gates-f.json](gates-f.json). This file describes the harness as it is for that run.
+- the three-arm A/B of 2026-09-27 on DSH 0.1.7-rc.2: [docs/p110-native-ab.md](../../docs/p110-native-ab.md),
+  gates [gates.json](gates.json), harness frozen at `f70d584` (a different layout: concurrent arms,
+  one home per arm, no read isolation).
 
 ## Files
 
 | file | role |
 |---|---|
-| `run_ab.py` | driver: `prepare` (one DSH_HOME per arm), `run` (cells), `fingerprints` (with `--compare`), `secrets-scan` |
+| `run_ab.py` | driver: `prepare` (one template DSH_HOME per arm), `run` (cells), `isolation-probe`, `unblock`, `fingerprints` (with `--compare`), `secrets-scan` |
 | `ab_metrics.py` | one metrics row per `session.v4.jsonl.zstd` (or plain `.jsonl`) |
-| `ab_report.py` | pairs cells, evaluates `gates.json`, writes `summary.json` / `summary.md` |
-| `gates.json` | G1–G6 as data; the doc is the normative text |
+| `ab_report.py` | pairs cells, evaluates a gates file, writes `summary.json` / `summary.md`, with each check's room |
+| `gates-f.json` | the F-only A/B: arm structure, G1–G6, minimum pairs, pooled multipliers, the room rule (default of `run_ab.py` and `ab_report.py`) |
+| `gates.json` | the 2026-09-27 A/B, frozen |
 | `prices.json` | DeepSeek v4-flash sheet, off-peak and peak; the budget uses peak |
 | `profile/` | profile template: `package.json`, `pnpm-workspace.yaml`, `cordis.yml`, `eval-parity.patch.yml` (becomes the profile's `cordis.patch.yml`) |
-| `mock-llm.mjs`, `eval-offline.patch.yml` | scripted offline adapter (provider `ab-mock`) for dry runs |
+| `mock-llm.mjs`, `eval-offline.patch.yml` | scripted offline adapter (provider `ab-mock`) for dry runs and the isolation probe |
 | `tasks/<name>/` | `meta.json`, `prompts.json`, `setup.py`, `verify.py`, optional `hooks.py` |
 | `test_ab_metrics.py`, `test_ab_report.py`, `test_run_ab.py` | unit tests (stdlib `unittest`) |
 | `selfcheck_tasks.py` | every task's oracle passes on a correct end state and fails otherwise (in a temporary directory it removes afterwards) |
 
 Tasks: `hello` (warmup), `r1`–`r5` (recall), `c1`, `c2` (coding). `--tasks all` means the seven
-gated tasks, without `hello`.
+gated tasks, without `hello`. Since 2026-10-22 the r3 and r4 setups create `lib/slug.py` and
+`lib/fmt.py`, the files their filler turns ask to extend.
 
 ## Requirements
 
 - System `python3` with `zstandard` (log reading) and `pytest` (task r5).
-- A frozen host: `cp -cR ~/.dsh-slicey/host $AB/host` (APFS clone). The harness only ever runs
-  `$AB/host/node_modules/@deepseek-ai/dsh/lib/bin.js`, so upgrading slicey mid-batch cannot
-  change the host.
+- A frozen host: `cp -cR ~/.dsh-slicey/host-0.2.0-rc.2 $AB/host` (APFS clone). The harness only ever
+  runs `$AB/host/node_modules/@deepseek-ai/dsh/lib/bin.js`, so upgrading slicey mid-batch cannot
+  change the host; each batch manifest records a digest of the host tree at its start and end.
 - One packed tarball per arm (`npm pack` in a worktree whose `lib/` passed `npm run check:build`).
+- The worktrees under `$AB/wt/` (harness, control, F). Their `scripts/` and `docs/` are
+  unreadable while a turn runs, so a turn must need nothing from them (the offline adapter is
+  copied to `$AB/mock/` for that reason).
+
+## Layout of the A/B root
+
+```
+$AB/host/                    frozen host (readable by cells)
+$AB/mock/                    copy of mock-llm.mjs + a package.json whose peers admit the host (offline runs)
+$AB/patches/<batch>/         steps-<N>.patch.yml, eval-offline.patch.yml (read by the host at startup)
+$AB/live/c-<id>/             the one running cell: home/ (copy of its arm's template), tmp/ (its TMPDIR), w-<id>/ (workdir)
+$AB/vault/                   mode 000 while a turn runs:
+    homes/<arm>/             template DSH_HOMEs (the operator's key link goes here)
+    artifacts/               tarballs, their arm-neutral install copies plugin-<sha12>.tgz, SHA256SUMS
+    arms.json, dump-<arm>.yml, prepare-<arm>.log, fingerprints.json, spend.jsonl (the paid ledger), logs/
+    results/<batch>/         index.jsonl, cells/, turns/, workdirs/<wid>.tgz, homes/c-<id>/, truth/, quarantine/, manifest-*.json
+$AB/wt/<name>/{scripts,docs}  mode 000 while a turn runs (the only places in a checkout that hold task oracles)
+$AB/progress.txt             one line: cells done and spend (no arm, task or answer)
+```
+
+## Isolation
+
+DSH's sandbox (Seatbelt on macOS: `(allow default) (deny file-write*)` plus the writable roots)
+confines writes only, and macOS refuses a nested `sandbox-exec` (`sandbox_apply: Operation not
+permitted`), so a read-confining wrapper around the host would make its bash tool fail closed.
+Every cell runs as the harness's own user, so the harness confines reads with permissions and
+removes everything else a cell could read:
+
+- **One cell at a time.** The two cells of a (task, rep) pair run back to back; the first arm
+  rotates with `(rep - 1 + seed)`. No other cell's workdir, home or process exists while a turn
+  runs. `--parallel-arms` is refused.
+- **Blocked while a turn runs.** `$AB/vault` and the `scripts/` and `docs/` directories of every
+  worktree under `$AB/wt` are `chmod 000` from just before the host starts until the turn's
+  process group and every process still tied to the cell are gone (a background job the model
+  started is killed). A process is the cell's when its command line or environment names
+  `live/c-<id>` (its `DSH_HOME`, `TMPDIR`, `PWD` or a path argument) or its current directory lies
+  in the cell (`lsof -d cwd`), so a job that dropped `DSH_HOME` and `TMPDIR` and left the turn's
+  session is found too. The worktree roots stay readable: with a root at mode 000, a
+  `git worktree prune` run by any other process in the main repository takes the worktree for
+  missing and deletes its link, which happened once during the build. The harness reads the turn's
+  stdout for the budget through a file it opened before blocking, and writes nothing into a
+  blocked directory meanwhile. Turn stdout, stderr and patches are opened or read by path only
+  outside that window, except the stdout the host writes through its inherited descriptor.
+- **Read-only while a turn runs.** `$AB` itself, `live/`, `patches/`, `patches/<batch>/`, `mock/`,
+  `wt/` and `host/` lose their write bits for the same window, so no file can be added there for a
+  later cell; the running cell's own root under `live/` stays writable. Contents below the first
+  level of `host/` and the worktrees' source trees are not covered by this; the host digest and the
+  worktree check below are.
+- **Tamper evidence.** The owner can chmod its own files, and the workspace-write sandbox allows
+  writes under `/tmp`, where the A/B root lives. After each turn the harness checks that every
+  blocked or read-only path still has its mode and the inode and ctime it had right after
+  blocking; a chmod, chflags, rename, replacement or new entry is a breach, and the cell is invalid
+  (`isolation breached …`). Between a cell's first and last turn, `git status` (untracked and
+  ignored entries included, bytecode excluded) of every worktree under `$AB/wt` must not change,
+  or the cell is invalid (`isolation: worktree … changed`).
+- **Per cell.** A fresh copy of the arm's template home (arm-neutral name `live/c-<id>/home`,
+  installed from `plugin-<sha12>.tgz`, so neither `DSH_HOME` nor the profile's `package.json`
+  names the arm), a private `TMPDIR`, and the r5 truth sidecar moved into the vault before the
+  first turn and back only for `verify()`. When the cell ends, its workdir, truth sidecar and tmp
+  are packed into `vault/results/<batch>/workdirs/<wid>.tgz`, the home (session log included,
+  key link removed) moves to `vault/results/<batch>/homes/`, and the cell root is removed.
+- **Quarantine.** New top-level entries of `$AB` that the harness did not create, and new
+  top-level entries of `$AB/..` and `/private/tmp` that the cell's own tool calls name (as a path,
+  or for a name of 6 or more characters as a bare word, as after `cd /tmp && mkdir x`), are moved
+  into `vault/results/<batch>/quarantine/<cell>/` when the cell ends, so scratch files a model
+  wrote outside its root cannot reach a later cell.
+- **Not covered.** Copies of this repository elsewhere on disk (the main checkout, other
+  worktrees) hold the task definitions and oracles and stay readable; so do the owner's archives.
+  Any access outside the workdir is flagged by path and the oracle's arrival by content (`ab_metrics`),
+  as before. The cell's own session log in its home is readable too (the host writes it);
+  reading it is flagged (`sessions/`, `.zstd`) and caught by content. A file written into a
+  directory that already existed elsewhere under `/tmp` (for example a sibling of `$AB`) survives
+  the cell, and a background process that strips its environment and also leaves the cell's
+  directory is not found; both need a tool call naming a path outside the workdir, which is flagged.
+
+`run_ab.py isolation-probe` proves the barrier on a dry run: it plants canaries in the other arm's
+template home, the A/B state, a manifest, a truth file and the worktrees' `scripts/` and `docs/`, adds the other arm's real
+finished session log, packed workdir, manifest, index, ledger and a task oracle, and runs one
+scripted cell per arm that reads them with bash, `read`, `glob` and `grep`, lists `$AB/live` and
+reads its own files, after starting three background jobs (one in its own session, one also
+without `DSH_HOME` and `TMPDIR`), trying to write a file into each read-only directory, and
+planting a directory in `/tmp` after a `cd`. It then runs one tamper cell per arm that chmods the
+vault open and back and leaves a file in a worktree's `src/`. Exit 0 only if every protected read
+was denied, no canary reached a tool result, the cell's own files were readable, `$AB/live` held
+only that cell, no process tied to the cell outlived the turn, every write was refused, the `/tmp`
+plant was quarantined, and every tamper made its cell invalid (both the chmod and the worktree
+file). The report is `vault/results/<batch>/probe.json`.
+
+After a crash while a turn ran, `run_ab.py unblock --ab-root $AB` restores the modes recorded in
+`$AB/.blocked.json`; `run` refuses to start while that file exists.
 
 ## Host version
 
-The recorded batch ran on a frozen published 0.1.7-rc.2 host. The 0.1.7-rc.2 statements in
-this file, in the scripts and under `docs/ab/` describe that batch and stay as its record.
-The harness runs whatever host is in `$AB/host`. On a different host:
+The F-only A/B runs on a frozen published 0.2.0-rc.2 host; the 2026-09-27 batch ran on 0.1.7-rc.2.
+On 0.2.0-rc.2, verified with `--dump-config` (417 lines, identical across arms) and offline runs:
+the parity overlay applies as is, 16 tools remain, a turn cut by `maxStepsPerTurn` ends with
+`turn_end` kind `blocked` and exit 1, and bash reports a non-zero exit as a trailing
+`[exit code: N]` marker with `isError` false (write/edit rejections are `isError` true). On any
+other host:
 
 - The root `package.json` of the checkout the harness runs from must admit that host in its
-  `@deepseek-ai/dsh-*` peer ranges, even for an offline dry run. The offline adapter row
-  points at `scripts/ab/mock-llm.mjs`, and the host attributes a path row to the nearest
-  `package.json` above it, which is this repository's root manifest, not the arm's tarball.
+  `@deepseek-ai/dsh-*` peer ranges, even for an offline dry run. `run_ab.py` copies the
+  scripted adapter to `$AB/mock/` next to a `package.json` that carries those peers, and the
+  host attributes the offline adapter's path row to that manifest, not to the arm's tarball.
   If those peers reject the host, the turn's `.err` file says
   `dsh: disabling profile plugin row "ab-mock-llm"`, every turn ends with `NO_ADAPTER`, and the
   driver retries it as an infra failure. With the range `0.1.7-rc.2 || 0.2.0-rc.2` a dry run
@@ -65,109 +165,123 @@ The harness runs whatever host is in `$AB/host`. On a different host:
 - A session that a 0.2.1 host ran a `bash` call in cannot be reopened by 0.2.0-rc.2 (it now
   logs `job/registered`); keep each batch on one host.
 
-## Runbook
+## Runbook (F-only A/B)
 
 ```sh
-AB=/path/to/scratch/p110ab            # everything below lives here, never in the repo
-H=scripts/ab                          # this directory, in the exp/p110-ab-harness worktree
+AB=/path/to/scratch/fab                # everything below lives here, never in the repo
+H=$AB/wt/harness/scripts/ab            # this directory, in the exp/p110-f-harness worktree
+cd $AB                                 # not inside $AB/wt: it is unreadable while a turn runs
 
 python3 $H/run_ab.py prepare --ab-root $AB \
-  --arm control=$AB/artifacts/slice-control-<sha>.tgz \
-  --arm arm1=$AB/artifacts/slice-arm1-<sha>.tgz --arm arm2=$AB/artifacts/slice-arm2-<sha>.tgz
+  --arm control=$AB/vault/artifacts/slice-control-70e6e55.tgz --arm F=$AB/vault/artifacts/slice-F-f819bb3.tgz
 #   exit 0 only if dump-config is identical across arms (the arm's own home path is normalized)
 
-python3 $H/run_ab.py --ab-root $AB --offline --arms control,arm1,arm2 \
-  --tasks hello,r1,r2,r3,r4,r5,c1,c2 --reps 1 --parallel-arms --batch offline
-python3 $H/run_ab.py fingerprints --batch-dir $AB/results/offline --out $AB/fingerprints.json
+python3 $H/run_ab.py --ab-root $AB --offline --arms control,F \
+  --tasks hello,r1,r2,r3,r4,r5,c1,c2 --reps 1 --batch offline --fingerprints none
+python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/offline --out $AB/vault/fingerprints.json
+python3 $H/run_ab.py --ab-root $AB --offline --arms control,F \
+  --tasks hello,r1,r2,r3,r4,r5,c1,c2 --reps 1 --batch offline2       # validated against the fingerprints
+python3 $H/run_ab.py isolation-probe --ab-root $AB --arms control,F --target-batch offline
 
-# operator only, after the dry run: ln -s ~/.dsh/.env $AB/home-<arm>/.env  (never cat or copy it)
+# operator only, after the dry run: ln -s ~/.dsh/.env $AB/vault/homes/<arm>/.env  (never cat or copy it)
 
-python3 $H/run_ab.py --ab-root $AB --arms control,arm1,arm2 --tasks hello --reps 2 --parallel-arms --budget-usd 10 \
+python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks hello --reps 2 --budget-usd 10 \
   --fingerprints none --batch warm
-python3 $H/run_ab.py fingerprints --batch-dir $AB/results/warm --compare $AB/fingerprints.json
-#   exit 0: the deltas match; if fingerprints changed, rerun with --out $AB/fingerprints.json (doc §3 fallback)
-python3 $H/run_ab.py --ab-root $AB --arms control --tasks r1,r3,r4 --reps 1 --budget-usd 10 --batch pilot
-python3 $H/run_ab.py --ab-root $AB --arms control,arm1,arm2 --tasks all --reps 3 --seed 20260927 \
-  --parallel-arms --budget-usd 10 --batch p110-<yyyymmdd>          # add --resume to continue
-python3 $H/ab_report.py $AB/results/p110-<yyyymmdd> --gates $H/gates.json \
-  --fingerprints $AB/fingerprints.json --ledger $AB/spend.jsonl
+python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/warm --compare $AB/vault/fingerprints.json
+python3 $H/run_ab.py --ab-root $AB --arms control --tasks r1,r2,r3,r4,r5 --reps 1 --budget-usd 10 --batch pilot
+python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks all --reps 3 --seed 20261022 \
+  --budget-usd 10 --batch p110f-<yyyymmdd>                         # add --resume to continue
+python3 $H/ab_report.py $AB/vault/results/p110f-<yyyymmdd> \
+  --fingerprints $AB/vault/fingerprints.json --ledger $AB/vault/spend.jsonl
+# only if the report says "arbitration": the single arbitration batch, then the pooled decision
+python3 $H/run_ab.py --ab-root $AB --arms control,F --tasks all --reps 3 --seed 20261023 \
+  --budget-usd 10 --batch p110f-<yyyymmdd>-arb
+python3 $H/ab_report.py $AB/vault/results/p110f-<yyyymmdd> $AB/vault/results/p110f-<yyyymmdd>-arb --pooled \
+  --fingerprints $AB/vault/fingerprints.json --ledger $AB/vault/spend.jsonl --out $AB/vault/results/pooled
 python3 $H/run_ab.py secrets-scan --ab-root $AB     # before archiving: exit 1 lists cells to hold back
 ```
 
-Long batches: start them with `nohup … &> $AB/<batch>.log &` and poll; never pipe the
-headless `--json` stream into `head` (the EPIPE kills the turn), the driver always writes it
-to a file.
+Long batches: start them with `nohup … > $AB/vault/logs/<batch>.log 2>&1 &` and poll
+`$AB/progress.txt` (the vault and the log in it are unreadable while a turn runs, for you too);
+never pipe the headless `--json` stream into `head` (the EPIPE kills the turn), the driver always
+writes it to a file.
 
 ## What one cell does
 
-1. A fresh workdir `$AB/results/<batch>/work/w-<hash>` whose name does not reveal the arm;
-   `setup(root)`. Oracle data stays outside the workdir (r5 writes `<workdir>.truth.json`).
-   Attempt numbers continue after every attempt already in `index.jsonl`, so a rerun never
-   reuses a workdir, turn file or ledger key.
-2. Per prompt: `node bin.js --profile ab --patch steps-<N>.patch.yml [--patch eval-offline…]
-   [--session-id SID] --json -` with the prompt on stdin and cwd = workdir, stdout and stderr
-   to `turns/<cell>.a<k>.t<n>.{jsonl,err}`; then `hooks.after_turn(n, root)`.
-3. `verify(root)` returns `(ok, detail[, info])`; the log is located at
-   `$AB/home-<arm>/sessions/*/<SID>/session.v4.jsonl.zstd`; `ab_metrics` adds the metrics row.
-4. Validity (see the doc): turn exits, log found, fingerprints, 16 tools, one turn per prompt,
-   no host path in the system prompt, no compaction, tape header / tool-line form of the arm,
-   structural prefix and header sizes, the r3 fold, and for r1, r2 and r4 the delivery of the
-   exam's fact in a non-recall tool result of its delivery turn (meta `delivery`). An invalid
-   cell is rerun once (`--max-attempts 2`).
-5. Whatever the outcome (done, invalid, timeout, budget stop), the workdir and its truth
-   sidecar are packed into `workdirs/<wid>.tgz` and removed, and the turn stdout files are
-   gzipped: no task source, answer or plain-text tool output stays on disk for a later cell's
-   model to find (reads are not confined by the sandbox). `cells/*.json` never holds the
-   oracle tokens.
+1. Any leftover under `$AB/live` (a crashed run) is moved into the vault. A fresh cell root
+   `$AB/live/c-<id>/` with a copy of the arm's template home, `tmp/` and the workdir `w-<id>/`
+   (ids are hashes of batch, task, rep, arm and attempt; their names do not reveal the arm);
+   `setup(workdir)`; r5's `<workdir>.truth.json` moves into `vault/results/<batch>/truth/`.
+   Attempt numbers continue after every attempt already in `index.jsonl`, so a rerun never reuses
+   a workdir, turn file or ledger key.
+2. Per prompt: block; `node bin.js --profile ab --patch $AB/patches/<batch>/steps-<N>.patch.yml
+   [--patch …/eval-offline.patch.yml] [--session-id SID] --json -` with the prompt on stdin,
+   cwd = workdir, `TMPDIR` = the cell's tmp, stdout and stderr to
+   `vault/results/<batch>/turns/<cell>.a<k>.t<n>.{jsonl,err}`; after the process exits, kill the
+   turn's process group and every process tied to the cell, check for tampering,
+   unblock; then `hooks.after_turn(n, workdir)`.
+3. `verify(workdir)` (with the truth sidecar back in place) returns `(ok, detail[, info])`; the log
+   is `home/sessions/*/<SID>/session.v4.jsonl.zstd`; `ab_metrics` adds the metrics row.
+4. Validity (see the doc): turn exits, log found, fingerprints, 16 tools, one turn per prompt, no
+   host path in the system prompt, no compaction, tape header / tool-line form of the arm,
+   structural checks (F: the request prefix equal to control's; headers 76/78 chars), no isolation
+   breach, no worktree change, the r3 fold, and for r1, r2 and r4 the delivery of the exam's fact in a non-recall tool
+   result of its delivery turn (meta `delivery`). An invalid cell is rerun once (`--max-attempts 2`).
+5. Whatever the outcome (done, invalid, timeout, budget stop), the workdir with its truth sidecar
+   and tmp is packed into `workdirs/<wid>.tgz`, the home moves into `homes/`, the cell root is
+   removed, new outside entries are quarantined, and the turn stdout files are gzipped.
+   `cells/*.json` never holds the oracle tokens.
 
-A turn cut by `maxStepsPerTurn` ends with `turn_end` kind `blocked` and exit 1 on 0.1.7-rc.2;
-it is model-attributable, so the cell continues, and so do `max-tokens` and errors with a
-non-infra code (CONTEXT_WINDOW_EXCEEDED, INVALID_REQUEST, UNKNOWN, …). Infra is only a
-provider, network, credential or quota error code (TRANSPORT, RATE_LIMIT, SERVER, HTTP 5xx,
-TIMEOUT, EMPTY_RESPONSE, MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH, QUOTA, ACCOUNT_QUOTA,
-NO_ADAPTER, ABORTED), a missing `turn_end`, the harness timeout or a budget kill.
+A turn cut by `maxStepsPerTurn` ends with `turn_end` kind `blocked` and exit 1 (both hosts); it is
+model-attributable, so the cell continues, and so do `max-tokens` and errors with a non-infra code
+(CONTEXT_WINDOW_EXCEEDED, INVALID_REQUEST, UNKNOWN, …). Infra is only a provider, network,
+credential or quota error code (TRANSPORT, RATE_LIMIT, SERVER, HTTP 5xx, TIMEOUT, EMPTY_RESPONSE,
+MISSING_CREDENTIAL, INVALID_CREDENTIAL, AUTH, QUOTA, ACCOUNT_QUOTA, NO_ADAPTER, ABORTED), a missing
+`turn_end`, the harness timeout or a budget kill.
 
 ## Budget
 
-Each turn is priced at the peak sheet and appended to `$AB/spend.jsonl`; offline runs use
-`<batch>/spend.jsonl`. The charge is the larger of the `--json` stdout figure (`step_end`
-usage, plus `--unpriced-step-usd` 0.05 for each `step_end` without usage and each step still
-open when the process ended) and the session-log figure (every `assistant/message` and
-`assistant/attempt` of the turn, plus 0.05 per record without a usage sample). The 0.1.7-rc.2
-projector drops a whole step's usage when any attempt of it had no sample, typically a
-transport or 429 retry, so the stdout alone would price that step at $0. The ledger spans
-every batch under `$AB`, so one `--budget-usd 10` covers warmup, pilot, batch and arbitration.
-No cell starts once spend + `--budget-reserve-usd` (0.75) reaches the cap. Running turns are
-polled every second (`--poll-s`) and killed, and no further turn starts, once spend +
-`--budget-margin-usd` (0.60) reaches it. The margin must cover 2 x concurrent turns x the
-worst-case step (a step's usage is only visible when it ends): 3 x 2 x $0.10. More than
-`--max-unpriced-steps` (40) unpriced charges also stop the run. A budget-stopped cell is kept
-as `cells/<cell>.budget_stop.json`, not counted, and rerun by `--resume`; the batch exits 2.
-`AB_MOCK_FAIL_EVERY=N` (and `AB_MOCK_FAIL_USAGE=1`) make the mock fail every Nth request with
-a retryable TRANSPORT error, without (with) a usage sample, to exercise this offline.
+Each turn is priced at the peak sheet and appended to `$AB/vault/spend.jsonl`; offline runs use
+`<batch>/spend.jsonl`. The charge is the larger of the `--json` stdout figure (`step_end` usage,
+plus `--unpriced-step-usd` 0.05 for each `step_end` without usage and each step still open when the
+process ended) and the session-log figure (every `assistant/message` and `assistant/attempt` of the
+turn, plus 0.05 per record without a usage sample). The projector drops a whole step's usage when
+any attempt of it had no sample, typically a transport or 429 retry, so the stdout alone would
+price that step at $0. The ledger spans every batch under `$AB`, so one `--budget-usd 10` covers
+warmup, pilot, batch and arbitration. No cell starts once spend + `--budget-reserve-usd` (0.75)
+reaches the cap. The running turn is polled every second (`--poll-s`) and killed, and no further
+turn starts, once spend + `--budget-margin-usd` (0.60) reaches it; one turn runs at a time, so the
+margin covers 2 x 1 x $0.10 three times over. More than `--max-unpriced-steps` (40) unpriced
+charges also stop the run. A budget-stopped cell is kept as `cells/<cell>.budget_stop.json`, not
+counted, and rerun by `--resume`; the batch exits 2. `AB_MOCK_FAIL_EVERY=N` (and
+`AB_MOCK_FAIL_USAGE=1`) make the mock fail every Nth request with a retryable TRANSPORT error,
+without (with) a usage sample, to exercise this offline.
 
 ## Secrets
 
 The key is never read by this code. It reaches a run only through a symlink
-`$AB/home-<arm>/.env -> ~/.dsh/.env` that the operator creates after the dry run. `prepare`
-never creates it and refuses to rebuild a home that has one; `--offline` refuses to run when
-any home has one and strips `*API_KEY*` / `*DEEPSEEK*` variables from the child environment.
-The child environment otherwise mirrors `~/.dsh-slicey/bin/slicey-dsh`: the inherited proxy
-variables plus `NODE_USE_ENV_PROXY=1` and `NODE_OPTIONS=--disable-warning=UNDICI-EHPA`, and
-`DSH_TELEMETRY_DISABLED=1` as the owner's login shell sets it; every other inherited `DSH_*`
-variable is removed. The manifest records variable names, never values.
+`$AB/vault/homes/<arm>/.env -> ~/.dsh/.env` that the operator creates after the dry run; each cell
+home gets a link with the same text (`os.readlink`, never the target), removed before the home
+moves into the vault. `prepare` never creates it and refuses to rebuild a home that has one;
+`--offline` and `isolation-probe` refuse to run when any template home has one and strip
+`*API_KEY*` / `*DEEPSEEK*` variables from the child environment. The child environment otherwise
+mirrors `~/.dsh-slicey/bin/slicey-dsh`: the inherited proxy variables plus `NODE_USE_ENV_PROXY=1`
+and `NODE_OPTIONS=--disable-warning=UNDICI-EHPA`, and `DSH_TELEMETRY_DISABLED=1` as the owner's
+login shell sets it; every other inherited `DSH_*` variable is removed. The manifest records
+variable names, never values. `kill_strays` matches the cell's `live/c-<id>` in `ps -E` output
+and in `lsof -d cwd` output and keeps only pids.
 
-The bash tool exports `DSH_HOME`, and the sandbox confines writes only, so a model could read
-`$DSH_HOME/.env`. `ab_metrics` flags any tool call naming `.env`, `DSH_HOME` or `~/.dsh` as a
-secret reference; `run_ab.py secrets-scan` lists those cells, whose logs and turn files are
-held back from any archive until the owner has looked. Nothing here reads the key or searches
-for it.
+The bash tool exports `DSH_HOME`, so a model could read `$DSH_HOME/.env` of its own cell home.
+`ab_metrics` flags any tool call naming `.env` (not a `*.env` glob or an attribute access), `DSH_HOME`
+or `~/.dsh` as a secret reference; `run_ab.py secrets-scan` lists those cells, whose logs and turn
+files are held back from any archive until the owner has looked. Nothing here reads the key or
+searches for it.
 
 ## Tests
 
 ```sh
 python3 scripts/ab/test_ab_metrics.py        # synthetic events
-AB_OFFLINE_BATCH=$AB/results/offline AB_RAFT_LOGS=<raft-1.jsonl>:<raft-2.jsonl> \
+AB_OFFLINE_BATCH=$AB/vault/results/offline AB_RAFT_LOGS=<raft-1.jsonl>:<raft-2.jsonl> \
   python3 scripts/ab/test_ab_metrics.py      # plus the mock logs and two real V4 sessions
 python3 scripts/ab/test_ab_report.py
 python3 scripts/ab/test_run_ab.py

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ab_metrics.py: one metrics row per DSH 0.1.7 session log (P1-10 native A/B).
+"""ab_metrics.py: one metrics row per DSH session log (P1-10 native A/B; DSH 0.1.7-rc.2 and 0.2.0-rc.2).
 
 usage:
   ab_metrics.py <session.v4.jsonl.zstd | session.jsonl> [--workdir DIR]
@@ -17,7 +17,10 @@ Metric definitions are in docs/p110-native-ab.md ("Metrics"). In short:
 - reads: `read` calls and single-file bash reads with their line ranges (sed -n
   ranges, head -n N; tail is a range of unknown position), per turn, with
   same-turn re-reads split into "unchanged" and "after the model's own edit";
-  the bash tool's `workdir` parameter is honoured;
+  the bash tool's `workdir` parameter is honoured. `reads` counts only mutations
+  whose tool result is not an error (the success-only reading, primary for the
+  F-only A/B); `reads_any_mutation` counts every mutating call (the 2026-09-27
+  definition, reported as a secondary);
 - recall: calls and errors per recall tool, formatVersion rejections, the
   shape of every expand_result call and where its locator came from;
 - validity: system prompt and slice tool fingerprints, tool count, host paths
@@ -58,16 +61,32 @@ SYSTEM_PREFIXES = ("/dev/null", "/dev/stdin", "/dev/stdout", "/dev/stderr", "/de
 # Flagged wherever they resolve: the durable session log, the oracle sidecar, the harness. Whole-disk search
 # (mdfind, locate) is flagged as a command word in bash_access, not as text: a heredoc comment such as
 # "# locate the def block" is no search (a false positive in the r5 pilot).
-SENSITIVE_RE = re.compile(r"sessions/|/sessions\b|\.zstd\b|\.truth\b|session\.v4|/home-(?:control|arm\d)\b|wt-harness|scripts/ab/")
+SENSITIVE_RE = re.compile(r"sessions/|/sessions\b|\.zstd\b|\.truth\b|session\.v4|/home-(?:control|arm\d)\b|wt-harness|scripts/ab/"
+                          r"|(?:^|/)vault(?:/|\b)|/wt/(?:harness|control|f)\b|/homes/")
 DISK_SEARCH = ("mdfind", "locate")
 # Flagged, and held back from the archive until the owner has looked: anything that can reach the model key.
-SECRET_RE = re.compile(r"\bDSH_HOME\b|\bDSH_PROFILE_DIR\b|(?<![\w.])\.env(?![\w])|/\.dsh[\w-]*\b")
+# `.env` after `*` (a glob such as `**/*.env` or `-name '*.env'`, looking for a task's own service.env) or after `)`/`]`
+# (attribute access in code, e.g. `Calculator(...).env`) names no key file (false positives of 2026-09-27, §14.10).
+SECRET_RE = re.compile(r"\bDSH_HOME\b|\bDSH_PROFILE_DIR\b|(?<![\w.*)\]])\.env(?![\w])|/\.dsh[\w-]*\b")
 HOME_RE = re.compile(r"(?:^|[\s'\"=:(])~(?:/|$|[\s'\")])|\$\{?(?:HOME|TMPDIR|OLDPWD)\b")
 PATH_IN_TEXT = re.compile(r"(?<![\w.~$:/\\-])(/[\w.@+~-][^\s'\"`;|&<>(),]*)")
 PARENT_IN_TEXT = re.compile(r"(?<![\w.])(\.\.(?:/[^\s'\"`;|&<>(),]*)?)(?![\w.])")
 PATTERN_FIRST = {"sed", "awk", "gawk", "perl", "grep", "egrep", "fgrep", "rg", "jq"}
 FS_WALKERS = {"find", "ls", "du", "tree", "grep", "egrep", "fgrep", "rg", "cat", "head", "tail", "stat", "file", "cd", "pushd", "less", "more", "open"}
-WRITE_TEXT_RE = re.compile(r"(?:^|[;&|\n(]\s*)(?:echo|printf|cat)\b[^\n]*?(?:>>?|\btee\b)|<<")
+WRITE_TEXT_RE = re.compile(r"(?:^|[;&|\n(]\s*)(?:echo|printf|cat)\b[^\n]*?(?:>>?|\btee\b)")
+HEREDOC_RE = re.compile(r"<<-?\s*['\"]?\w+")
+# A heredoc writes a file when its command line redirects into one or pipes into tee, or when the script it feeds
+# opens a file for writing (Python open(..., 'w'/'a'/'x'), write_text/write_bytes) or redirects inside the body.
+REDIRECT_TO_FILE_RE = re.compile(r"(?<![0-9&<>])>>?\s*(?!/dev/null\b|&)[^\s;&|<>]|\btee\b")
+BODY_WRITES_RE = re.compile(r"\bopen\([^)\n]*,\s*['\"][wax]|\.write_text\(|\.write_bytes\(")
+# find options whose argument is a name or path pattern, not a path the command reaches.
+FIND_PATTERN_OPTS = {"-name", "-iname", "-path", "-ipath", "-wholename", "-iwholename", "-regex", "-iregex", "-lname", "-ilname"}
+# cd targets that stay where the command already is ($PWD, $(pwd)) or go to the session workspace ($DSH_WORKSPACE).
+CD_HERE = {"$PWD", "${PWD}", "$(pwd)", "`pwd`", "."}
+CD_WORKSPACE = {"$DSH_WORKSPACE", "${DSH_WORKSPACE}"}
+# Trailing markers of a failed bash run (dsh-tool-bash renderResult): non-zero exits are reported in the text, not as
+# isError, so a mutation's success needs both.
+BASH_FAIL_RE = re.compile(r"^\[(?:exit code: -?[1-9]\d*|killed by signal: [^\]]*|timed out after \d+ms|stopped: [^\]]*|sandbox: [^\]]*)\]\s*$", re.M)
 
 
 def load_events(path):
@@ -409,6 +428,11 @@ def bash_access(command, cwd, root):
                 reasons.append("sensitive: " + cmd)
             if cmd in ("cd", "pushd"):
                 target = toks[1] if len(toks) > 1 else "~"
+                if target in CD_HERE:
+                    continue  # stays in the current directory (a false positive of 2026-09-27, §14.10)
+                if target in CD_WORKSPACE:
+                    cwd = root
+                    continue
                 r = resolve_arg(target, cwd)
                 if r is None or target.startswith("$"):
                     reasons.append("cd to " + target)
@@ -429,6 +453,9 @@ def bash_access(command, cwd, root):
                     continue
                 if i > 0 and skip_pattern and not a.startswith("-"):
                     skip_pattern = False
+                    continue
+                if cmd == "find" and a in FIND_PATTERN_OPTS:
+                    skip_next = True  # `-path '*/.git/*'` is a pattern, not a path (a false positive of 2026-09-27)
                     continue
                 if a in ("/", "/.", "/..") or re.fullmatch(r"/+\.?", a):
                     if cmd in FS_WALKERS:
@@ -543,11 +570,50 @@ def write_skipped(call, prefixes, cwd):
     return bool(target) and any(is_under(target, os.path.join(root, p)) for p in prefixes)
 
 
+def heredoc_writes(command):
+    """A heredoc that ends up in a file: its command line redirects into one or pipes into tee, or the script it feeds
+    writes one. A heredoc that only feeds a script printing to stdout (`python3 - <<'EOF'`) writes nothing; counting it
+    was a false positive of 2026-09-27 (§14.5 item 2)."""
+    lines = command.split("\n")
+    for i, line in enumerate(lines):
+        m = HEREDOC_RE.search(line)
+        if not m:
+            continue
+        if REDIRECT_TO_FILE_RE.search(line[:m.start()] + " " + line[m.end():]):
+            return True
+        delim = re.sub(r"^<<-?\s*['\"]?", "", m.group(0))
+        body = []
+        for later in lines[i + 1:]:
+            if later.strip() == delim:
+                break
+            body.append(later)
+        text = "\n".join(body)
+        if BODY_WRITES_RE.search(text) or REDIRECT_TO_FILE_RE.search(text):
+            return True
+    return False
+
+
 def write_like(call):
-    """Tool input that writes literal text to a file: write/edit content, or bash echo/printf/cat into a file or tee."""
+    """Tool input that writes literal text to a file: write/edit content, bash echo/printf/cat into a file or tee, or a
+    heredoc that ends up in a file."""
     if call["name"] in MUTATING_WRITE_TOOLS:
         return True
-    return call["name"] == "bash" and bool(WRITE_TEXT_RE.search(str(call["args"].get("command", ""))))
+    if call["name"] != "bash":
+        return False
+    command = str(call["args"].get("command", ""))
+    return bool(WRITE_TEXT_RE.search(command)) or heredoc_writes(command)
+
+
+def mutation_succeeded(call, result):
+    """Success-only reading of a mutation (G3 of the F-only A/B): the call has a tool result that is not an error.
+    write/edit report a rejection (e.g. "file has not been read") as isError; bash reports a non-zero exit, a signal,
+    a timeout or a sandbox denial as a trailing marker in the text, not as isError, so both are checked."""
+    if not result or result.get("error"):
+        return False
+    if call["name"] == "bash":
+        tail = "\n".join((result.get("text") or "").rstrip().split("\n")[-6:])
+        return not BASH_FAIL_RE.search(tail)
+    return True
 
 
 def stream_usage(stream):
@@ -585,6 +651,91 @@ def usage_totals(events, turns=None):
         tot["out"] += u.get("outputTokens") or 0
         tot["cache_write"] += u.get("cacheWriteTokens") or 0
     return tot
+
+
+def read_counts(events, calls, call_order, results, replacements, cwd, success_only=True):
+    """Same-turn re-reads per the metric definition (docs/p110-native-ab.md §6). success_only: a write/edit or bash
+    mutation counts only when mutation_succeeded() (a rejected write leaves the file unchanged, so the read after it
+    is not a read after the model's own edit)."""
+    reads = bash_reads = rr_unchanged = rr_after_edit = rr_cross = fold_then_reread = skipped = 0
+    seen = {}         # turn -> path -> [ranges since the last mutation]
+    pending = {}      # turn -> paths mutated and not read since
+    seen_ever = {}    # path -> set(turns)
+    read_calls = {}   # turn -> path -> [call seqs]
+    folded_sources = {rp["source"]: rp["seq"] for rp in replacements if rp.get("source") is not None}
+
+    def mutate(turn, path):
+        if not path:
+            return
+        tseen = seen.setdefault(turn, {})
+        for key in [k for k in tseen if k == path or k.startswith(path.rstrip("/") + "/")]:
+            tseen.pop(key, None)
+        pending.setdefault(turn, set()).add(path)
+
+    for cid in call_order:
+        c = calls[cid]
+        t, a, name = c["turn"], c["args"], c["name"]
+        key, rngs = None, [(1, BIG)]  # rngs None: a range of unknown position (tail, sed /re/p, head -c)
+        if name == "read":
+            key = norm_path(a.get("file_path") or a.get("path"), cwd)
+            off = as_int(a.get("offset")) or 1
+            lim = as_int(a.get("limit"))
+            rngs = [(off, off + lim - 1 if lim else BIG)]
+        elif name == "bash":
+            cmd = str(a.get("command", ""))
+            bwd = a.get("workdir") if isinstance(a.get("workdir"), str) and a.get("workdir").strip() else None
+            target = bash_read(cmd, bwd)
+            if target:
+                key, rngs = norm_path(target[0], cwd), target[1]
+                bash_reads += 1
+            else:
+                paths = bash_mutations(cmd)
+                if paths and success_only and not mutation_succeeded(c, results.get(cid)):
+                    skipped += 1
+                    continue
+                base = norm_path(bwd, cwd) if bwd else cwd
+                for p in paths:
+                    mutate(t, norm_path(p, base))
+                continue
+        elif name in MUTATING_WRITE_TOOLS:
+            if success_only and not mutation_succeeded(c, results.get(cid)):
+                skipped += 1
+                continue
+            mutate(t, norm_path(a.get("file_path") or a.get("path"), cwd))
+            continue
+        if key is None:
+            continue
+        reads += 1
+        tseen = seen.setdefault(t, {})
+        prior = tseen.get(key, [])
+        if key in pending.get(t, set()):
+            rr_after_edit += 1
+            pending[t].discard(key)
+        elif rngs is not None and any(r[0] <= p[1] and p[0] <= r[1] for r in rngs for p in prior):
+            rr_unchanged += 1
+            earlier = read_calls.get(t, {}).get(key, [])
+            if any(folded_sources.get((results.get(e) or {}).get("seq"), BIG) < c["seq"] for e in earlier):
+                fold_then_reread += 1
+        elif any(tt < t for tt in seen_ever.get(key, set())):
+            rr_cross += 1
+        tseen.setdefault(key, []).extend(rngs or [])
+        seen_ever.setdefault(key, set()).add(t)
+        read_calls.setdefault(t, {}).setdefault(key, []).append(cid)
+    reminders = 0
+    for e in events:
+        if '"repeat-tool-reminder"' in json.dumps(e.get("data") or {}, ensure_ascii=False):
+            reminders += 1
+    return {
+        "reads": reads, "bash_reads": bash_reads,
+        "reread_same_turn_unchanged": rr_unchanged,
+        "reread_same_turn_after_edit": rr_after_edit,
+        "reread_cross_turn": rr_cross,
+        "fold_then_reread": fold_then_reread,
+        "repeat_tool_reminders": reminders,
+        "folds": len(replacements),
+        "mutations_not_counted": skipped,
+        "success_only": success_only,
+    }
 
 
 def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0, delivery=()):
@@ -871,76 +1022,10 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     }
 
     # ------------------------------------------------------------ reads
-    reads = bash_reads = rr_unchanged = rr_after_edit = rr_cross = fold_then_reread = 0
-    seen = {}         # turn -> path -> [ranges since the last mutation]
-    pending = {}      # turn -> paths mutated and not read since
-    seen_ever = {}    # path -> set(turns)
-    read_calls = {}   # turn -> path -> [call seqs]
-    folded_sources = {rp["source"]: rp["seq"] for rp in replacements if rp.get("source") is not None}
-
-    def mutate(turn, path):
-        if not path:
-            return
-        tseen = seen.setdefault(turn, {})
-        for key in [k for k in tseen if k == path or k.startswith(path.rstrip("/") + "/")]:
-            tseen.pop(key, None)
-        pending.setdefault(turn, set()).add(path)
-
-    for cid in call_order:
-        c = calls[cid]
-        t, a, name = c["turn"], c["args"], c["name"]
-        key, rngs = None, [(1, BIG)]  # rngs None: a range of unknown position (tail, sed /re/p, head -c)
-        if name == "read":
-            key = norm_path(a.get("file_path") or a.get("path"), cwd)
-            off = as_int(a.get("offset")) or 1
-            lim = as_int(a.get("limit"))
-            rngs = [(off, off + lim - 1 if lim else BIG)]
-        elif name == "bash":
-            cmd = str(a.get("command", ""))
-            bwd = a.get("workdir") if isinstance(a.get("workdir"), str) and a.get("workdir").strip() else None
-            target = bash_read(cmd, bwd)
-            if target:
-                key, rngs = norm_path(target[0], cwd), target[1]
-                bash_reads += 1
-            else:
-                base = norm_path(bwd, cwd) if bwd else cwd
-                for p in bash_mutations(cmd):
-                    mutate(t, norm_path(p, base))
-                continue
-        elif name in MUTATING_WRITE_TOOLS:
-            mutate(t, norm_path(a.get("file_path") or a.get("path"), cwd))
-            continue
-        if key is None:
-            continue
-        reads += 1
-        tseen = seen.setdefault(t, {})
-        prior = tseen.get(key, [])
-        if key in pending.get(t, set()):
-            rr_after_edit += 1
-            pending[t].discard(key)
-        elif rngs is not None and any(r[0] <= p[1] and p[0] <= r[1] for r in rngs for p in prior):
-            rr_unchanged += 1
-            earlier = read_calls.get(t, {}).get(key, [])
-            if any(folded_sources.get((results.get(e) or {}).get("seq"), BIG) < c["seq"] for e in earlier):
-                fold_then_reread += 1
-        elif any(tt < t for tt in seen_ever.get(key, set())):
-            rr_cross += 1
-        tseen.setdefault(key, []).extend(rngs or [])
-        seen_ever.setdefault(key, set()).add(t)
-        read_calls.setdefault(t, {}).setdefault(key, []).append(cid)
-    reminders = 0
-    for e in events:
-        if '"repeat-tool-reminder"' in json.dumps(e.get("data") or {}, ensure_ascii=False):
-            reminders += 1
-    row["reads"] = {
-        "reads": reads, "bash_reads": bash_reads,
-        "reread_same_turn_unchanged": rr_unchanged,
-        "reread_same_turn_after_edit": rr_after_edit,
-        "reread_cross_turn": rr_cross,
-        "fold_then_reread": fold_then_reread,
-        "repeat_tool_reminders": reminders,
-        "folds": len(replacements),
-    }
+    # Primary (success-only): a mutation counts only when its tool result is not an error. Secondary: every mutating
+    # call counts, the definition frozen on 2026-09-27 (docs/p110-native-ab.md §6, §14.5 item 1).
+    row["reads"] = read_counts(events, calls, call_order, results, replacements, cwd, success_only=True)
+    row["reads_any_mutation"] = read_counts(events, calls, call_order, results, replacements, cwd, success_only=False)
 
     # ------------------------------------------------------------ tape
     header_forms, tool_forms = {}, {}
