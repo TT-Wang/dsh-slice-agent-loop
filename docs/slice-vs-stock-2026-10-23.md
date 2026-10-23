@@ -1,14 +1,59 @@
 # Slice vs stock DSH: is the current slice context policy worth using?
 
-> **Status: batch and arbitration done, 2026-10-23. Verdict (pooled, pre-registered rules):
-> inconclusive: a long-session saving (L 0.611) bought with short-session overhead (N 1.167 >
-> 1.10), at equal quality.** §13 holds the results.
+> **Status: complete, 2026-10-23. Verdict (pooled, pre-registered rules): inconclusive: a
+> long-session saving (L 0.611) bought with short-session overhead (N 1.167 > 1.10), at equal
+> quality.** Spend $5.7403 at peak prices of the $10 cap. §13 holds the results, §14 the two
+> independent verifications and how their findings were resolved, §15–§17 the fairness caveats,
+> external validity and what would change the conclusion.
 > §1–§12 are the frozen pre-registration (freeze commit `35df351`), unchanged since; no batch cell
 > had run when it was made. Pilot part 1 (§12.3) stopped at the account balance (HTTP 402, 09:12
 > UTC); the owner topped the account up, the pre-spend review's should-fix findings were fixed
 > before more spend (§10.12), and pilot part 2 ran r5 in STOCK and SLICE and the resized f1 in
 > STOCK-COMPACT (§12.6). Under the pilot rules f1 is 32 excerpts (45 turns) and STOCK-COMPACT runs
 > f1 only (§12.4, §12.7).
+
+## Summary in plain words
+
+- **Question.** The slice plugin seals each finished turn into a short, frozen entry and gives the
+  model tools to look up earlier details. Does turning it on make DeepSeek Harness (DSH) cheaper
+  or better than leaving DSH's own context management at its shipped defaults?
+- **What ran.** Eight tasks on the published DSH 0.2.1-rc.2 with its default model,
+  deepseek-flash:
+  - f1, one long session: 45 turns, 32 large log files read in full, then a quiz on facts from
+    the first turns;
+  - r1–r5, five short sessions (2–7 turns): a fact is shown once, its source is deleted, and the
+    fact is asked for later;
+  - c1 (8 turns) and c2 (1 turn), two ordinary coding tasks.
+
+  Every task ran 3 or 4 times in each arm, in pairs on identical inputs: 62 runs in all. A
+  configured variant ran 2 more. All 64 runs were valid on the first try; total spend was $5.74
+  of the $10 cap.
+- **Quality was the same.** Every slice and stock run passed its checker (31 of 31 pairs), and
+  both arms recalled every early fact correctly (31 of 31).
+- **Long session: slice was much cheaper.** On f1 slice cost 39 % less ($0.26 against $0.43 per
+  session). Its requests peaked at about 43K tokens; stock's grew to about 234K.
+- **Short sessions: slice cost more.** Over the seven short tasks slice cost 17 % more (each task
+  weighted equally). On the 8-turn coding task it cost 59 % more, because it made about twice as
+  many model requests.
+- **Stock's own compaction never started.** At its shipped settings it starts near 678K tokens,
+  which no affordable session reached, so stock was simply a growing transcript.
+  - A configured variant started stock's compaction at 57K tokens. It cost 14 % less than plain
+    stock on f1 but failed f1 in both runs: its pruning cut log excerpts before the model had
+    copied what it needed.
+  - Its memory of the early facts survived compaction.
+- **Verdict, by the rule written before the runs: inconclusive.** The rule calls slice "worth it"
+  only if it saves at least 20 % on the long session and costs at most 10 % more on the short
+  ones. The first condition held (39 % saved) and the second did not (17 % more). Whether slice
+  pays off therefore depends on the mix of work. In this run one f1-like session saved about as
+  much as 2.8 c1-like coding sessions cost extra.
+- **Cautions.**
+  - The long-session saving comes from sending fewer cached tokens, so it depends on DeepSeek's
+    price for a cached token: cheap, but not free. If cached tokens were free, slice would cost
+    more on f1 as well (§16).
+  - The longest session here was 45 turns. Real always-on agents run far longer, and stock's
+    compaction would eventually start for them. That regime was not tested (§16).
+  - Slice's extra cost on short work is measured. Its cause is not: the evidence points to more
+    output and more re-reading, but no ablation separates the possible causes (§15).
 
 ## 1. Question
 
@@ -922,7 +967,10 @@ at $0.65 per cell instead of $0.511, P would be about $6.75.
 
 Written after the batch and the arbitration; §1–§12 are unchanged. Every number below comes from
 the frozen instrument (`svs_report.py` at the freeze tree) unless it is marked *reported only,
-not pre-registered*.
+not pre-registered*. After the two independent verifications (§14), five statements in §13.5,
+§13.6 and §13.8 were corrected and one in §13.7 was qualified (§14.2). The tables of §13.3 and
+§13.4 were extended from the committed per-cell rows (`cells.json`) with both price sheets and
+per-task context rows. No pre-registered number changed.
 
 ### 13.1 Runs
 
@@ -994,20 +1042,51 @@ correctly); the pair still counts for P1 and P2. SLICE's f1 cells show two exams
 leak before them (reported only, never an exclusion), STOCK-COMPACT's one. r3's T1 read was
 folded in SLICE in 4 of 4 cells (manipulation check).
 
-### 13.4 Context size, cache and native context management (primary arms)
+**Both price sheets.** The off-peak and peak sheets are exactly proportional: peak is twice
+off-peak in every field (§2.1). Every ratio is therefore the same on both. Priced from the logged
+tokens, R_t agrees to every digit. The frozen report computes its ratios from off-peak cell costs
+rounded to 6 decimals, so its fourth decimal can differ by 1 (§14.2). Mean cost per cell over
+the task's pairs, both sheets:
 
-Medians over valid cells (pooled); request size is provider-reported prompt tokens.
+| task | SLICE $ peak | STOCK $ peak | SLICE $ off-peak | STOCK $ off-peak | R_t (both sheets, from tokens) |
+|---|---|---|---|---|---|
+| f1 | 0.2619 | 0.4287 | 0.1310 | 0.2143 | 0.6109 |
+| r1 | 0.0094 | 0.0121 | 0.0047 | 0.0061 | 0.7774 |
+| r2 | 0.0196 | 0.0215 | 0.0098 | 0.0108 | 0.9095 |
+| r3 | 0.0091 | 0.0070 | 0.0045 | 0.0035 | 1.2925 |
+| r4 | 0.0058 | 0.0042 | 0.0029 | 0.0021 | 1.3624 |
+| r5 | 0.0155 | 0.0104 | 0.0077 | 0.0052 | 1.4885 |
+| c1 | 0.1624 | 0.1023 | 0.0812 | 0.0512 | 1.5871 |
+| c2 | 0.0087 | 0.0087 | 0.0044 | 0.0044 | 1.0013 |
+| all 31 pairs (Σ) | 1.7073 | 1.9513 | 0.8537 | 0.9757 | 0.8750 |
 
-| task | arm | requests | peak request | mean request | cache hit | requests per turn | step-cap cuts (turns) | wall s |
-|---|---|---|---|---|---|---|---|---|
-| f1 | SLICE | 265 | 43,301 | 24,774 | 95.8 % | 5.89 | 0 | 542 |
-| f1 | STOCK | 213 | 234,025 | 116,231 | 99.1 % | 4.73 | 0 | 427 |
-| c1 | SLICE | 91.5 | 38,643 | 20,474 | 96.6 % | 11.44 | 14 of 32 | 824 |
-| c1 | STOCK | 47.5 | 74,338 | 34,361 | 98.3 % | 5.94 | 0 of 32 | 341 |
-| c2 | SLICE | 7 | 14,637 | 9,632 | 89.8 % | 7.00 | 0 | 24 |
-| c2 | STOCK | 8 | 11,610 | 8,279 | 90.8 % | 8.00 | 0 | 30 |
-| r1–r5 | SLICE | 13–27 | 7,100–18,679 | 5,921–11,259 | 87.2–95.4 % | 2.9–6.5 | 0 | 33–82 |
-| r1–r5 | STOCK | 10–24 | 6,024–20,464 | 4,371–12,511 | 90.5–96.0 % | 3.1–5.0 | 0 | 25–94 |
+L 0.6109 and N 1.1668 on both sheets. A sheet with a different hit-to-miss price ratio is a
+different question; §16 covers it.
+
+### 13.4 Context size, cache and native context management
+
+Medians over valid cells (pooled); request size is provider-reported prompt tokens; summaries
+and prunes are summed over the cells. STOCK-COMPACT is the configured variant (§2.5, §13.5).
+
+| task | arm | cells | requests | requests per turn | peak request | mean request | cache hit | summaries / prunes (cells with any) | step-cap cuts (turns) | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|
+| f1 | SLICE | 3 | 265 | 5.89 | 43,301 | 24,774 | 95.8 % | 0 / 0 (0) | 0 of 135 | 542 |
+| f1 | STOCK | 3 | 213 | 4.73 | 234,025 | 116,231 | 99.1 % | 0 / 0 (0) | 0 of 135 | 427 |
+| f1 | STOCK-COMPACT | 2 | 214 | 4.76 | 58,931 | 42,162 | 95.3 % | 9 / 64 (2) | 0 of 90 | 436 |
+| r1 | SLICE | 4 | 17.5 | 2.92 | 12,438 | 8,671 | 93.6 % | 0 / 0 (0) | 0 of 24 | 42 |
+| r1 | STOCK | 4 | 18.5 | 3.08 | 14,007 | 8,265 | 95.0 % | 0 / 0 (0) | 0 of 24 | 62 |
+| r2 | SLICE | 4 | 27 | 3.86 | 15,238 | 10,379 | 94.8 % | 0 / 0 (0) | 0 of 28 | 82 |
+| r2 | STOCK | 4 | 24 | 3.43 | 20,464 | 11,744 | 96.0 % | 0 / 0 (0) | 0 of 28 | 94 |
+| r3 | SLICE | 4 | 16.5 | 5.50 | 10,859 | 7,165 | 91.4 % | 0 / 0 (0) | 0 of 12 | 34 |
+| r3 | STOCK | 4 | 11.5 | 3.83 | 11,423 | 9,532 | 92.2 % | 0 / 0 (0) | 0 of 12 | 25 |
+| r4 | SLICE | 4 | 14 | 3.50 | 7,100 | 5,921 | 95.4 % | 0 / 0 (0) | 0 of 16 | 33 |
+| r4 | STOCK | 4 | 12.5 | 3.12 | 6,024 | 4,371 | 94.7 % | 0 / 0 (0) | 0 of 16 | 29 |
+| r5 | SLICE | 4 | 13 | 6.50 | 18,679 | 11,259 | 87.2 % | 0 / 0 (0) | 0 of 8 | 46 |
+| r5 | STOCK | 4 | 10 | 5.00 | 17,437 | 12,511 | 90.5 % | 0 / 0 (0) | 0 of 8 | 29 |
+| c1 | SLICE | 4 | 91.5 | 11.44 | 38,643 | 20,474 | 96.6 % | 0 / 0 (0) | 14 of 32 | 824 |
+| c1 | STOCK | 4 | 47.5 | 5.94 | 74,338 | 34,361 | 98.3 % | 0 / 0 (0) | 0 of 32 | 341 |
+| c2 | SLICE | 4 | 7 | 7.00 | 14,637 | 9,632 | 89.8 % | 0 / 0 (0) | 0 of 4 | 24 |
+| c2 | STOCK | 4 | 8 | 8.00 | 11,610 | 8,279 | 90.8 % | 0 / 0 (0) | 0 of 4 | 30 |
 
 - **No native context management fired in any of the 62 SLICE and STOCK cells**:
   0 compaction summaries, 0 failed compaction attempts, 0 prunes, 0 native spills, 0
@@ -1029,33 +1108,76 @@ Medians over valid cells (pooled); request size is provider-reported prompt toke
 | memory items | 4 of 4 correct | 4 of 4 correct |
 | first native action | prunes from T14 | prunes from T14 |
 | pruned results / summaries (turns) | 32 / 5 (T20, T26, T31, T36, T44) | 32 / 4 (T22, T28, T34, T37) |
-| failed attempts / context-limit errors / shadowed tokens | 0 / 0 / 59,504 | 0 / 0 / 48,310 |
+| failed attempts / context-limit errors | 0 / 0 | 0 / 0 |
+| tokens shadowed by summaries (`compaction/summary`) | 59,504 | 48,310 |
+| tokens shadowed by prunes (`compaction/prune`), reported only | 102,481 | 102,520 |
+| summarizer calls' cost (included in the cell cost) | $0.0122 | $0.0127 |
 | peak / mean request tokens | 58,426 / 42,322 | 59,435 / 42,003 |
+
+The two shadowed-token rows are the host's own counts per event type. They are not additive:
+a summary can cover results that were pruned earlier. The batch-stage version of this table
+showed only the summary count, labelled "shadowed tokens" (§14.2).
 
 Both exams ran after compaction in both cells (`compacted_before` true) and all memory items were
 right: post-compaction memory failures 0. The substrate failures are the pruning property
 pre-declared in §2.5 (an excerpt replaced by its head and tail before its token was copied), as in
-pilot part 2. Against STOCK on f1: R 0.863 (paired 0.773, 0.988), passes 0 vs 2. SLICE against
-STOCK-COMPACT on f1: R 0.748 (paired 0.725, 0.773), passes 2 vs 0.
+pilot part 2. Both verifiers confirmed that each of the 16 wrong digest entries belongs to an
+excerpt the pruner replaced before the model's next request. The model rarely went back to the
+file: in rep 1 every turn with a prune has exactly one read call (14 turns), and in rep 2 one
+such turn re-read the excerpt (3 read calls). Against STOCK on f1: R 0.863 (paired 0.773,
+0.988), passes 0 vs 2. SLICE against STOCK-COMPACT on f1: R 0.748 (paired 0.725, 0.773), passes
+2 vs 0.
 
 ### 13.6 Where SLICE's short-session overhead comes from (reported only, not pre-registered)
 
 Tool calls counted from the turn streams of the pooled cells; this is description, not a test.
 
+- **Cost by token class** (mean per cell over the task's pairs, peak sheet, from `cells.json`):
+
+  | task | SLICE uncached in / cached in / output | STOCK uncached in / cached in / output | difference (SLICE − STOCK) |
+  |---|---|---|---|
+  | f1 | $0.1224 / $0.0855 / $0.0540 | $0.1002 / $0.3017 / $0.0268 | +$0.0222 / −$0.2162 / +$0.0272 |
+  | r1 | $0.0045 / $0.0020 / $0.0030 | $0.0035 / $0.0020 / $0.0065 | +$0.0010 / $0.0000 / −$0.0035 |
+  | r2 | $0.0064 / $0.0037 / $0.0095 | $0.0049 / $0.0040 / $0.0127 | +$0.0015 / −$0.0003 / −$0.0032 |
+  | r3 | $0.0043 / $0.0015 / $0.0032 | $0.0037 / $0.0015 / $0.0018 | +$0.0006 / $0.0000 / +$0.0014 |
+  | r4 | $0.0017 / $0.0011 / $0.0030 | $0.0013 / $0.0007 / $0.0022 | +$0.0004 / +$0.0004 / +$0.0008 |
+  | r5 | $0.0085 / $0.0018 / $0.0051 | $0.0052 / $0.0016 / $0.0036 | +$0.0033 / +$0.0002 / +$0.0015 |
+  | c1 | $0.0292 / $0.0254 / $0.1077 | $0.0112 / $0.0220 / $0.0691 | +$0.0180 / +$0.0034 / +$0.0386 |
+  | c2 | $0.0032 / $0.0009 / $0.0047 | $0.0026 / $0.0008 / $0.0053 | +$0.0006 / +$0.0001 / −$0.0006 |
+
+  Output includes reasoning tokens. On f1, SLICE sends 0.28x STOCK's cached input tokens, 1.22x
+  its uncached input tokens and 2.02x its output tokens. The whole saving is in cached input.
+  On the short tasks the difference is almost entirely uncached input and output, that is, what
+  the model did. The prompt size barely matters there.
 - **c1 (R 1.587, the largest overhead):** SLICE made 437 tool calls in 32 turns, STOCK 205
-  (edit 161 vs 79, bash 157 vs 68, read 94 vs 52); `expand_result` was called twice and no
-  recall tool at all. A typical STOCK turn reads `calc.py` once and patches it in one bash
-  call (3–5 steps); a typical SLICE turn re-reads the file, makes several edits, and runs several
-  ad-hoc test and fuzz scripts, so 14 of its 32 turns ended at the 14-step cap (STOCK: none).
-  SLICE's requests were smaller (mean 20.5K vs 34.4K tokens) but twice as many. Two plausible
-  causes, not separated here: the sealed tape hides the code the model wrote in earlier turns
-  (STOCK still sees it verbatim), and the plugin's system text replaces the host persona ("You are
-  sliceagent, …") and tells the model that "a recorded file read is not a current file". Both
-  arms passed every c1 cell.
-- **r3–r5 (R 1.29–1.49):** these sessions are 2–4 turns long, so SLICE's longer prefix (about
-  1,800 more tokens per request) and its recall step (`recall_step` or `expand_result` at the
-  exam) are a large share of a cell that costs about a cent. r1 and r2 (R 0.78, 0.91) went the
-  other way: STOCK re-sends the raw probe outputs every request.
+  (edit 161 vs 79, bash 157 vs 68, read 94 vs 52). `expand_result` was called twice and no
+  recall tool at all. STOCK's turns varied by cell:
+  - batch rep 1 STOCK read `calc.py` and patched it through bash, with no edit call and at most
+    5 steps a turn;
+  - the other three STOCK cells used the edit tool 22–31 times each, with up to 8–13 steps in a
+    turn.
+
+  A typical SLICE turn re-reads the file, makes several edits and runs several ad-hoc test and
+  fuzz scripts. 14 of its 32 turns ended at the 14-step cap, 3–4 in every cell and all in
+  T5–T8; no STOCK turn did. SLICE's requests were smaller (mean 20.5K vs 34.4K tokens) but there
+  were twice as many. Its output cost was 1.56x STOCK's and its uncached input cost 2.6x. Two
+  plausible causes are not separated here:
+  - the sealed tape hides the code the model wrote in earlier turns, while STOCK still sees it
+    verbatim;
+  - the plugin's system text replaces the host persona ("You are sliceagent, …") and tells the
+    model that "a recorded file read is not a current file".
+
+  Both arms passed every c1 cell.
+- **r3–r5 (R 1.29–1.49):** these sessions are 2–4 turns long and cost about a cent each.
+  SLICE's longer prefix (about 1,830 more tokens in the first request: median 4.9K against
+  3.1K) is served from cache at $0.014/M. That is about $0.00003 per request, so it explains
+  little:
+  - in r3 and r5, cached input accounts for $0.0002 or less of the difference;
+  - in r4 it accounts for $0.0004 of $0.0016.
+
+  The rest is uncached input and output. In r5, for example, SLICE sent 19.3K uncached tokens
+  against STOCK's 11.8K, from its `expand_result` and `recall_step` re-reads. r1 and r2 (R 0.78,
+  0.91) went the other way, mostly because STOCK wrote more output; cached input was about equal.
 - **f1 reading behaviour varied in SLICE without changing its cost.** In batch rep 1 the model
   read 24 of 32 excerpts in two or more partial reads, each under the fold threshold (8 folds,
   10 `expand_result` calls); in rep 2 all 32 (0 folds, 3 calls); in the arbitration cell it read
@@ -1079,7 +1201,11 @@ tasks, the current slice policy, against stock DSH at its shipped defaults:
 - **was compared with a stock arm whose compaction never fired:** stock's shipped trigger never
   came within reach (largest request 235K of 678K), so the comparison is against a raw transcript.
   With a 57K trigger (STOCK-COMPACT, a configured variant), native compaction cut f1's cost to
-  0.86x of STOCK but dropped content the task needed (0 of 2 passes), where SLICE passed both.
+  0.86x of STOCK but its pruner dropped content the task needed (0 of 2 passes), where SLICE
+  passed both. That failure is in-turn pruning on a task built to expose it: each excerpt is just
+  over the 8,192-character prune threshold and its token sits in the pruned middle (§2.5). It
+  is not evidence that native summaries lose early facts; every memory item survived 4–5
+  summaries.
 
 By the pre-registered rule this is **inconclusive**: the saving on the long session is large, but
 the short sessions cost more than the 10 % the rule allows. Whether slice is worth using therefore
@@ -1098,14 +1224,245 @@ coding-heavy sessions favour stock. n is 3–4 per task (f1 3), one model, one h
 - [cells.json](ab/slice-vs-stock-2026-10-23/cells.json): one row per batch and arbitration cell
   (cost on both sheets, tokens, requests, context sizes, compaction events, folds, step-cap cuts
   per turn, memory classes, flags).
-- The summaries and `cells.json` contain no oracle value: the operator's scan checked them
-  against the truth sidecars of all 64 cells and the r1–r5 task tokens (193 strings, 0 hits; the
-  scan found the expected values in raw turn streams as a positive control).
+- [sensitivity.json](ab/slice-vs-stock-2026-10-23/sensitivity.json): the analyses of §13.6 and
+  §16, which are reported only and not pre-registered. It holds the token-class costs, the
+  cache-hit price series, the bootstrap and the leave-one-pair-out figures. They are computed
+  from `cells.json` and `prices.json` by `operator-tools/sensitivity.py` in the archive.
+- The summaries and `cells.json` contain no oracle value. The operator's scan
+  (`operator-tools/oraclescan.py` in the archive) checked every file in
+  `docs/ab/slice-vs-stock-2026-10-23/` and this record against the truth sidecars of all 64
+  cells and the r1–r5 task tokens: 195 strings in all. The batch-stage text said 193; a re-run on
+  the final files gives 195, which is the figure of record (§14.2). The scan found the expected
+  values in raw turn streams as a positive control.
+  - Every file under `docs/ab/` has 0 hits.
+  - This record matches 3 strings, all present since the frozen pre-registration (`35df351`).
+    Two are f1's T1 user-stated deployment values quoted in §4.1. They are the prompt's own
+    text, also in the committed `scripts/ab/tasks/svs_f1_flood_recall/prompts.json`, and the
+    user hands them to the model in T1. The third is a common English word that also occurs in a
+    truth sidecar.
+  - None is a seeded oracle value, and none is a value a cell could read during a turn: the
+    record's `docs/` is mode 000 while a turn runs.
 - `run_ab.py secrets-scan`: 3 cells listed, all from the offline mock isolation probe
   (`isoprobe`, whose probe names `DSH_HOME` by design); no paid cell. A plain search of every tool
   input in every turn stream found no other reference to `DSH_HOME`, `~/.dsh` or a `.env` file
   (only `self.env` attributes and the r2 task's `service.env`). The key links were removed from
   the three template homes after the arbitration.
-- Raw data: `~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/` (its
-  `README.md` lists the contents and exclusions; the three probe cells are in `held-back/`, chmod
-  700).
+- Raw data: `~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/`. Its
+  `README.md` lists the contents and exclusions. The three probe cells are in `held-back/`
+  (chmod 700). The verifiers' tools and outputs are in `verify/`, without their decompressed
+  logs and unpacked workdirs, which duplicate the archived raw data. `record/` holds this record
+  at its final commit.
+
+## 14. Verification
+
+### 14.1 What the two verifiers checked
+
+Two verifiers worked independently, read-only and without model calls, after §13 was committed
+(`544b257`). Each one:
+
+- decompressed all 64 session logs;
+- wrote its own parser, without importing `ab_metrics.py`, `ab_report.py` or `svs_report.py`;
+- priced the usage of every `assistant/message`, `assistant/attempt` and `compaction/summary`
+  event on both sheets;
+- re-ran every task's `verify.py` in a fresh `python -I` on all 64 packed workdirs;
+- recomputed every pre-registered quantity of §6–§8 and cross-checked every row of `cells.json`.
+
+Both agree with the report on every pre-registered comparison:
+
+- L 0.6109, N 1.1668, N_recall 1.1313, N_coding 1.2606, G 1.0762, Σ ratio 0.8750 and median
+  paired ratio 1.1521, pooled;
+- the batch-alone and arbitration-alone figures;
+- dS 0 and every dS_t 0; dM 0 and dB 0 over 31 items; the one exclusion;
+- the verdicts, the arbitration test and its budget condition;
+- the ledger: $5.7403 over 795 turns, 7 unpriced charges.
+
+Oracle verdicts were identical in 64 of 64 cells, with the same pass, detail and info. In
+`cells.json`, 0 rows mismatched on cost (both sheets), tokens, requests, cache hit, request
+sizes, summaries, prunes, context-limit errors, spills, folds, turns or step-cap cuts.
+
+Further checks by one verifier or the other:
+
+- **Exams.** Every SLICE exam turn got its answer through a recall-tool result in that turn,
+  23 of 23 cells. SLICE's sealed tape never contained an exam token before its exam.
+- **Leaks and access.** No assistant-text leak, no write leak and no oracle via the file system
+  in any cell. An access scan flags only the excluded pair.
+- **Arms.** The three dumps differ only in their declared rows. The shipped trigger formula was
+  checked in the upstream `config.ts` and in the installed host lib. Both copies of the slice
+  tarball match sha `62b0eb7e…` and are byte-identical to `git archive c73ee22`, as are the
+  installed plugin files.
+  - Every SLICE cell has 16 tools, system-prompt sha `46c592c8` and one tape entry per sealed
+    turn (44 in each f1 cell).
+  - Every STOCK and STOCK-COMPACT cell has 12 tools and sha `3f484053`.
+- **Isolation.** Every absolute path in every tool call of all 64 logs was scanned. The only
+  accesses outside a cell root were SLICE's c1 scratch scripts in `/tmp`, which were
+  quarantined. The two `find ..` calls (r2 batch rep 3 SLICE, the excluded pair, and c2 batch
+  rep 1 STOCK, which has no memory item) listed only their own cell root and returned no oracle
+  value.
+- **Secrets and keys.** 0 secret-pattern matches in paid cells; no `.env` link left in the
+  template homes.
+- **Cost accounting.** All 9 compaction-summary usages are priced. The recall tools are local
+  and the plugin makes no model calls, so recall output is billed through the following
+  requests.
+- **Order and content.** f1's truth and log hashes are identical across the arms of each group
+  and differ between groups. The run order matches the rotation of §3.
+- **Transcripts.** One verifier read the transcripts of 18 cells: all 8 f1 cells, the excluded
+  cell (r2 batch rep 3 SLICE), the cell with the failed provider request (r2 batch rep 1
+  STOCK), and one pair each from c1, c2, r3 and r5.
+
+Taken from the harness's records and not re-derived from raw data: isolation and tamper
+evidence (modes, inodes, ctime, sibling blocking), stray processes, quarantine, wall times and
+the warm and pilot stages. These records are internally consistent: 0 breaches, 0 strays,
+unchanged worktrees, and an unchanged host digest across all three manifests.
+
+Scratch outputs, outside the repository: `AB/verify-0/{tools,out}` and
+`AB/verify-1/{tools,recomputed.json,reverify.json}`. Their decompressed logs, unpacked workdirs
+and rendered transcripts hold oracle values. They are not committed, and they are not archived
+beyond the raw data they duplicate.
+
+### 14.2 Discrepancies and how they were resolved
+
+| # | finding (verifier) | resolution |
+|---|---|---|
+| 1 | Fourth-decimal differences (both): the JSON gives pooled N 1.1669 against a recomputed 1.1668, batch N_coding 1.2765 against 1.2766, and arb-only N 1.2339 against 1.2338. Pooled r2 and r4 differ in the third decimal of the rounded display. | `svs_report.py` computes ratios from off-peak cell costs rounded to 6 decimals; applying the same rounding reproduces every reported value. The effect is immaterial: at most 0.0004 on any R_t, and no threshold is within 0.03. The frozen report's figures stand. §13.3 adds the token-priced values. |
+| 2 | Oracle-scan string count (both): §13.8 said 193, the batch-stage text said 195. Both gave 0 hits on the summaries. | Re-run on the final files: 195 strings, 0 hits under `docs/ab/`. §13.8 is corrected and now also discloses this record's 3 matches: two task-design strings quoted since the freeze and one common word. |
+| 3 | §13.6 said a typical STOCK c1 turn reads `calc.py` once and patches it in one bash call in 3–5 steps (both). Only batch rep 1 STOCK did that; the other three used the edit tool 22–31 times, with up to 8–13 steps a turn. | Confirmed from the per-cell tool counts; §13.6 is reworded with the per-cell figures. The tool-call totals were right. |
+| 4 | §13.6 said SLICE's longer prefix is a large share of the r3–r5 overhead (one verifier). The prefix is served from cache at about $0.00003 per request; the overhead is output and uncached input. | Confirmed. The token-class table in §13.6 shows that cached input accounts for at most $0.0004 of the difference on any r-task or on c2, and for $0.0034 of c1's $0.0601. The same table also contradicted the batch-stage reason given for r1 and r2 ("STOCK re-sends the raw probe outputs"): cached input is equal there, and STOCK's extra cost is output. Both statements are corrected. |
+| 5 | STOCK-COMPACT's "shadowed tokens" (59,504 and 48,310) counted only summaries; the pruner shadowed about 102.5K more per cell (one verifier). | Confirmed from the raw `compaction/prune` events: 102,481 and 102,520. §13.5 now shows both rows, labelled, and notes that they are not additive. |
+| 6 | Ledger and metric differ for r2 batch rep 1 STOCK ($0.0656 against $0.0156) (one verifier). | Already explained in §13.1: $0.05 is charged for the failed provider attempt, which has no logged usage. The ledger also charges compaction-summary usage from the log, as §5 and §9 declare. No change. |
+| 7 | Price sensitivity of L. One verifier gave L at hit/miss 1/10, 1/4 and 1/1. The other gave L for a halved and a doubled hit price, plus "1.22 on uncached tokens alone". | Recomputed in §16. The 1.22 is SLICE's ratio of uncached input tokens on f1, not a cost ratio. With free cache hits, the cost ratio over uncached input and output is 1.39. One verifier said the verdict holds "under every sheet tried". That is true for the sheets they tried; §16 adds that it changes when the hit price falls below about 0.28x the sheet's. |
+
+No discrepancy touches a pre-registered quantity, the quality floor or the verdict.
+
+## 15. Fairness caveats
+
+- **N weighs every short task equally, by pre-registration.** The r3, r4 and r5 sessions cost
+  about a cent each, and their per-session differences are under $0.006. They count as much in N
+  as c1 does. Weighted by dollars, slice costs 0.875x stock over all 31 pairs, against N 1.167.
+  The rule chose equal weighting so that c1's dollars would not swamp the other tasks. A
+  dollar-weighted rule would read the same data differently.
+- **SLICE differs from STOCK in its system text as well as its context policy.**
+  - The plugin replaces the persona ("You are sliceagent") and adds its kernel and fold section:
+    3,651 against 1,134 system characters, and 16 against 12 tools.
+  - The kernel says that a recorded file read is not a current file. SLICE's c1 cells re-read
+    `README.md` and `calc.py` in almost every turn.
+  - This is a fair test of the plugin as shipped, which is the arm the design rules defined. It
+    does not separate the sealing policy from the prompt. The short-session overhead may be
+    partly a prompt effect.
+- **The harness step cap bound only SLICE.** In c1, 14 of SLICE's 32 turns were cut, all in
+  T5–T8; no STOCK turn was cut, and STOCK's largest turn took 13 steps.
+  - SLICE passed every c1 cell anyway. Its c1 cost (R 1.587) is a lower bound, and lifting the
+    cap could only raise N.
+  - That cannot move the verdict to "not worth it": rule 6 needs L > 0.80 and rule 5 needs
+    L ≥ 0.95, and L is 0.611.
+- **f1's design cuts both ways.**
+  - Against SLICE: the prompts demand full reads and forbid grep, so every large read is folded
+    and either expanded or read in chunks.
+  - For SLICE: carrying 32 large reads forever is where sealing helps most.
+  - L rests on this one synthetic task, at n = 3, with paired ratios of 0.55–0.76. STOCK varied
+    too: batch rep 2 STOCK read the excerpt and `digest.md` in one step, for 3 requests per read
+    turn instead of 5, and cost $0.342 against $0.472.
+- **The recall tasks give stock's raw history its natural advantage on short sessions**,
+  because the source is deleted and STOCK still holds the raw tool output. That is the trade the
+  policy makes (§4). Both arms recalled everything.
+- **Run order was balanced overall.** SLICE ran first in 2 of the 4 pooled short-task pairs, and
+  f1's order rotates. In the arbitration STOCK ran first for every task. Each cell's runtime
+  context carries its own cwd, so reuse of the cache across cells is limited to the system text,
+  the tools and the T1 prompt. No order effect was found.
+- **STOCK-COMPACT ran at a configured 57K trigger on a task whose structure defeats the pruner**
+  (§2.5, §13.5). Its 0 of 2 passes describe in-turn pruning on this task. They are not a verdict
+  on native compaction.
+- **SLICE's f1 reading strategy varied between cells**: chunked reads under the fold threshold in
+  the batch cells, whole reads with fold and expand in the arbitration cell. This is the policy
+  behaving as designed, not a harness effect. The cost was flat ($0.260–0.264).
+- **The leak check of §5 scans visible assistant text only.** In both arms the model's reasoning
+  named exam tokens at their delivery turns (for example f1 T3 and T5, r1 T3, r2 T4, r5 T1).
+  That is where the fact arrives, and it is not an exclusion under the rules. SLICE's tape never
+  carried those tokens before the exam.
+
+## 16. External validity
+
+- **Session length.** The longest session was 45 turns, and STOCK's largest request was 235,449
+  tokens. The short tasks ran 1–8 turns. Real long-running agents go much further: the live
+  slicey-dsh session reached 179 turns, and the Raft-connected agent runs without stopping.
+  - STOCK adds about 6.9K tokens per excerpt read on f1, so it would reach its shipped 678,464
+    trigger after roughly 64 more such turns.
+  - Beyond that point stock compacts. A summary call replaces the oldest span, and the cache
+    breaks from the first replaced token.
+  - This run did not test that regime at the default settings. Its only evidence on compaction
+    is STOCK-COMPACT: 2 cells at 57K, on one task. The data do not predict whether slice's
+    long-session advantage grows or shrinks there.
+- **Price structure.** The whole long-session saving is in cached input (§13.6). On f1, SLICE
+  sends 0.28x STOCK's cached tokens but 1.22x its uncached input and 2.02x its output, so L
+  depends on the price of a cache hit relative to a miss. The two sheets of §2.1 are
+  proportional, so they cannot test this. Re-priced from the logged tokens, with miss and output
+  prices fixed (`sensitivity.json`):
+
+  | cache-hit price | hit/miss | L | N | verdict under §7 |
+  |---|---|---|---|---|
+  | free | 0 | 1.390 | 1.179 | not worth it (rule 5) |
+  | 0.28x the sheet | 1/113 | 0.950 | 1.175 | boundary of rule 5 |
+  | 0.48x the sheet | 1/65 | 0.800 | 1.172 | boundary of rule 3's L condition |
+  | 0.5x the sheet | 1/63 | 0.789 | 1.172 | inconclusive (rule 7) |
+  | **the sheet (DeepSeek v4-flash)** | **1/31** | **0.611** | **1.167** | **inconclusive (rule 7)** |
+  | 2x the sheet | 1/16 | 0.476 | 1.159 | inconclusive (rule 7) |
+  | 1/10 of miss | 1/10 | 0.414 | 1.152 | inconclusive (rule 7) |
+  | 1/4 of miss | 1/4 | 0.340 | 1.136 | inconclusive (rule 7) |
+  | no cache discount | 1/1 | 0.298 | 1.118 | inconclusive (rule 7) |
+
+  - The verdict is the same for any cache-hit price from about 0.28x the sheet's upward.
+  - With cheaper cache hits, slice's extra output and uncached input outweigh its smaller cached
+    input. Below about 0.23x the sheet, slice costs more on f1 too.
+  - The "39 % cheaper" figure is specific to DeepSeek's cache pricing. `prices.json` itself
+    records as an assumption that deepseek-flash bills on the v4-flash sheet.
+- **One model and one host.** The model was deepseek-flash at the adapter's default reasoning
+  effort, and the host was DSH 0.2.1-rc.2.
+  - Each turn ran as its own headless process, in a hermetic composition: no web, subagents,
+    skills or goals, an empty host persona and telemetry off.
+  - c1's extra fuzzing and re-reading in SLICE is model behaviour, and another model may react
+    differently to the tape and the kernel text.
+  - The interactive TUI and other routes were not tested.
+- **Synthetic tasks.** f1's excerpts are generated log text, and its prompts forbid grep and
+  demand full reads, which a capable agent would usually avoid. The recall tasks plant one fact
+  and delete its source. Real sessions mix reads, test output and edits in proportions this
+  suite does not represent.
+- **Power.** n is 3 for f1 and 4 for each short task. In a bootstrap over pairs within each task
+  (20,000 resamples):
+  - N has a 95 % interval of 1.07–1.28, P(N ≤ 1.10) ≈ 0.09 and P(N ≥ 1.25) ≈ 0.07;
+  - L has a 95 % interval of 0.55–0.76, and every resample has L ≤ 0.80;
+  - leaving out any one pair moves N within 1.14–1.19;
+  - N without c1 is 1.109.
+
+  The long-session saving is well supported. That N exceeds 1.10 is only moderately supported.
+
+## 17. What would change the conclusion
+
+The arbitration is spent (§8), so no further run can change this record's verdict. A new
+question needs its own pre-registration. On these rules and this data:
+
+- **"Worth it" (rule 3) needs N ≤ 1.10 with L ≤ 0.80**, which means cutting the short-session
+  geometric mean by 5.7 %.
+  - With the other six tasks unchanged, c1's ratio alone would have to fall from 1.59 to 1.05.
+    c1 at parity gives N 1.092, and r3–r5 at parity give N 1.017.
+  - The natural next experiment is an ablation that separates the two candidate causes of the
+    c1 overhead: the tape hiding earlier code, and the kernel text. It would run SLICE with the
+    host's persona and without the "recorded read" instruction, against SLICE as shipped and
+    STOCK.
+- **"Not worth it" needs rule 5 (L ≥ 0.95 and N ≥ 1.00) or rule 6 (N ≥ 1.25 and L > 0.80).**
+  Neither is near at DeepSeek's prices.
+  - Rule 5 would hold if cache hits cost under about 0.28x the sheet's price (§16).
+  - It would also hold for a long-session workload in which SLICE's extra output and uncached
+    input outweighed its cached-input saving.
+  - Lifting the step cap would raise N, but it cannot reach either rule while L is 0.61.
+- **The workload mix (outside the rule).** At this run's per-session costs, one f1-like session
+  saves $0.167 against stock, and one c1-like session costs $0.060 more. Ignoring the sub-cent
+  sessions, a workload with more than about 2.8 c1-like sessions per f1-like session is cheaper
+  without slice. Measuring the
+  mix of the owner's real sessions would turn "inconclusive" into a decision for that workload:
+  turn counts, tool-output sizes, and how often a session gets past 100K tokens.
+- **Untested regimes** could move L in either direction:
+  - sessions long enough to reach stock's 678K trigger;
+  - another model or host version;
+  - another provider's cache pricing;
+  - interactive use.
+
+  More reps would narrow N's interval, which straddles 1.10.
