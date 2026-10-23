@@ -1,4 +1,10 @@
 # Additive context policy. Keep the stock factory and projections.
+# exp/svs2-c only (the svs2 ablation's arm C, docs/svs2-ablation-2026-10-24.md): the packaged row turns
+# working-set retention on with its defaults (history.workingSet: turns 2, maxChars 48000). The code
+# default stays off; main ships this row without config.
 - insert:
     - id: slice-agent-loop
       name: '@dsh-external/dsh-slice-agent-loop'
+      config:
+        history:
+          workingSet: {}
