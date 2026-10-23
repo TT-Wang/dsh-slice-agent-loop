@@ -1,0 +1,300 @@
+{
+ "_note": "Reported only, not pre-registered (record sections 13.6, 16). Peak sheet from scripts/ab/prices.json; ratios priced from logged tokens. Pairs: valid SLICE/STOCK pairs of the pooled batch + arb (31).",
+ "pairs": 31,
+ "R_t": {
+  "f1": 0.6109,
+  "r1": 0.7774,
+  "r2": 0.9095,
+  "r3": 1.2925,
+  "r4": 1.3624,
+  "r5": 1.4885,
+  "c1": 1.5871,
+  "c2": 1.0013
+ },
+ "L": 0.6109,
+ "N": 1.1668,
+ "N_without_c1": 1.1085,
+ "token_class_costs": {
+  "f1/slice": {
+   "tokens_mean": {
+    "uncached_in": 278251,
+    "cached_in": 6106112,
+    "out": 40898
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.1224,
+    "cached_in": 0.0855,
+    "out": 0.054
+   }
+  },
+  "f1/stock": {
+   "tokens_mean": {
+    "uncached_in": 227711,
+    "cached_in": 21551616,
+    "out": 20276
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.1002,
+    "cached_in": 0.3017,
+    "out": 0.0268
+   }
+  },
+  "r1/slice": {
+   "tokens_mean": {
+    "uncached_in": 10192,
+    "cached_in": 142656,
+    "out": 2236
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0045,
+    "cached_in": 0.002,
+    "out": 0.003
+   }
+  },
+  "r1/stock": {
+   "tokens_mean": {
+    "uncached_in": 8054,
+    "cached_in": 145952,
+    "out": 4960
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0035,
+    "cached_in": 0.002,
+    "out": 0.0065
+   }
+  },
+  "r2/slice": {
+   "tokens_mean": {
+    "uncached_in": 14521,
+    "cached_in": 265504,
+    "out": 7181
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0064,
+    "cached_in": 0.0037,
+    "out": 0.0095
+   }
+  },
+  "r2/stock": {
+   "tokens_mean": {
+    "uncached_in": 11091,
+    "cached_in": 284480,
+    "out": 9600
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0049,
+    "cached_in": 0.004,
+    "out": 0.0127
+   }
+  },
+  "r3/slice": {
+   "tokens_mean": {
+    "uncached_in": 9783,
+    "cached_in": 107808,
+    "out": 2458
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0043,
+    "cached_in": 0.0015,
+    "out": 0.0032
+   }
+  },
+  "r3/stock": {
+   "tokens_mean": {
+    "uncached_in": 8438,
+    "cached_in": 104768,
+    "out": 1386
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0037,
+    "cached_in": 0.0015,
+    "out": 0.0018
+   }
+  },
+  "r4/slice": {
+   "tokens_mean": {
+    "uncached_in": 3808,
+    "cached_in": 79584,
+    "out": 2258
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0017,
+    "cached_in": 0.0011,
+    "out": 0.003
+   }
+  },
+  "r4/stock": {
+   "tokens_mean": {
+    "uncached_in": 2860,
+    "cached_in": 52096,
+    "out": 1703
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0013,
+    "cached_in": 0.0007,
+    "out": 0.0022
+   }
+  },
+  "r5/slice": {
+   "tokens_mean": {
+    "uncached_in": 19324,
+    "cached_in": 132128,
+    "out": 3887
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0085,
+    "cached_in": 0.0018,
+    "out": 0.0051
+   }
+  },
+  "r5/stock": {
+   "tokens_mean": {
+    "uncached_in": 11826,
+    "cached_in": 111584,
+    "out": 2755
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0052,
+    "cached_in": 0.0016,
+    "out": 0.0036
+   }
+  },
+  "c1/slice": {
+   "tokens_mean": {
+    "uncached_in": 66442,
+    "cached_in": 1815520,
+    "out": 81598
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0292,
+    "cached_in": 0.0254,
+    "out": 0.1077
+   }
+  },
+  "c1/stock": {
+   "tokens_mean": {
+    "uncached_in": 25380,
+    "cached_in": 1572352,
+    "out": 52366
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0112,
+    "cached_in": 0.022,
+    "out": 0.0691
+   }
+  },
+  "c2/slice": {
+   "tokens_mean": {
+    "uncached_in": 7176,
+    "cached_in": 61184,
+    "out": 3560
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0032,
+    "cached_in": 0.0009,
+    "out": 0.0047
+   }
+  },
+  "c2/stock": {
+   "tokens_mean": {
+    "uncached_in": 5854,
+    "cached_in": 58240,
+    "out": 4023
+   },
+   "usd_peak_mean": {
+    "uncached_in": 0.0026,
+    "cached_in": 0.0008,
+    "out": 0.0053
+   }
+  }
+ },
+ "f1_token_ratios": {
+  "miss": 1.222,
+  "hit": 0.283,
+  "out": 2.017
+ },
+ "hit_price_sensitivity": [
+  {
+   "hit_price": "free",
+   "hit_multiplier": 0.0,
+   "L": 1.39,
+   "N": 1.179
+  },
+  {
+   "hit_price": "0.229x (L=1.00)",
+   "hit_multiplier": 0.229,
+   "L": 1.0,
+   "N": 1.175
+  },
+  {
+   "hit_price": "0.277x (L=0.95)",
+   "hit_multiplier": 0.277,
+   "L": 0.95,
+   "N": 1.175
+  },
+  {
+   "hit_price": "0.48x (L=0.80)",
+   "hit_multiplier": 0.48,
+   "L": 0.8,
+   "N": 1.172
+  },
+  {
+   "hit_price": "0.5x",
+   "hit_multiplier": 0.5,
+   "L": 0.789,
+   "N": 1.172
+  },
+  {
+   "hit_price": "sheet",
+   "hit_multiplier": 1.0,
+   "L": 0.611,
+   "N": 1.167
+  },
+  {
+   "hit_price": "2x",
+   "hit_multiplier": 2.0,
+   "L": 0.476,
+   "N": 1.159
+  },
+  {
+   "hit_price": "hit/miss 1/10",
+   "hit_multiplier": 3.143,
+   "L": 0.414,
+   "N": 1.152
+  },
+  {
+   "hit_price": "hit/miss 1/4",
+   "hit_multiplier": 7.857,
+   "L": 0.34,
+   "N": 1.136
+  },
+  {
+   "hit_price": "no discount",
+   "hit_multiplier": 31.429,
+   "L": 0.298,
+   "N": 1.118
+  }
+ ],
+ "bootstrap": {
+  "resamples": 20000,
+  "seed": 1,
+  "method": "pairs resampled with replacement within each task",
+  "N_2.5_50_97.5": [
+   1.071,
+   1.167,
+   1.279
+  ],
+  "P_N_le_1.10": 0.091,
+  "P_N_ge_1.25": 0.068,
+  "L_2.5_50_97.5": [
+   0.551,
+   0.611,
+   0.764
+  ],
+  "P_L_le_0.80": 1.0
+ },
+ "leave_one_pair_out_N": [
+  1.14,
+  1.189
+ ]
+}

@@ -1,0 +1,807 @@
+{
+ "arms": [
+  "stock",
+  "slice",
+  "stock-compact"
+ ],
+ "cells": [
+  {
+   "arm": "stock",
+   "cell": "isolation_probe.r1.stock",
+   "mode": "read",
+   "probe": {
+    "escapee_left": 0,
+    "live_entries": [
+     "c-0f48d4e476"
+    ],
+    "live_shows_only_this_cell": true,
+    "mode": "read",
+    "ok": true,
+    "own_files_readable": true,
+    "processes_left": 0,
+    "strays_killed": 2,
+    "targets": [
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/slice/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/slice/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock-compact/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock-compact/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root",
+      "ok": true,
+      "path": "<AB>/vault/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/manifest-probe-canary.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "truth file",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/truth/w-probecanary.truth.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/manifest-20261023T153857.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/index.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "ledger",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/spend.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's session log (finished cell home)",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-5927f3ac93/sessions/--private-tmp-claude-501--Users-tongtao-code-dsh-slice-agent-loop-0e4b8700-2b22-463f-9470-489b8db791fc-scratchpad-svs-live-c-5927f3ac93-w-570963601c--/session-fdd5f525-7ef4-4f8c-a930-ea51019f86f3/session.v4.jsonl.zstd"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's finished cell home",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-5927f3ac93"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's packed workdir",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/workdirs/w-570963601c.tgz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "turn stream",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/turns/hello.r1.slice.a1.t1.jsonl.gz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/arms.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/fingerprints.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root (listing)",
+      "ok": true,
+      "path": "<AB>/vault"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "template homes (listing)",
+      "ok": true,
+      "path": "<AB>/vault/homes"
+     }
+    ],
+    "tmp_plant_quarantined": true,
+    "tool_errors": [
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/slice/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/stock-compact/probe-canary.",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/manifest-probe-c",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/truth/w-probecan",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/docs/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/docs/probe-canary.txt'",
+     "Error: glob search failed (exit 2): rg: <AB>/vault: IO error for operation on /private/t",
+     "Error: grep search failed (exit 2): rg: <AB>/vault: Permission denied (os error 13)",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/scripts: Permission denied (os e",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/docs: Permission denied (os erro",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/scripts: Permission denied (os err",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/docs: Permission denied (os error "
+    ],
+    "writes": {
+     "<AB>": "WRITE-DENIED",
+     "<AB>/host": "WRITE-DENIED",
+     "<AB>/live": "WRITE-DENIED",
+     "<AB>/mock": "WRITE-DENIED",
+     "<AB>/patches": "WRITE-DENIED",
+     "<AB>/patches/isoprobe": "WRITE-DENIED",
+     "<AB>/plugins": "WRITE-DENIED",
+     "<AB>/wt": "WRITE-DENIED"
+    }
+   },
+   "reasons": [],
+   "status": "done"
+  },
+  {
+   "arm": "slice",
+   "cell": "isolation_probe.r1.slice",
+   "mode": "read",
+   "probe": {
+    "escapee_left": 0,
+    "live_entries": [
+     "c-886d9612ca"
+    ],
+    "live_shows_only_this_cell": true,
+    "mode": "read",
+    "ok": true,
+    "own_files_readable": true,
+    "processes_left": 0,
+    "strays_killed": 2,
+    "targets": [
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock-compact/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock-compact/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root",
+      "ok": true,
+      "path": "<AB>/vault/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/manifest-probe-canary.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "truth file",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/truth/w-probecanary.truth.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/manifest-20261023T153857.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/index.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "ledger",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/spend.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's session log (finished cell home)",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-d50e1ee084/sessions/--private-tmp-claude-501--Users-tongtao-code-dsh-slice-agent-loop-0e4b8700-2b22-463f-9470-489b8db791fc-scratchpad-svs-live-c-d50e1ee084-w-df537b2bab--/session-84d08ed3-a226-4030-8215-4df3361cde67/session.v4.jsonl.zstd"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's finished cell home",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-d50e1ee084"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's packed workdir",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/workdirs/w-df537b2bab.tgz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "turn stream",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/turns/hello.r1.slice.a1.t1.jsonl.gz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/arms.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/fingerprints.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root (listing)",
+      "ok": true,
+      "path": "<AB>/vault"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "template homes (listing)",
+      "ok": true,
+      "path": "<AB>/vault/homes"
+     }
+    ],
+    "tmp_plant_quarantined": true,
+    "tool_errors": [
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/stock/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/stock-compact/probe-canary.",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/manifest-probe-c",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/truth/w-probecan",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/docs/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/docs/probe-canary.txt'",
+     "Error: glob search failed (exit 2): rg: <AB>/vault: IO error for operation on /private/t",
+     "Error: grep search failed (exit 2): rg: <AB>/vault: Permission denied (os error 13)",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/scripts: Permission denied (os e",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/docs: Permission denied (os erro",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/scripts: Permission denied (os err",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/docs: Permission denied (os error "
+    ],
+    "writes": {
+     "<AB>": "WRITE-DENIED",
+     "<AB>/host": "WRITE-DENIED",
+     "<AB>/live": "WRITE-DENIED",
+     "<AB>/mock": "WRITE-DENIED",
+     "<AB>/patches": "WRITE-DENIED",
+     "<AB>/patches/isoprobe": "WRITE-DENIED",
+     "<AB>/plugins": "WRITE-DENIED",
+     "<AB>/wt": "WRITE-DENIED"
+    }
+   },
+   "reasons": [],
+   "status": "done"
+  },
+  {
+   "arm": "stock-compact",
+   "cell": "isolation_probe.r1.stock-compact",
+   "mode": "read",
+   "probe": {
+    "escapee_left": 0,
+    "live_entries": [
+     "c-5572fd4823"
+    ],
+    "live_shows_only_this_cell": true,
+    "mode": "read",
+    "ok": true,
+    "own_files_readable": true,
+    "processes_left": 0,
+    "strays_killed": 2,
+    "targets": [
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/stock/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/slice/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's template DSH_HOME",
+      "ok": true,
+      "path": "<AB>/vault/homes/slice/profiles/ab/package.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root",
+      "ok": true,
+      "path": "<AB>/vault/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/manifest-probe-canary.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "truth file",
+      "ok": true,
+      "path": "<AB>/vault/results/isoprobe/truth/w-probecanary.truth.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs/probe-canary.txt"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "task oracle in a worktree",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts/ab/tasks/p110_r4_probe_compare/meta.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "run manifest",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/manifest-20261023T153857.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/index.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "ledger",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/spend.jsonl"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's session log (finished cell home)",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-5927f3ac93/sessions/--private-tmp-claude-501--Users-tongtao-code-dsh-slice-agent-loop-0e4b8700-2b22-463f-9470-489b8db791fc-scratchpad-svs-live-c-5927f3ac93-w-570963601c--/session-fdd5f525-7ef4-4f8c-a930-ea51019f86f3/session.v4.jsonl.zstd"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's finished cell home",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/homes/c-5927f3ac93"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "other arm's packed workdir",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/workdirs/w-570963601c.tgz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "turn stream",
+      "ok": true,
+      "path": "<AB>/vault/results/offline/turns/hello.r1.slice.a1.t1.jsonl.gz"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/arms.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state",
+      "ok": true,
+      "path": "<AB>/vault/fingerprints.json"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "A/B state root (listing)",
+      "ok": true,
+      "path": "<AB>/vault"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree harness/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/harness/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/scripts (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/scripts"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "worktree slice/docs (listing)",
+      "ok": true,
+      "path": "<AB>/wt/slice/docs"
+     },
+     {
+      "bash": "DENIED",
+      "canary_leaked": false,
+      "class": "template homes (listing)",
+      "ok": true,
+      "path": "<AB>/vault/homes"
+     }
+    ],
+    "tmp_plant_quarantined": true,
+    "tool_errors": [
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/stock/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/homes/slice/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/manifest-probe-c",
+     "Error: EACCES: permission denied, realpath '<AB>/vault/results/isoprobe/truth/w-probecan",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/harness/docs/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/scripts/probe-canary.txt'",
+     "Error: EACCES: permission denied, realpath '<AB>/wt/slice/docs/probe-canary.txt'",
+     "Error: glob search failed (exit 2): rg: <AB>/vault: IO error for operation on /private/t",
+     "Error: grep search failed (exit 2): rg: <AB>/vault: Permission denied (os error 13)",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/scripts: Permission denied (os e",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/harness/docs: Permission denied (os erro",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/scripts: Permission denied (os err",
+     "Error: grep search failed (exit 2): rg: <AB>/wt/slice/docs: Permission denied (os error "
+    ],
+    "writes": {
+     "<AB>": "WRITE-DENIED",
+     "<AB>/host": "WRITE-DENIED",
+     "<AB>/live": "WRITE-DENIED",
+     "<AB>/mock": "WRITE-DENIED",
+     "<AB>/patches": "WRITE-DENIED",
+     "<AB>/patches/isoprobe": "WRITE-DENIED",
+     "<AB>/plugins": "WRITE-DENIED",
+     "<AB>/wt": "WRITE-DENIED"
+    }
+   },
+   "reasons": [],
+   "status": "done"
+  },
+  {
+   "arm": "stock",
+   "cell": "tamper_probe.r1.stock",
+   "mode": "tamper",
+   "probe": {
+    "breaches_detected": [
+     "<AB>/vault: metadata changed while blocked"
+    ],
+    "cell_invalid": true,
+    "chmod_denied_by_sandbox": false,
+    "mode": "tamper",
+    "ok": true,
+    "worktree_change_detected": true
+   },
+   "reasons": [
+    "isolation breached in turn 1: <AB>/vault: metadata changed while blocked",
+    "isolation: worktree harness changed during the cell (git status)"
+   ],
+   "status": "invalid"
+  },
+  {
+   "arm": "slice",
+   "cell": "tamper_probe.r1.slice",
+   "mode": "tamper",
+   "probe": {
+    "breaches_detected": [
+     "<AB>/vault: metadata changed while blocked"
+    ],
+    "cell_invalid": true,
+    "chmod_denied_by_sandbox": false,
+    "mode": "tamper",
+    "ok": true,
+    "worktree_change_detected": true
+   },
+   "reasons": [
+    "isolation breached in turn 1: <AB>/vault: metadata changed while blocked",
+    "isolation: worktree harness changed during the cell (git status)"
+   ],
+   "status": "invalid"
+  },
+  {
+   "arm": "stock-compact",
+   "cell": "tamper_probe.r1.stock-compact",
+   "mode": "tamper",
+   "probe": {
+    "breaches_detected": [
+     "<AB>/vault: metadata changed while blocked"
+    ],
+    "cell_invalid": true,
+    "chmod_denied_by_sandbox": false,
+    "mode": "tamper",
+    "ok": true,
+    "worktree_change_detected": true
+   },
+   "reasons": [
+    "isolation breached in turn 1: <AB>/vault: metadata changed while blocked",
+    "isolation: worktree harness changed during the cell (git status)"
+   ],
+   "status": "invalid"
+  }
+ ],
+ "created": "2026-10-23T08:05:29+00:00",
+ "ok": true,
+ "target_batch": "offline"
+}

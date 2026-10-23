@@ -331,6 +331,19 @@ class Recall(unittest.TestCase):
         g3.call(1, 3, "write", {"file_path": "notes.txt", "content": "fixed tokens_f3"})
         self.assertEqual(M.metrics(g3.ev, exams=[skip], prices=M.load_prices())["exams"][0]["leak_write_turns"], [1])
 
+    def test_partial_leak_is_reported_apart_from_the_leak(self):
+        # f1 (2026-10-23): a fragment of the answer in assistant text before the exam is reported, never a leak
+        g = Log()
+        g.call(5, 1, "bash", {"command": "python3 tools/lint_frames.py"}, result="E4821 unsealed-binding: 'qz_marker' bound but never sealed (frame 3)")
+        g.assistant(5, 2, text="Removed the qz_marker line from frames.py.")
+        g.end(5)
+        spec = {"turn": 42, "tokens": ["E4821 unsealed-binding: 'qz_marker' bound but never sealed (frame 3)"],
+                "partial_leak": {"tokens": ["E4821", "qz_marker"]}}
+        e = M.metrics(g.ev, exams=[spec], prices=M.load_prices())["exams"][0]
+        self.assertEqual((e["leak_assistant_turns"], e["partial_leak_assistant_turns"]), ([], [5]))
+        e = M.metrics(g.ev, exams=[{"turn": 42, "tokens": ["E4821"]}], prices=M.load_prices())["exams"][0]
+        self.assertEqual(e["partial_leak_assistant_turns"], [])  # no partial_leak spec: nothing reported
+
     def test_heredoc_leaks_only_when_it_writes_a_file(self):
         spec = {"turn": 2, "tokens": ["test_tokens_f3_0"], "leak": {"regex": ["(?<![A-Za-z0-9])tokens_f3(?!\\d)"]}}
 
@@ -404,7 +417,7 @@ class Recall(unittest.TestCase):
         self.assertEqual((u["requests"], u["attempts_failed"], u["unpriced_records"]), (1, 2, 1))
         self.assertEqual((u["miss"], u["hit"], u["out"]), (510, 100, 8))
         self.assertEqual((u["attempt_miss"], u["attempt_out"]), (500, 3))
-        self.assertEqual(M.usage_totals(g.ev, turns={1}), {"miss": 510, "hit": 100, "out": 8, "cache_write": 0, "messages": 1, "attempts": 2, "unpriced": 1})
+        self.assertEqual(M.usage_totals(g.ev, turns={1}), {"miss": 510, "hit": 100, "out": 8, "cache_write": 0, "messages": 1, "attempts": 2, "compactions": 0, "unpriced": 1})
 
     def test_prompt_turn_alignment(self):
         g = Log()
@@ -444,13 +457,14 @@ class MockLogs(unittest.TestCase):
         with open(os.environ.get("AB_GATES") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-f.json"), encoding="utf-8") as fh:
             structure = json.load(fh).get("structure") or {"control": {"header": "long", "tool_line": "long"}, "arm1": {"header": "short", "tool_line": "long"},
                                                            "arm2": {"header": "short", "tool_line": "v"}}
-        forms = {a: (v["header"], v["tool_line"]) for a, v in structure.items() if isinstance(v, dict)}
+        forms = {a: (v["header"], v.get("tool_line")) for a, v in structure.items() if isinstance(v, dict)}
+        tools = {a: v.get("tools", 16) for a, v in structure.items() if isinstance(v, dict)}
         for c in cells:
             with self.subTest(cell=c["cell"]):
                 events, bad = M.load_events(c["log"])
                 m = M.metrics(events, prices=M.load_prices(), bad_lines=bad)
                 self.assertEqual(bad, 0)
-                self.assertEqual(m["validity"]["tools_count"], 16)
+                self.assertEqual(m["validity"]["tools_count"], tools.get(c["arm"], 16))
                 self.assertFalse(m["validity"]["system_has_host_path"])
                 self.assertEqual(m["finish"]["turns"], len(c["turns"]))
                 self.assertEqual((m["validity"]["user_prompts"], m["validity"]["turn_ends"], m["validity"]["goal_messages"]), (len(c["turns"]), len(c["turns"]), 0))
@@ -463,8 +477,11 @@ class MockLogs(unittest.TestCase):
                     self.assertFalse(os.path.exists(c["cell_root"]))
                 # the log's assistant messages are exactly the step_end events of the turns' stdout
                 self.assertEqual(m["usage"]["requests"], sum(t["steps"] for t in c["turns"]))
-                self.assertEqual(m["usage"]["miss"], sum(t["usage"]["inputTokens"] for t in c["turns"]))
-                self.assertEqual(m["usage"]["hit"], sum(t["usage"]["cacheReadTokens"] for t in c["turns"]))
+                # plus the compaction summarizer's calls, which the --json stream does not carry
+                self.assertEqual(m["usage"]["miss"], sum(t["usage"]["inputTokens"] for t in c["turns"]) + m["usage"]["compaction_miss"])
+                self.assertEqual(m["usage"]["hit"], sum(t["usage"]["cacheReadTokens"] for t in c["turns"]) + m["usage"]["compaction_hit"])
+                if forms.get(c["arm"], (1,))[0] is None:
+                    self.assertEqual(m["tape"]["entries"], 0)   # an arm without the plugin
                 if m["tape"]["entries"]:
                     self.assertEqual(set(m["tape"]["header_forms"]), {forms[c["arm"]][0]})
                 if m["tape"]["tool_lines"]:
@@ -509,6 +526,61 @@ class RealLogs(unittest.TestCase):
         self.assertAlmostEqual(m["tape"]["tool_lines"] / m["tape"]["entries"], 2.94, places=2)
         self.assertEqual(m["reads"]["folds"], 22)
 
+
+
+class NativeContextManagement(unittest.TestCase):
+    """DSH 0.2.x compaction-basic and tool-result-pruner events (slice-vs-stock, 2026-10-23)."""
+
+    def log(self):
+        g = Log()
+        g.add("turn/start", {"turn": 1})
+        big = g.call(1, 1, "read", {"file_path": "a.log"}, result="x" * 9000)
+        g.assistant(1, 2, text="done", usage=(5000, 0, 9))
+        g.end(1)
+        g.add("turn/start", {"turn": 2})
+        g.add("compaction/start", {"compactionId": "k1", "turn": 2})
+        g.add("compaction/prune", {"shadowedRange": {"start": big, "end": big}, "shadowedSeqs": [big], "shadowedTokenCount": 2250})
+        g.add("tool/result", {"turn": 1, "step": 1, "message": {"role": "tool", "toolCallId": "c1", "content": [{"type": "text", "text": "x" * 4096 + "[... tool result middle pruned ...]"}]}},
+              surfaceOp={"op": "replace", "startSeq": big, "endSeq": big}, sourceEventSeqs=[big])
+        g.add("compaction/summary", {"compactionId": "k1", "summary": [{"type": "text", "text": "SUMMARY"}], "shadowedRange": {"start": 1, "end": 5},
+                                     "shadowedSeqs": [1, 2, 3, 4, 5], "shadowedTokenCount": 3000, "provider": "p", "model": "m",
+                                     "usage": {"inputTokens": 70, "cacheReadTokens": 3000, "outputTokens": 400}})
+        g.add("user/message", {"content": [{"type": "text", "text": "<compacted-summary>SUMMARY</compacted-summary>"}], "role": "user"},
+              surfaceOp={"op": "replace", "startSeq": 1, "endSeq": 5}, sourceEventSeqs=[1, 5])
+        g.add("compaction/end", {"compactionId": "k1", "turn": 2})
+        g.add("compaction/start", {"compactionId": "k2", "turn": 2})
+        g.add("compaction/end", {"compactionId": "k2", "turn": 2, "error": "summary request failed"})
+        g.assistant(2, 1, text="answer", usage=(800, 200, 7))
+        g.add("turn/end", {"turn": 2, "reason": {"kind": "error", "error": {"code": "CONTEXT_WINDOW_EXCEEDED"}}})
+        return g
+
+    def test_compaction_prune_and_summary_usage(self):
+        g = self.log()
+        row = M.metrics(g.ev, workdir=CWD, exams=[(2, ["answer-token"])])
+        c = row["compaction"]
+        self.assertEqual((c["summaries"], c["failed"], c["prunes"], c["pruned_results"], c["slice_folds"]), (1, 1, 1, 1, 0))
+        self.assertEqual(c["turns"], [2])
+        self.assertEqual(c["first_turn"], 2)
+        self.assertEqual(c["shadowed_tokens"], 3000)
+        self.assertEqual(c["context_limit_errors"], 1)
+        u = row["usage"]
+        self.assertEqual((u["compaction_calls"], u["compaction_miss"], u["compaction_hit"], u["compaction_out"], u["compaction_unpriced"]), (2, 70, 3000, 400, 1))
+        self.assertEqual(u["requests"], 3)                       # loop requests only
+        self.assertEqual(u["miss"], 10 + 5000 + 800 + 70)        # the summarizer's call is billed
+        self.assertEqual(row["context"]["peak_request_tokens"], 5000)
+        self.assertEqual(row["context"]["peak_request_turn"], 1)
+        self.assertEqual(row["context"]["last_turn_peak_request_tokens"], 1000)
+        self.assertFalse(row["exams"][0]["compacted_before"])  # the compaction ran inside the exam turn, after it began
+        t = M.usage_totals(g.ev, turns={2})
+        self.assertEqual((t["compactions"], t["unpriced"], t["miss"], t["hit"], t["out"]), (2, 1, 870, 3200, 407))
+
+    def test_compacted_before_a_later_exam(self):
+        g = self.log()
+        g.add("turn/start", {"turn": 3})
+        g.assistant(3, 1, text="late")
+        g.end(3)
+        row = M.metrics(g.ev, workdir=CWD, exams=[(3, ["zz"])])
+        self.assertTrue(row["exams"][0]["compacted_before"])
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

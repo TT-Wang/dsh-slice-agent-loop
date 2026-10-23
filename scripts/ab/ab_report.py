@@ -77,7 +77,7 @@ def collect(batch_dirs):
     for bd in batch_dirs:
         batch = os.path.basename(os.path.normpath(bd))
         for path in sorted(glob.glob(os.path.join(bd, "cells", "*.json"))):
-            if path.endswith(".budget_stop.json"):
+            if path.endswith((".budget_stop.json", ".account_stop.json")):
                 continue
             c = load(path)
             c["_batch"] = batch

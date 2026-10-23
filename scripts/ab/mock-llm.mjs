@@ -19,11 +19,20 @@
 // `BASH: <command>`, `READ: <path>`, `GLOB: <dir>` (pattern **/*) or `GREP: <dir>` (pattern CANARY); the mock issues
 // them in order, one per request, then closes with "MOCK-DONE".
 //
+// Compaction (slice-vs-stock, 2026-10-23): the adapter declares deepseek-flash's capacity (context window
+// 1,000,000, default maxTokens 256,000), so compaction-basic resolves the same trigger on the mock route as on
+// the paid one; a request with purpose 'compaction' (the summarizer's own call) gets a short text summary.
+// AB_MOCK_PRESSURE_TOKENS=N makes every usage sample report N input tokens, so the token meter reuses that figure
+// as context pressure (it does when the sample is no lower than its own estimate) and the shipped threshold can be
+// crossed, or not, on purpose (the forced-compaction dry runs).
+//
 // Failure injection (budget accounting tests): with AB_MOCK_FAIL_EVERY=N (N >= 2) the 1st, (N+1)th, ...
 // request of each process ends with a retryable TRANSPORT error instead of its action, so the host
 // records an assistant/attempt and retries. AB_MOCK_FAIL_USAGE=1 lets that failed attempt report a usage
 // sample first; otherwise it reports none, and the headless --json projector then drops the usage of the
 // whole step (its step_end carries no usage).
+// AB_MOCK_QUOTA_FILE=<path>: while that file exists, every request ends with a non-retryable QUOTA error (HTTP 402
+// "Insufficient Balance", as DeepSeek reports an exhausted balance), so the harness's account stop can be exercised.
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { existsSync, realpathSync, statSync } from 'node:fs'
@@ -36,8 +45,11 @@ export const name = 'ab-mock-llm'
 export const inject = ['llm']
 let n = 0
 let requests = 0
+const pressure = Number(process.env.AB_MOCK_PRESSURE_TOKENS ?? 0)
 /** @param {number} i @returns {import('@deepseek-ai/dsh-llm').StreamChunk} */
-const usage = i => ({ type: 'usage', usage: { inputTokens: 100 + i, cacheReadTokens: 1000, outputTokens: 7 } })
+const usage = i => ({ type: 'usage', usage: pressure > 0
+  ? { inputTokens: pressure, cacheReadTokens: 0, outputTokens: 7 }
+  : { inputTokens: 100 + i, cacheReadTokens: 1000, outputTokens: 7 } })
 /** @param {string} value @returns {import('@deepseek-ai/dsh-llm').StreamChunk[]} */
 const text = value => [
   { type: 'block-start', index: 0, blockType: 'text' },
@@ -53,6 +65,8 @@ const call = (tool, args) => [
 ]
 /** A retryable transport failure that ends an attempt (AB_MOCK_FAIL_EVERY). @type {import('@deepseek-ai/dsh-llm').StreamChunk} */
 const transportDrop = { type: 'finish', reason: { kind: 'error', failure: { message: 'mock transport drop', code: 'TRANSPORT' } } }
+/** An account-level refusal (AB_MOCK_QUOTA_FILE). @type {import('@deepseek-ai/dsh-llm').StreamChunk} */
+const quotaRefusal = { type: 'finish', reason: { kind: 'error', failure: { message: 'Insufficient Balance (mock)', code: 'QUOTA', status: 402 } } }
 /** @param {any} message @returns {string[]} */
 const texts = message => (message?.content ?? []).flatMap((/** @type {any} */ b) => (b.type === 'text' ? [b.text] : []))
 /** @param {any} message @returns {string|undefined} */
@@ -78,7 +92,7 @@ function tapeLocator(tape) {
  * @param {string} ask @param {RegExp} [only] @returns {string|undefined}
  */
 function namedFile(ask, only) {
-  for (const m of ask.matchAll(/[\w./-]+\.(?:py|txt|md|json|csv|env|ini)\b/g)) {
+  for (const m of ask.matchAll(/[\w./-]+\.(?:py|txt|md|json|csv|env|ini|log|toml)\b/g)) {
     const path = m[0].replace(/^\.\//, '')
     if (only && !only.test(path)) continue
     try { if (existsSync(path) && statSync(path).isFile()) return path } catch { /* not a file */ }
@@ -91,7 +105,7 @@ export function apply(ctx) {
   class Adapter extends llm.LlmAdapter {
     /** @param {string} provider @param {string} model @returns {Promise<any>} */
     async resolveModel(provider, model) {
-      return { provider, id: model, name: model, inputModalities: ['text'], reasoning: { efforts: [{ id: llm.ReasoningEffortId('high'), name: 'High' }], defaultEffort: llm.ReasoningEffortId('high') } }
+      return { provider, id: model, name: model, inputModalities: ['text'], context: { contextWindow: 1_000_000 }, defaultMaxTokens: 256_000, reasoning: { efforts: [{ id: llm.ReasoningEffortId('high'), name: 'High' }], defaultEffort: llm.ReasoningEffortId('high') } }
     }
 
     /** @param {import('@deepseek-ai/dsh-llm').GenerateOptions} request */
@@ -105,7 +119,10 @@ export function apply(ctx) {
       const tape = msgs.filter(m => kind(m) === 'plugin:slice:history').map(m => texts(m).join('\n')).join('\n')
       /** @type {import('@deepseek-ai/dsh-llm').StreamChunk[]} */
       let out
-      if (ask.startsWith('[isolation-probe]')) {
+      if (request.purpose === 'compaction') {
+        // The summarizer's call (compaction-basic): one short text checkpoint, no tool call.
+        out = text(`MOCK-SUMMARY of ${msgs.length} messages`)
+      } else if (ask.startsWith('[isolation-probe]')) {
         /** @type {Array<() => import('@deepseek-ai/dsh-llm').StreamChunk[]>} */
         const actions = []
         for (const line of ask.split('\n').slice(1)) {
@@ -151,6 +168,11 @@ export function apply(ctx) {
       const delay = Number(process.env.AB_MOCK_DELAY_MS ?? 0)
       if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
       requests += 1
+      const quotaFile = process.env.AB_MOCK_QUOTA_FILE
+      if (quotaFile && existsSync(quotaFile)) {
+        yield quotaRefusal
+        return
+      }
       const failEvery = Number(process.env.AB_MOCK_FAIL_EVERY ?? 0)
       if (failEvery >= 2 && requests % failEvery === 1) {
         if (process.env.AB_MOCK_FAIL_USAGE === '1') yield usage(1000)

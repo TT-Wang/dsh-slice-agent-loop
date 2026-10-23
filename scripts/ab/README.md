@@ -1,7 +1,13 @@
 # scripts/ab: native A/B harness (P1-10)
 
 Drives the published DSH `headless` app, one process per turn, against packed builds of this
-plugin and compares them on pre-registered gates. Two experiments used it:
+plugin and compares them on pre-registered gates. Three experiments use it:
+
+- the slice-vs-stock evaluation of 2026-10-23 on DSH 0.2.1-rc.2: the plugin from main against the
+  host's own composition with its native context management at shipped defaults, plus a configured
+  compaction variant: [docs/slice-vs-stock-2026-10-23.md](../../docs/slice-vs-stock-2026-10-23.md),
+  gates [gates-svs.json](gates-svs.json), report [svs_report.py](svs_report.py); see
+  [Slice vs stock](#slice-vs-stock-2026-10-23) at the end of this file for what it changes here;
 
 - the F-only A/B of 2026-10-22 on DSH 0.2.0-rc.2, control = main `70e6e55` against F (the
   version-only tape tool locator): [docs/p110-f-native-ab.md](../../docs/p110-f-native-ab.md),
@@ -17,6 +23,9 @@ plugin and compares them on pre-registered gates. Two experiments used it:
 | `run_ab.py` | driver: `prepare` (one template DSH_HOME per arm), `run` (cells), `isolation-probe`, `unblock`, `fingerprints` (with `--compare`), `secrets-scan` |
 | `ab_metrics.py` | one metrics row per `session.v4.jsonl.zstd` (or plain `.jsonl`) |
 | `ab_report.py` | pairs cells, evaluates a gates file, writes `summary.json` / `summary.md`, with each check's room |
+| `gates-svs.json`, `svs_report.py`, `test_svs_report.py` | slice-vs-stock: arm structure, step-cap mode, per-task reps, pre-registered comparisons and decision rules; the report that evaluates them; its tests |
+| `step-cap.mjs` | the harness's own per-turn step cap row (slice-vs-stock), copied to `AB/plugins/` and inserted in every arm |
+| `profile/eval-neutral.patch.yml`, `profile/stock-compact.patch.yml` | slice-vs-stock: the overlay every arm gets (native context management kept), and the configured compaction variant |
 | `gates-f.json` | the F-only A/B: arm structure, G1–G6, minimum pairs, pooled multipliers, the room rule (default of `run_ab.py` and `ab_report.py`) |
 | `gates.json` | the 2026-09-27 A/B, frozen |
 | `prices.json` | DeepSeek v4-flash sheet, off-peak and peak; the budget uses peak |
@@ -290,3 +299,75 @@ python3 scripts/ab/selfcheck_tasks.py         # temporary directory, removed aft
 
 The per-turn cache split can be cross-checked with
 `python3 ~/Documents/kimi/workspace/dsh-slice/scripts/cache-metrics.py <session.v4.jsonl.zstd>`.
+
+## Slice vs stock (2026-10-23)
+
+The evaluation of [docs/slice-vs-stock-2026-10-23.md](../../docs/slice-vs-stock-2026-10-23.md) compares the
+plugin from main with the host's own context management, on DSH 0.2.1-rc.2, with the gates file
+[gates-svs.json](gates-svs.json) and the report [svs_report.py](svs_report.py). What it changes in this harness:
+
+- **Per-arm compositions.** `prepare --arm stock=none --arm slice=<tgz> --arm stock-compact=none
+  --overlay profile/eval-neutral.patch.yml --arm-overlay stock-compact=profile/stock-compact.patch.yml
+  --gates gates-svs.json`. The profile lists the host bundles only; `dsh plugin add` appends the plugin's
+  bundle for an arm with a tarball. Every arm gets the same neutral overlay, which keeps compaction, the
+  tool-result pruner and spill at their shipped settings (unlike `eval-parity.patch.yml`). `prepare` compares
+  `--dump-config` row by row against the baseline arm and exits 0 only if each arm differs in exactly the rows
+  its `structure[arm].dump_rows` declares (`vault/dump-compare.json`).
+- **Harness step cap.** With `"step_cap": "harness"` in the gates file the per-task cap is a harness row,
+  [step-cap.mjs](step-cap.mjs), copied to `AB/plugins/` and inserted in every arm by the steps patch; the slice
+  plugin's own cap stays at its default (none), because the stock arms have no slice row and the host has no
+  step limit. A cut turn still ends `blocked` with exit 1.
+- **Per-arm validity** from the gates file's `structure`: tool count (stock 12, slice 16), slice's tools equal
+  stock's plus the four recall tools (`tool_names_plus`), no tape entry in an arm without the plugin
+  (`"header": null`), compaction allowed and recorded (`"compaction": "allowed"`), and r3's fold requirement only
+  where `"fold": true` (gates-svs.json: false in every arm since 2026-10-23; r3's validity there is its T1 delivery,
+  the same in every arm, and the fold is reported).
+- **Seeded tasks.** A task with `"seeded": true` gets `AB_TASK_SEED` at setup, derived from a salt in
+  `vault/task-seed-salt` plus (batch, task, rep), so every arm of a group sees identical content and no oracle value
+  exists outside the workdir and the vault. With `"truth_specs": true` its exam and delivery token specs come from
+  the truth sidecar it writes (`<workdir>.truth.json`). Task f1 (`svs_f1_flood_recall`, 45 turns since the pilot resize; 61 in the build stage) is the first.
+- **Metrics.** `ab_metrics` adds the compaction summarizer's own calls (their usage sits on `compaction/summary`,
+  not on an `assistant/message`) to the billed tokens, the cost and the budget's log figure (a failed compaction
+  attempt is an unpriced record); a `compaction` section (summaries, failed attempts, prunes and pruned results,
+  their turns, shadowed tokens, context-limit errors, native spills, slice folds apart from prune replacements);
+  a `context` section (peak, mean, first and last-turn peak request size in provider tokens); the cache hit rate;
+  per-turn peak request size; and, per exam, whether history was compacted or pruned before the exam turn.
+- **Offline adapter.** The mock declares deepseek-flash's capacity (window 1,000,000, maxTokens 256,000), answers
+  the summarizer's `purpose: 'compaction'` request with a short text, and with `AB_MOCK_PRESSURE_TOKENS=N` reports N
+  input tokens on every usage sample, which the token meter reuses as pressure: the forced-compaction dry runs. With
+  `AB_MOCK_QUOTA_FILE=<path>` every request ends in a `QUOTA` error while that file exists (the account stop below).
+- **Sibling blocking.** `--block-siblings` blocks every entry next to the A/B root in its parent directory (the
+  session scratchpad), symlinks excepted, while a turn runs; the list is in the manifest
+  (`isolation.siblings_blocked`). A paid run refuses to start without it; a parent that is a shared temp root or a
+  home directory is refused.
+- **Reported only.** Per exam `partial_leak_assistant_turns` (an exam spec's `partial_leak` fragments in assistant
+  text before the exam; f1 sets them in its truth sidecar); in `svs_report.py` recall sourcing, partial leaks, r3's T1
+  fold, f1's missing digest tokens, cells whose cost is a lower bound (a failed compaction attempt), and N split into
+  N_recall and N_coding.
+- **Account stop.** An infra turn with an account-level code (`QUOTA`, which is how DeepSeek's HTTP 402 "Insufficient
+  Balance" arrives, `ACCOUNT_QUOTA`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `AUTH`) ends its cell as `account_stop`:
+  not retried, not counted against `--max-attempts`, kept as `cells/<cell>.account_stop.json`, and the run stops with
+  exit 2; `--resume` reruns the cell once the account is fixed. Before this (the pilot of 2026-10-23) such cells were
+  retried, recorded `invalid` and skipped by `--resume`; rerun those without `--resume`.
+
+Runbook (offline part; the paid part is in the record, §5):
+
+```sh
+AB=/path/to/scratch/svs; H=$AB/wt/harness/scripts/ab; G=$H/gates-svs.json
+cd $AB
+python3 $H/run_ab.py prepare --ab-root $AB --arm stock=none --arm slice=$AB/vault/artifacts/slice-main-<sha>.tgz \
+  --arm stock-compact=none --overlay $H/profile/eval-neutral.patch.yml \
+  --arm-overlay stock-compact=$H/profile/stock-compact.patch.yml --gates $G
+python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms stock,slice,stock-compact \
+  --tasks hello,f1,r1,r2,r3,r4,r5,c1,c2 --reps 1 --batch offline --fingerprints none --seed 20261023
+python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/offline --baseline stock --out $AB/vault/fingerprints.json
+AB_MOCK_PRESSURE_TOKENS=690000 python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms stock --tasks f1 \
+  --reps 1 --batch force-above --budget-usd 100000                  # above the shipped 678,464 trigger
+AB_MOCK_PRESSURE_TOKENS=670000 python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms stock --tasks f1 \
+  --reps 1 --batch force-below --budget-usd 100000                  # below it: no compaction, no prune
+python3 $H/run_ab.py isolation-probe --ab-root $AB --gates $G --arms stock,slice,stock-compact --target-batch offline
+python3 $H/svs_report.py $AB/vault/results/offline --gates $G --out $AB/vault/results/offline
+```
+
+Tests: `python3 scripts/ab/test_svs_report.py` (decision rules on synthetic cells), and the `SliceVsStock` and
+`NativeContextManagement` classes in `test_run_ab.py` and `test_ab_metrics.py`.

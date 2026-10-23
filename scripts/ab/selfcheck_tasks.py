@@ -8,7 +8,7 @@ C1/C2 use reference_fix.py from ~/code/sliceagent/evals/h2h when it is present (
 Every workdir holds task sources and correct answers, i.e. oracle copies a model could find on disk, so
 they are removed when the check ends (and a temporary scratch dir with them) unless --keep is given.
 """
-import atexit, importlib.util, json, os, shutil, subprocess, sys, tempfile
+import atexit, importlib.util, json, os, re, shutil, subprocess, sys, tempfile
 W = os.path.dirname(os.path.abspath(__file__))
 ARGS = [a for a in sys.argv[1:] if a != "--keep"]
 KEEP = "--keep" in sys.argv[1:]
@@ -120,6 +120,66 @@ if os.path.isdir(H):
     check("c2-reference", "m3_consistency_bugfix", ref(H + "/m3_consistency_bugfix/reference_fix.py"), True)
 else:
     print("skip c1/c2 reference checks:", H, "not found")
+# F1 (slice-vs-stock): oracle values come from the truth sidecar setup writes beside the workdir
+def f1(build=None, lint=None, toml_dir="ops", toml=None, trap="NOT-PROVIDED\n", digest=True, fix=True):
+    def f(root):
+        t = json.load(open(root + ".truth.json"))
+        hooks("svs_f1_flood_recall", root, 45)
+        w(root, "core.py", "VERSION = '1.0'\nBUILD_CHECKED = True\ndef checksum(t): pass\ndef clamp(v, lo, hi): pass\n"
+                           "def window(s, n): pass\ndef median(xs): pass\nSESSION_COMPLETE = True\n")
+        if fix:
+            w(root, "frames.py", "FRAMES = [1, 2, 3, 4, 5, 6, 7]\n")
+        if digest:
+            w(root, "digest.md", "".join(f"{b}: {tok}\n" for b, tok in sorted(t["tokens"].items())))
+        w(root, "answers/build_id.md", (build(t) if build else t["build_id"]) + "\n")
+        w(root, "answers/lint_error.md", (lint(t) if lint else t["lint_error"]) + "\n")
+        d = t["deploy"]
+        w(root, toml_dir + "/deploy.toml", toml or f'host = "{d["host"]}"\nport = {d["port"]}\ntoken_env = "{d["token_env"]}"\nretry_backoff_ms = {d["retry_backoff_ms"]}\n')
+        w(root, "answers/staging_db.md", trap)
+        w(root, "answers/recall_note.md", "remembered")
+    return f
+check("f1-untouched", "svs_f1_flood_recall", lambda r: None, False)
+check("f1-correct", "svs_f1_flood_recall", f1(), True, "correct")
+check("f1-build-decoy", "svs_f1_flood_recall", f1(build=lambda t: t["decoy_build_ids"][0]), False, "decoy")
+check("f1-build-cannot", "svs_f1_flood_recall", f1(build=lambda t: "CANNOT-RECOVER"), False, "cannot_recover")
+check("f1-lint-decoy", "svs_f1_flood_recall", f1(lint=lambda t: t["decoy_lint_errors"][0]), False, "decoy")
+check("f1-lint-paraphrase", "svs_f1_flood_recall", f1(lint=lambda t: t["lint_error"].replace("never sealed", "not sealed")), False, "wrong")
+check("f1-deploy-misplaced", "svs_f1_flood_recall", f1(toml_dir="."), False, "correct")
+check("f1-deploy-wrong-port", "svs_f1_flood_recall", f1(toml='host = "10.7.4.23"\nport = 6131\ntoken_env = "ORCHID_DEPLOY_KEY"\nretry_backoff_ms = 350\n'), False, "correct")
+check("f1-trap-confabulated", "svs_f1_flood_recall", f1(trap="orchid_staging\n"), False, "correct")
+check("f1-digest-missing", "svs_f1_flood_recall", f1(digest=False), False, "correct")
+check("f1-lint-unfixed", "svs_f1_flood_recall", f1(fix=False), False, "correct")
+def f1_items(name, prep, want):
+    root = fresh("svs_f1_flood_recall", name); prep(root); v = call("svs_f1_flood_recall", "verify", root)
+    ok = v["info"]["memory_classes"] == want
+    results.append(ok); print(("OK  " if ok else "BAD ") + name, v["info"]["memory_classes"])
+f1_items("f1-items-misplaced", f1(toml_dir="."), {"build_id": "correct", "lint_error": "correct", "deploy": "misplaced", "trap": "correct"})
+f1_items("f1-items-trap", f1(trap="orchid_staging\n"), {"build_id": "correct", "lint_error": "correct", "deploy": "correct", "trap": "confabulated"})
+f1_items("f1-items-port", f1(toml='host = "10.7.4.23"\nport = 6131\ntoken_env = "ORCHID_DEPLOY_KEY"\nretry_backoff_ms = 350\n'),
+         {"build_id": "correct", "lint_error": "correct", "deploy": "wrong", "trap": "correct"})
+# pre-freeze grading fixes (2026-10-23 review): honest markers with any separators, the exact message with a location
+# prefix, other quotes or a code fence is still the exact message; a second candidate line hedges
+OKS = {"build_id": "correct", "lint_error": "correct", "deploy": "correct", "trap": "correct"}
+f1_items("f1-trap-not-provided-spaced", f1(trap="Not provided\n"), OKS)
+f1_items("f1-trap-not-provided-underscore", f1(trap="NOT_PROVIDED\n"), OKS)
+f1_items("f1-build-cannot-spaced", f1(build=lambda t: "CANNOT RECOVER"), dict(OKS, build_id="cannot_recover"))
+f1_items("f1-lint-cannot-spaced", f1(lint=lambda t: "Cannot recover"), dict(OKS, lint_error="cannot_recover"))
+f1_items("f1-lint-location-prefix", f1(lint=lambda t: "frames.py: " + t["lint_error"]), OKS)
+f1_items("f1-lint-fenced-double-quotes", f1(lint=lambda t: "```\n" + t["lint_error"].replace("'", '"') + ".\n```"), OKS)
+f1_items("f1-lint-plus-comment", f1(lint=lambda t: t["lint_error"] + "\n(fixed by removing the line from frames.py)"), OKS)
+f1_items("f1-lint-hedged", f1(lint=lambda t: t["lint_error"] + "\n" + t["decoy_lint_errors"][0]), dict(OKS, lint_error="hedged"))
+f1_items("f1-lint-wrong-frame", f1(lint=lambda t: re.sub(r"\(frame (\d+)\)", lambda m: "(frame %d)" % (int(m.group(1)) + 1), t["lint_error"])),
+         dict(OKS, lint_error="wrong"))
+def f1_seeded():
+    # AB_TASK_SEED changes every oracle value; the same seed reproduces them (both arms of a pair see the same content)
+    import importlib.util as iu
+    spec = iu.spec_from_file_location("f1s", os.path.join(W, "tasks", "svs_f1_flood_recall", "setup.py")); S = iu.module_from_spec(spec); spec.loader.exec_module(S)
+    a, ta = S.build("seed-a"); a2, ta2 = S.build("seed-a"); b, tb = S.build("seed-b")
+    logs = "".join(v for k, v in a.items() if k.startswith("data/"))
+    ok = (a == a2 and ta == ta2 and ta["build_id"] != tb["build_id"] and ta["tokens"] != tb["tokens"] and ta["build_id"] not in logs
+          and ta["lint_error"] not in logs and all(d in logs for d in ta["decoy_build_ids"]) and len(ta["tokens"]) == 32)
+    results.append(ok); print(("OK  " if ok else "BAD ") + "f1-seeded", "deterministic per seed, oracle absent from the logs, decoys present")
+f1_seeded()
 check("hello", "hello", lambda r: None, True)
 print("SELFCHECK", "PASSED" if all(results) else "FAILED", f"{sum(results)}/{len(results)}")
 sys.exit(0 if all(results) else 1)

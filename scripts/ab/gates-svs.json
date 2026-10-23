@@ -1,0 +1,98 @@
+{
+ "version": 1,
+ "experiment": "slice-vs-stock-2026-10-23",
+ "kind": "evaluation",
+ "source": "docs/slice-vs-stock-2026-10-23.md (§6-§8, pre-registered). svs_report.py evaluates this file; run_ab.py reads the arm structure and the step-cap mode from it; prepare reads the declared dump rows. The doc is the normative text.",
+ "baseline": "stock",
+ "primary": {"arm": "slice", "against": "stock"},
+ "secondary_arms": ["stock-compact"],
+ "step_cap": "harness",
+ "structure": {
+  "_note": "Manipulation checks per cell (run_ab.py validity) and per template home (prepare). stock is the host's own headless composition plus the neutral overlay; slice adds the plugin's one row (dsh plugin add); stock-compact is stock with compaction-basic's trigger and retained tail moved (profile/stock-compact.patch.yml). Every arm keeps compaction, the pruner and spill at its composition's settings, so compaction events are allowed and recorded, not a validity failure. \"fold\": false in every arm (pre-freeze fix, 2026-10-23): r3's fold of its turn-1 read is a reported manipulation check (metrics in_turn fold_of_read), not a validity condition; r3's validity is its T1 delivery, the same in every arm.",
+  "stock": {"tools": 12, "header": null, "compaction": "allowed", "fold": false, "dump_rows": [], "warm_min_cache_read": 2000},
+  "slice": {"tools": 16, "header": "short", "tool_line": "long", "compaction": "allowed", "fold": false, "dump_rows": ["slice-agent-loop"],
+            "tool_names_plus": {"arm": "stock", "extra": ["expand_result", "recall_search", "recall_step", "recall_turn"]}, "warm_min_cache_read": 4000},
+  "stock-compact": {"tools": 12, "header": null, "compaction": "allowed", "fold": false, "dump_rows": ["compaction-basic"],
+                    "tool_names_plus": {"arm": "stock", "extra": []}, "warm_min_cache_read": 2000}
+ },
+ "unit": {
+  "tasks": ["f1", "r1", "r2", "r3", "r4", "r5", "c1", "c2"],
+  "long_tasks": ["f1"],
+  "short_tasks": ["r1", "r2", "r3", "r4", "r5", "c1", "c2"],
+  "short_recall_tasks": ["r1", "r2", "r3", "r4", "r5"],
+  "short_coding_tasks": ["c1", "c2"],
+  "memory_tasks": ["f1", "r1", "r2", "r3", "r4", "r5"],
+  "reps": {"f1": 2, "r1": 3, "r2": 3, "r3": 3, "r4": 3, "r5": 3, "c1": 3, "c2": 3},
+  "pairing": "same task and rep index; the cells of a (task, rep) group ran back to back, one cell at a time, the first arm rotating with (rep - 1 + seed); the content of a seeded task (f1) is identical across the arms of a group"
+ },
+ "min_pairs": {
+  "all": 19,
+  "per_task": {"f1": 2, "r1": 2, "r2": 2, "r3": 2, "r4": 2, "r5": 2, "c1": 2, "c2": 2},
+  "memory_items": 18,
+  "_note": "Of 23 planned (task, rep) pairs and 23 planned memory items (f1: 4 items x 2 pairs; r1-r5: 1 item x 3 pairs). Below a minimum the dependent quantity is 'insufficient'."
+ },
+ "validity": {
+  "cell_counts_only_if": [
+   "every turn exited 0 or ended with a model-attributable turn_end (the harness step cap 'blocked', 'max-tokens', or 'error' with a code outside the infra list, CONTEXT_WINDOW_EXCEEDED included); never an infra error, a missing turn_end, a harness timeout or a budget kill",
+   "the session log was found",
+   "system prompt and slice tool fingerprints equal the arm's entry in fingerprints.json; the arm's tool count (stock and stock-compact 12, slice 16); slice's tools are stock's plus the four recall tools; one tool list and one system prompt for the whole session",
+   "one turn per prompt: user prompts = turn ends = prompts, no goal-round messages",
+   "the system prompt contains no /private or /Users",
+   "slice: tape header short (76 or 78 chars) and tool lines long, as main ships; stock arms: no slice tape entry",
+   "isolation: no blocked path changed mode, inode or ctime while a turn ran; no worktree change during the cell",
+   "delivery, the same in every arm: r1, r2, r3, r4 (meta; r3: its T1 read carries the exam's fact, whether or not a fold condenses it later) and f1 (truth sidecar: T3 build id, T5 lint message) show the fact in a non-recall tool result of the delivery turn",
+   "reported, not a validity condition: r3's fold of its turn-1 read in slice (a manipulation check; before 2026-10-23 it was required in slice only, which made the validity rule asymmetric)",
+   "paid runs: every sibling entry of the A/B root's parent directory (the session scratchpad) except symlinks is blocked while a turn runs (run_ab.py enforces it; the list is in the manifest)"
+  ],
+  "max_attempts": 2,
+  "pair_rule": "a (task, rep) pair counts for a comparison only when both of its cells are valid; dropped pairs are listed",
+  "memory_exclusion": "a pair drops from the memory comparison when, in either cell, a tool call up to the last exam turn was flagged (outside the workdir, session log, truth sidecar, harness, vault, key location, disk search), or an answer-sufficient token leaked before the exam turn into assistant text or a file-writing tool input, or an exam answer arrived through a non-recall tool result before the model wrote it (oracle via the file system). It still counts for success and cost."
+ },
+ "comparisons": {
+  "P1_cost": {
+   "metric": "cost (off-peak sheet; peak is exactly 2x every field, so ratios do not depend on the sheet), billed tokens of every loop request, failed attempt and compaction summarizer call",
+   "R_t": "per task: sum of slice cost / sum of stock cost over the task's valid pairs",
+   "L": "R_f1 (the long session)",
+   "N": "geometric mean of R_t over the seven short sessions: five short recall sessions r1-r5 and two coding sessions c1, c2 (each task weighs the same)",
+   "N_recall_N_coding": "secondary, never decisive: the geometric mean over r1-r5 and over c1, c2 alone",
+   "G": "geometric mean of R_t over all eight tasks (reported)",
+   "also_reported": ["sum ratio over all valid pairs (dollar-weighted)", "median paired ratio", "per task: median paired ratio, min and max"]
+  },
+  "P2_success": {
+   "dS": "sum of pass(slice) - sum of pass(stock) over all valid pairs",
+   "per_task": "dS_t per task"
+  },
+  "P3_memory": {
+   "items": "f1: build_id, lint_error, deploy, trap (verify info memory_items); r1-r5: the exam (verify pass)",
+   "dM": "correct items(slice) - correct items(stock) over memory-eligible pairs",
+   "dB": "bad items(slice) - bad items(stock): wrong, decoy, stale, hedged, confabulated (CANNOT-RECOVER and missing are honest misses, not bad)"
+  }
+ },
+ "decision": {
+  "quality_floor": {"dS_min": -1, "dS_t_min": -1, "dM_min": -1, "dB_max": 1,
+                    "_note": "Q holds iff dS >= -1, no task with dS_t <= -2, dM >= -1 and dB <= +1."},
+  "quality_better": {"dS_min": 2, "dM_min": 2, "_note": "slice better: dS >= +2 or dM >= +2 (with Q holding)."},
+  "rules": [
+   {"verdict": "inconclusive", "if": "any minimum not met (or L or N not computable)"},
+   {"verdict": "not worth it", "if": "Q fails"},
+   {"verdict": "worth it", "if": "Q holds and L <= 0.80 and N <= 1.10"},
+   {"verdict": "worth it", "if": "Q holds and slice better and L <= 1.00 and N <= 1.10"},
+   {"verdict": "not worth it", "if": "L >= 0.95 and N >= 1.00"},
+   {"verdict": "not worth it", "if": "N >= 1.25 and L > 0.80"},
+   {"verdict": "inconclusive", "if": "otherwise (including L <= 0.80 with N > 1.10: a long-session saving bought with short-session overhead)"}
+  ],
+  "order": "rules are applied top to bottom; the first that matches decides (the same order as the record's §7 and svs_report.verdict)"
+ },
+ "arbitration": {
+  "trigger": "before pooling, if any minimum is not met, or the verdict would change when L or N moved by 0.05 in either direction, or Q is decided at its margin (dS = -1 or -2, some dS_t = -1 or -2, dM = -1 or -2, dB = +1 or +2), or 'slice better' is at its margin where it matters: Q holds, rule 3 does not decide, L <= 1.00 and N <= 1.10 (rule 4's cost conditions, which the L/N band test covers), and max(dS, dM) is +1 or +2",
+  "extra_reps": {"f1": 1, "r1": 1, "r2": 1, "r3": 1, "r4": 1, "r5": 1, "c1": 1, "c2": 1},
+  "arms": ["slice", "stock"],
+  "seed": 20261024,
+  "decide_on": "the pooled batches, the same rules and thresholds, minimums unchanged; no band test and no second arbitration",
+  "budget_condition": "only if ledger spend + the arbitration estimate stays below the cap minus the reserve; otherwise the batch verdict stands, marked unarbitrated",
+  "once": true
+ },
+ "secondary": {
+  "_note": "Reported, never decisive: stock-compact against stock and against slice with the same P1-P3 quantities; compaction summaries, failures and prunes per cell with their turns; post-compaction memory failures (exam items failed in cells whose history was compacted or pruned before the exam turn); context-limit errors; peak and mean request size; cache hit rate; requests and steps per turn; wall time; same-turn re-reads (success-only mutations); native spills; slice folds."
+ }
+}

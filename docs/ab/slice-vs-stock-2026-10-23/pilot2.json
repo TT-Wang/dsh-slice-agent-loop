@@ -1,0 +1,203 @@
+{
+ "_note": "Paid warmup (warm2) and pilot part 2 (pilot2) of docs/slice-vs-stock-2026-10-23.md \u00a712.6, DSH 0.2.1-rc.2, route deepseek-flash, 2026-10-23 10:24-10:34 UTC (peak hours), harness 74e0475, every sibling of the A/B root blocked (--block-siblings, 33 entries). Costs at the PEAK sheet. No oracle values. f1 in STOCK-COMPACT: 6 of 32 digest entries wrong, in read turns T22, T26, T28, T33, T36 and T38 (pruned excerpts, \u00a72.5).",
+ "warm": [
+  {
+   "arm": "slice",
+   "rep": 1,
+   "valid": true,
+   "step1_cache_read": 4480,
+   "cost_peak": 0.00022
+  },
+  {
+   "arm": "stock-compact",
+   "rep": 1,
+   "valid": true,
+   "step1_cache_read": 2688,
+   "cost_peak": 0.000175
+  },
+  {
+   "arm": "stock",
+   "rep": 1,
+   "valid": true,
+   "step1_cache_read": 2688,
+   "cost_peak": 0.000176
+  }
+ ],
+ "pilot2": [
+  {
+   "task": "p110_r5_initial_failures",
+   "arm": "slice",
+   "attempt": 1,
+   "status": "done",
+   "valid": true,
+   "pass": true,
+   "infra": false,
+   "exam_class": "correct",
+   "flagged": false,
+   "leak": false,
+   "oracle_via_fs": false,
+   "wall_s": 29.8,
+   "reasons": [],
+   "cost_peak": 0.010149,
+   "cost_offpeak": 0.005075,
+   "miss": 12834,
+   "hit": 89088,
+   "out": 2466,
+   "requests": 11,
+   "compaction_calls": 0,
+   "cache_hit_rate": 0.8741,
+   "peak_request_tokens": 15567,
+   "mean_request_tokens": 9265.6,
+   "summaries": 0,
+   "failed_compactions": 0,
+   "prunes": 0,
+   "compaction_first_turn": null,
+   "compaction_turns": [],
+   "shadowed_tokens": 0,
+   "slice_folds": 1,
+   "context_limit_errors": 0,
+   "native_spills": 0,
+   "recall_sourced_exams": [
+    true
+   ],
+   "partial_leak_exams": [
+    false
+   ],
+   "compacted_before_exams": [
+    false
+   ],
+   "delivery": [],
+   "memory_classes": null,
+   "digest_missing": null,
+   "rereads_same_turn": 1
+  },
+  {
+   "task": "p110_r5_initial_failures",
+   "arm": "stock",
+   "attempt": 1,
+   "status": "done",
+   "valid": true,
+   "pass": true,
+   "infra": false,
+   "exam_class": "correct",
+   "flagged": false,
+   "leak": false,
+   "oracle_via_fs": false,
+   "wall_s": 30.1,
+   "reasons": [],
+   "cost_peak": 0.013745,
+   "cost_offpeak": 0.006873,
+   "miss": 18691,
+   "hit": 148096,
+   "out": 2612,
+   "requests": 11,
+   "compaction_calls": 0,
+   "cache_hit_rate": 0.8879,
+   "peak_request_tokens": 23048,
+   "mean_request_tokens": 15162.5,
+   "summaries": 0,
+   "failed_compactions": 0,
+   "prunes": 0,
+   "compaction_first_turn": null,
+   "compaction_turns": [],
+   "shadowed_tokens": 0,
+   "slice_folds": 0,
+   "context_limit_errors": 0,
+   "native_spills": 0,
+   "recall_sourced_exams": [
+    false
+   ],
+   "partial_leak_exams": [
+    false
+   ],
+   "compacted_before_exams": [
+    false
+   ],
+   "delivery": [],
+   "memory_classes": null,
+   "digest_missing": null,
+   "rereads_same_turn": 0
+  },
+  {
+   "task": "svs_f1_flood_recall",
+   "arm": "stock-compact",
+   "attempt": 1,
+   "status": "done",
+   "valid": true,
+   "pass": false,
+   "infra": false,
+   "exam_class": "correct",
+   "flagged": false,
+   "leak": false,
+   "oracle_via_fs": false,
+   "wall_s": 470.6,
+   "reasons": [],
+   "cost_peak": 0.337955,
+   "cost_offpeak": 0.168978,
+   "miss": 422998,
+   "hit": 8715904,
+   "out": 22586,
+   "requests": 216,
+   "compaction_calls": 4,
+   "cache_hit_rate": 0.9537,
+   "peak_request_tokens": 59307,
+   "mean_request_tokens": 41885.3,
+   "summaries": 4,
+   "failed_compactions": 0,
+   "prunes": 31,
+   "compaction_first_turn": 14,
+   "compaction_turns": [
+    22,
+    28,
+    34,
+    38
+   ],
+   "shadowed_tokens": 47698,
+   "slice_folds": 0,
+   "context_limit_errors": 0,
+   "native_spills": 0,
+   "recall_sourced_exams": [
+    false,
+    false
+   ],
+   "partial_leak_exams": [
+    false,
+    false
+   ],
+   "compacted_before_exams": [
+    true,
+    true
+   ],
+   "delivery": [
+    [
+     3,
+     true
+    ],
+    [
+     5,
+     true
+    ]
+   ],
+   "memory_classes": {
+    "build_id": "correct",
+    "deploy": "correct",
+    "lint_error": "correct",
+    "trap": "correct"
+   },
+   "digest_missing": 6,
+   "rereads_same_turn": 37
+  }
+ ],
+ "ledger": {
+  "total_usd_peak": 1.328685,
+  "by_batch": {
+   "warm": 0.003822,
+   "pilot": 0.962443,
+   "warm2": 0.000571,
+   "pilot2": 0.361849
+  },
+  "rows": 187,
+  "unpriced_charges": 6,
+  "unpriced_usd": 0.3
+ }
+}

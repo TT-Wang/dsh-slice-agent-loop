@@ -131,6 +131,54 @@ class ResumeNumbering(unittest.TestCase):
         self.assertEqual([a["attempt"] for a in cell["attempts"]], [1, 2])
 
 
+class AccountStop(unittest.TestCase):
+    """An account-level provider error (QUOTA: DeepSeek's 402 Insufficient Balance) stops the run instead of retrying."""
+
+    def test_account_error_picks_account_codes_only(self):
+        turns = [{"turn": 1, "infra": False, "error_code": None}, {"turn": 2, "infra": True, "error_code": "RATE_LIMIT"},
+                 {"turn": 3, "infra": True, "error_code": "QUOTA"}]
+        self.assertEqual(A.account_error(turns)["turn"], 3)
+        self.assertIsNone(A.account_error(turns[:2]))
+        self.assertIsNone(A.account_error([{"turn": 1, "infra": False, "error_code": "QUOTA"}]))  # not infra: not an account stop
+
+    def _run(self, index_rows, results, resume):
+        d = tempfile.mkdtemp(prefix="ab-acct-test-")
+        os.makedirs(os.path.join(d, "cells"))
+        index = os.path.join(d, "index.jsonl")
+        with open(index, "w") as fh:
+            for r in index_rows:
+                fh.write(json.dumps(r) + "\n")
+        seen = []
+
+        def fake_run_cell(ctx, task, rep, arm, attempt):
+            seen.append(attempt)
+            return {"cell": A.cell_id(task, rep, arm), "status": results.pop(0), "valid": False}
+        orig = A.run_cell
+        A.run_cell = fake_run_cell
+        try:
+            ctx = {"batch_dir": d, "index": index, "resume": resume, "max_attempts": 2,
+                   "budget": A.Budget(os.path.join(d, "spend.jsonl"), 10, 0.1, 0.1, PEAK)}
+            A.run_cell_with_retries(ctx, "t", 1, "arm1")
+            files = sorted(os.listdir(os.path.join(d, "cells")))
+        finally:
+            A.run_cell = orig
+            shutil.rmtree(d)
+        return seen, ctx, files
+
+    def test_account_stop_is_not_retried_and_stops_the_run(self):
+        seen, ctx, files = self._run([], ["account_stop", "done"], resume=False)
+        self.assertEqual(seen, [1])                                   # no second attempt against a refusing account
+        self.assertTrue(ctx.get("account_stopped"))
+        self.assertEqual(files, ["t.r1.arm1.account_stop.json"])      # not cells/<cell>.json: --resume reruns it
+
+    def test_resume_reruns_without_using_up_attempts(self):
+        rows = [{"cell": "t.r1.arm1", "attempt": 1, "status": "account_stop"}]
+        seen, ctx, files = self._run(rows, ["invalid", "done"], resume=True)
+        self.assertEqual(seen, [2, 3])                                # both attempts still available after the stop
+        self.assertFalse(ctx.get("account_stopped"))
+        self.assertIn("t.r1.arm1.json", files)
+
+
 class Isolation(unittest.TestCase):
     """Blocked paths are mode 000 while a turn runs; a chmod, rename or replacement in that window is a breach."""
 
@@ -211,6 +259,52 @@ class Isolation(unittest.TestCase):
             self.iso().block()
         self.assertEqual(A.unblock_from_state(self.ab), 0)  # what `run_ab.py unblock` does after a crash
         self.assertEqual(oct(os.stat(os.path.join(self.ab, "wt")).st_mode & 0o777), "0o755")
+
+
+class BlockSiblings(unittest.TestCase):
+    """--block-siblings (2026-10-23): every entry next to the A/B root except symlinks; required for a paid run."""
+
+    def test_siblings_listed_without_symlinks_or_the_root(self):
+        parent = os.path.realpath(tempfile.mkdtemp(prefix="ab-sib-test-"))
+        try:
+            ab = os.path.join(parent, "svs")
+            for d in ("svs", "fab", "dsh021"):
+                os.makedirs(os.path.join(parent, d))
+            with open(os.path.join(parent, "note.md"), "w") as fh:
+                fh.write("x\n")
+            os.symlink(os.path.join(parent, "fab"), os.path.join(parent, "node_modules"))
+            got = [os.path.basename(p) for p in A.sibling_blocks(ab)]
+            self.assertEqual(got, ["dsh021", "fab", "note.md"])
+            before = os.stat(os.path.join(parent, "fab")).st_mode & 0o777
+            iso = A.Isolation(ab, A.sibling_blocks(ab))
+            iso.block()
+            try:
+                self.assertEqual(os.stat(os.path.join(parent, "fab")).st_mode & 0o777, 0)
+                self.assertNotEqual(os.lstat(os.path.join(parent, "node_modules")).st_mode & 0o777, 0)
+                self.assertEqual(iso.check(), [])
+            finally:
+                iso.unblock()
+            self.assertEqual(os.stat(os.path.join(parent, "fab")).st_mode & 0o777, before)
+        finally:
+            shutil.rmtree(parent)
+
+    def test_shared_parents_are_refused(self):
+        for ab in (os.path.join(tempfile.gettempdir(), "svs"), "/tmp/svs", os.path.join(os.path.expanduser("~"), "svs")):
+            with self.assertRaises(SystemExit):
+                A.sibling_blocks(ab)
+
+    def test_paid_run_without_the_flag_is_refused(self):
+        parent = os.path.realpath(tempfile.mkdtemp(prefix="ab-sib-test-"))
+        try:
+            ab = os.path.join(parent, "svs")
+            for arm in ("stock", "slice"):
+                os.makedirs(os.path.join(ab, "vault", "homes", arm, "profiles", A.PROFILE))
+                os.symlink(os.path.join(parent, "no-such-key"), os.path.join(ab, "vault", "homes", arm, ".env"))
+            with self.assertRaises(SystemExit) as cm:
+                A.main(["--ab-root", ab, "--arms", "stock,slice", "--tasks", "r1", "--batch", "x"])
+            self.assertIn("--block-siblings", str(cm.exception))
+        finally:
+            shutil.rmtree(parent)
 
 
 class Quarantine(unittest.TestCase):
@@ -318,6 +412,108 @@ class Structure(unittest.TestCase):
             self.assertEqual((A.usage_from_stdout(fh)["sid"], A.usage_from_stdout(fh)["open_steps"]), ("s9", 1))  # re-read from the start
         os.remove(path)
 
+
+
+class SliceVsStock(unittest.TestCase):
+    """Per-arm compositions of the slice-vs-stock evaluation (2026-10-23)."""
+
+    DUMP = ("# == @deepseek-ai/dsh-base\n- id: token-meter\n  name: '@deepseek-ai/dsh-token-meter'\n"
+            "- id: compaction-basic\n  name: '@deepseek-ai/dsh-compaction-basic'\n"
+            "- id: tool-result-pruner\n  name: '@deepseek-ai/dsh-compaction-tool-result-pruner'\n  config:\n    thresholdChars: 8192\n")
+
+    def test_compare_dumps_declared_rows(self):
+        slice_dump = self.DUMP + "# == @dsh-external/dsh-slice-agent-loop\n- id: slice-agent-loop\n  name: '@dsh-external/dsh-slice-agent-loop'\n"
+        differ, only_a, only_b, unexpected = A.compare_dumps(self.DUMP, slice_dump, ["slice-agent-loop"])
+        self.assertEqual((differ, only_a, only_b, unexpected), ([], [], ["slice-agent-loop"], []))
+        compact = self.DUMP.replace("dsh-compaction-basic'\n", "dsh-compaction-basic'\n  config:\n    thresholdRatio: 0.057344\n    retainTokens: 19660\n")
+        self.assertEqual(A.compare_dumps(self.DUMP, compact, ["compaction-basic"])[3], [])
+        self.assertEqual(A.compare_dumps(self.DUMP, compact, [])[3], ["compaction-basic"])         # undeclared difference
+        pruner_off = self.DUMP.replace("  config:\n    thresholdChars: 8192\n", "  disabled: true\n")
+        self.assertEqual(A.compare_dumps(self.DUMP, pruner_off, ["compaction-basic"])[3], ["tool-result-pruner"])
+        # provenance comments alone are not a difference
+        self.assertEqual(A.compare_dumps(self.DUMP, self.DUMP.replace("# == @deepseek-ai/dsh-base", "# == patched by x"))[3], [])
+
+    def test_steps_patch_modes(self):
+        h = A.steps_patch_text(12, "harness", "/ab/plugins/step-cap.mjs")
+        self.assertIn("- insert:", h)
+        self.assertIn("id: ab-step-cap", h)
+        self.assertIn("name: '/ab/plugins/step-cap.mjs'", h)
+        self.assertIn("maxStepsPerTurn: 12", h)
+        self.assertNotIn("slice-agent-loop", h)
+        s = A.steps_patch_text(14, "slice")
+        self.assertIn("- id: slice-agent-loop", s)
+        self.assertIn("maxStepsPerTurn: 14", s)
+
+    def test_cell_specs_from_truth(self):
+        d = tempfile.mkdtemp()
+        try:
+            truth = os.path.join(d, "w.truth.json")
+            with open(truth, "w") as fh:
+                json.dump({"exams": [{"turn": 57, "tokens": ["bx-1"]}], "delivery": [{"turn": 3, "tokens": ["bx-1"]}]}, fh)
+            meta = {"exams": [], "delivery": [{"turn": 1, "tokens": ["x"]}], "truth_specs": True}
+            sp = A.cell_specs(meta, truth)
+            self.assertEqual([e["turn"] for e in sp["exams"]], [57])
+            self.assertEqual([e["turn"] for e in sp["delivery"]], [1, 3])
+            self.assertEqual(A.cell_specs(dict(meta, truth_specs=False), truth)["exams"], [])
+        finally:
+            shutil.rmtree(d)
+
+    def test_task_seed_is_per_group_and_salted(self):
+        d = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(d, A.VAULT))
+            ctx = {"ab_root": d, "batch": "b1"}
+            s1 = A.task_seed(ctx, "svs_f1_flood_recall", 1)
+            self.assertEqual(s1, A.task_seed(ctx, "svs_f1_flood_recall", 1))     # every arm of the group gets it
+            self.assertNotEqual(s1, A.task_seed(ctx, "svs_f1_flood_recall", 2))
+            self.assertNotEqual(s1, A.task_seed(dict(ctx, batch="b2"), "svs_f1_flood_recall", 1))
+            salt = os.path.join(d, A.VAULT, "task-seed-salt")
+            self.assertEqual(oct(os.stat(salt).st_mode & 0o777), "0o600")
+            os.remove(salt)
+            self.assertNotEqual(s1, A.task_seed(ctx, "svs_f1_flood_recall", 1))  # a new salt, new values
+        finally:
+            shutil.rmtree(d)
+
+    def row(self, tools, tape_entries=0, compaction=0):
+        names = sorted(tools)
+        return {"validity": {"tools_count": len(names), "tool_lists_distinct": 1, "system_distinct": 1, "system_has_host_path": False,
+                             "compaction_events": compaction, "user_prompts": 1, "turn_ends": 1, "goal_messages": 0, "tool_names": names,
+                             "system_sha": "s", "slice_tools_sha": "t"},
+                "prefix": {"prefix_chars": 1}, "tape": {"entries": tape_entries, "header_forms": {"short": tape_entries} if tape_entries else {},
+                                                        "header_lengths": [76] if tape_entries else [], "tool_line_forms": {}},
+                "in_turn": [], "delivery": []}
+
+    def test_validity_per_arm_structure(self):
+        gates = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-svs.json")))
+        stock_tools = ["bash", "edit", "exit_plan_mode", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "todo_write", "write"]
+        slice_tools = stock_tools + ["expand_result", "recall_search", "recall_step", "recall_turn"]
+        fps = {"arms": {"stock": {"tools_count": 12, "tool_names": sorted(stock_tools), "system_sha": "s", "slice_tools_sha": "t", "prefix_chars": 1},
+                        "slice": {"tools_count": 16, "tool_names": sorted(slice_tools), "system_sha": "s", "slice_tools_sha": "t", "prefix_chars": 1}}}
+        ctx = {"fingerprints": fps, "structure": gates["structure"]}
+        turn = {"turn": 1, "exit": 0, "infra": False, "turn_end": {"kind": "completed"}}
+        meta = {"turns": 1, "require_fold_of_read_turn": 1}
+        self.assertEqual(A.validity(ctx, "stock", meta, [turn], self.row(stock_tools, compaction=3)), [])   # compaction allowed, no fold needed
+        self.assertTrue(any("tape entries" in r for r in A.validity(ctx, "stock", meta, [turn], self.row(stock_tools, tape_entries=2))))
+        self.assertTrue(any("tools_count" in r for r in A.validity(ctx, "stock", meta, [turn], self.row(slice_tools))))
+        rs = A.validity(ctx, "slice", dict(meta, require_fold_of_read_turn=None), [turn], self.row(slice_tools, tape_entries=1))
+        self.assertEqual(rs, [])
+        bad = slice_tools[:-1] + ["web_fetch"]
+        self.assertTrue(any("structural: tools are not stock's" in r for r in A.validity(ctx, "slice", {"turns": 1}, [turn], self.row(bad, tape_entries=1))))
+        # slice-vs-stock: the r3 fold is reported, not required (2026-10-23; r3's validity is its T1 delivery in every arm)
+        self.assertEqual(A.validity(ctx, "slice", meta, [turn], self.row(slice_tools, tape_entries=1)), [])
+        undelivered = dict(self.row(slice_tools, tape_entries=1), delivery=[{"turn": 1, "delivered": False}])
+        self.assertTrue(any("fact not delivered" in r for r in A.validity(ctx, "slice", meta, [turn], undelivered)))
+        self.assertTrue(any("fact not delivered" in r for r in A.validity(ctx, "stock", meta, [turn], dict(self.row(stock_tools), delivery=[{"turn": 1, "delivered": False}]))))
+        # the F-only A/B's structure (gates-f.json) keeps the fold required in its slice arms
+        gf = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-f.json")))
+        arm_f = next(a for a, v in gf["structure"].items() if isinstance(v, dict) and v.get("header"))
+        fps_f = {"arms": {arm_f: {"tools_count": 16, "tool_names": sorted(slice_tools), "system_sha": "s", "slice_tools_sha": "t", "prefix_chars": 1}}}
+        ctx_f = {"fingerprints": fps_f, "structure": gf["structure"]}
+        rs_f = A.validity(ctx_f, arm_f, meta, [turn], self.row(slice_tools, tape_entries=1))
+        self.assertTrue(any("fold replacement" in r for r in rs_f), rs_f)
+        # the P1-10 structure keeps its rules: a compaction event makes the cell invalid
+        legacy = {"fingerprints": None, "structure": None}
+        self.assertTrue(any("compaction events" in r for r in A.validity(legacy, "control", {"turns": 1}, [turn], self.row(slice_tools, compaction=1))))
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
