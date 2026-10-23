@@ -1,0 +1,47 @@
+# Neutral overlay of the slice-vs-stock evaluation (docs/slice-vs-stock-2026-10-23.md §2), applied
+# identically to every arm. Unlike eval-parity.patch.yml it keeps every native context feature at its
+# shipped default: compaction-basic, command-compact, the tool-result pruner, spill-policy,
+# image-offload, the token meter and repeat-tool-reminder stay mounted with their base config.
+# It only removes what makes a run non-deterministic, unpriced or unattributable:
+# - session-title-llm: an extra model call per session, outside the session log's usage;
+- id: session-title-llm
+  disabled: true
+# - tool-web: network tools whose results change between runs;
+- id: tool-web
+  disabled: true
+# - the persona: the headless bundle's "You are a coding agent powered by the {{model}} model." names
+#   the route (the offline mock route differs from the paid one); empty prefix and suffix, as in every
+#   recorded batch;
+- id: system-prompt
+  config:
+    personaPrefix: ''
+    personaSuffix: ''
+# - delegation and workflow tools: child sessions would carry model work and usage outside the
+#   cell's session log (the base composition has no schedule tool);
+- id: tool-subagent
+  disabled: true
+- id: tool-subagent-fork
+  disabled: true
+- id: tool-subagent-control
+  disabled: true
+- id: tool-subagent-list-agents
+  disabled: true
+- id: tool-workflow
+  disabled: true
+# - the user-home skill catalog: it can change mid-batch;
+- id: skill-filesystem
+  disabled: true
+- id: tool-skill
+  disabled: true
+# - goal tools and the goal-round driver: a create_goal call lets the driver start extra turns inside
+#   one headless process, so session turn numbers would stop matching prompt indices;
+- id: tool-goal
+  disabled: true
+- id: goal-round-driver
+  disabled: true
+# - working_directory (0.2.1): a persistent session cd would move the base every path argument is
+#   resolved against (reads, re-reads and access flags are workdir-relative).
+- id: tool-working-directory
+  disabled: true
+# Telemetry is off by DSH_TELEMETRY_DISABLED=1 in the child environment (a launch-time patch; config
+# cannot disable that row).

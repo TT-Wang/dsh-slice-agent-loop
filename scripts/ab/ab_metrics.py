@@ -52,6 +52,9 @@ FV_REJECT = "requires formatVersion"
 READ_COMMANDS = {"cat", "head", "tail", "nl", "less", "more", "sed"}
 MUTATING_WRITE_TOOLS = ("write", "edit", "multiedit", "apply_patch")
 BIG = 10 ** 9
+# DSH spill-policy's notice on an over-budget tool result: "(Omitted N bytes.[ Omitted M images.] Full formatted result stored at: …)".
+NATIVE_SPILL_RE = re.compile(r"\(Omitted \d+ bytes\.(?: Omitted \d+ images\.)? Full formatted result stored at: ")
+CONTEXT_LIMIT = "CONTEXT_WINDOW_EXCEEDED"
 
 # ---- access flags. The sandbox confines writes only; reads are allowed anywhere on disk. Every path
 # argument, bash command and bash `workdir` is therefore resolved against the cell's workdir and flagged
@@ -632,10 +635,43 @@ def usage_of(event):
     return stream_usage(d.get("stream"))
 
 
+def compaction_calls(events):
+    """The summarizer calls of compaction-basic (DSH 0.2.x): one per compaction/summary, whose usage lives in the
+    event's data.usage, not in an assistant/message; plus every compaction/end with an error and no summary, whose call
+    may have been billed without a recorded sample. Each: {turn, seq, usage or None, failed}. The turn is the one its
+    compaction/start names (null for a manual compaction between turns)."""
+    starts = {}
+    out = []
+    summarized = set()
+    for e in events:
+        t, d = e.get("type"), e.get("data") or {}
+        if t == "compaction/start":
+            starts[d.get("compactionId")] = d.get("turn")
+        elif t == "compaction/summary":
+            summarized.add(d.get("compactionId"))
+            out.append({"turn": starts.get(d.get("compactionId")), "seq": e.get("seq"), "usage": d.get("usage"), "failed": False})
+        elif t == "compaction/end" and d.get("error") and d.get("compactionId") not in summarized:
+            out.append({"turn": starts.get(d.get("compactionId"), d.get("turn")), "seq": e.get("seq"), "usage": None, "failed": True})
+    return out
+
+
 def usage_totals(events, turns=None):
-    """Billed tokens of every assistant/message and assistant/attempt (optionally only those turns):
-    {miss, hit, out, cache_write, messages, attempts, unpriced} where unpriced counts records without a sample."""
-    tot = {"miss": 0, "hit": 0, "out": 0, "cache_write": 0, "messages": 0, "attempts": 0, "unpriced": 0}
+    """Billed tokens of every assistant/message and assistant/attempt (optionally only those turns), plus the
+    compaction summarizer's calls (compaction_calls): {miss, hit, out, cache_write, messages, attempts, compactions,
+    unpriced} where unpriced counts records without a sample (a failed compaction attempt counts as one)."""
+    tot = {"miss": 0, "hit": 0, "out": 0, "cache_write": 0, "messages": 0, "attempts": 0, "compactions": 0, "unpriced": 0}
+    for c in compaction_calls(events):
+        if turns is not None and c["turn"] not in turns:
+            continue
+        tot["compactions"] += 1
+        u = c["usage"]
+        if not isinstance(u, dict):
+            tot["unpriced"] += 1
+            continue
+        tot["miss"] += u.get("inputTokens") or 0
+        tot["hit"] += u.get("cacheReadTokens") or 0
+        tot["out"] += u.get("outputTokens") or 0
+        tot["cache_write"] += u.get("cacheWriteTokens") or 0
     for e in events:
         if e.get("type") not in ("assistant/message", "assistant/attempt"):
             continue
@@ -746,9 +782,11 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
 
     # ------------------------------------------------------------ index
     calls, call_order, results, results_by_seq, step_results = {}, [], {}, {}, {}
-    replacements, tape = [], []
+    replacements, tape, prunes = [], [], []
+    last_type = None
     for e in events:
         t, d = e.get("type"), e.get("data") or {}
+        prev_type, last_type = last_type, t
         if t == "tool/call":
             try:
                 args = json.loads(d.get("arguments") or "{}")
@@ -768,7 +806,10 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
                 step_results.setdefault((d.get("turn"), d.get("step")), []).append(r)
             else:
                 src = (e.get("sourceEventSeqs") or [None])[0]
-                replacements.append({"seq": e.get("seq"), "turn": d.get("turn"), "step": d.get("step"), "source": src, "text": text_of(m)})
+                rp = {"seq": e.get("seq"), "turn": d.get("turn"), "step": d.get("step"), "source": src, "text": text_of(m)}
+                # compaction-tool-result-pruner appends compaction/prune immediately before its replacement (the shared
+                # shadow-price protocol); every other tool/result replacement is the slice fold's
+                (prunes if prev_type == "compaction/prune" else replacements).append(rp)
         elif t == "user/message" and ((d.get("source") or {}).get("kind") == TAPE_KIND):
             tape.append({"seq": e.get("seq"), "text": text_of(d)})
     call_order.sort(key=lambda c: calls[c]["seq"] if calls[c]["seq"] is not None else -1)
@@ -810,10 +851,12 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     # Billed tokens include failed attempts (assistant/attempt keeps a retried attempt's usage only in its
     # stream); `requests` counts committed messages only, so retries (provider weather) stay out of G4.requests.
     usage = {"requests": 0, "miss": 0, "hit": 0, "out": 0, "cache_write": 0, "turn_first_miss": 0, "later_step_miss": 0,
-             "attempts_failed": 0, "attempt_miss": 0, "attempt_hit": 0, "attempt_out": 0, "unpriced_records": 0}
+             "attempts_failed": 0, "attempt_miss": 0, "attempt_hit": 0, "attempt_out": 0, "unpriced_records": 0,
+             "compaction_calls": 0, "compaction_miss": 0, "compaction_hit": 0, "compaction_out": 0, "compaction_unpriced": 0}
     per_turn = {}
     last_assistant = {}
     first_hit = []
+    request_tokens = []  # prompt size of every committed loop request: miss + hit + cache write (provider-reported)
     for e in events:
         if e.get("type") not in ("assistant/message", "assistant/attempt"):
             continue
@@ -846,13 +889,50 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
             usage["later_step_miss"] += miss
         pt["requests"] += 1
         pt["max_step"] = max(pt["max_step"], d.get("step") or 0)
+        if u:
+            size = miss + hit + cw
+            request_tokens.append((d.get("turn"), size))
+            pt["peak_request_tokens"] = max(pt.get("peak_request_tokens", 0), size)
         content = (d.get("message") or {}).get("content", []) or []
         last_assistant[d.get("turn")] = {"tool": any(isinstance(b, dict) and b.get("type") == "tool-call" for b in content), "text": bool(text_of(d.get("message")).strip())}
+    # The compaction summarizer's own calls (their usage is on compaction/summary, not on an assistant/message): billed,
+    # so they count in miss/hit/out and the cost, and are also reported apart.
+    for c in compaction_calls(events):
+        usage["compaction_calls"] += 1
+        u = c["usage"]
+        if not isinstance(u, dict):
+            usage["compaction_unpriced"] += 1
+            usage["unpriced_records"] += 1
+            continue
+        miss, hit, out, cw = (u.get("inputTokens") or 0), (u.get("cacheReadTokens") or 0), (u.get("outputTokens") or 0), (u.get("cacheWriteTokens") or 0)
+        usage["miss"] += miss
+        usage["hit"] += hit
+        usage["out"] += out
+        usage["cache_write"] += cw
+        usage["compaction_miss"] += miss
+        usage["compaction_hit"] += hit
+        usage["compaction_out"] += out
+        pt = per_turn.setdefault(c["turn"], {"requests": 0, "miss": 0, "hit": 0, "out": 0, "max_step": 0, "attempts_failed": 0})
+        pt["miss"] += miss
+        pt["hit"] += hit
+        pt["out"] += out
     for sheet in ("offpeak", "peak"):
         p = prices[sheet]
         usage["cost_" + sheet] = round(((usage["miss"] + usage["cache_write"]) * p["miss"] + usage["hit"] * p["hit"] + usage["out"] * p["out"]) / 1e6, 6)
     usage["first_request_hits"] = first_hit
+    billed_in = usage["miss"] + usage["hit"] + usage["cache_write"]
+    usage["cache_hit_rate"] = round(usage["hit"] / billed_in, 4) if billed_in else None
     row["usage"] = usage
+    sizes = [n for _, n in request_tokens]
+    peak = max(request_tokens, key=lambda x: x[1]) if request_tokens else (None, None)
+    row["context"] = {
+        "requests_with_usage": len(sizes),
+        "peak_request_tokens": peak[1],
+        "peak_request_turn": peak[0],
+        "mean_request_tokens": round(sum(sizes) / len(sizes), 1) if sizes else None,
+        "last_turn_peak_request_tokens": None,
+        "first_request_tokens": sizes[0] if sizes else None,
+    }
 
     # ------------------------------------------------------------ finish
     turn_end, error_codes = {}, {}
@@ -1060,6 +1140,59 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
         "tool_line_chars": sum(tool_line_lens),
     }
 
+    # ------------------------------------------------------------ native context management (DSH 0.2.x)
+    # compaction-basic: compaction/start ... compaction/summary + a user/message replacement ... compaction/end (an error
+    # on the end event marks a failed attempt); the tool-result pruner: compaction/prune + a tool/result replacement.
+    starts = {}
+    comp_rows = []
+    turn_first_seq = {}
+    for e in events:
+        d = e.get("data") or {}
+        if e.get("type") == "turn/start" and d.get("turn") is not None:
+            turn_first_seq.setdefault(d.get("turn"), e.get("seq"))
+        if e.get("type") == "compaction/start":
+            starts[d.get("compactionId")] = {"turn": d.get("turn"), "seq": e.get("seq")}
+        elif e.get("type") == "compaction/summary":
+            st = starts.get(d.get("compactionId")) or {}
+            u = d.get("usage") or {}
+            comp_rows.append({"kind": "summary", "turn": st.get("turn"), "seq": e.get("seq"), "shadowed_nodes": len(d.get("shadowedSeqs") or []),
+                              "shadowed_tokens": d.get("shadowedTokenCount"), "summary_chars": len(text_of({"content": d.get("summary") or []})),
+                              "out_tokens": u.get("outputTokens")})
+        elif e.get("type") == "compaction/end" and d.get("error"):
+            st = starts.get(d.get("compactionId")) or {}
+            comp_rows.append({"kind": "failed", "turn": st.get("turn", d.get("turn")), "seq": e.get("seq"), "error": str(d.get("error"))[:160]})
+        elif e.get("type") == "compaction/prune":
+            comp_rows.append({"kind": "prune", "turn": None, "seq": e.get("seq"), "shadowed_tokens": d.get("shadowedTokenCount")})
+    # a prune event carries no turn; attribute it to the turn whose span contains it
+    order = sorted((s_, t_) for t_, s_ in turn_first_seq.items() if s_ is not None)
+    for r in comp_rows:
+        if r["turn"] is None and r["seq"] is not None:
+            r["turn"] = max((t_ for s_, t_ in order if s_ <= r["seq"]), default=None)
+    summaries = [r for r in comp_rows if r["kind"] == "summary"]
+    limit_errors = 0
+    for e in events:
+        if e.get("type") in ("tool/result", "tool/call", "user/message", "assistant/message", "system/message"):
+            continue
+        if CONTEXT_LIMIT in json.dumps(e.get("data") or {}, ensure_ascii=False):
+            limit_errors += 1
+    spills = sum(1 for r in results.values() if NATIVE_SPILL_RE.search(r.get("text") or ""))
+    row["compaction"] = {
+        "summaries": len(summaries),
+        "failed": sum(1 for r in comp_rows if r["kind"] == "failed"),
+        "prunes": sum(1 for r in comp_rows if r["kind"] == "prune"),
+        "pruned_results": len(prunes),
+        "turns": sorted({r["turn"] for r in summaries if r["turn"] is not None}),
+        "first_turn": min((r["turn"] for r in comp_rows if r["turn"] is not None), default=None),
+        "shadowed_tokens": sum(r.get("shadowed_tokens") or 0 for r in summaries),
+        "events": comp_rows[:200],
+        "context_limit_errors": limit_errors,
+        "native_spills": spills,
+        "slice_folds": len(replacements),
+    }
+    last = max((t for t in per_turn if t is not None), default=None)
+    row["context"]["last_turn_peak_request_tokens"] = (per_turn.get(last) or {}).get("peak_request_tokens") if last is not None else None
+    first_comp_seq = min((r["seq"] for r in comp_rows if r["kind"] in ("summary", "prune") and r["seq"] is not None), default=None)
+
     # ------------------------------------------------------------ flags, exams, leaks
     row["flagged_access"] = access_flags(calls, call_order, cwd)
 
@@ -1112,6 +1245,8 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
                                         and spec["leak"](calls[cid]["raw"])}),
             "oracle_via_fs": via_fs is not None,
             "oracle_via_fs_call": via_fs,
+            # native context management acted before the exam turn began (a summary or a prune replaced history)
+            "compacted_before": first_comp_seq is not None and turn_first_seq.get(turn) is not None and first_comp_seq < turn_first_seq[turn],
         })
     row["exams"] = exam_rows
     in_rows = []

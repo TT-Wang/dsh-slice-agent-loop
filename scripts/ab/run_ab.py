@@ -99,7 +99,7 @@ PROFILE_DIR = os.path.join(HERE, "profile")
 REPO_ROOT = os.path.dirname(os.path.dirname(HERE))
 BIN_REL = os.path.join("host", "node_modules", "@deepseek-ai", "dsh", "lib", "bin.js")
 PROFILE = "ab"
-VAULT, LIVE, PATCHES, MOCK, WT = "vault", "live", "patches", "mock", "wt"
+VAULT, LIVE, PATCHES, MOCK, WT, PLUGINS = "vault", "live", "patches", "mock", "wt", "plugins"
 # Inside each worktree under AB/wt only these hold task oracles (tasks, self-checks, test fixtures, the A/B records). The
 # worktree roots stay readable: with a root at mode 000, a `git worktree prune` run by any other process in the main
 # repository takes the worktree for missing and deletes its link (it happened once during the build, 2026-10-22).
@@ -108,7 +108,9 @@ BLOCK_STATE = ".blocked.json"
 # The current experiment's gates (and arm structure); gates.json is the frozen file of the 2026-09-27 A/B.
 GATES_DEFAULT = os.path.join(HERE, "gates-f.json")
 # Names the harness itself keeps at the top of AB; anything else that appears during a cell came from the cell.
-AB_ENTRIES = {"host", VAULT, LIVE, PATCHES, MOCK, WT, "progress.txt", BLOCK_STATE}
+AB_ENTRIES = {"host", VAULT, LIVE, PATCHES, MOCK, WT, PLUGINS, "progress.txt", BLOCK_STATE}
+# The slice plugin's bundle name in a profile's dsh.profile.bundles (`dsh plugin add` appends it).
+SLICE_BUNDLE = "@dsh-external/dsh-slice-agent-loop"
 # The parity overlay leaves 16 tools on DSH 0.1.7-rc.2 and on 0.2.0-rc.2 (docs/p110-f-native-ab.md §3).
 EXPECTED_TOOLS = 16
 # Infra: provider, network, credential or quota failures (error codes of @deepseek-ai/dsh-llm and the
@@ -211,12 +213,17 @@ def select_tasks(spec, tasks):
     return out
 
 
-def task_call(task_dir, fn, root, n=None, timeout=600):
-    """Run setup/verify/after_turn of a task in a fresh interpreter; returns the JSON result."""
+def task_call(task_dir, fn, root, n=None, timeout=600, seed=None):
+    """Run setup/verify/after_turn of a task in a fresh interpreter; returns the JSON result. `seed` reaches the task as
+    AB_TASK_SEED (seeded tasks generate their oracle values from it at setup time)."""
     if task_dir is None:
         return {"skipped": True}
     cmd = [sys.executable, os.path.abspath(__file__), "_task_call", task_dir, fn, root] + ([str(n)] if n is not None else [])
-    out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    env = dict(os.environ)
+    env.pop("AB_TASK_SEED", None)
+    if seed is not None:
+        env["AB_TASK_SEED"] = seed
+    out = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, env=env)
     if out.returncode != 0:
         return {"error": (out.stderr or out.stdout)[-2000:]}
     return json.loads(out.stdout.strip().splitlines()[-1])
@@ -733,7 +740,8 @@ def validity(ctx, arm, meta, turns, row, complete=True):
         return reasons + ["session log not found"]
     v = row["validity"]
     fp_all = ctx["fingerprints"] or {}
-    expected_tools = (fp_all.get("arms", {}).get(arm) or {}).get("tools_count", EXPECTED_TOOLS)
+    exp = expected_structure(ctx, arm)
+    expected_tools = (fp_all.get("arms", {}).get(arm) or {}).get("tools_count", (exp or {}).get("tools", EXPECTED_TOOLS))
     if v["tools_count"] != expected_tools:
         reasons.append(f"tools_count {v['tools_count']} != {expected_tools}")
     if v["tool_lists_distinct"] != 1:
@@ -742,11 +750,12 @@ def validity(ctx, arm, meta, turns, row, complete=True):
         reasons.append(f"system prompt changed within the session ({v['system_distinct']} variants)")
     if v["system_has_host_path"]:
         reasons.append("system prompt contains /private or /Users")
-    if v["compaction_events"]:
+    # Compaction is a host feature under test in the slice-vs-stock arms (structure "compaction": "allowed"); the
+    # P1-10 parity arms disabled it, so any compaction event there made the cell invalid.
+    if v["compaction_events"] and (exp or {}).get("compaction") != "allowed":
         reasons.append(f"{v['compaction_events']} compaction events")
     if complete and (v["user_prompts"] != meta["turns"] or v["turn_ends"] != meta["turns"] or v["goal_messages"]):
         reasons.append(f"turns do not match prompts: {v['user_prompts']} user prompts, {v['turn_ends']} turn ends, {v['goal_messages']} goal rounds for {meta['turns']} prompts")
-    exp = expected_structure(ctx, arm)
     fp = fp_all.get("arms", {}).get(arm)
     if fp:
         if v["system_sha"] != fp["system_sha"]:
@@ -761,7 +770,15 @@ def validity(ctx, arm, meta, turns, row, complete=True):
         base = fp_all["arms"].get(same) if same else None
         if base and (row["prefix"]["prefix_chars"] != base["prefix_chars"] or v["system_sha"] != base["system_sha"] or v["slice_tools_sha"] != base["slice_tools_sha"]):
             reasons.append(f"structural: request prefix differs from {same}'s ({row['prefix']['prefix_chars']} vs {base['prefix_chars']} chars)")
-    if exp:
+        plus = (exp or {}).get("tool_names_plus")
+        base = fp_all["arms"].get(plus["arm"]) if plus else None
+        if base and sorted(v["tool_names"]) != sorted(set(base["tool_names"]) | set(plus["extra"])):
+            reasons.append(f"structural: tools are not {plus['arm']}'s plus {plus['extra']}")
+    if exp and exp.get("header") is None and "header" in exp:
+        # an arm without the slice plugin: no tape entry may exist (the manipulation check of the stock arms)
+        if row["tape"]["entries"]:
+            reasons.append(f"structural: {row['tape']['entries']} slice tape entries in an arm without the plugin")
+    elif exp:
         forms = row["tape"]["header_forms"]
         if set(forms) - {exp["header"]}:
             reasons.append(f"tape header forms {forms}, expected only {exp['header']}")
@@ -770,7 +787,7 @@ def validity(ctx, arm, meta, turns, row, complete=True):
         tforms = row["tape"]["tool_line_forms"]
         if set(tforms) - {exp["tool_line"]}:
             reasons.append(f"tool line forms {tforms}, expected only {exp['tool_line']}")
-    if meta.get("require_fold_of_read_turn"):
+    if meta.get("require_fold_of_read_turn") and (exp or {}).get("fold", True):
         tr = meta["require_fold_of_read_turn"]
         if not any(r["turn"] == tr and r["fold_of_read"] for r in row.get("in_turn", [])):
             reasons.append(f"no fold replacement of a turn-{tr} read (task needs the condensed view)")
@@ -786,6 +803,20 @@ def cell_names(ctx, task, rep, arm, attempt):
     """Arm-neutral names: the workdir w-<id> and the cell root c-<id> (equal length in every arm)."""
     key = f"{ctx['batch']}:{task}:{rep}:{arm}:{attempt}"
     return "w-" + hashlib.sha1(key.encode()).hexdigest()[:10], "c-" + hashlib.sha1(("root:" + key).encode()).hexdigest()[:10]
+
+
+def task_seed(ctx, task, rep):
+    """Seed of a seeded task's content and oracle values: equal for every arm of one (batch, task, rep), derived from a
+    salt that lives only in the vault (blocked while turns run), so neither the values nor the seed can be recomputed
+    from anything a cell can read."""
+    salt_path = vault(ctx["ab_root"], "task-seed-salt")
+    if not os.path.exists(salt_path):
+        with open(salt_path, "w", encoding="utf-8") as fh:
+            fh.write(pysecrets.token_hex(16) + "\n")
+        os.chmod(salt_path, 0o600)
+    with open(salt_path, encoding="utf-8") as fh:
+        salt = fh.read().strip()
+    return hashlib.sha256(f"{salt}:{ctx['batch']}:{task}:{rep}".encode()).hexdigest()[:32]
 
 
 def clear_live(ctx):
@@ -866,7 +897,7 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
     started = time.time()
     cell = {"cell": cid, "batch": ctx["batch"], "task": task, "alias": meta["alias"], "arm": arm, "rep": rep, "attempt": attempt,
             "workdir": workdir, "home": home, "cell_root": cell_root, "offline": ctx["offline"], "started": now(), "turns": []}
-    res = task_call(meta.get("dir"), "setup", workdir)
+    res = task_call(meta.get("dir"), "setup", workdir, seed=task_seed(ctx, task, rep) if meta.get("seeded") else None)
     if "error" in res:
         cell.update({"status": "error", "valid": False, "invalid_reasons": ["setup failed: " + res["error"][-300:]], "infra": False})
         return cell
@@ -940,21 +971,22 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
     cell.update({"pass": bool(ver.get("ok")), "detail": ver.get("detail"), "verify_info": ver.get("info") or {}})
     cell["exam_class"] = answer_class(bool(ver.get("ok")), ver.get("detail"), ver.get("info") or {}) if meta.get("recall") else None
     row = None
+    specs = cell_specs(meta, truth)
     if log_path:
         # the home (and the log in it) moves into the vault when the cell ends; record where it will be
         cell["log"] = os.path.join(batch_dir, "homes", os.path.basename(cell_root), os.path.relpath(log_path, home))
-        row = ab_metrics.metrics(events, exams=meta.get("exams", []), in_turn=[(e["turn"], e["tokens"]) for e in meta.get("in_turn", [])],
-                                 prices=ctx["prices"], bad_lines=bad, delivery=[(e["turn"], e["tokens"]) for e in meta.get("delivery", [])])
+        row = ab_metrics.metrics(events, exams=specs["exams"], in_turn=[(e["turn"], e["tokens"]) for e in specs["in_turn"]],
+                                 prices=ctx["prices"], bad_lines=bad, delivery=[(e["turn"], e["tokens"]) for e in specs["delivery"]])
         cell["metrics"] = row
     if meta.get("probe"):
         cell["probe"] = ctx["probe_evaluator"](ctx, meta, cell, events)
-    reasons = validity(ctx, arm, meta, cell["turns"], row, complete)
+    reasons = validity(ctx, arm, dict(meta, **specs), cell["turns"], row, complete)
     if not complete:
         reasons.insert(0, f"completed {len(cell['turns'])}/{len(prompts)} turns")
     if cell["worktrees_changed"]:
         reasons.append(f"isolation: worktree {', '.join(cell['worktrees_changed'])} changed during the cell (git status)")
     infra = any(t["infra"] for t in cell["turns"]) or (complete and row is None)
-    exam_turn = max((e["turn"] for e in meta.get("exams", [])), default=None)
+    exam_turn = max((e["turn"] for e in specs["exams"]), default=None)
     flags = (row or {}).get("flagged_access") or []
     exams = (row or {}).get("exams") or []
     flagged = bool(exam_turn and any(f["turn"] is not None and f["turn"] <= exam_turn for f in flags))
@@ -965,6 +997,17 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
                  "leak": leak, "oracle_via_fs": via_fs, "g2_excluded": flagged or leak or via_fs,
                  "step_limit_turns": sum(1 for t in cell["turns"] if t.get("step_limit"))})
     return cell
+
+
+def cell_specs(meta, truth):
+    """Exam, delivery and in-turn token specs of a cell: meta.json's, plus (meta truth_specs) those a seeded task wrote
+    into its truth sidecar with the oracle values it generated. The sidecar sits in the vault until the cell is packed."""
+    out = {k: list(meta.get(k) or []) for k in ("exams", "delivery", "in_turn")}
+    if meta.get("truth_specs") and truth and os.path.exists(truth):
+        rec = load_json(truth) or {}
+        for k in out:
+            out[k] += list(rec.get(k) or [])
+    return out
 
 
 def prior_attempts(ctx, cid):
@@ -1077,6 +1120,28 @@ def write_offline_adapter(ab):
     return os.path.join(d, "mock-llm.mjs")
 
 
+def write_harness_plugins(ab):
+    """Copy the harness's own plugin rows (step-cap.mjs) to AB/plugins/, next to a package.json whose peers admit the
+    host, like the offline adapter. Read-only while a turn runs."""
+    d = os.path.join(ab, PLUGINS)
+    os.makedirs(d, exist_ok=True)
+    shutil.copy(os.path.join(HERE, "step-cap.mjs"), os.path.join(d, "step-cap.mjs"))
+    root = load_json(os.path.join(REPO_ROOT, "package.json"), {})
+    peers = {k: v for k, v in (root.get("peerDependencies") or {}).items() if k.startswith("@deepseek-ai/")}
+    write_json(os.path.join(d, "package.json"), {"name": "ab-harness-plugins", "private": True, "type": "module", "version": "0.0.0", "peerDependencies": peers})
+    return os.path.join(d, "step-cap.mjs")
+
+
+def steps_patch_text(n, mode, plugin_path=None):
+    """The per-task step cap, identical across arms. mode "slice" (the P1-10 runs): the slice plugin's own
+    maxStepsPerTurn. mode "harness" (slice-vs-stock): the harness's step-cap row, inserted in every arm, because the
+    stock arms have no slice row and the host has no step limit."""
+    if mode == "harness":
+        return (f"# Per-task step cap, identical across arms: the harness's own row (scripts/ab/step-cap.mjs).\n"
+                f"- insert:\n    - id: ab-step-cap\n      name: '{plugin_path}'\n      config:\n        maxStepsPerTurn: {n}\n")
+    return f"# Per-task step cap, identical across arms.\n- id: slice-agent-loop\n  config:\n    maxStepsPerTurn: {n}\n"
+
+
 def worktree_blocks(ab):
     """scripts/ and docs/ of every worktree under AB/wt (see WT_BLOCKED)."""
     out = []
@@ -1129,20 +1194,24 @@ def make_ctx(args, ab, tasks, offline, batch):
         with open(offline_patch, "w", encoding="utf-8") as fh:
             fh.write(text)
 
+    gates = load_gates(getattr(args, "gates", None) or GATES_DEFAULT)
+    step_mode = gates.get("step_cap", "slice")
+    cap_plugin = write_harness_plugins(ab) if step_mode == "harness" else None
+
     def steps_patch(n):
         p = os.path.join(patch_dir, f"steps-{n}.patch.yml")
-        if not os.path.exists(p):
+        text = steps_patch_text(n, step_mode, cap_plugin)
+        if not os.path.exists(p) or open(p, encoding="utf-8").read() != text:
             with open(p, "w", encoding="utf-8") as fh:
-                fh.write(f"# Per-task step cap, identical across arms.\n- id: slice-agent-loop\n  config:\n    maxStepsPerTurn: {n}\n")
+                fh.write(text)
         return p
 
     ledger = os.path.join(batch_dir if offline else vault(ab), "spend.jsonl")
     no_fp = (getattr(args, "fingerprints", None) or "").lower() == "none"
     fp_path = None if no_fp else (getattr(args, "fingerprints", None) or vault(ab, "fingerprints.json"))
-    gates = load_gates(getattr(args, "gates", None) or GATES_DEFAULT)
     blocked = [vault(ab)] + worktree_blocks(ab) + list(getattr(args, "block", None) or [])
     os.makedirs(os.path.join(ab, LIVE), exist_ok=True)
-    read_only = [ab] + [os.path.join(ab, d) for d in (LIVE, PATCHES, MOCK, WT, "host")] + [patch_dir]
+    read_only = [ab] + [os.path.join(ab, d) for d in (LIVE, PATCHES, MOCK, WT, PLUGINS, "host")] + [patch_dir]
     ctx = {
         "ab_root": ab, "bin": os.path.join(ab, BIN_REL), "tasks": tasks, "batch": batch, "batch_dir": batch_dir,
         "offline": offline, "resume": getattr(args, "resume", False), "max_attempts": getattr(args, "max_attempts", 2), "prices": prices,
@@ -1150,7 +1219,7 @@ def make_ctx(args, ab, tasks, offline, batch):
         "budget": Budget(ledger, args.budget_usd, args.budget_reserve_usd, args.budget_margin_usd, prices[prices.get("budget_sheet", "peak")],
                          args.unpriced_step_usd, args.max_unpriced_steps),
         "fingerprints": load_json(fp_path) if fp_path and os.path.exists(fp_path) else None, "fingerprints_path": fp_path, "no_fp": no_fp,
-        "structure": gates.get("structure"), "gates_file": getattr(args, "gates", None) or GATES_DEFAULT,
+        "structure": gates.get("structure"), "gates_file": getattr(args, "gates", None) or GATES_DEFAULT, "step_cap_mode": step_mode,
         "steps_patch": steps_patch, "offline_patch": offline_patch, "index": os.path.join(batch_dir, "index.jsonl"),
         "isolation": Isolation(ab, blocked, read_only), "ledger": ledger,
     }
@@ -1218,7 +1287,8 @@ def cmd_run(args):
         "host_version": load_json(os.path.join(ab, "host", "node_modules", "@deepseek-ai", "dsh", "package.json"), {}).get("version"),
         "host_tree_digest_start": host_digest(ab),
         "fingerprints": ctx["fingerprints_path"] if ctx["fingerprints"] else ("none (not checked)" if ctx["no_fp"] else None),
-        "gates_file": ctx["gates_file"], "arm_packages": load_json(vault(ab, "arms.json"), {}),
+        "gates_file": ctx["gates_file"], "arm_packages": load_json(vault(ab, "arms.json"), {}), "step_cap_mode": ctx["step_cap_mode"],
+        "mock_env": {k: os.environ[k] for k in sorted(os.environ) if k.startswith("AB_MOCK_")} if args.offline else {},
         "isolation": {"blocked_while_a_turn_runs": ctx["isolation"].paths, "read_only_while_a_turn_runs": ctx["isolation"].ro_paths,
                       "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}", "one_cell_at_a_time": True,
                       "strays": "processes naming live/c-<id> in their command line or environment, or with a cwd in it, are killed before unblocking",
@@ -1229,9 +1299,18 @@ def cmd_run(args):
     log(f"batch {args.batch}: arms={arms} tasks={[tasks[t]['alias'] for t in selected]} reps={args.reps} offline={args.offline} "
         f"budget=${args.budget_usd} spent=${ctx['budget'].total():.4f} fingerprints={'yes' if ctx['fingerprints'] else 'no'} blocked={ctx['isolation'].paths}")
     stopped = False
-    total, done = args.reps * len(selected) * len(arms), 0
+    # --reps-from-gates: per-task reps from the gates file's unit.reps (by alias); --reps is then the ceiling
+    per_task = (load_gates(args.gates or GATES_DEFAULT).get("unit") or {}).get("reps") if args.reps_from_gates else None
+    if args.reps_from_gates and not isinstance(per_task, dict):
+        raise SystemExit("--reps-from-gates: the gates file has no unit.reps table")
+
+    def reps_of(task):
+        return min(args.reps, per_task.get(tasks[task]["alias"], args.reps)) if per_task else args.reps
+    manifest["reps_per_task"] = {tasks[t]["alias"]: reps_of(t) for t in selected}
+    write_json(manifest_path, manifest)
+    total, done = sum(reps_of(t) for t in selected) * len(arms), 0
     for rep in range(1, args.reps + 1):
-        order = list(selected)
+        order = [t for t in selected if rep <= reps_of(t)]
         random.Random(f"{args.seed}:{rep}").shuffle(order)
         rotated = arm_order(arms, rep, args.seed)
         for task in order:
@@ -1452,16 +1531,59 @@ def cmd_probe(args):
 
 # ---------------------------------------------------------------------------- prepare
 
+def dump_rows(text):
+    """Rows of a --dump-config listing, by id: {id: [lines]}, provenance comments excluded, plus the comments by row."""
+    rows, comments, cur, pending = {}, {}, None, []
+    for line in text.splitlines():
+        if line.startswith("#"):
+            pending.append(line)
+            continue
+        if line.startswith("- id: "):
+            cur = line[len("- id: "):].strip()
+            rows[cur] = []
+            comments[cur] = list(pending)
+            pending = []
+        if cur is not None:
+            rows[cur].append(line)
+    return rows, comments
+
+
+def compare_dumps(base_text, other_text, allowed=()):
+    """Row-level comparison of two dumps. Returns (differing row ids, rows only in base, rows only in other, unexpected):
+    `unexpected` lists every difference not covered by `allowed` (the arm's declared own rows)."""
+    a, _ = dump_rows(base_text)
+    b, _ = dump_rows(other_text)
+    differ = sorted(k for k in set(a) & set(b) if a[k] != b[k])
+    only_a, only_b = sorted(set(a) - set(b)), sorted(set(b) - set(a))
+    order_a = [k for k in a if k in b]
+    order_b = [k for k in b if k in a]
+    unexpected = [k for k in differ + only_a + only_b if k not in allowed]
+    if order_a != order_b:
+        unexpected.append("(row order)")
+    return differ, only_a, only_b, unexpected
+
+
 def cmd_prepare(args):
     ab = os.path.realpath(args.ab_root)
     binp = os.path.join(ab, BIN_REL)
     arms = {}
     for spec in args.arm:
         arm, _, tgz = spec.partition("=")
-        arms[arm] = os.path.realpath(tgz)
+        arms[arm] = None if tgz in ("", "none") else os.path.realpath(tgz)
+    arm_overlays = {}
+    for spec in args.arm_overlay or []:
+        arm, _, path = spec.partition("=")
+        if arm not in arms:
+            raise SystemExit(f"--arm-overlay {spec}: no arm {arm!r}")
+        arm_overlays.setdefault(arm, []).append(os.path.realpath(path))
+    overlay = os.path.realpath(args.overlay or os.path.join(PROFILE_DIR, "eval-parity.patch.yml"))
+    gates = load_gates(args.gates) if args.gates else {}
+    structure = gates.get("structure") or {}
     os.makedirs(vault(ab, "artifacts"), exist_ok=True)
     os.makedirs(vault(ab, "homes"), exist_ok=True)
     manifest = {}
+    with open(os.path.join(PROFILE_DIR, "package.json"), encoding="utf-8") as fh:
+        profile_pkg = json.load(fh)
     for arm, tgz in arms.items():
         home = template_home(ab, arm)
         prof = os.path.join(home, "profiles", PROFILE)
@@ -1472,42 +1594,64 @@ def cmd_prepare(args):
                 raise SystemExit(f"{home}/.env exists; refusing to rebuild a home that holds a key link")
             shutil.rmtree(home)
         os.makedirs(prof)
-        for name in ("package.json", "pnpm-workspace.yaml", "cordis.yml"):
+        for name in ("pnpm-workspace.yaml", "cordis.yml"):
             shutil.copy(os.path.join(PROFILE_DIR, name), os.path.join(prof, name))
-        shutil.copy(os.path.join(PROFILE_DIR, "eval-parity.patch.yml"), os.path.join(prof, "cordis.patch.yml"))
-        digest = sha256_file(tgz)
-        # The profile's package.json records the install source; an arm-neutral name keeps the arm out of a cell's home.
-        neutral = vault(ab, "artifacts", f"plugin-{digest[:12]}.tgz")
-        if os.path.realpath(tgz) != neutral:
-            shutil.copy(tgz, neutral)
+        # The profile lists the host bundles only; `dsh plugin add` appends the plugin's bundle (an arm without a
+        # plugin is the host's own composition).
+        pkg = json.loads(json.dumps(profile_pkg))
+        pkg["dsh"]["profile"]["bundles"] = [b for b in pkg["dsh"]["profile"]["bundles"] if b != SLICE_BUNDLE]
+        write_json(os.path.join(prof, "package.json"), pkg)
+        parts = [overlay] + arm_overlays.get(arm, [])
+        with open(os.path.join(prof, "cordis.patch.yml"), "w", encoding="utf-8") as out:
+            for i, part in enumerate(parts):
+                with open(part, encoding="utf-8") as fh:
+                    out.write(("" if i == 0 else f"\n# ---- arm overlay {os.path.basename(part)}\n") + fh.read())
         env = child_env(home, offline=True)
-        with open(vault(ab, f"prepare-{arm}.log"), "w", encoding="utf-8") as fh:
-            subprocess.run(["node", binp, "plugin", "--profile", PROFILE, "add", neutral, "--ignore-scripts"], cwd=home, env=env, stdout=fh, stderr=subprocess.STDOUT, check=True, timeout=600)
+        rec = {"home": home, "overlays": parts, "overlay_sha256": [sha256_file(p) for p in parts]}
+        if tgz:
+            digest = sha256_file(tgz)
+            # The profile's package.json records the install source; an arm-neutral name keeps the arm out of a cell's home.
+            neutral = vault(ab, "artifacts", f"plugin-{digest[:12]}.tgz")
+            if os.path.realpath(tgz) != neutral:
+                shutil.copy(tgz, neutral)
+            with open(vault(ab, f"prepare-{arm}.log"), "w", encoding="utf-8") as fh:
+                subprocess.run(["node", binp, "plugin", "--profile", PROFILE, "add", neutral, "--ignore-scripts"], cwd=home, env=env, stdout=fh, stderr=subprocess.STDOUT, check=True, timeout=600)
+            rec.update({"tgz": tgz, "installed_from": neutral, "sha256": digest})
+            print(f"prepared {arm}: {os.path.basename(tgz)} sha256 {digest[:12]} (installed as {os.path.basename(neutral)})")
+        else:
+            rec.update({"tgz": None, "plugin": "none (the host's own composition)"})
+            print(f"prepared {arm}: no plugin")
         with open(vault(ab, f"dump-{arm}.yml"), "w", encoding="utf-8") as fh:
             subprocess.run(["node", binp, "--profile", PROFILE, "--dump-config"], cwd=home, env=env, stdout=fh, stderr=subprocess.PIPE, check=True, timeout=120)
-        manifest[arm] = {"tgz": tgz, "installed_from": neutral, "sha256": digest, "home": home}
-        print(f"prepared {arm}: {os.path.basename(tgz)} sha256 {digest[:12]} (installed as {os.path.basename(neutral)})")
+        rec["bundles"] = (load_json(os.path.join(prof, "package.json")) or {}).get("dsh", {}).get("profile", {}).get("bundles")
+        manifest[arm] = rec
     write_json(vault(ab, "arms.json"), manifest)
     names = list(arms)
 
-    def dump_lines(arm):
+    def dump_text(arm):
         # Provenance comments name the arm's own home ("patched by <home>/profiles/ab/cordis.patch.yml"); normalize that path only.
         with open(vault(ab, f"dump-{arm}.yml"), encoding="utf-8") as fh:
-            return fh.read().replace(template_home(ab, arm), template_home(ab, "<arm>")).splitlines()
+            return fh.read().replace(template_home(ab, arm), template_home(ab, "<arm>"))
 
-    base = dump_lines(names[0])
-    identical = True
-    for arm in names[1:]:
-        other = dump_lines(arm)
-        diff = [(i, a, b) for i, (a, b) in enumerate(zip(base, other)) if a != b]
-        if len(base) != len(other) or diff:
-            identical = False
-            print(f"dump-config differs between {names[0]} and {arm}: {len(diff)} lines, lengths {len(base)}/{len(other)}")
-            for i, a, b in diff[:10]:
-                print(f"  {i + 1}: {a!r} != {b!r}")
+    base_arm = gates.get("baseline") if gates.get("baseline") in arms else names[0]
+    base = dump_text(base_arm)
+    ok = True
+    report = {"baseline": base_arm, "arms": {}}
+    for arm in names:
+        if arm == base_arm:
+            continue
+        allowed = (structure.get(arm) or {}).get("dump_rows", [])
+        differ, only_base, only_arm, unexpected = compare_dumps(base, dump_text(arm), allowed)
+        report["arms"][arm] = {"differing_rows": differ, "rows_only_in_baseline": only_base, "rows_only_in_arm": only_arm,
+                               "declared": allowed, "unexpected": unexpected}
+        if unexpected or sorted(differ + only_base + only_arm) != sorted(allowed):
+            ok = False
+            print(f"dump-config {arm} vs {base_arm}: differing {differ}, only in {base_arm} {only_base}, only in {arm} {only_arm}; "
+                  f"declared {allowed}; unexpected {unexpected}")
         else:
-            print(f"dump-config {names[0]} == {arm} ({len(base)} lines)")
-    return 0 if identical else 1
+            print(f"dump-config {arm} vs {base_arm}: differs exactly in the declared rows {allowed} ({len(base.splitlines())} lines in {base_arm})")
+    write_json(vault(ab, "dump-compare.json"), report)
+    return 0 if ok else 1
 
 
 # ---------------------------------------------------------------------------- fingerprints
@@ -1542,9 +1686,11 @@ def cmd_fingerprints(args):
             "tool_line_forms": sorted({f for r in rows for f in r["tape"]["tool_line_forms"]}),
             "mean_tool_line_chars": round(sum(lines) / len(lines), 1) if lines else None,
         }
-    base = out["arms"].get("control")
+    bname = getattr(args, "baseline", None) or "control"
+    base = out["arms"].get(bname)
+    out["baseline"] = bname
     for arm, fp in out["arms"].items():
-        if base and arm != "control":
+        if base and arm != bname:
             fp["prefix_delta_vs_control"] = fp["prefix_chars"] - base["prefix_chars"]
             fp["system_delta_vs_control"] = fp["system_chars"] - base["system_chars"]
             fp["slice_tools_delta_vs_control"] = fp["slice_tools_json_chars"] - base["slice_tools_json_chars"]
@@ -1609,13 +1755,17 @@ def main(argv):
     ap = argparse.ArgumentParser(prog="run_ab.py " + sub, description=__doc__.split("\n\n")[0])
     if sub == "prepare":
         ap.add_argument("--ab-root", required=True)
-        ap.add_argument("--arm", action="append", required=True, help="name=path/to/arm.tgz (repeatable)")
+        ap.add_argument("--arm", action="append", required=True, help="name=path/to/arm.tgz, or name=none for the host's own composition (repeatable)")
+        ap.add_argument("--overlay", help="overlay every arm's profile gets as cordis.patch.yml (default profile/eval-parity.patch.yml)")
+        ap.add_argument("--arm-overlay", action="append", help="name=path: a further overlay appended for that arm only (repeatable)")
+        ap.add_argument("--gates", help="gates file: its baseline and structure[arm].dump_rows declare the rows an arm's dump may differ in")
         ap.add_argument("--force", action="store_true")
         return cmd_prepare(ap.parse_args(rest))
     if sub == "fingerprints":
         ap.add_argument("--batch-dir", required=True)
         ap.add_argument("--out")
         ap.add_argument("--compare", help="fingerprints.json whose control-vs-arm deltas must be reproduced")
+        ap.add_argument("--baseline", default="control", help="arm the deltas are taken against (slice-vs-stock: stock)")
         return cmd_fingerprints(ap.parse_args(rest))
     if sub == "secrets-scan":
         ap.add_argument("--ab-root", required=True)
@@ -1636,6 +1786,7 @@ def main(argv):
     ap.add_argument("--arms", default="control,F")
     ap.add_argument("--tasks", default="all")
     ap.add_argument("--reps", type=int, default=1)
+    ap.add_argument("--reps-from-gates", action="store_true", help="per-task reps from the gates file's unit.reps (capped by --reps)")
     ap.add_argument("--batch", required=True)
     ap.add_argument("--gates", help="gates file whose 'structure' defines each arm's tape forms (default scripts/ab/gates-f.json; "
                                     "the 2026-09-27 batch used gates.json)")

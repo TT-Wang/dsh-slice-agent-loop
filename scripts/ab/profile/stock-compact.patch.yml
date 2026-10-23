@@ -1,0 +1,14 @@
+# STOCK-COMPACT, a CONFIGURED VARIANT of the stock arm (docs/slice-vs-stock-2026-10-23.md §2.3).
+# Shipped compaction-basic on deepseek-official/deepseek-flash (window 1,000,000, routed maxTokens
+# 256,000) triggers at floor(min(0.8 x 1,000,000, 1,000,000 - 256,000 - 65,536)) = 678,464 tokens,
+# beyond any session this evaluation can afford. This overlay moves only the trigger and the retained
+# tail to the budgets the same formula and defaults give a 131,072-token window with an 8,192-token
+# output cap: threshold floor(min(0.8 x 131,072, 131,072 - 8,192 - 65,536)) = 57,344 tokens, retained
+# tail floor(0.16 x (131,072 - 8,192)) = 19,660 tokens. On the 1M route 0.057344 x 1,000,000 = 57,344
+# exactly. Every other setting (headroomTokens 65,536, summary maxTokens 65,536, compactionRetries 1,
+# maxOverflowRetries 1, auto true, the tool-result pruner 8,192/4,096/1,024) stays at its default.
+# Global, not a modelPolicies entry, so the offline mock route resolves the same budgets.
+- id: compaction-basic
+  config:
+    thresholdRatio: 0.057344
+    retainTokens: 19660
