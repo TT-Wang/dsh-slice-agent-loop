@@ -20,19 +20,29 @@
  * content (beyond SIBLING_ALLOWANCE) is not kept: a small file read beside a
  * large log must not carry the log along. A file's steps are kept all or
  * nothing, files changed in more turns of the window first, then the most
- * recently touched; a file whose steps do not fit, or are no longer intact on the
- * surface (another producer replaced them), is sealed as today. A later view of a
- * file never retires an earlier kept one: that would rewrite a carried prefix.
+ * recently touched; a file whose steps do not fit, or are not all on the surface
+ * with every result, is sealed as today. A later view of a file never retires an
+ * earlier kept one: that would rewrite a carried prefix. So nothing bounds the
+ * kept text of a whole session but `maxChars` per sealed turn: where every turn
+ * has to read the file again before editing it (one process per turn resets the
+ * host's edit guard), every coding turn keeps one more view.
  *
  * Cache safety: a kept step is protected exactly like a human message, so it
- * cuts the entry instead of being rewritten. The decision for turn N is a pure
- * function of the log through turn N and of which of those steps are still raw
- * on the surface, so every later seal makes the same decision for it: kept nodes
- * are never sealed later, sealed nodes are never thawed, and the prefix through
- * the last entry stays frozen as before.
+ * cuts the entry instead of being rewritten. The decision for turn N reads the
+ * log as it stood when turn N ended: which reads were full views, and every
+ * size, come from the original results or from another producer's in-place view
+ * made before the turn ended (the fold condenses a result before the first
+ * request that shows it). A replacement made after the turn ended changes
+ * nothing: the fold condensing a step-capped turn's last results at the next
+ * step, right after this seal kept them, must not undo the decision at the next
+ * seal. The surface is consulted only for which steps are still there, and a
+ * step a seal kept stays there. So every later seal, and a resumed process,
+ * makes the same decision for turn N: kept nodes are never sealed later, sealed
+ * nodes are never thawed, and the prefix through the last entry stays frozen as
+ * before.
  */
 import type { ContentBlock, Message } from '@deepseek-ai/dsh-llm'
-import { SessionLogOffset, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import { isReplacementSurfaceEvent, SessionLogOffset, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-tools'
 import { shellWriteTargets } from './shell-writes.js'
 
@@ -83,8 +93,6 @@ interface FileEvent {
   path?: string
   /** Shell write targets as the command spells them, resolved against known paths at decision time. */
   targets?: string[]
-  /** A view's own result record: the view counts only while that record is the surface node. */
-  result?: SessionSeq
 }
 
 interface Call { name: string; arguments: unknown; turn: number; step: number; id: string }
@@ -95,6 +103,17 @@ interface Cache {
   roots: Map<string, Call>
   dispatches: Map<string, Call>
   byTurn: Map<number, FileEvent[]>
+  /** Turns that ended (turn/end), and the latest turn started: every turn before it is over too. */
+  ended: Set<number>
+  started: number
+  /** Result records (original, or an in-turn replacement of one) to their call key and turn. */
+  results: Map<SessionSeq, { key: string; turn: number }>
+  /** Per call key: result characters as the turn ended. */
+  sizes: Map<string, number>
+  /** Per original assistant record: characters it costs to carry. */
+  assistants: Map<SessionSeq, number>
+  /** Direct full reads by call key, until a replacement within the turn turns them into a mere sighting. */
+  views: Map<string, FileEvent>
 }
 
 const caches = new WeakMap<Session, Cache>()
@@ -171,24 +190,31 @@ function classify(name: string, rawArgs: unknown, text: string, isError: boolean
   return undefined
 }
 
-/** File events per turn, scanned incrementally from the append-only log (like context-reads). */
-function fileEvents(session: Session): Map<number, FileEvent[]> {
+/** File events per turn and sizes as each turn ended, scanned incrementally from the append-only log (like context-reads). */
+function fileEvents(session: Session): Cache {
   let cache = caches.get(session)
   if (!cache) {
-    cache = { nextSeq: 0, calls: new Map(), roots: new Map(), dispatches: new Map(), byTurn: new Map() }
+    cache = { nextSeq: 0, calls: new Map(), roots: new Map(), dispatches: new Map(), byTurn: new Map(), ended: new Set(), started: -Infinity, results: new Map(), sizes: new Map(), assistants: new Map(), views: new Map() }
     caches.set(session, cache)
   }
-  if (cache.nextSeq === session.seq) return cache.byTurn
-  const { calls, roots, dispatches, byTurn } = cache
-  const record = (call: Call, event: Omit<FileEvent, 'key' | 'turn'>): void => {
+  if (cache.nextSeq === session.seq) return cache
+  const { calls, roots, dispatches, byTurn, ended, results, sizes, assistants, views } = cache
+  const record = (call: Call, event: Omit<FileEvent, 'key' | 'turn'>): FileEvent => {
     const list = byTurn.get(call.turn) ?? []
-    list.push({ key: callKey(call.turn, call.step, call.id), turn: call.turn, ...event })
+    const file: FileEvent = { key: callKey(call.turn, call.step, call.id), turn: call.turn, ...event }
+    list.push(file)
     byTurn.set(call.turn, list)
+    return file
   }
   const remember = (call: Call): void => { calls.set(callKey(call.turn, call.step, call.id), call); roots.set(call.id, call) }
+  // A turn with no turn/end of its own (a crashed process) is over once a later turn starts.
+  const over = (turn: number): boolean => ended.has(turn) || turn < cache.started
   const nextSeq = session.seq
   for (const event of session.snapshotEvents(SessionLogOffset(cache.nextSeq), nextSeq)) {
-    if (event.type === 'assistant/message' && event.surfaceOp === 'append') {
+    if (event.type === 'turn/start') cache.started = Math.max(cache.started, event.data.turn)
+    else if (event.type === 'turn/end') ended.add(event.data.turn)
+    else if (event.type === 'assistant/message' && event.surfaceOp === 'append') {
+      assistants.set(event.seq, keptChars(event.data.message))
       for (const block of event.data.message.content) {
         if (block.type === 'tool-call') remember({ name: block.name, arguments: block.arguments, turn: event.data.turn, step: event.data.step, id: block.id })
       }
@@ -196,9 +222,26 @@ function fileEvents(session: Session): Map<number, FileEvent[]> {
       remember({ name: event.data.name, arguments: event.data.arguments, turn: event.data.turn, step: event.data.step, id: event.data.callId })
     } else if (event.type === 'tool/result' && event.surfaceOp === 'append') {
       const message = event.data.message
-      const call = calls.get(callKey(event.data.turn, event.data.step, message.toolCallId))
+      const key = callKey(event.data.turn, event.data.step, message.toolCallId)
+      results.set(event.seq, { key, turn: event.data.turn })
+      sizes.set(key, keptChars(message))
+      const call = calls.get(key)
       const outcome = call && classify(call.name, call.arguments, textOf(message.content), message.isError === true, true)
-      if (call && outcome) record(call, { ...outcome, ...outcome.op === 'view' ? { result: event.seq } : {} })
+      if (call && outcome) {
+        const file = record(call, outcome)
+        if (file.op === 'view') views.set(key, file)
+      }
+    } else if (event.type === 'tool/result' && isReplacementSurfaceEvent(event)) {
+      // Another producer's in-place view of a result (the fold, the host's pruner). Made before the turn
+      // ended, it is what the turn's requests carried: its size counts, and a read it condensed was never
+      // seen whole. Made after, it changes nothing here (see the module comment).
+      const origin = (event.sourceEventSeqs ?? []).map(seq => results.get(seq)).find(found => found !== undefined)
+      if (origin && !over(origin.turn)) {
+        results.set(event.seq, origin)
+        sizes.set(origin.key, keptChars(event.data.message))
+        const view = views.get(origin.key)
+        if (view) { view.op = 'seen'; views.delete(origin.key) }
+      }
     } else if (event.type === 'tool/ptc-dispatch-start') {
       const root = roots.get(event.data.rootCallId)
       if (root) dispatches.set(event.data.subCallId, root)
@@ -210,7 +253,7 @@ function fileEvents(session: Session): Map<number, FileEvent[]> {
     }
   }
   cache.nextSeq = nextSeq
-  return byTurn
+  return cache
 }
 
 function textChars(text: string): number {
@@ -242,8 +285,9 @@ interface Step {
 /**
  * Surface steps: each assistant message with calls, and the result nodes answering them. A result
  * node may be another producer's in-place view of the result (a fold); it still answers the call.
+ * Sizes come from the log as the turn ended, never from the surface node.
  */
-function surfaceSteps(nodes: readonly SurfaceNode[]): { steps: Map<string, Step>; results: Map<string, SessionSeq> } {
+function surfaceSteps(nodes: readonly SurfaceNode[], cache: Cache): Map<string, Step> {
   const results = new Map<string, SurfaceNode>()
   for (const node of nodes) {
     const { event } = node
@@ -255,17 +299,17 @@ function surfaceSteps(nodes: readonly SurfaceNode[]): { steps: Map<string, Step>
     if (event.type !== 'assistant/message') continue
     const calls = (node.message?.content ?? []).flatMap(block => block.type === 'tool-call' ? [block] : [])
     if (!calls.length) continue
-    const step: Step = { step: event.data.step, members: [node.seq], chars: keptChars(node.message), intact: true, calls: new Map() }
+    const step: Step = { step: event.data.step, members: [node.seq], chars: cache.assistants.get(node.seq) ?? keptChars(node.message), intact: true, calls: new Map() }
     for (const call of calls) {
       const key = callKey(event.data.turn, event.data.step, call.id)
       const result = results.get(key)
-      const size = result ? keptChars(result.message) : 0
+      const size = result ? cache.sizes.get(key) ?? keptChars(result.message) : 0
       if (result) { step.members.push(result.seq); step.chars += size } else step.intact = false
       step.calls.set(key, { args: textChars(call.arguments), result: size })
       steps.set(key, step)
     }
   }
-  return { steps, results: new Map([...results].map(([key, node]) => [key, node.seq])) }
+  return steps
 }
 
 /** Known canonical paths a shell target can name: equal, or ending in it at a path boundary. */
@@ -284,13 +328,15 @@ function resolve(target: string, known: ReadonlySet<string>): string[] {
  */
 export function keepWorkingSet(session: Session, nodes: readonly SurfaceNode[], before: number, policy: WorkingSetPolicy): KeptSteps {
   const kept: KeptSteps = { seqs: new Set(), notes: new Map() }
-  const byTurn = fileEvents(session)
-  const { steps, results } = surfaceSteps(nodes)
+  const cache = fileEvents(session)
+  const { byTurn } = cache
+  const steps = surfaceSteps(nodes, cache)
   const known = new Set<string>()
   const changedIn = new Map<number, Set<string>>()
   /** The file's latest view and every later change are still raw on the surface. */
   const live = new Map<string, boolean>()
-  for (const turn of [...byTurn.keys()].filter(t => t < before).sort((a, b) => a - b)) {
+  const order = [...byTurn.keys()].filter(t => t < before).sort((a, b) => a - b)
+  for (const turn of order) {
     const events = byTurn.get(turn)!
     for (const event of events) if (event.path !== undefined) known.add(event.path)
     const perFile = new Map<string, FileEvent[]>()
@@ -304,12 +350,14 @@ export function keepWorkingSet(session: Session, nodes: readonly SurfaceNode[], 
     const changed = new Set([...perFile].flatMap(([file, list]) => list.some(event => event.op === 'write' || event.op === 'edit') ? [file] : []))
     changedIn.set(turn, changed)
     /** Turns of the window in which the file changed: 0 means it is not in the working set. */
+    // The window never reaches before the first turn with file events, however large `turns` is.
     const persistence = (file: string): number => {
       let count = 0
-      for (let t = turn - policy.turns; t <= turn; t += 1) if (changedIn.get(t)?.has(file)) count += 1
+      for (let t = Math.max(turn - policy.turns, order[0]!); t <= turn; t += 1) if (changedIn.get(t)?.has(file)) count += 1
       return count
     }
-    const visible = (event: FileEvent): boolean => event.op === 'write' || (event.op === 'view' && results.get(event.key) === event.result)
+    // A full view as the turn ended; whether its step is still on the surface is checked with the chain.
+    const visible = (event: FileEvent): boolean => event.op === 'write' || event.op === 'view'
     const candidates: Array<{ file: string; chain: FileEvent[]; turns: number; last: number }> = []
     for (const [file, list] of perFile) {
       const turns = persistence(file)
