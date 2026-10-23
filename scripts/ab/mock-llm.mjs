@@ -31,6 +31,8 @@
 // records an assistant/attempt and retries. AB_MOCK_FAIL_USAGE=1 lets that failed attempt report a usage
 // sample first; otherwise it reports none, and the headless --json projector then drops the usage of the
 // whole step (its step_end carries no usage).
+// AB_MOCK_QUOTA_FILE=<path>: while that file exists, every request ends with a non-retryable QUOTA error (HTTP 402
+// "Insufficient Balance", as DeepSeek reports an exhausted balance), so the harness's account stop can be exercised.
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { existsSync, realpathSync, statSync } from 'node:fs'
@@ -63,6 +65,8 @@ const call = (tool, args) => [
 ]
 /** A retryable transport failure that ends an attempt (AB_MOCK_FAIL_EVERY). @type {import('@deepseek-ai/dsh-llm').StreamChunk} */
 const transportDrop = { type: 'finish', reason: { kind: 'error', failure: { message: 'mock transport drop', code: 'TRANSPORT' } } }
+/** An account-level refusal (AB_MOCK_QUOTA_FILE). @type {import('@deepseek-ai/dsh-llm').StreamChunk} */
+const quotaRefusal = { type: 'finish', reason: { kind: 'error', failure: { message: 'Insufficient Balance (mock)', code: 'QUOTA', status: 402 } } }
 /** @param {any} message @returns {string[]} */
 const texts = message => (message?.content ?? []).flatMap((/** @type {any} */ b) => (b.type === 'text' ? [b.text] : []))
 /** @param {any} message @returns {string|undefined} */
@@ -164,6 +168,11 @@ export function apply(ctx) {
       const delay = Number(process.env.AB_MOCK_DELAY_MS ?? 0)
       if (delay > 0) await new Promise(resolve => setTimeout(resolve, delay))
       requests += 1
+      const quotaFile = process.env.AB_MOCK_QUOTA_FILE
+      if (quotaFile && existsSync(quotaFile)) {
+        yield quotaRefusal
+        return
+      }
       const failEvery = Number(process.env.AB_MOCK_FAIL_EVERY ?? 0)
       if (failEvery >= 2 && requests % failEvery === 1) {
         if (process.env.AB_MOCK_FAIL_USAGE === '1') yield usage(1000)

@@ -131,6 +131,54 @@ class ResumeNumbering(unittest.TestCase):
         self.assertEqual([a["attempt"] for a in cell["attempts"]], [1, 2])
 
 
+class AccountStop(unittest.TestCase):
+    """An account-level provider error (QUOTA: DeepSeek's 402 Insufficient Balance) stops the run instead of retrying."""
+
+    def test_account_error_picks_account_codes_only(self):
+        turns = [{"turn": 1, "infra": False, "error_code": None}, {"turn": 2, "infra": True, "error_code": "RATE_LIMIT"},
+                 {"turn": 3, "infra": True, "error_code": "QUOTA"}]
+        self.assertEqual(A.account_error(turns)["turn"], 3)
+        self.assertIsNone(A.account_error(turns[:2]))
+        self.assertIsNone(A.account_error([{"turn": 1, "infra": False, "error_code": "QUOTA"}]))  # not infra: not an account stop
+
+    def _run(self, index_rows, results, resume):
+        d = tempfile.mkdtemp(prefix="ab-acct-test-")
+        os.makedirs(os.path.join(d, "cells"))
+        index = os.path.join(d, "index.jsonl")
+        with open(index, "w") as fh:
+            for r in index_rows:
+                fh.write(json.dumps(r) + "\n")
+        seen = []
+
+        def fake_run_cell(ctx, task, rep, arm, attempt):
+            seen.append(attempt)
+            return {"cell": A.cell_id(task, rep, arm), "status": results.pop(0), "valid": False}
+        orig = A.run_cell
+        A.run_cell = fake_run_cell
+        try:
+            ctx = {"batch_dir": d, "index": index, "resume": resume, "max_attempts": 2,
+                   "budget": A.Budget(os.path.join(d, "spend.jsonl"), 10, 0.1, 0.1, PEAK)}
+            A.run_cell_with_retries(ctx, "t", 1, "arm1")
+            files = sorted(os.listdir(os.path.join(d, "cells")))
+        finally:
+            A.run_cell = orig
+            shutil.rmtree(d)
+        return seen, ctx, files
+
+    def test_account_stop_is_not_retried_and_stops_the_run(self):
+        seen, ctx, files = self._run([], ["account_stop", "done"], resume=False)
+        self.assertEqual(seen, [1])                                   # no second attempt against a refusing account
+        self.assertTrue(ctx.get("account_stopped"))
+        self.assertEqual(files, ["t.r1.arm1.account_stop.json"])      # not cells/<cell>.json: --resume reruns it
+
+    def test_resume_reruns_without_using_up_attempts(self):
+        rows = [{"cell": "t.r1.arm1", "attempt": 1, "status": "account_stop"}]
+        seen, ctx, files = self._run(rows, ["invalid", "done"], resume=True)
+        self.assertEqual(seen, [2, 3])                                # both attempts still available after the stop
+        self.assertFalse(ctx.get("account_stopped"))
+        self.assertIn("t.r1.arm1.json", files)
+
+
 class Isolation(unittest.TestCase):
     """Blocked paths are mode 000 while a turn runs; a chmod, rename or replacement in that window is a breach."""
 

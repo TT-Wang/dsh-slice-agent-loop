@@ -120,6 +120,10 @@ INFRA_CODES = {"TRANSPORT", "RATE_LIMIT", "SERVER", "TIMEOUT", "EMPTY_RESPONSE",
                "AUTH", "QUOTA", "ACCOUNT_QUOTA", "NO_ADAPTER", "ABORTED"}
 INFRA_PATTERNS = ("MISSING_CREDENTIAL", "TRANSPORT", "RATE_LIMIT", "ECONNRESET", "ECONNREFUSED", "ETIMEDOUT", "fetch failed", "socket hang up",
                   "502 Bad Gateway", "503 Service", "504 Gateway", "ENOTFOUND", "EAI_AGAIN")
+# Account-level infra: the provider refuses the account itself (DeepSeek's HTTP 402 "Insufficient Balance" arrives as
+# QUOTA), so every later request fails the same way. Such a cell stops the run at once, like a budget stop: it is not
+# retried, does not use up --max-attempts, is kept as cells/<cell>.account_stop.json and is rerun by --resume.
+ACCOUNT_CODES = {"QUOTA", "ACCOUNT_QUOTA", "MISSING_CREDENTIAL", "INVALID_CREDENTIAL", "AUTH"}
 # maxStepsPerTurn refusing a step ends the turn with reason kind "blocked" and exit 1 (verified on 0.1.7-rc.2 and 0.2.0-rc.2).
 STEP_LIMIT_KIND = "blocked"
 MODEL_END_KINDS = {STEP_LIMIT_KIND, "error", "max-tokens"}
@@ -712,6 +716,11 @@ def run_turn(ctx, cell_key, home, workdir, patches, sid, prompt, stdout_path, st
     return rec
 
 
+def account_error(turns):
+    """The first infra turn whose error code is account-level (ACCOUNT_CODES), or None."""
+    return next((t for t in turns if t.get("infra") and t.get("error_code") in ACCOUNT_CODES), None)
+
+
 def turn_ok(t):
     """Exit 0, or a model-attributable end (step cap, a non-infra error, max-tokens); never an infra failure or a kill."""
     return not t["infra"] and not t.get("budget_kill") and not t.get("timeout") and (t["exit"] == 0 or (t.get("turn_end") or {}).get("kind") in MODEL_END_KINDS)
@@ -956,6 +965,11 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
         why = "unpriced-step limit reached" if ctx["budget"].too_many_unpriced() else "budget cap reached"
         cell.update({"status": "budget_stop", "valid": False, "invalid_reasons": [why], "infra": False})
         return cell
+    acct = account_error(cell["turns"])
+    if acct:
+        cell.update({"status": "account_stop", "valid": False, "infra": True,
+                     "invalid_reasons": [f"turn {acct['turn']}: account-level provider error {acct['error_code']}: the run stops; --resume reruns this cell"]})
+        return cell
     complete = len(cell["turns"]) == len(prompts) and all(turn_ok(t) for t in cell["turns"])
     if os.path.exists(truth):
         shutil.copy(truth, sidecar)
@@ -1027,7 +1041,7 @@ def run_cell_with_retries(ctx, task, rep, arm):
     first = 1 + max((r["attempt"] for r in earlier), default=0)
     if not ctx["resume"]:
         earlier = []
-    used = sum(1 for r in earlier if r.get("status") not in ("budget_stop",))
+    used = sum(1 for r in earlier if r.get("status") not in ("budget_stop", "account_stop"))
     attempts = [{"attempt": r["attempt"], "status": r.get("status"), "reasons": r.get("reasons"), "infra": r.get("infra")} for r in earlier]
     cell = None
     for attempt in range(first, first + max(ctx["max_attempts"] - used, 0)):
@@ -1040,15 +1054,18 @@ def run_cell_with_retries(ctx, task, rep, arm):
         attempts.append({"attempt": attempt, "status": cell["status"], "reasons": cell.get("invalid_reasons"), "infra": cell.get("infra")})
         cell["attempts"] = attempts
         append_jsonl(ctx["index"], summary_line(cell))
-        if cell["status"] in ("done", "budget_stop"):
+        if cell["status"] in ("done", "budget_stop", "account_stop"):
             break
     if cell is None:
         return prior or {"cell": cid, "status": "exhausted", "valid": False, "invalid_reasons": ["no attempts left"]}
-    if cell["status"] != "budget_stop":
-        write_json(path, cell)
-    else:
+    if cell["status"] == "budget_stop":
         ctx["budget_stopped"] = True
         write_json(os.path.join(ctx["batch_dir"], "cells", cid + ".budget_stop.json"), cell)  # kept for the record; --resume reruns the cell
+    elif cell["status"] == "account_stop":
+        ctx["account_stopped"] = True
+        write_json(os.path.join(ctx["batch_dir"], "cells", cid + ".account_stop.json"), cell)  # kept for the record; --resume reruns the cell
+    else:
+        write_json(path, cell)
     log(f"{cid}: {cell['status']} pass={cell.get('pass')} attempts={len(attempts)} ${cell.get('spend_peak_usd', 0):.4f} spent=${ctx['budget'].total():.4f}"
         + (f" reasons={cell.get('invalid_reasons')}" if cell.get("invalid_reasons") else ""))
     return cell
@@ -1314,6 +1331,10 @@ def cmd_run(args):
         random.Random(f"{args.seed}:{rep}").shuffle(order)
         rotated = arm_order(arms, rep, args.seed)
         for task in order:
+            if ctx.get("account_stopped"):
+                log(f"account-level provider error: stopping before {task} rep {rep} (fix the account, then --resume)")
+                stopped = True
+                break
             if not ctx["budget"].can_start() or ctx["budget"].exhausted():
                 why = "unpriced steps" if ctx["budget"].too_many_unpriced() else "spend"
                 log(f"budget ({why}): spent ${ctx['budget'].total():.4f}, unpriced steps {ctx['budget'].unpriced_total()}, cap ${args.budget_usd}; stopping before {task} rep {rep}")
@@ -1323,13 +1344,15 @@ def cmd_run(args):
                 run_cell_with_retries(ctx, task, rep, arm)
                 done += 1
                 progress(ab, f"batch {args.batch}: {done}/{total} cells, spend ${ctx['budget'].total():.4f}")
+                if ctx.get("account_stopped"):
+                    break
         if stopped:
             break
-    stopped = stopped or ctx.get("budget_stopped", False)
+    stopped = stopped or ctx.get("budget_stopped", False) or ctx.get("account_stopped", False)
     manifest.update({"ended": now(), "host_tree_digest_end": host_digest(ab)})
     manifest["host_unchanged"] = manifest["host_tree_digest_end"] == manifest["host_tree_digest_start"]
     write_json(manifest_path, manifest)
-    log(f"batch {args.batch} {'STOPPED (budget)' if stopped else 'finished'}; spent ${ctx['budget'].total():.4f} of ${args.budget_usd}; "
+    log(f"batch {args.batch} {('STOPPED (account)' if ctx.get('account_stopped') else 'STOPPED (budget)') if stopped else 'finished'}; spent ${ctx['budget'].total():.4f} of ${args.budget_usd}; "
         f"unpriced steps {ctx['budget'].unpriced_total()}; host unchanged {manifest['host_unchanged']}")
     progress(ab, f"batch {args.batch}: {'stopped' if stopped else 'finished'} {done}/{total} cells, spend ${ctx['budget'].total():.4f}")
     return 2 if stopped else 0
@@ -1660,7 +1683,7 @@ DELTA_KEYS = ("prefix_delta_vs_control", "system_delta_vs_control", "slice_tools
 
 
 def cmd_fingerprints(args):
-    cells = [load_json(p) for p in sorted(glob.glob(os.path.join(args.batch_dir, "cells", "*.json"))) if not p.endswith(".budget_stop.json")]
+    cells = [load_json(p) for p in sorted(glob.glob(os.path.join(args.batch_dir, "cells", "*.json"))) if not p.endswith((".budget_stop.json", ".account_stop.json"))]
     cells = [c for c in cells if c and not c.get("probe_spec")]
     out = {"batch_dir": os.path.realpath(args.batch_dir), "created": now(), "arms": {}}
     for arm in sorted({c["arm"] for c in cells}):
