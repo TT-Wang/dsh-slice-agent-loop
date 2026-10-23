@@ -1,13 +1,14 @@
 // Offline adapter variant for the svs2 working-set demonstration (docs/svs2-ablation-2026-10-24.md §12): mock-llm.mjs
 // unchanged, plus one coding move per turn. Where mock-llm.mjs would close a turn with its text "MOCK-DONE", this
-// variant first issues a `read` of the first existing `.py` file outside tools/ that the user prompt names (c1:
-// calc.py) and then an `edit` of it, which appends a comment to one line that occurs once in the file. So a turn
-// changes a file it has just viewed whole, as a real coding turn does, and arm C's retention has a file to keep.
+// variant first issues a `read` of the first existing `.py` file outside tools/ that the user prompt names, else of
+// the first `.py` file at the top of the session cwd (c1: calc.py in every turn), and then an `edit` of it, which
+// appends a comment to one line that occurs once in the file. So every turn changes a file it has just viewed whole,
+// as a real coding turn does, and arm C's retention has a file to keep.
 // Offline only: run_ab.py mounts it instead of mock-llm.mjs when AB_MOCK_ADAPTER=mock-llm-edit.mjs (recorded in the
 // manifest's mock_env); paid cells never mount a mock. Every other request is mock-llm.mjs's own answer.
 import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
-import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import * as base from './mock-llm.mjs'
 
 const host = createRequire(realpathSync(process.env.AB_DSH_BIN ?? process.argv[1] ?? ''))
@@ -27,14 +28,14 @@ const call = (tool, args) => [
 /** @param {any} message @returns {string[]} */
 const texts = message => (message?.content ?? []).flatMap((/** @type {any} */ b) => (b.type === 'text' ? [b.text] : []))
 
-/** The first existing .py file outside tools/ that the prompt names (paths relative to the session cwd, the workdir). */
+/** The first existing .py file outside tools/ that the prompt names, else the first one at the top of the session cwd. */
 function target(/** @type {string} */ ask) {
+  const file = (/** @type {string} */ path) => { try { return existsSync(path) && statSync(path).isFile() } catch { return false } }
   for (const m of ask.matchAll(/[\w./-]+\.py\b/g)) {
     const path = m[0].replace(/^\.\//, '')
-    if (path.startsWith('tools/')) continue
-    try { if (existsSync(path) && statSync(path).isFile()) return path } catch { /* not a file */ }
+    if (!path.startsWith('tools/') && file(path)) return path
   }
-  return undefined
+  return readdirSync('.').filter(name => name.endsWith('.py') && file(name)).sort()[0]
 }
 
 /** A line that occurs once in the file and can take a trailing comment, or undefined. */

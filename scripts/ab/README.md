@@ -413,8 +413,8 @@ What it changes in this harness:
   the comparison only, must equal `dump-stock.yml`.
 - **Offline adapter variant.** `AB_MOCK_ADAPTER=mock-llm-edit.mjs` (offline only, recorded in the manifest's
   `mock_env`) mounts a wrapper of `mock-llm.mjs` that, before the closing text of a turn, reads the first `.py` file the
-  prompt names (c1: `calc.py`) and edits one line of it, so a dry run shows arm C keeping that read and edit raw.
-  `mock-llm.mjs` itself is unchanged (a condition file).
+  prompt names, else the first `.py` file in the workdir (c1: `calc.py` in every turn), and edits one line of it, so a
+  dry run shows arm C keeping that read and edit raw. `mock-llm.mjs` itself is unchanged (a condition file).
 - **Metrics.** `rereads`: every read classified as first, cross_turn (the first read in a turn of a file seen in an
   earlier turn), same_turn or after_own_edit, plus edits/writes, bash writes and the host's FS_NOT_OBSERVED /
   FS_STALE_VERSION refusals (the definitions of the c1 follow-up analysis; on the baseline's c1 logs: cross-turn 27
