@@ -1,0 +1,51 @@
+{
+ "slice": {
+  "bundles": [
+   "@deepseek-ai/dsh-base",
+   "@deepseek-ai/dsh-headless",
+   "@dsh-external/dsh-slice-agent-loop"
+  ],
+  "home": "<AB>/vault/homes/slice",
+  "installed_from": "<AB>/vault/artifacts/plugin-62b0eb7efc3d.tgz",
+  "overlay_sha256": [
+   "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+  ],
+  "overlays": [
+   "<AB>/wt/harness/scripts/ab/profile/eval-neutral.patch.yml"
+  ],
+  "sha256": "62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322",
+  "tgz": "<AB>/vault/artifacts/slice-main-c73ee22.tgz"
+ },
+ "stock": {
+  "bundles": [
+   "@deepseek-ai/dsh-base",
+   "@deepseek-ai/dsh-headless"
+  ],
+  "home": "<AB>/vault/homes/stock",
+  "overlay_sha256": [
+   "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+  ],
+  "overlays": [
+   "<AB>/wt/harness/scripts/ab/profile/eval-neutral.patch.yml"
+  ],
+  "plugin": "none (the host's own composition)",
+  "tgz": null
+ },
+ "stock-compact": {
+  "bundles": [
+   "@deepseek-ai/dsh-base",
+   "@deepseek-ai/dsh-headless"
+  ],
+  "home": "<AB>/vault/homes/stock-compact",
+  "overlay_sha256": [
+   "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223",
+   "ce6a5357fda2063f91713c30108ea9a6f8bf57ba5738b6f0a94abcdb434f53a2"
+  ],
+  "overlays": [
+   "<AB>/wt/harness/scripts/ab/profile/eval-neutral.patch.yml",
+   "<AB>/wt/harness/scripts/ab/profile/stock-compact.patch.yml"
+  ],
+  "plugin": "none (the host's own composition)",
+  "tgz": null
+ }
+}

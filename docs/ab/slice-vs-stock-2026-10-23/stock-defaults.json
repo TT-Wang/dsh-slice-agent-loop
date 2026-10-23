@@ -1,0 +1,87 @@
+{
+ "host": "@deepseek-ai/dsh@0.2.1-rc.2 (npm latest 2026-10-23); upstream source deepseek-harness 687f282e86 'release(dsh): 0.2.1-rc.2'",
+ "route": {
+  "provider": "deepseek-official",
+  "model": "deepseek-flash",
+  "row": "agent-default-model (dsh-base)",
+  "contextWindow": 1000000,
+  "contextWindow_source": "packages/llm/llm-deepseek/src/defaults.ts DEFAULT_CONTEXT_WINDOW; models.ts catalog entry deepseek-flash",
+  "maxTokens": 256000,
+  "maxTokens_source": "packages/llm/llm-deepseek/src/defaults.ts DEFAULT_MAX_TOKENS (P1-10 request headers: maxTokens 256000)"
+ },
+ "compaction-basic": {
+  "row": "compaction-basic",
+  "config_in_composition": null,
+  "defaults": {
+   "thresholdRatio": 0.8,
+   "headroomTokens": 65536,
+   "retainRatio": 0.16,
+   "maxTokens": "headroomTokens (65536)",
+   "compactionRetries": 1,
+   "maxOverflowRetries": 1,
+   "auto": true
+  },
+  "source": "packages/compaction/compaction-basic/src/config.ts (DEFAULT_THRESHOLD_RATIO, DEFAULT_RETAIN_RATIO, headroomTokens ?? 65_536, resolveCompactSpec)",
+  "formula": "threshold = floor(min(W * thresholdRatio, W - O - headroomTokens)); retained = floor((W - O) * retainRatio)",
+  "threshold_tokens": 678464,
+  "retained_tail_tokens": 119040,
+  "trigger": "agent/pre-step before every request when token-meter pressure >= threshold; and on a provider-confirmed CONTEXT_WINDOW_EXCEEDED (one maximal head reduction, then one retry)",
+  "log_events": [
+   "compaction/start",
+   "compaction/summary (usage of the summarizer call)",
+   "user/message replace (the <compacted-summary> checkpoint)",
+   "compaction/end (error on failure)"
+  ]
+ },
+ "command-compact": {
+  "row": "command-compact",
+  "trigger": "human /compact only; never in a headless run"
+ },
+ "tool-result-pruner": {
+  "row": "tool-result-pruner",
+  "config_in_composition": {
+   "thresholdChars": 8192,
+   "headChars": 4096,
+   "tailChars": 1024
+  },
+  "trigger": "only when a compaction trigger qualifies (pressure or overflow), before range selection; model-free",
+  "log_events": [
+   "compaction/prune",
+   "tool/result replace"
+  ]
+ },
+ "spill-policy": {
+  "row": "spill-policy",
+  "config_in_composition": {
+   "maxInlineTokens": 12500
+  },
+  "trigger": "at tool execution for results over 12,500 estimated tokens; read results pass through"
+ },
+ "tool-fs read": {
+  "readLimit": 2000,
+  "readMaxBytes": 51200,
+  "readMaxLineLength": 2000
+ },
+ "token-meter": "pressure = latest provider usage when it matches the measured envelope and is not below the estimate, else 4 chars/token heuristic over the whole envelope",
+ "other_rows_kept": [
+  "image-offload",
+  "session-checkpoint-policy",
+  "repeat-tool-reminder thresholds [3, 5, 8]",
+  "timeout-policy",
+  "bash-sandbox timeoutMs 60000"
+ ],
+ "stock_compact_variant": {
+  "overlay": "scripts/ab/profile/stock-compact.patch.yml",
+  "basis": {
+   "contextWindow": 131072,
+   "maxTokens": 8192
+  },
+  "threshold_tokens": 57344,
+  "retained_tail_tokens": 19660,
+  "config": {
+   "thresholdRatio": 0.057344,
+   "retainTokens": 19660
+  },
+  "check": "floor(min(1e6 * 0.057344, 678464)) = 57344 in IEEE-754 (node)"
+ }
+}

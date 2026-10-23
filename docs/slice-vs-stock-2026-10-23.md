@@ -24,7 +24,7 @@ Why now: no earlier evidence is about this policy against this host.
 |---|---|---|
 | Aug 2026 custom loop (dsh-slice eval report) | a replacement loop vs the default transcript loop | a different loop, retired; coding +8–66 % cost, long/memory −4–38 %, s10 flood 76 turns: stock 217K-token context vs slice ~27K |
 | 2026-09-08 first native policy | stock vs slice, 6 tasks x 2 | history re-paid every turn (+54 % median cost); fixed by append-only sealing on 2026-09-12 |
-| 2026-09-09 pressure-archive policy | stock vs slice | superseded by the append-only tape three days later (−12 %) |
+| 2026-09-09 pressure-archive policy | stock vs slice | −12 % cost; superseded three days later by the append-only tape |
 | P1-10 A/Bs (2026-09-27, 2026-10-22) | slice vs slice text variants | parity overlay disabled compaction and the pruner: no stock arm |
 | live slicey-dsh on 0.2.0-rc.2 | one long real session | 179 turns, 97–98 % cache hit, max request 85K tokens; no counterfactual |
 | synthetic 800-turn benchmark | request chars | slice 2.18M chars vs stock 25.6M, stock with no compaction; no model, no cost |
@@ -134,7 +134,7 @@ Because stock's shipped trigger is out of reach (§2.3), one more arm shows what
 does when it does fire. It is a configured variant, labeled as such everywhere, and never enters
 the decision (§7). Its overlay moves only the trigger and the retained tail to the values the host's
 own formula and defaults give a 128K-class route: a 131,072-token window with an 8,192-token
-output cap (the shape of the 131,072 / 8,192 catalog entry in the host's discovery tests):
+output cap (the window and output cap of the 128K-class model the host's own catalog-discovery tests use):
 
 - trigger floor(min(0.8 x 131,072, 131,072 − 8,192 − 65,536)) = **57,344 tokens**;
 - retained tail floor(0.16 x (131,072 − 8,192)) = **19,660 tokens**.
@@ -168,9 +168,15 @@ Procedure:
 
 1. Offline dry run of every task on every arm with the mock, forced-compaction runs, fingerprints,
    isolation probe (§10). Done.
-2. Before the key is linked: remove every reachable copy of the r1–r5 oracles that is not part of a
-   checkout (`AB/scratch`, `AB/build` and earlier scratch trees in the same scratchpad,
-   `dsh021/…/scripts/ab/tasks`, `fab/…`); run the self-checks in a temporary directory only.
+2. Before the key is linked: the r1–r5 oracles have readable copies next to the A/B root, in the
+   same session scratchpad: three task trees under `dsh021/` (`raft-cutover/slice-src`,
+   `understand-packaging-deploy/compat-sim`, `…/slice-export`) and the F-only A/B root `fab/`, whose
+   vault (session logs, truth files) is no longer blocked. They are not this run's files, so they
+   are not deleted here: every paid `run_ab.py` call passes `--block <dir>` for each sibling
+   directory of the A/B root in the scratchpad (directories only, never the `node_modules`
+   symlink), which makes them mode 000 while a turn runs, with the same tamper check as the vault.
+   `AB/scratch` and `AB/build` hold no oracle and are removed before the key is linked. The
+   self-checks run in a temporary directory only.
 3. Operator links the key into the three template homes (`ln -s ~/.dsh/.env
    vault/homes/<arm>/.env`, never read, printed or copied).
 4. Warmup: `hello` x 2 reps x 3 arms, `--fingerprints none`, then `run_ab.py fingerprints
@@ -323,8 +329,9 @@ Hard cap **$10 at peak prices** over everything (warmup, pilot, batch, arbitrati
 `run_ab.py --budget-usd 10` over one ledger `AB/vault/spend.jsonl`; reserve $0.75, margin
 $0.60, $0.05 per unpriced step or failed compaction attempt, stop after 40 unpriced charges. The
 running turn is polled every second; a compaction summarizer call is visible to the poll only at
-the turn's end (its usage is not in the `--json` stream), which the $0.60 margin covers (one
-summary call: about 57K mostly cached input plus a few thousand output tokens, about $0.01 at peak).
+the turn's end (its usage is not in the `--json` stream), which the $0.60 margin covers: a typical
+summary call (about 57K mostly cached input, a few thousand output tokens) costs about $0.01 at peak,
+the worst case (the 65,536-token summary cap) about $0.09.
 
 Estimate (peak). Short tasks from the F-only A/B's medians for the slice control on 0.2.0-rc.2 (c1
 $0.159, c2 $0.009, r1 $0.010, r2 $0.020, r3 $0.008, r4 $0.005, r5 $0.013: $0.224 per rep), with
@@ -345,13 +352,149 @@ digest step), 3 requests per turn, 400 output tokens per request:
 | arbitration, if triggered: +1 rep, SLICE and STOCK | $1.22 |
 | **total** | **$5.24 without arbitration, $6.46 with** |
 
+Wall time: the F-only batch took 86 minutes for 42 cells; with 63 short-task cells and six f1 cells
+of 61 turns (about 10–15 minutes each on the real model), the batch takes about 3.5–4 hours, run in
+the background in several invocations (`--resume`), none of them longer than the operator's
+session allows.
+
 Uncertainty: f1's tokens per excerpt are estimated, not measured (±50 % moves the batch by about
 ±$1.2); c1 in the stock arms is assumed, not measured. The pilot measures both before the freeze
 (§12.2).
 
 ## 10. Build evidence (offline, no key)
 
-In progress on this commit; filled by the next commit of this branch.
+Harness `9d506ca` on `exp/slice-vs-stock` (the `offline` batch ran on its uncommitted tree, whose
+metrics, validity and task code equal `9d506ca`'s; the commit added the tests, the report, the
+README and `--reps-from-gates`). No key existed in any home; the mock adapter
+(`scripts/ab/mock-llm.mjs`, provider `ab-mock`) scripted `ls`, a stated correction, a run of any
+named `tools/` script, two reads of the first file the prompt names, and an `expand_result` on the
+newest tape tool line (SLICE only). Summaries of everything below, with paths normalized and no
+oracle values: [docs/ab/slice-vs-stock-2026-10-23/](ab/slice-vs-stock-2026-10-23/).
+
+### 10.1 Prepare
+
+- Frozen host `AB/host`: 0.2.1-rc.2, host tree digest `0c9e7f6b25ec…`, unchanged at the start and
+  end of every batch below.
+- Three template homes; `prepare` exit 0: SLICE differs from STOCK only in `slice-agent-loop`,
+  STOCK-COMPACT only in `compaction-basic` (`dump-compare.json`). Dumps 412 / 415 / 417 lines
+  (`dump-stock.yml`, `dump-slice.yml`, `dump-stock-compact.yml`). Against the bare headless
+  composition (98 rows, 382 lines) the neutral overlay changes exactly the 13 rows of §2.4 and
+  nothing else (row-level diff of the two dumps).
+- Plugin install log: one pnpm peer-dependency warning (`Issues with peer dependencies found`), as
+  with every recorded install (`autoInstallPeers: false`); the plugin row loads (16 tools, tape
+  entries in every multi-turn SLICE cell).
+
+### 10.2 Fingerprints (from `offline`, baseline STOCK)
+
+| | STOCK | SLICE | STOCK-COMPACT |
+|---|---|---|---|
+| system prompt sha256 | `3f484053…` | `46c592c8…` | `3f484053…` |
+| system prompt chars | 1,134 | 3,651 (+2,517: the plugin's kernel and fold sections) | 1,134 |
+| tools | 12 | 16 (STOCK's plus the four recall tools) | 12 |
+| all-tools JSON sha256 / chars | `acdb4d06…` / 9,058 | `197be823…` / 14,323 | `acdb4d06…` / 9,058 |
+| recall tools JSON sha256 / chars | – | `4d9ca4cc…` / 5,266 | – |
+| per-request prefix (system + tools) | 10,192 | 17,974 (+7,782) | 10,192 |
+| tape header / tool line | – | short 76/78 chars / long, 94.9 chars mean | – |
+
+SLICE's system prompt and recall-tool shas equal those of the F-only control on 0.2.0-rc.2
+(`46c592c8…`, `4d9ca4cc…`), and its prefix equals the 17,974 characters recorded for plugin 0.3.0
+on 0.2.1-rc.2 (scripts/ab/README.md): the plugin's prompt and tool text equal 70e6e55's.
+
+### 10.3 Dry run `offline` (every task on every arm)
+
+9 tasks (8 + hello) x 3 arms x 1 rep = 27 cells, one at a time, 07:39:01–07:54:43 UTC: 279/279
+turns exited 0 with empty stderr, 27/27 logs found and metrics rows written, **27/27 cells valid on
+the first attempt**, one turn per prompt everywhere; tools 12 / 16 / 12; no tape entry in any
+STOCK or STOCK-COMPACT cell; every delivery turn carried its fact (r1 T1; r2 T2, T4; r4 T1, T2;
+f1 T3, T5 in all three arms); r3's T1 read folded in SLICE; no flagged call, leak, breach,
+quarantined entry or worktree change; host digest unchanged; $0.0744 on the mock's fixed usage
+(its own ledger).
+
+f1 per arm (61 turns each):
+
+| | STOCK | SLICE | STOCK-COMPACT |
+|---|---|---|---|
+| requests | 236 | 296 (+60 `expand_result` steps) | 236 |
+| compaction summaries (turns) | 0 | 0 | **3 (T26, T39, T52)**, 0 failed; 3 summarizer calls priced |
+| prunes | 0 | 0 | **88**, at 15 turns from T14; a summary followed at only 3 of them (elsewhere pruning alone brought pressure under the trigger) |
+| slice folds | 0 | 96 | 0 |
+| exams with history compacted before them | 0 of 2 | 0 of 2 | 2 of 2 |
+| wall | 202 s | 183 s | 180 s |
+
+The mock's usage samples are smaller than the heuristic estimate, so the token meter used the
+4-characters-per-token estimate: STOCK's f1 stayed under its 678,464-token trigger, STOCK-COMPACT's
+crossed 57,344 repeatedly. This shows the configured trigger firing and every compaction and prune
+event detected and attributed to its turn; the token figures themselves are the mock's.
+
+### 10.4 Stock's shipped trigger, forced (`force-above`, `force-below`)
+
+The shipped STOCK composition, f1, with the mock reporting a fixed input-token count on every
+usage sample (`AB_MOCK_PRESSURE_TOKENS`), which the token meter reuses as pressure:
+
+| batch | reported pressure | prunes (first turn) | summaries | failed attempts | valid |
+|---|---|---|---|---|---|
+| `force-below` | 670,007 (< 678,464) | 0 | 0 | 0 | yes, 61/61 turns exit 0 |
+| `force-above` | 690,007 (> 678,464) | 96 (from T7, the first excerpt read) | 12 (T51–T56) | 34 | yes, 61/61 turns exit 0 |
+
+So the shipped trigger sits between 670,007 and 690,007 tokens, as computed (678,464), and the
+harness detects and times it. Under forced pressure the pruner acts at once (every excerpt read is
+over 8,192 characters); summaries start only at T51, once the history outside the retained
+119,040-token tail is large enough to condense. The 34 failed attempts are the host rejecting a
+summary that was not smaller than its source ("summary is not smaller than the shadowed content")
+while the forced pressure stays above the trigger; each is charged $0.05 as an unpriced record,
+since its call is billed but not logged. Real pressure falls after a summary, so this repetition is
+an artifact of forcing.
+
+### 10.5 Step cap
+
+A cap of 2 (`ab-step-cap`, harness mode) on a turn that wants three steps: turn_end kind `blocked`,
+exit 1, in STOCK and in SLICE.
+
+### 10.6 Isolation probe (`isoprobe`, target batch `offline`)
+
+Per arm: 28 protected targets (canaries in the other arms' template homes, the vault root, a
+manifest, a truth file and the `scripts/` and `docs/` of both worktrees; the other arms' real
+finished cell homes, session logs and packed workdirs; the `offline` manifest, index and ledger; a
+turn stream; `arms.json`, `fingerprints.json`; a task oracle in each worktree; listings): **28/28
+denied, 0 canaries in any tool result**, the cell's own files readable, `AB/live` showing only the
+probing cell, 2 background jobs killed as strays, 0 processes left and 0 escapees, **8/8 writes
+into the read-only directories refused** (`plugins/` included), the `/tmp` plant quarantined. Tamper
+cells: the vault chmod and the file left in a worktree's `src/` were detected and the cell was
+invalid, in all three arms. Afterwards every mode was restored, `AB/live` empty, no
+`.blocked.json`, both worktrees clean.
+
+### 10.7 Dry run `offline2` (validated against the fingerprints)
+
+Harness `9d506ca` (clean tree), 08:06:13–08:18:53 UTC, every cell validated against the
+fingerprints of §10.2 (`vault/fingerprints.json`), run with `--reps 1 --reps-from-gates`: **27/27
+cells valid on the first attempt**, 279/279 turns exit 0 with empty stderr, the same structure as
+`offline` in every cell (f1: STOCK-COMPACT summaries at T26, T39 and T52 with 88 prunes, SLICE 96
+folds, STOCK none); no flag, leak, breach, stray, quarantined entry or worktree change; host digest
+unchanged; summed cell wall 742 s (920 s for `offline`). `svs_report.py` runs end to end on it and,
+as it must on one rep, reports every minimum unmet, the verdict "inconclusive" and the arbitration
+trigger ([report-offline2-mock.md](ab/slice-vs-stock-2026-10-23/report-offline2-mock.md); its cost
+ratios come from the mock's fixed usage samples and mean nothing).
+
+`run_ab.py secrets-scan` lists the three isolation-probe read cells (their script names `DSH_HOME`
+by design) and no other cell; their logs and turn files go to `held-back/` at archive time.
+
+### 10.8 Tests
+
+On `9d506ca`: `test_run_ab.py` 23/23 (5 new: the row-level dump comparison, both step-cap patch
+modes, exam specs from the truth sidecar, the salted per-group seed, per-arm validity);
+`test_ab_metrics.py` 25 (2 new: compaction, prune and summarizer usage, compacted-before-exam):
+21 pass and 4 skip without data, 22 pass and 3 skip with `AB_OFFLINE_BATCH=offline` and
+`AB_GATES=gates-svs.json` (the mock-log check over all 27 cells, now per-arm tool counts and
+summarizer usage); `test_ab_report.py` 14/14; `test_svs_report.py` 7/7 (each verdict route, the
+arbitration band, memory exclusion and minimums, the honest-miss rule, pooled without band);
+`selfcheck_tasks.py` 40/40 (15 new for f1: every memory class, the substrate checks, seeding);
+typecheck, `check:docs` and `check:size` (3.02 MiB, 281 files) pass.
+
+### 10.9 Not evidence
+
+`smoke1` (hello and r1, three arms, before the f1 task existed in the run) and a scratch
+plugin-add probe (`AB/scratch/plugadd`: the bare STOCK and SLICE dumps of §10.1) are kept under
+the A/B root; they are build checks, not part of any comparison.
 
 ## 11. Risks and limits
 

@@ -1,0 +1,27 @@
+{
+ "arms": {
+  "slice": {
+   "declared": [
+    "slice-agent-loop"
+   ],
+   "differing_rows": [],
+   "rows_only_in_arm": [
+    "slice-agent-loop"
+   ],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  },
+  "stock-compact": {
+   "declared": [
+    "compaction-basic"
+   ],
+   "differing_rows": [
+    "compaction-basic"
+   ],
+   "rows_only_in_arm": [],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  }
+ },
+ "baseline": "stock"
+}
