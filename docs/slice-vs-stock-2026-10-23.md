@@ -1,11 +1,13 @@
 # Slice vs stock DSH: is the current slice context policy worth using?
 
-> **Status: DRAFT pre-registration, 2026-10-23 (design and build stage, pilot plan declared).** No
-> paid call has run and no model key is linked anywhere under the A/B root. The harness, arms,
-> tasks, metrics, comparisons and decision rule below are built and dry-run offline (§10). The paid
-> warmup and the pilot (§3 step 5, §12) come next; the pilot may change only what §12.2 allows
-> (the f1 resize, a task STOCK cannot pass, the cost ladder). The commit that fills §12 freezes
-> §1–§12. §13 "Results" stays empty until the batch and its report exist.
+> **Status: DRAFT pre-registration, 2026-10-23 (pilot part 1 done; NOT frozen).** The paid warmup
+> passed and the pilot ran until the provider refused the account (HTTP 402 "Insufficient
+> Balance", 09:12 UTC): r1–r4 in STOCK and SLICE and f1 in SLICE completed, STOCK's f1 stopped
+> after 22 of 61 turns, r5 did not run (§12.3). On that evidence the pilot rules of §12.2 resize f1
+> to 32 excerpts (45 turns) and limit STOCK-COMPACT to f1 (§12.4). What remains before the freeze
+> (§12.5): the account is topped up by its owner, then pilot part 2 (r5 in STOCK and SLICE, the
+> resized f1 in STOCK-COMPACT), then the commit that fills §12.1 and freezes §1–§12. §13
+> "Results" stays empty until the batch and its report exist.
 
 ## 1. Question
 
@@ -93,8 +95,10 @@ Read from STOCK's `--dump-config` and from the upstream source of the release
 
 **Consequence:** stock's shipped compaction (and with it the pruner, which runs only under a
 compaction trigger) cannot fire before a request reaches 678,464 tokens. Every session this
-evaluation can afford stays below that: f1, the longest task, reaches an estimated 250K tokens in
-STOCK (§9). At these lengths STOCK is a raw, growing transcript, which is what a DSH user on the
+evaluation can afford stays below that: f1, the longest task, reaches about 232K tokens in STOCK
+after the pilot resize (45 turns; projected from the pilot's measured 6,886 tokens per excerpt
+read, §12.3; the 61-turn version would have reached about 343K). No compaction, prune or spill
+fired in the pilot's STOCK cells. At these lengths STOCK is a raw, growing transcript, which is what a DSH user on the
 default route gets. That is the primary comparison. The forced dry run (§10.4) shows that the
 trigger works at the computed value and that the harness detects it.
 
@@ -192,10 +196,14 @@ Procedure:
    ladder of §12.2 would drop STOCK-COMPACT's f1 anyway on the costs measured so far. Checks:
    oracles, delivery, flags, compaction behaviour on the real model (none expected in STOCK and
    SLICE below 678,464 tokens; firing and detected in STOCK-COMPACT), tokens per read turn,
-   cost per cell and wall time against §9; then the re-estimate of §12.2.
-6. Batch (§12): `--arms stock,slice,stock-compact --tasks f1,r1,r2,r3,r4,r5,c1,c2 --reps 3
-   --reps-from-gates` (per-task reps from `gates-svs.json`: f1 2, the others 3), seed 20261023,
-   `--budget-usd 10`. An invalid cell is rerun once.
+   cost per cell and wall time against §9; then the re-estimate of §12.2. Part 1 ran on
+   2026-10-23 08:51–09:13 UTC and was stopped by the account balance (§12.3); part 2 is §12.5.
+6. Batch (§12): as planned, `--arms stock,slice,stock-compact --tasks f1,r1,r2,r3,r4,r5,c1,c2
+   --reps 3 --reps-from-gates` (per-task reps from `gates-svs.json`: f1 2, the others 3), seed
+   20261023, `--budget-usd 10`. An invalid cell is rerun once. With the ladder step of §12.4
+   (STOCK-COMPACT runs f1 only) the batch is two invocations into the same batch directory, f1
+   first: `--arms stock,slice,stock-compact --tasks f1 --reps 2`, then `--arms stock,slice --tasks
+   r1,r2,r3,r4,r5,c1,c2 --reps 3`; the freeze (§12.1) records the final commands.
 7. Report: `svs_report.py <batch> --gates scripts/ab/gates-svs.json`; arbitration only as in §8.
 8. Archive: `secrets-scan` first; held-back cells into a `chmod 700` `held-back/`; raw data to
    `~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/`, small summaries to
@@ -212,7 +220,7 @@ recall tool. That is the trade the policy makes, so it is a fair test of both.
 | alias | task | turns | step cap | class | what it tests |
 |---|---|---|---|---|---|
 | hello | `hello` | 1 | 4 | warmup | prefix cache, parity |
-| **f1** | `svs_f1_flood_recall` (new) | 61 | 12 | long + memory | context growth over 48 full reads of large log excerpts; four early facts quizzed 50+ turns later |
+| **f1** | `svs_f1_flood_recall` (new) | 45 (61 before the pilot resize, §12.4) | 12 | long + memory | context growth over 32 full reads of large log excerpts; four early facts quizzed 35+ turns later |
 | r1 | `p110_r1_fixture_fp` | 6 | 12 | memory | fingerprint printed once in T1; script and fixtures deleted after T2; same-format decoys; exam T5 |
 | r2 | `p110_r2_superseded_stamp` | 7 | 12 | memory | stamp A (T2, stale) and stamp B (T4, current); sources deleted after T4; exam T6 must pick B |
 | r3 | `p110_r3_runbook_middle` | 3 | 12 | memory | 28 KB runbook read in T1 (SLICE folds it; validity requires that fold in SLICE only); `docs/` deleted; exam T3 asks a second fact of the same read |
@@ -225,7 +233,9 @@ recall tool. That is the trade the policy makes, so it is a fair test of both.
 
 Adapted from sliceagent's `s10_compactloss` (76 turns, one-shot build id, ephemeral lint error,
 64 full reads of 9 KB random-letter blobs, three quizzes) and `s13_compact_amnesia` (deployment
-parameters stated by the user, a placement rule, a never-given fact as a trap):
+parameters stated by the user, a placement rule, a never-given fact as a trap). The layout below is
+the resized one of §12.4 (32 excerpts, 45 turns); the build-stage version had a third block of 16
+reads (T41–T56) and the quizzes at T57–T61, and is what the pilot's f1 cells ran:
 
 | turn | prompt | fact |
 |---|---|---|
@@ -235,21 +245,22 @@ parameters stated by the user, a placement rule, a never-given fact as a trap):
 | T4 | add `checksum` | |
 | T5 | run `python3 tools/lint_frames.py`, fix the one finding, remember the exact message, do not write or quote it (linter deleted after T5, delivery check T5) | tool output only |
 | T6 | add `clamp` | |
-| T7–T22, T24–T39, T41–T56 | 48 turns: read `data/blob_NN.log` in full, append its `AUDIT-TOKEN` to `digest.md` | substrate |
+| T7–T22, T24–T39 | 32 turns: read `data/blob_NN.log` in full, append its `AUDIT-TOKEN` to `digest.md` | substrate |
 | T23, T40 | add `window`, `median` | |
-| T57 | Quiz A: the build id (exam, recall-sourced tokens) | |
-| T58 | Quiz B: the exact lint message (exam) | |
-| T59 | the four parameters as TOML, "where we agreed" (under `ops/`) | |
-| T60 | the staging database "I told you about" (never given: `NOT-PROVIDED`) | |
-| T61 | one line on how the facts came back; `SESSION_COMPLETE` | |
+| T41 | Quiz A: the build id (exam, recall-sourced tokens) | |
+| T42 | Quiz B: the exact lint message (exam) | |
+| T43 | the four parameters as TOML, "where we agreed" (under `ops/`) | |
+| T44 | the staging database "I told you about" (never given: `NOT-PROVIDED`) | |
+| T45 | one line on how the facts came back; `SESSION_COMPLETE` | |
 
 The excerpts are realistic service logs (timestamps, services, routes, statuses, request ids,
-warnings and errors), 12,094–12,315 characters and about 95 lines each, 584K characters in all,
+warnings and errors), about 12,100–12,300 characters and about 95 lines each (389K characters in
+all for the self-check seed; 584K for the 48 excerpts of the build-stage version),
 with the `AUDIT-TOKEN` line between 40 % and 60 % of the file. Six of them carry a deploy event with
 another `bx-…` build id and three a CI lint finding in the same format as the real one (decoys);
 neither real value occurs in any excerpt. All values are generated from the group's seed.
 
-Oracle (`verify.py`): pass = substrate (seven names in `core.py`, `frames.py` fixed, all 48 tokens
+Oracle (`verify.py`): pass = substrate (seven names in `core.py`, `frames.py` fixed, all 32 tokens
 in `digest.md`, both sources gone) and all four memory items correct. Items: `build_id` and
 `lint_error` (correct, wrong, decoy, hedged, cannot_recover, missing); `deploy` (correct only with
 all four values in a TOML file under `ops/`; misplaced; wrong); `trap` (correct = NOT-PROVIDED;
@@ -313,7 +324,7 @@ Rules, applied top to bottom; the first that matches decides:
 | 6 | N ≥ 1.25 and L > 0.80 | **not worth it** (large overhead on ordinary sessions without a large long-session saving) |
 | 7 | otherwise | **inconclusive**; the case L ≤ 0.80 with N > 1.10 is reported as "a long-session saving bought with short-session overhead" |
 
-Reading: a 20 % saving on the 61-turn session with no more than 10 % overhead on ordinary
+Reading: a 20 % saving on the long session (f1) with no more than 10 % overhead on ordinary
 sessions, at no loss of quality, is "worth it". No meaningful long-session saving with no saving
 elsewhere, or any quality loss beyond one unit, is "not worth it". STOCK-COMPACT and every other
 quantity of §5 are reported and never change the verdict. The verdict says what was observed on
@@ -338,6 +349,10 @@ running turn is polled every second; a compaction summarizer call is visible to 
 the turn's end (its usage is not in the `--json` stream), which the $0.60 margin covers: a typical
 summary call (about 57K mostly cached input, a few thousand output tokens) costs about $0.01 at peak,
 the worst case (the 65,536-token summary cap) about $0.09.
+
+**The figures below are the build-stage estimate, kept for the record; the pilot measured f1 at
+1.4x (SLICE) and about 2x (STOCK, projected) these figures, and the re-estimate of §12.4 replaces
+them.**
 
 Estimate (peak). Short tasks from the F-only A/B's medians for the slice control on 0.2.0-rc.2 (c1
 $0.159, c2 $0.009, r1 $0.010, r2 $0.020, r3 $0.008, r4 $0.005, r5 $0.013: $0.224 per rep), with
@@ -368,7 +383,10 @@ session allows.
 
 Uncertainty: f1's tokens per excerpt are estimated, not measured (±50 % moves the batch by about
 ±$1.2); c1 in the stock arms is assumed, not measured. The pilot measures both before the freeze
-(§12.2).
+(§12.2). Measured (§12.3): an excerpt read adds 6,886 tokens to STOCK's request (12.1K characters
+of log plus read framing and the digest step, about 1.8 characters per token: hex request ids
+tokenize densely), with 5 requests per read
+turn in STOCK and 5–7 in SLICE; c1 was not piloted and stays assumed.
 
 ## 10. Build evidence (offline, no key)
 
@@ -502,8 +520,37 @@ typecheck, `check:docs` and `check:size` (3.02 MiB, 281 files) pass.
 ### 10.9 Not evidence
 
 `smoke1` (hello and r1, three arms, before the f1 task existed in the run) and a scratch
-plugin-add probe (`AB/scratch/plugadd`: the bare STOCK and SLICE dumps of §10.1) are kept under
-the A/B root; they are build checks, not part of any comparison.
+plugin-add probe (`AB/scratch/plugadd`: the bare STOCK and SLICE dumps of §10.1, moved with
+`AB/build` into `vault/prekey/` before the key was linked) are kept; they are build checks, not
+part of any comparison. The same holds for the offline checks after the pilot (§10.10, §10.11).
+
+### 10.10 Account stop (harness change after pilot part 1)
+
+The pilot showed that the driver treated the provider's HTTP 402 "Insufficient Balance" (error code
+`QUOTA`) like any infra failure: each cell was retried once, charged $0.05 per refused attempt as an
+unpriced record (the refused requests are not billed), recorded as `invalid` (which `--resume`
+skips) and the run went on to the next cell. In a 69-cell batch an exhausted balance would have
+marked up to 20 cells invalid before the 40-charge stop. Now an infra turn whose code is
+account-level (`QUOTA`, `ACCOUNT_QUOTA`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `AUTH`) ends
+its cell as `account_stop`: no retry, the attempt does not count against `--max-attempts`, the cell
+is kept as `cells/<cell>.account_stop.json` (skipped by the report and the fingerprints), no
+further cell starts, the run exits 2, and `--resume` reruns the cell. Transient codes (`TRANSPORT`,
+`RATE_LIMIT`, `SERVER`, …) are retried as before. Measurement, validity and pricing are
+unchanged.
+
+Checked offline (`acct-offline`, mock with `AB_MOCK_QUOTA_FILE`, which makes every request end in a
+`QUOTA` error while the named file exists): with the file present the first cell (r1, SLICE) ended
+`account_stop` after turn 1, no other cell started, exit 2, "STOPPED (account)"; with the file
+removed, `--resume` reran it as attempt 2 and completed the other three cells, exit 0. Unit tests:
+`test_run_ab.py` 26/26 (3 new in `AccountStop`).
+
+### 10.11 Resized f1, offline (`offline3-f1`)
+
+f1 at 32 excerpts (§12.4) in all three arms with the mock, validated against the fingerprints:
+3/3 cells valid on the first attempt, 45/45 turns each, delivery of T3 and T5 in every arm, exams
+at T41 and T42; STOCK-COMPACT 2 summaries and 63 prunes, STOCK none, SLICE 64 folds; 104–108 s per
+cell. `selfcheck_tasks.py` 40/40 on the resized task (32 tokens, every memory class, seeding,
+decoys present, oracle absent from the excerpts).
 
 ## 11. Risks and limits
 
@@ -533,6 +580,18 @@ the A/B root; they are build checks, not part of any comparison.
   makes the pair memory-ineligible.
 - **External validity:** one host version, one model route, headless one-process-per-turn,
   hermetic composition (no web, subagents, skills or goals).
+- **f1 is resized by the pilot rule** (§12.4): 32 excerpts, 45 turns, STOCK's request peaking at
+  about 232K tokens instead of about 343K. The long-session saving the policy can show is
+  correspondingly smaller than at 61 turns; L ≤ 0.80 is still the bar.
+- **SLICE re-reads every excerpt once through `expand_result`.** SLICE folds a large read inside
+  its turn; f1's prompt demands that the whole excerpt pass before the model's eyes, so in the pilot
+  the model expanded the fold in 48 of 48 read turns (50 `expand_result` calls in all), about one
+  extra step and 1.5K extra missed tokens per read turn. A prompt that did not demand full reads
+  might let SLICE skip that step; this is a property of the task, reported, not corrected.
+- **STOCK's f1 quiz turns never ran on the real model.** The pilot's STOCK f1 stopped at T23 (the
+  account balance); the batch's first STOCK f1 cell is the first real run of the quizzes over a
+  long raw transcript. The oracle and turns are identical across arms and SLICE passed all four
+  items in the pilot.
 
 ## 12. Frozen parameters and pilot (to be filled before the batch)
 
@@ -569,6 +628,105 @@ to $7.00 or less is the last applied:
 If P is still above $8.65 (cap − reserve − margin), no batch runs and the record says so. The
 primary design (SLICE and STOCK, f1 2 reps, the seven short tasks 3 reps, 23 pairs, the minimums
 of §6) is never reduced by (c).
+
+### 12.3 Pilot part 1 (2026-10-23, 08:49–09:13 UTC, peak hours)
+
+The key was linked at 08:49 UTC into the three template homes (`ln -s ~/.dsh/.env`, never read).
+Harness `d3da709` (the pilot plan and the ladder above, declared before any paid call; code as
+`9d506ca`). Every paid run passed `--block` for each sibling directory of the A/B root in the
+scratchpad (31 directories, never the `node_modules` symlink); `AB/scratch` and `AB/build` had
+been moved into `vault/prekey/`. Summary data: [pilot.json](ab/slice-vs-stock-2026-10-23/pilot.json).
+
+**Warmup** (`warm`, `hello` x 2 reps x 3 arms, seed 20261023, `--fingerprints none`): 6/6 valid,
+$0.0038. From rep 2, step 1 read 4,480 cached tokens in SLICE (minimum 4,000) and 2,688 in STOCK
+and in STOCK-COMPACT (minimum 2,000). `fingerprints --compare` against the offline fingerprints:
+nothing changed, no delta mismatch (system prompt `3f484053…` / `46c592c8…`, 12 / 16 tools, prefix
+10,192 / 17,974 characters): the empty persona keeps the prefix independent of the route. In
+provider tokens the request prefix is 2,992 (STOCK) and 4,826 (SLICE, +1,834).
+
+**Pilot** (`pilot`, seed 20261023, `--arms stock,slice --tasks r1,r2,r3,r4,r5,f1 --reps 1`; f1 at
+its build-stage size, 61 turns). Costs at peak:
+
+| task | arm | outcome | cost | requests | peak / mean request (tokens) | cache hit | wall |
+|---|---|---|---|---|---|---|---|
+| r1 | SLICE | pass (recall: `expand_result`) | $0.0103 | 18 | 11,352 / 8,467 | 94.2 % | 47 s |
+| r1 | STOCK | pass | $0.0092 | 20 | 11,668 / 7,908 | 94.5 % | 45 s |
+| r2 | SLICE | pass (recall: `expand_result` x 2) | $0.0234 | 30 | 14,601 / 10,183 | 95.2 % | 89 s |
+| r2 | STOCK | pass | $0.0286 | 28 | 25,009 / 14,252 | 97.1 % | 103 s |
+| r3 | SLICE | pass (recall: `recall_step`; T1 read folded) | $0.0080 | 14 | 12,570 / 7,064 | 89.8 % | 29 s |
+| r3 | STOCK | pass | $0.0090 | 15 | 12,677 / 10,194 | 94.0 % | 32 s |
+| r4 | SLICE | pass (recall: `expand_result` x 2) | $0.0050 | 13 | 6,874 / 5,810 | 95.1 % | 27 s |
+| r4 | STOCK | pass | $0.0063 | 13 | 7,079 / 4,827 | 94.9 % | 33 s |
+| f1 (61) | SLICE | pass, 4 of 4 memory items correct (build id and lint message recall-sourced) | $0.4191 | 308 | 69,136 / 35,402 | 96.0 % | 700 s |
+| f1 (61) | STOCK | refused at T23 (see below); T1–T22 completed | $0.1431 (T1–T22) | 104 | 119,214 at T22 | 98.0 % | 209 s |
+| r5 | SLICE, STOCK | refused at T1 in both attempts | – | – | – | – | – |
+
+Every completed cell was valid on its first attempt: delivery of every delivery turn, r3's fold
+in SLICE, no flagged call, leak or oracle via the file system, and no compaction, prune, native
+spill or context-limit error in any cell. STOCK answered every exam from its raw history.
+
+f1 in detail. STOCK's request grew by **6,886 tokens per excerpt read** (9,035 at T6, 119,214 at
+T22, each read turn +6,500 to +7,150), with exactly 5 requests in every read turn; the cost of a
+read turn rose from $0.0050 (T7) to $0.0120 (T22), $0.00048 more per read. SLICE's request stayed
+bounded: 15,239 at T7, 28,329 at T22, 64,586 at T56 (about 1,030 more per read turn: one tape entry
+per sealed turn), 69,136 at its peak (T58). SLICE needed 5–7 requests per read turn: it folds each
+excerpt read inside its turn, and the model then called `expand_result` on the fold in 48 of 48 read
+turns (§11); per read turn SLICE missed about 8,400 tokens (STOCK 6,900) and wrote about 1,000
+output tokens (STOCK 560). Projected over the full 61 turns, STOCK's f1 would have cost **$0.935**
+(linear fit of the 16 measured read turns; the coding and quiz turns at 5 requests over the full
+context, about 343K tokens at T57), against SLICE's measured $0.419.
+
+**The account balance.** From 09:12:59 UTC every request was refused with HTTP 402 "Insufficient
+Balance" (code `QUOTA`): STOCK f1 at T23 (after one billed request), its retry at T1, and r5 in
+both arms, both attempts, at T1. The driver retried and moved on (fixed afterwards, §10.10). The
+ledger holds **$0.9663** at peak for warmup and pilot, of which $0.30 are six $0.05 unpriced
+charges for refused requests that were not billed (priced usage $0.666); the ledger is not edited.
+No paid call can run until the owner tops up the account.
+
+### 12.4 Decisions under §12.2, taken on part 1
+
+**(a) fires: f1 is resized to 32 excerpts (45 turns).** STOCK's f1 cell did not finish, so its
+cost is established by projection from its 22 measured turns, not by a completed cell: $0.935
+> $0.70. The projection stays above $0.70 unless the model's requests per turn fell from the
+observed 5 to about 3.2 or fewer for all 39 remaining turns (32 of them reads; a read turn needs at
+least 3: the read, the append and the reply). The token condition does not fire (6,886
+< 7,000). The ladder of (c) leads to the same resize on its own: with 61-turn f1, P is $9.70, and $8.89
+after step 1. The resized task is §4.1 (prompts T41–T56 of the build-stage version removed, the
+quizzes renumbered T41–T45, `N_BLOBS` 32, exams T41 and T42); nothing else in f1 changed (offline
+checks §10.11).
+
+**(b)** No task failed in STOCK: r1–r4 passed in both arms. r5 has not run in either arm on this
+host (part 2), and STOCK's f1 quiz turns have not run on the real model (§11).
+
+**(c) Provisional, to be recomputed after part 2.** Inputs at peak: spend $0.966; f1 per cell at
+45 turns: STOCK $0.511 (the projection above at 32 reads; peak request about 232K tokens), SLICE
+$0.275 (the pilot's measured costs of T1–T6, its first 32 read turns, T23, T40 and the five quiz
+turns), STOCK-COMPACT at STOCK's $0.511 (not piloted, as the rule says); short tasks per rep: SLICE
+$0.228 (r1–r4 measured, $0.047; r5, c1, c2 at §9's $0.013, $0.159, $0.009), STOCK and STOCK-COMPACT
+$0.270 (r1–r4 measured, $0.053; r5, c1, c2 at x 1.2, since the pilot's ΣSTOCK/ΣSLICE over r1–r4 is
+1.135).
+
+| ladder | batch | arbitration | P |
+|---|---|---|---|
+| full design, f1 resized by (a) | $4.897 | $1.284 | $7.147 |
+| step 1: STOCK-COMPACT runs f1 only | $4.087 | $1.284 | **$6.337** |
+
+So, on part 1, step 1 applies: STOCK-COMPACT runs f1 only (2 cells); SLICE and STOCK keep the
+primary design (f1 2 reps, the seven short tasks 3 reps, 23 pairs). With part 2 run and
+STOCK-COMPACT's f1 measured at about the modelled $0.44, P is about $6.7 after step 1; if its
+measured f1 cost exceeds about $0.55, step 3 (STOCK-COMPACT dropped) applies too.
+
+### 12.5 What remains before the freeze
+
+1. **The owner tops up the DeepSeek account** (an agent cannot). The remaining spend at peak:
+   part 2 about $0.5, the batch about $4.1, the arbitration about $1.3 if triggered, so up to about
+   $5.9 of the $9.03 left under the cap.
+2. **Pilot part 2** (batch `pilot2`, seed 20261023, the same `--block` list):
+   `--arms stock,slice --tasks r5 --reps 1`, then `--arms stock-compact --tasks f1 --reps 1` (the
+   resized f1): checks as in §3 step 5, compaction firing and detected on the real model.
+3. Recompute (c) with part 2's spend and STOCK-COMPACT's measured f1 cost; apply the ladder.
+4. The freeze commit fills §12.1 (harness commit, host digest, fingerprints, price sheet, budget,
+   the batch commands with seeds, the ladder's outcome) and freezes §1–§12. Only then the batch.
 
 ## 13. Results
 

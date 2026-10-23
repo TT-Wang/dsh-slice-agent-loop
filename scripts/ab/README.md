@@ -324,7 +324,7 @@ plugin from main with the host's own context management, on DSH 0.2.1-rc.2, with
 - **Seeded tasks.** A task with `"seeded": true` gets `AB_TASK_SEED` at setup, derived from a salt in
   `vault/task-seed-salt` plus (batch, task, rep), so every arm of a group sees identical content and no oracle value
   exists outside the workdir and the vault. With `"truth_specs": true` its exam and delivery token specs come from
-  the truth sidecar it writes (`<workdir>.truth.json`). Task f1 (`svs_f1_flood_recall`, 61 turns) is the first.
+  the truth sidecar it writes (`<workdir>.truth.json`). Task f1 (`svs_f1_flood_recall`, 45 turns since the pilot resize; 61 in the build stage) is the first.
 - **Metrics.** `ab_metrics` adds the compaction summarizer's own calls (their usage sits on `compaction/summary`,
   not on an `assistant/message`) to the billed tokens, the cost and the budget's log figure (a failed compaction
   attempt is an unpriced record); a `compaction` section (summaries, failed attempts, prunes and pruned results,
@@ -333,7 +333,13 @@ plugin from main with the host's own context management, on DSH 0.2.1-rc.2, with
   per-turn peak request size; and, per exam, whether history was compacted or pruned before the exam turn.
 - **Offline adapter.** The mock declares deepseek-flash's capacity (window 1,000,000, maxTokens 256,000), answers
   the summarizer's `purpose: 'compaction'` request with a short text, and with `AB_MOCK_PRESSURE_TOKENS=N` reports N
-  input tokens on every usage sample, which the token meter reuses as pressure: the forced-compaction dry runs.
+  input tokens on every usage sample, which the token meter reuses as pressure: the forced-compaction dry runs. With
+  `AB_MOCK_QUOTA_FILE=<path>` every request ends in a `QUOTA` error while that file exists (the account stop below).
+- **Account stop.** An infra turn with an account-level code (`QUOTA`, which is how DeepSeek's HTTP 402 "Insufficient
+  Balance" arrives, `ACCOUNT_QUOTA`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `AUTH`) ends its cell as `account_stop`:
+  not retried, not counted against `--max-attempts`, kept as `cells/<cell>.account_stop.json`, and the run stops with
+  exit 2; `--resume` reruns the cell once the account is fixed. Before this (the pilot of 2026-10-23) such cells were
+  retried, recorded `invalid` and skipped by `--resume`; rerun those without `--resume`.
 
 Runbook (offline part; the paid part is in the record, §5):
 
