@@ -15,6 +15,12 @@ usage:
       With the given salt, run_ab.task_seed and f1's setup() produce, for every f1 rep index, the same truth sidecar
       (sha256) as the packed workdir of its baseline cell (both arms), and the same data files. Runs in a temporary
       directory that is removed afterwards; prints hashes only, never a value.
+  svs2_checks.py dumps --ab AB [--gates G] [--archive docs/ab/slice-vs-stock-2026-10-23] [--out FILE]
+      Each prepared template home's --dump-config (AB/vault/dump-<arm>.yml, written by run_ab.py prepare) against the
+      baseline's archived dumps, paths normalized (the arm's home to the baseline arm's, then the A/B root to <AB>, as
+      the archive spells them): every arm of gates `arms` against dump-slice.yml differs in exactly the rows its
+      structure declares as dump_rows_vs_slice (none: line for line equal), and the stock home, when prepared (for this
+      comparison only; it never runs), equals dump-stock.yml line for line. The declared rows' text is reported.
 Exit 0 only if every check holds.
 """
 import argparse
@@ -168,8 +174,56 @@ def check_f1_content(gates, salt, archive=None):
     return res
 
 
+DUMP_ARCHIVE = os.path.join(HERE, "..", "..", "docs", "ab", "slice-vs-stock-2026-10-23")
+
+
+def normalize_dump(text, ab, arm, as_arm):
+    """A dump as the archive spells it: the arm's own home renamed to the baseline arm's, the A/B root to <AB>."""
+    ab = os.path.realpath(ab)
+    text = text.replace(run_ab.template_home(ab, arm) + os.sep, run_ab.template_home(ab, as_arm) + os.sep)
+    return text.replace(ab + os.sep, "<AB>" + os.sep)
+
+
+def compare_dump(base_text, arm_text, declared):
+    differ, only_base, only_arm, unexpected = run_ab.compare_dumps(base_text, arm_text, declared)
+    rows = run_ab.dump_rows(arm_text)[0]
+    ok = not unexpected and sorted(differ + only_base + only_arm) == sorted(declared)
+    if not declared:
+        ok = ok and base_text == arm_text
+    return {"ok": ok, "identical_text": base_text == arm_text, "differing_rows": differ, "rows_only_in_baseline": only_base,
+            "rows_only_in_arm": only_arm, "declared": list(declared), "unexpected": unexpected,
+            "declared_rows_text": {r: rows.get(r) for r in declared}}
+
+
+def check_dumps(gates, ab, archive):
+    archive = os.path.realpath(archive or DUMP_ARCHIVE)
+    res = {"archive": archive, "arms": {}, "ok": True}
+    with open(os.path.join(archive, "dump-slice.yml"), encoding="utf-8") as fh:
+        slice_text = fh.read()
+    for arm in gates["arms"]:
+        path = run_ab.vault(ab, f"dump-{arm}.yml")
+        declared = (gates["structure"].get(arm) or {}).get("dump_rows_vs_slice")
+        if declared is None or not os.path.exists(path):
+            res["arms"][arm] = {"ok": False, "note": "no dump_rows_vs_slice in the gates structure" if declared is None else f"{path} missing (run prepare)"}
+            res["ok"] = False
+            continue
+        with open(path, encoding="utf-8") as fh:
+            r = compare_dump(slice_text, normalize_dump(fh.read(), ab, arm, "slice"), declared)
+        res["arms"][arm] = dict(r, against="dump-slice.yml")
+        res["ok"] = res["ok"] and r["ok"]
+    stock = run_ab.vault(ab, "dump-stock.yml")
+    if os.path.exists(stock):
+        with open(os.path.join(archive, "dump-stock.yml"), encoding="utf-8") as fh:
+            base = fh.read()
+        with open(stock, encoding="utf-8") as fh:
+            r = compare_dump(base, normalize_dump(fh.read(), ab, "stock", "stock"), [])
+        res["arms"]["stock"] = dict(r, against="dump-stock.yml")
+        res["ok"] = res["ok"] and r["ok"]
+    return res
+
+
 def main(argv):
-    sub = argv[0] if argv and argv[0] in ("conditions", "host", "f1-content") else None
+    sub = argv[0] if argv and argv[0] in ("conditions", "host", "f1-content", "dumps") else None
     if sub is None:
         print(__doc__)
         return 2
@@ -179,6 +233,10 @@ def main(argv):
         ap.add_argument("--tree", default=None, help="git tree of scripts/ab to compare with (default: gates baseline_conditions.scripts_ab_tree)")
     elif sub == "host":
         ap.add_argument("--host", required=True)
+    elif sub == "dumps":
+        ap.add_argument("--ab", required=True)
+        ap.add_argument("--archive")
+        ap.add_argument("--out")
     else:
         ap.add_argument("--salt", required=True)
         ap.add_argument("--archive")
@@ -188,6 +246,10 @@ def main(argv):
         res = check_conditions(gates, a.tree or gates["pairing"]["baseline_conditions"]["scripts_ab_tree"])
     elif sub == "host":
         res = check_host(gates, a.host)
+    elif sub == "dumps":
+        res = check_dumps(gates, a.ab, a.archive)
+        if a.out:
+            run_ab.write_json(a.out, res)
     else:
         res = check_f1_content(gates, a.salt, a.archive)
     print(json.dumps(res, indent=1))

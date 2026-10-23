@@ -97,7 +97,8 @@ class Guards(unittest.TestCase):
         self.assertIs(A.expected_structure(dict(ctx, structure_as={}), "a"), GATES["structure"]["a"])
 
     def test_markers_from_the_structure(self):
-        self.assertEqual(A.structure_markers(GATES["structure"]), ["You are sliceagent", "A recorded file read is not a current file"])
+        self.assertEqual(A.structure_markers(GATES["structure"]),
+                         ["You are sliceagent", "A recorded file read is not a current file", "never re-read a file just to be safe"])
 
 
 class Layout(unittest.TestCase):
@@ -150,18 +151,19 @@ class MarkerValidity(unittest.TestCase):
     def test_per_arm_markers(self):
         ctx = {"fingerprints": None, "structure": GATES["structure"]}
         turn = {"turn": 1, "exit": 0, "infra": False, "turn_end": {"kind": "completed"}}
-        persona, rule = "You are sliceagent", "A recorded file read is not a current file"
+        persona, rule, guard = "You are sliceagent", "A recorded file read is not a current file", "never re-read a file just to be safe"
         meta = {"turns": 1}
-        self.assertEqual(A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: False})), [])
-        self.assertEqual(A.validity(ctx, "b", meta, [turn], self.row({persona: False, rule: False})), [])
-        self.assertEqual(A.validity(ctx, "c", meta, [turn], self.row({persona: False, rule: False})), [])
-        r = A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: True}))       # the main build: A must not carry the rule
+        self.assertEqual(A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: False, guard: True})), [])
+        self.assertEqual(A.validity(ctx, "b", meta, [turn], self.row({persona: False, rule: False, guard: True})), [])
+        self.assertEqual(A.validity(ctx, "c", meta, [turn], self.row({persona: False, rule: False, guard: True})), [])
+        r = A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: True, guard: False}))  # the main build as A
         self.assertTrue(any("excluded marker" in x for x in r), r)
-        r = A.validity(ctx, "b", meta, [turn], self.row({persona: True, rule: False}))      # B without persona
+        self.assertTrue(any("lacks the declared marker 'never re-read" in x for x in r), r)
+        r = A.validity(ctx, "b", meta, [turn], self.row({persona: True, rule: False, guard: True}))  # B without persona
         self.assertTrue(any("excluded marker 'You are sliceagent'" in x for x in r), r)
         r = A.validity(ctx, "a", meta, [turn], self.row({}))                                # markers not computed: fails closed
         self.assertTrue(any("not computed" in x for x in r), r)
-        r = A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: False}, tools=SLICE_TOOLS[:-1] + ["web_fetch"]))
+        r = A.validity(ctx, "a", meta, [turn], self.row({persona: True, rule: False, guard: True}, tools=SLICE_TOOLS[:-1] + ["web_fetch"]))
         self.assertTrue(any("are not the declared 16" in x for x in r), r)
 
     def test_metrics_compute_markers(self):
@@ -176,6 +178,70 @@ def call(turn, name, **args):
 
 def result(turn, text):
     return {"type": "tool/result", "data": {"turn": turn, "message": {"content": [{"type": "text", "text": text}]}}}
+
+
+class Dumps(unittest.TestCase):
+    """svs2_checks.py dumps: each arm's dump against the baseline's archived dump-slice.yml, paths normalized."""
+    ROW = "# == @dsh-external/dsh-slice-agent-loop\n- id: slice-agent-loop\n  name: '@dsh-external/dsh-slice-agent-loop'\n"
+
+    def setUp(self):
+        import svs2_checks
+        self.C = svs2_checks
+        self.d = tempfile.mkdtemp()
+        self.ab = os.path.join(self.d, "ab")
+        self.archive = os.path.join(self.d, "archive")
+        os.makedirs(os.path.join(self.ab, "vault"))
+        os.makedirs(self.archive)
+        head = "# == @deepseek-ai/dsh-base, patched by <AB>/vault/homes/{arm}/profiles/ab/cordis.patch.yml\n- id: system-prompt\n  name: x\n"
+        with open(os.path.join(self.archive, "dump-slice.yml"), "w") as fh:
+            fh.write(head.format(arm="slice") + self.ROW)
+        with open(os.path.join(self.archive, "dump-stock.yml"), "w") as fh:
+            fh.write(head.format(arm="stock"))
+        home = lambda arm: os.path.join(os.path.realpath(self.ab), "vault", "homes", arm)
+        for arm, extra in (("a", ""), ("b", ""), ("c", "  config:\n    history:\n      workingSet: {}\n")):
+            with open(os.path.join(self.ab, "vault", f"dump-{arm}.yml"), "w") as fh:
+                fh.write(head.replace("<AB>/vault/homes/{arm}", home(arm)) + self.ROW + extra)
+        with open(os.path.join(self.ab, "vault", "dump-stock.yml"), "w") as fh:
+            fh.write(head.replace("<AB>/vault/homes/{arm}", home("stock")))
+
+    def tearDown(self):
+        shutil.rmtree(self.d)
+
+    def test_arms_against_the_archived_dumps(self):
+        res = self.C.check_dumps(GATES, self.ab, self.archive)
+        self.assertTrue(res["ok"], res)
+        self.assertTrue(res["arms"]["a"]["identical_text"] and res["arms"]["b"]["identical_text"] and res["arms"]["stock"]["identical_text"])
+        self.assertEqual(res["arms"]["c"]["differing_rows"], ["slice-agent-loop"])
+        self.assertIn("      workingSet: {}", res["arms"]["c"]["declared_rows_text"]["slice-agent-loop"])
+
+    def test_an_undeclared_difference_fails(self):
+        with open(os.path.join(self.ab, "vault", "dump-b.yml"), "a") as fh:
+            fh.write("  config:\n    history:\n      workingSet: {}\n")
+        res = self.C.check_dumps(GATES, self.ab, self.archive)
+        self.assertFalse(res["ok"])
+        self.assertEqual(res["arms"]["b"]["unexpected"], ["slice-agent-loop"])
+        os.remove(os.path.join(self.ab, "vault", "dump-c.yml"))
+        self.assertIn("missing", self.C.check_dumps(GATES, self.ab, self.archive)["arms"]["c"]["note"])
+
+
+class OfflineAdapter(unittest.TestCase):
+    def test_variant_is_copied_beside_the_base(self):
+        d = tempfile.mkdtemp()
+        old = os.environ.pop("AB_MOCK_ADAPTER", None)
+        try:
+            self.assertEqual(os.path.basename(A.write_offline_adapter(d)), "mock-llm.mjs")
+            self.assertEqual(sorted(os.listdir(os.path.join(d, "mock"))), ["mock-llm.mjs", "package.json"])
+            os.environ["AB_MOCK_ADAPTER"] = "mock-llm-edit.mjs"
+            self.assertEqual(os.path.basename(A.write_offline_adapter(d)), "mock-llm-edit.mjs")
+            self.assertEqual(sorted(os.listdir(os.path.join(d, "mock"))), ["mock-llm-edit.mjs", "mock-llm.mjs", "package.json"])
+            os.environ["AB_MOCK_ADAPTER"] = "../evil.mjs"
+            with self.assertRaises(SystemExit):
+                A.write_offline_adapter(d)
+        finally:
+            os.environ.pop("AB_MOCK_ADAPTER", None)
+            if old is not None:
+                os.environ["AB_MOCK_ADAPTER"] = old
+            shutil.rmtree(d)
 
 
 class Rereads(unittest.TestCase):

@@ -403,8 +403,18 @@ What it changes in this harness:
 - **Guards.** A paid run may use only gates `run_arms_only` (a, b, c). `--structure-as ARM=OTHER` (offline only)
   validates a stand-in arm against another arm's structure, so the harness can be dry-run before the arms are packed.
 - **Validity.** Gates structure `tool_names` (the exact 16 names) and system-prompt markers: `system_contains` and
-  `system_lacks` strings that the row's `validity.system_markers` must show present or absent (A keeps the slice
-  persona and drops "A recorded file read is not a current file"; B and C drop both).
+  `system_lacks` strings that the row's `validity.system_markers` must show present or absent (A, B and C carry the
+  edit-guard rule's "never re-read a file just to be safe" and lack "A recorded file read is not a current file"; A
+  keeps the slice persona "You are sliceagent", B and C lack it).
+- **Dumps against the baseline.** `svs2_checks.py dumps --ab $AB` compares each prepared home's `--dump-config` with
+  the baseline's archived `docs/ab/slice-vs-stock-2026-10-23/dump-slice.yml` (paths normalized as the archive spells
+  them): A and B must equal it line for line, C may differ only in the `slice-agent-loop` row (gates structure
+  `dump_rows_vs_slice`; C's tarball ships that row with `history: {workingSet: {}}`), and the stock home, prepared for
+  the comparison only, must equal `dump-stock.yml`.
+- **Offline adapter variant.** `AB_MOCK_ADAPTER=mock-llm-edit.mjs` (offline only, recorded in the manifest's
+  `mock_env`) mounts a wrapper of `mock-llm.mjs` that, before the closing text of a turn, reads the first `.py` file the
+  prompt names (c1: `calc.py`) and edits one line of it, so a dry run shows arm C keeping that read and edit raw.
+  `mock-llm.mjs` itself is unchanged (a condition file).
 - **Metrics.** `rereads`: every read classified as first, cross_turn (the first read in a turn of a file seen in an
   earlier turn), same_turn or after_own_edit, plus edits/writes, bash writes and the host's FS_NOT_OBSERVED /
   FS_STALE_VERSION refusals (the definitions of the c1 follow-up analysis; on the baseline's c1 logs: cross-turn 27
@@ -431,9 +441,12 @@ python3 $H/svs2_checks.py host --host $AB/host
 python3 $H/svs2_checks.py conditions
 python3 $H/run_ab.py prepare --ab-root $AB --arm stock=none --arm a=<a.tgz> --arm b=<b.tgz> --arm c=<c.tgz> \
   --overlay $H/profile/eval-neutral.patch.yml --gates $G
+python3 $H/svs2_checks.py dumps --ab $AB
+cp <baseline archive>/vault/task-seed-salt $AB/vault/task-seed-salt && chmod 600 $AB/vault/task-seed-salt
 python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks hello --reps 1 --batch offline-fp --fingerprints none
 python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/offline-fp --out $AB/vault/fingerprints.json
 python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks c1,c2,r2,f1 --reps 4 --reps-from-gates --batch offline
+AB_MOCK_ADAPTER=mock-llm-edit.mjs python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks c1 --reps 1 --batch offline-edit
 python3 $H/run_ab.py isolation-probe --ab-root $AB --gates $G --arms a,b,c --target-batch offline
 python3 $H/svs2_report.py import-baseline --out $AB/vault/baseline
 python3 $H/svs2_report.py report $AB/vault/results/offline --baseline $AB/vault/baseline --out $AB/vault/results/offline

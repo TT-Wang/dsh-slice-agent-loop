@@ -14,22 +14,22 @@
   "_note": "One cell at a time. Per (task, rep) the three arms run back to back; the first arm is arms[(rep - 1 + seed + i) % 3], i the task's index in unit.tasks, so it rotates from rep to rep and from task to task (run_ab.arm_order with rotation_offset). A, B and C are interleaved in one batch; the baselines never run."
  },
  "structure": {
-  "_note": "Manipulation checks per cell (run_ab.py validity) and per template home (prepare: each arm's dump differs from stock's only in the slice row). stock and slice are the baseline arms of 2026-10-23 (imported, never run; their entries serve the import and the offline stand-ins). a, b, c: 16 tools (the host's 12 plus the four recall tools), short tape header, long tool lines, compaction allowed and recorded. System-prompt markers: a keeps the slice persona and drops the 'recorded file read' sentence; b and c drop both. The marker of the new edit-guard rule is added when the arm texts are final (§2.2 of the record).",
+  "_note": "Manipulation checks per cell (run_ab.py validity) and per template home (prepare: each arm's dump differs from stock's only in the slice row). stock and slice are the baseline arms of 2026-10-23 (imported, never run; their entries serve the import and the offline stand-ins). a, b, c: 16 tools (the host's 12 plus the four recall tools), short tape header, long tool lines, compaction allowed and recorded. System-prompt markers: a keeps the slice persona; a, b and c carry the edit-guard rule's phrase 'never re-read a file just to be safe' and lack the 'recorded file read' sentence; b and c lack the persona; the baselines lack the new phrase. dump_rows_vs_slice: the rows an arm's dump may differ in from the baseline's archived dump-slice.yml (svs2_checks.py dumps): none for a and b, the slice-agent-loop row for c, whose packaged config turns history.workingSet on; stock's home, built for the comparison only, must equal the archived dump-stock.yml.",
   "stock": {"tools": 12, "header": null, "compaction": "allowed", "fold": false, "dump_rows": [], "warm_min_cache_read": 2000,
             "tool_names": ["bash", "edit", "exit_plan_mode", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "todo_write", "write"],
-            "system_lacks": ["You are sliceagent", "A recorded file read is not a current file"]},
+            "system_lacks": ["You are sliceagent", "A recorded file read is not a current file", "never re-read a file just to be safe"]},
   "slice": {"tools": 16, "header": "short", "tool_line": "long", "compaction": "allowed", "fold": false, "dump_rows": ["slice-agent-loop"], "warm_min_cache_read": 4000,
             "tool_names": ["bash", "edit", "exit_plan_mode", "expand_result", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "recall_search", "recall_step", "recall_turn", "todo_write", "write"],
-            "system_contains": ["You are sliceagent", "A recorded file read is not a current file"]},
+            "system_contains": ["You are sliceagent", "A recorded file read is not a current file"], "system_lacks": ["never re-read a file just to be safe"]},
   "a": {"tools": 16, "header": "short", "tool_line": "long", "compaction": "allowed", "fold": false, "dump_rows": ["slice-agent-loop"], "warm_min_cache_read": 4000,
         "tool_names": ["bash", "edit", "exit_plan_mode", "expand_result", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "recall_search", "recall_step", "recall_turn", "todo_write", "write"],
-        "system_contains": ["You are sliceagent"], "system_lacks": ["A recorded file read is not a current file"]},
+        "system_contains": ["You are sliceagent", "never re-read a file just to be safe"], "system_lacks": ["A recorded file read is not a current file"], "dump_rows_vs_slice": []},
   "b": {"tools": 16, "header": "short", "tool_line": "long", "compaction": "allowed", "fold": false, "dump_rows": ["slice-agent-loop"], "warm_min_cache_read": 4000,
         "tool_names": ["bash", "edit", "exit_plan_mode", "expand_result", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "recall_search", "recall_step", "recall_turn", "todo_write", "write"],
-        "system_lacks": ["You are sliceagent", "A recorded file read is not a current file"]},
+        "system_contains": ["never re-read a file just to be safe"], "system_lacks": ["You are sliceagent", "A recorded file read is not a current file"], "dump_rows_vs_slice": []},
   "c": {"tools": 16, "header": "short", "tool_line": "long", "compaction": "allowed", "fold": false, "dump_rows": ["slice-agent-loop"], "warm_min_cache_read": 4000,
         "tool_names": ["bash", "edit", "exit_plan_mode", "expand_result", "glob", "grep", "job_kill", "job_list", "job_output", "read", "read_image", "recall_search", "recall_step", "recall_turn", "todo_write", "write"],
-        "system_lacks": ["You are sliceagent", "A recorded file read is not a current file"]}
+        "system_contains": ["never re-read a file just to be safe"], "system_lacks": ["You are sliceagent", "A recorded file read is not a current file"], "dump_rows_vs_slice": ["slice-agent-loop"]}
  },
  "unit": {
   "tasks": ["c1", "c2", "r2", "f1"],

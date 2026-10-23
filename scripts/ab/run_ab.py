@@ -1233,16 +1233,26 @@ def cmd_host_digest(args):
     return 0 if ok else 1
 
 
+# Offline adapters AB_MOCK_ADAPTER may name; mock-llm-edit.mjs (the svs2 working-set demonstration) wraps mock-llm.mjs.
+MOCK_ADAPTERS = ("mock-llm.mjs", "mock-llm-edit.mjs")
+
+
 def write_offline_adapter(ab):
     """Copy the scripted adapter out of the worktree (which is blocked while turns run) into AB/mock/, next to a
-    package.json whose peers admit the host: the host attributes a path row to the nearest package.json above it."""
+    package.json whose peers admit the host: the host attributes a path row to the nearest package.json above it.
+    AB_MOCK_ADAPTER picks a variant from MOCK_ADAPTERS (default mock-llm.mjs, the only file copied then); a variant
+    is copied beside mock-llm.mjs, which it imports. The manifest's mock_env records the choice."""
+    adapter = os.environ.get("AB_MOCK_ADAPTER") or "mock-llm.mjs"
+    if adapter not in MOCK_ADAPTERS:
+        raise SystemExit(f"AB_MOCK_ADAPTER={adapter!r}: not one of {', '.join(MOCK_ADAPTERS)}")
     d = os.path.join(ab, MOCK)
     os.makedirs(d, exist_ok=True)
-    shutil.copy(os.path.join(HERE, "mock-llm.mjs"), os.path.join(d, "mock-llm.mjs"))
+    for name in sorted({"mock-llm.mjs", adapter}):
+        shutil.copy(os.path.join(HERE, name), os.path.join(d, name))
     root = load_json(os.path.join(REPO_ROOT, "package.json"), {})
     peers = {k: v for k, v in (root.get("peerDependencies") or {}).items() if k.startswith("@deepseek-ai/")}
     write_json(os.path.join(d, "package.json"), {"name": "ab-mock-llm", "private": True, "type": "module", "version": "0.0.0", "peerDependencies": peers})
-    return os.path.join(d, "mock-llm.mjs")
+    return os.path.join(d, adapter)
 
 
 def write_harness_plugins(ab):
