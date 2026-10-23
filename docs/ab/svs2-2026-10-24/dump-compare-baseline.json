@@ -1,0 +1,62 @@
+{
+ "archive": "$AB/wt-harness/docs/ab/slice-vs-stock-2026-10-23",
+ "arms": {
+  "a": {
+   "against": "dump-slice.yml",
+   "declared": [],
+   "declared_rows_text": {},
+   "differing_rows": [],
+   "identical_text": true,
+   "ok": true,
+   "rows_only_in_arm": [],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  },
+  "b": {
+   "against": "dump-slice.yml",
+   "declared": [],
+   "declared_rows_text": {},
+   "differing_rows": [],
+   "identical_text": true,
+   "ok": true,
+   "rows_only_in_arm": [],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  },
+  "c": {
+   "against": "dump-slice.yml",
+   "declared": [
+    "slice-agent-loop"
+   ],
+   "declared_rows_text": {
+    "slice-agent-loop": [
+     "- id: slice-agent-loop",
+     "  name: '@dsh-external/dsh-slice-agent-loop'",
+     "  config:",
+     "    history:",
+     "      workingSet: {}"
+    ]
+   },
+   "differing_rows": [
+    "slice-agent-loop"
+   ],
+   "identical_text": false,
+   "ok": true,
+   "rows_only_in_arm": [],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  },
+  "stock": {
+   "against": "dump-stock.yml",
+   "declared": [],
+   "declared_rows_text": {},
+   "differing_rows": [],
+   "identical_text": true,
+   "ok": true,
+   "rows_only_in_arm": [],
+   "rows_only_in_baseline": [],
+   "unexpected": []
+  }
+ },
+ "ok": true
+}

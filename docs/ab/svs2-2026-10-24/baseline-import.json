@@ -242,7 +242,7 @@
    "valid": true
   }
  ],
- "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+ "harness_commit": "fcca7c4bbb7deb64c4bb8f48545658728ee7cc02",
  "mismatches": {},
  "ok": true,
  "rereads": {
@@ -357,6 +357,7 @@
  },
  "system_markers": [
   "You are sliceagent",
-  "A recorded file read is not a current file"
+  "A recorded file read is not a current file",
+  "never re-read a file just to be safe"
  ]
 }

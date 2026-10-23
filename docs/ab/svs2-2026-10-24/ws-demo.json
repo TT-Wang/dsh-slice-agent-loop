@@ -1,0 +1,180 @@
+{
+ "_note": "Arm C working-set retention on the real host, offline. Batch offline-edit-all: c1 rep 1 x a, b, c with AB_MOCK_ADAPTER=mock-llm-edit.mjs (the mock reads and edits calc.py in every turn). kept_raw_by_turn: tool calls of sealed turns whose assistant and tool nodes are still raw on the final surface. prefix_check: surfaces at every model request (just before each appended assistant message): a node carried raw beside its turn's entries stays on every later request, and consecutive requests first differ after the earlier one's last entry. surface_chars_first_request: text characters on the surface (system prompt included) at step 1 of turns 1-8.",
+ "cells": {
+  "lh1_incremental_build.r1.a": {
+   "arm": "a",
+   "valid": true,
+   "turns": 8,
+   "edits": 8,
+   "kept_raw_by_turn": {},
+   "working_set_notes": [],
+   "kept_raw_entries": 0,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 0,
+    "cross_turn": 10,
+    "edits_writes": 8,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 18,
+    "same_turn": 6
+   }
+  },
+  "lh1_incremental_build.r1.b": {
+   "arm": "b",
+   "valid": true,
+   "turns": 8,
+   "edits": 8,
+   "kept_raw_by_turn": {},
+   "working_set_notes": [],
+   "kept_raw_entries": 0,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 0,
+    "cross_turn": 10,
+    "edits_writes": 8,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 18,
+    "same_turn": 6
+   }
+  },
+  "lh1_incremental_build.r1.c": {
+   "arm": "c",
+   "valid": true,
+   "turns": 8,
+   "edits": 8,
+   "kept_raw_by_turn": {
+    "1": [
+     "read calc.py (step 4)",
+     "edit calc.py (step 5)"
+    ],
+    "2": [
+     "read calc.py (step 3)",
+     "edit calc.py (step 4)"
+    ],
+    "3": [
+     "read calc.py (step 5)",
+     "edit calc.py (step 6)"
+    ],
+    "4": [
+     "read calc.py (step 3)",
+     "edit calc.py (step 4)"
+    ],
+    "5": [
+     "read calc.py (step 3)",
+     "edit calc.py (step 4)"
+    ],
+    "6": [
+     "read calc.py (step 5)",
+     "edit calc.py (step 6)"
+    ],
+    "7": [
+     "read calc.py (step 5)",
+     "edit calc.py (step 6)"
+    ]
+   },
+   "working_set_notes": [
+    "[slice note · working set: step(s) 4, 5 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 3, 4 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 5, 6 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 3, 4 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 3, 4 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 5, 6 of this turn kept raw in place for calc.py]",
+    "[slice note · working set: step(s) 5, 6 of this turn kept raw in place for calc.py]"
+   ],
+   "kept_raw_entries": 7,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 0,
+    "cross_turn": 10,
+    "edits_writes": 8,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 18,
+    "same_turn": 6
+   }
+  }
+ },
+ "prefix_check": {
+  "lh1_incremental_build.r1.a": {
+   "requests": 49,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": []
+  },
+  "lh1_incremental_build.r1.b": {
+   "requests": 49,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": []
+  },
+  "lh1_incremental_build.r1.c": {
+   "requests": 49,
+   "nodes_kept_raw_beside_entries": 28,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": []
+  }
+ },
+ "surface_chars_first_request": {
+  "a": [
+   5430,
+   6838,
+   8147,
+   9563,
+   10913,
+   12552,
+   14373,
+   16319
+  ],
+  "b": [
+   5332,
+   6740,
+   8049,
+   9465,
+   10815,
+   12454,
+   14275,
+   16221
+  ],
+  "c": [
+   5332,
+   8527,
+   11622,
+   14899,
+   18137,
+   21718,
+   25559,
+   29578
+  ]
+ },
+ "prefix_check_offline_batch": {
+  "_note": "the same check over the 45 cells of batch offline (mock-llm.mjs, which never edits in c1; C keeps r2 T4's corrected config file)",
+  "per_arm": {
+   "a": {
+    "cells": 15,
+    "requests": 904,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 184,
+    "problems": 0
+   },
+   "b": {
+    "cells": 15,
+    "requests": 904,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 184,
+    "problems": 0
+   },
+   "c": {
+    "cells": 15,
+    "requests": 904,
+    "nodes_kept_raw_beside_entries": 8,
+    "requests_that_rewrote_a_tail": 184,
+    "problems": 0
+   }
+  }
+ }
+}
