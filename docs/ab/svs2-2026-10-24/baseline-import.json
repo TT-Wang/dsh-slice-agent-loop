@@ -1,0 +1,362 @@
+{
+ "archive": "~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/vault/results",
+ "cells": [
+  {
+   "cell": "lh1_incremental_build.r1.stock",
+   "cost_peak": 0.083444,
+   "from": "batch/lh1_incremental_build.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r1.slice",
+   "cost_peak": 0.176605,
+   "from": "batch/lh1_incremental_build.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r2.stock",
+   "cost_peak": 0.114127,
+   "from": "batch/lh1_incremental_build.r2.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r2.slice",
+   "cost_peak": 0.172294,
+   "from": "batch/lh1_incremental_build.r2.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r3.stock",
+   "cost_peak": 0.107516,
+   "from": "batch/lh1_incremental_build.r3.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r3.slice",
+   "cost_peak": 0.155879,
+   "from": "batch/lh1_incremental_build.r3.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r4.stock",
+   "cost_peak": 0.104124,
+   "from": "arb/lh1_incremental_build.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "lh1_incremental_build.r4.slice",
+   "cost_peak": 0.144663,
+   "from": "arb/lh1_incremental_build.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r1.stock",
+   "cost_peak": 0.008504,
+   "from": "batch/m3_consistency_bugfix.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r1.slice",
+   "cost_peak": 0.009991,
+   "from": "batch/m3_consistency_bugfix.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r2.stock",
+   "cost_peak": 0.007674,
+   "from": "batch/m3_consistency_bugfix.r2.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r2.slice",
+   "cost_peak": 0.007741,
+   "from": "batch/m3_consistency_bugfix.r2.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r3.stock",
+   "cost_peak": 0.010445,
+   "from": "batch/m3_consistency_bugfix.r3.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r3.slice",
+   "cost_peak": 0.008491,
+   "from": "batch/m3_consistency_bugfix.r3.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r4.stock",
+   "cost_peak": 0.00818,
+   "from": "arb/m3_consistency_bugfix.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "m3_consistency_bugfix.r4.slice",
+   "cost_peak": 0.008628,
+   "from": "arb/m3_consistency_bugfix.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r1.stock",
+   "cost_peak": 0.0156,
+   "from": "batch/p110_r2_superseded_stamp.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r1.slice",
+   "cost_peak": 0.017288,
+   "from": "batch/p110_r2_superseded_stamp.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r2.stock",
+   "cost_peak": 0.025454,
+   "from": "batch/p110_r2_superseded_stamp.r2.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r2.slice",
+   "cost_peak": 0.018372,
+   "from": "batch/p110_r2_superseded_stamp.r2.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r3.stock",
+   "cost_peak": 0.029274,
+   "from": "batch/p110_r2_superseded_stamp.r3.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r3.slice",
+   "cost_peak": 0.020597,
+   "from": "batch/p110_r2_superseded_stamp.r3.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r4.stock",
+   "cost_peak": 0.015809,
+   "from": "arb/p110_r2_superseded_stamp.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "p110_r2_superseded_stamp.r4.slice",
+   "cost_peak": 0.022085,
+   "from": "arb/p110_r2_superseded_stamp.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r1.stock",
+   "cost_peak": 0.471871,
+   "from": "batch/svs_f1_flood_recall.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r1.slice",
+   "cost_peak": 0.264132,
+   "from": "batch/svs_f1_flood_recall.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r2.stock",
+   "cost_peak": 0.342411,
+   "from": "batch/svs_f1_flood_recall.r2.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r2.slice",
+   "cost_peak": 0.261515,
+   "from": "batch/svs_f1_flood_recall.r2.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r3.stock",
+   "cost_peak": 0.471756,
+   "from": "arb/svs_f1_flood_recall.r1.stock",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  },
+  {
+   "cell": "svs_f1_flood_recall.r3.slice",
+   "cost_peak": 0.260057,
+   "from": "arb/svs_f1_flood_recall.r1.slice",
+   "pass": true,
+   "stored_metrics_reproduced": true,
+   "valid": true
+  }
+ ],
+ "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+ "mismatches": {},
+ "ok": true,
+ "rereads": {
+  "slice": {
+   "c1": {
+    "after_own_edit": 28,
+    "bash_writes": 90,
+    "cells": 4,
+    "cross_turn": 59,
+    "edits_writes": 168,
+    "first": 8,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0,
+    "reads": 95,
+    "same_turn": 0,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 12,
+    "bash_writes": 5,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 21,
+    "first": 34,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 46,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 39,
+    "bash_writes": 61,
+    "cells": 3,
+    "cross_turn": 105,
+    "edits_writes": 98,
+    "first": 109,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0,
+    "reads": 371,
+    "same_turn": 118,
+    "turns": 135
+   },
+   "r2": {
+    "after_own_edit": 3,
+    "bash_writes": 15,
+    "cells": 4,
+    "cross_turn": 8,
+    "edits_writes": 21,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 19,
+    "same_turn": 0,
+    "turns": 28
+   }
+  },
+  "stock": {
+   "c1": {
+    "after_own_edit": 9,
+    "bash_writes": 23,
+    "cells": 4,
+    "cross_turn": 27,
+    "edits_writes": 84,
+    "first": 6,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0,
+    "reads": 52,
+    "same_turn": 10,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 5,
+    "bash_writes": 6,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 25,
+    "first": 23,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "reads": 28,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 90,
+    "bash_writes": 3,
+    "cells": 3,
+    "cross_turn": 107,
+    "edits_writes": 139,
+    "first": 108,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "reads": 305,
+    "same_turn": 0,
+    "turns": 135
+   },
+   "r2": {
+    "after_own_edit": 3,
+    "bash_writes": 6,
+    "cells": 4,
+    "cross_turn": 4,
+    "edits_writes": 27,
+    "first": 6,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0,
+    "reads": 13,
+    "same_turn": 0,
+    "turns": 28
+   }
+  }
+ },
+ "system_markers": [
+  "You are sliceagent",
+  "A recorded file read is not a current file"
+ ]
+}

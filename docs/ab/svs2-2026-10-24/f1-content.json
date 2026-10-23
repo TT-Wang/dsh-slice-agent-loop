@@ -1,0 +1,54 @@
+{
+ "salt_sha256_matches_gates": true,
+ "reps": [
+  {
+   "rep": 1,
+   "baseline": "batch r1",
+   "truth_sha256": "a4da888027d9eaa4",
+   "data_files": 32,
+   "arms": {
+    "stock": {
+     "truth_equal": true,
+     "data_equal": true
+    },
+    "slice": {
+     "truth_equal": true,
+     "data_equal": true
+    }
+   }
+  },
+  {
+   "rep": 2,
+   "baseline": "batch r2",
+   "truth_sha256": "0af3b1eab03c40e3",
+   "data_files": 32,
+   "arms": {
+    "stock": {
+     "truth_equal": true,
+     "data_equal": true
+    },
+    "slice": {
+     "truth_equal": true,
+     "data_equal": true
+    }
+   }
+  },
+  {
+   "rep": 3,
+   "baseline": "arb r1",
+   "truth_sha256": "340786f44943b3a2",
+   "data_files": 32,
+   "arms": {
+    "stock": {
+     "truth_equal": true,
+     "data_equal": true
+    },
+    "slice": {
+     "truth_equal": true,
+     "data_equal": true
+    }
+   }
+  }
+ ],
+ "ok": true
+}

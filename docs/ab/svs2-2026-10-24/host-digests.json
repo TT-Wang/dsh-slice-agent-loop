@@ -1,0 +1,7 @@
+{
+ "_note": "svs2 host provenance, 2026-10-24. host_digest = run_ab.py (path, size, mtime) tree digest; content = run_ab.host_content_digest (path, kind, content sha256 / link text). svs2/host is an APFS clone (cp -cRp) of the baseline's frozen host scratchpad/svs/host.",
+ "baseline_frozen_host_svs": {"tree": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a", "content": "5c0747d0bd13e87852388ec6313dc2544d1403191c81192e36d2c95c24d998be", "files": 63615, "symlinks": 12},
+ "svs2_host_clone": {"tree": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a", "content": "5c0747d0bd13e87852388ec6313dc2544d1403191c81192e36d2c95c24d998be", "files": 63615, "symlinks": 12},
+ "fresh_npm_install_save_exact_20261024": {"tree": "931d69569151b695", "content": "7ab799900f0272f97ffce1ef43b437d8c3fda6cb82fe691a1944bbf2aa7c865c", "files": 63615, "symlinks": 12, "differs_in": "execa 10.2.1 instead of 10.2.0 (published after the baseline install); see fresh-install-vs-frozen.package-lock.diff"},
+ "npm_ci_from_frozen_lockfile_20261024": {"tree": "3cf1ed24b4ff9e93ed92d91c01f5edc76f535873bb864050f993885cb9e43475", "content": "5c0747d0bd13e87852388ec6313dc2544d1403191c81192e36d2c95c24d998be", "files": 63615, "symlinks": 12, "note": "same content as the frozen host: the frozen copy is the published package set at its lockfile"}
+}
