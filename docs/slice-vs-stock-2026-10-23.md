@@ -541,7 +541,8 @@ unchanged.
 Checked offline (`acct-offline`, mock with `AB_MOCK_QUOTA_FILE`, which makes every request end in a
 `QUOTA` error while the named file exists): with the file present the first cell (r1, SLICE) ended
 `account_stop` after turn 1, no other cell started, exit 2, "STOPPED (account)"; with the file
-removed, `--resume` reran it as attempt 2 and completed the other three cells, exit 0. Unit tests:
+removed, `--resume` reran it as attempt 2 and completed the other three cells, exit 0. It ran on the
+uncommitted tree whose harness code is `13ce512`. Unit tests:
 `test_run_ab.py` 26/26 (3 new in `AccountStop`).
 
 ### 10.11 Resized f1, offline (`offline3-f1`)
@@ -549,7 +550,7 @@ removed, `--resume` reran it as attempt 2 and completed the other three cells, e
 f1 at 32 excerpts (§12.4) in all three arms with the mock, validated against the fingerprints:
 3/3 cells valid on the first attempt, 45/45 turns each, delivery of T3 and T5 in every arm, exams
 at T41 and T42; STOCK-COMPACT 2 summaries and 63 prunes, STOCK none, SLICE 64 folds; 104–108 s per
-cell. `selfcheck_tasks.py` 40/40 on the resized task (32 tokens, every memory class, seeding,
+cell; run on the uncommitted tree whose code is `a300726`. `selfcheck_tasks.py` 40/40 on the resized task (32 tokens, every memory class, seeding,
 decoys present, oracle absent from the excerpts).
 
 ## 11. Risks and limits
