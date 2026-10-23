@@ -21,9 +21,14 @@
  * the host's newest projection already declares earlier snapshots obsolete.
  * Existing entries, including snapshot-only entries from older builds, freeze
  * the whole prefix through their position and are never rewritten here.
+ *
+ * With `workingSet` (opt-in, src/working-set.ts) the steps that hold the current
+ * view of a file the model is changing stay raw: they are protected like a human
+ * message, so they cut the turn's entry instead of entering it, and stay raw.
  */
 import { type Message, type UserMessage } from '@deepseek-ai/dsh-llm';
 import { type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';
+import { type WorkingSetNote, type WorkingSetPolicy } from './working-set.js';
 /**
  * Source kind of every sealed entry. Session format V4 has no shared `plugin`
  * wrapper: a third-party producer declares its own kind. The V3-to-V4 catalog
@@ -57,6 +62,8 @@ export interface HistoryPolicy {
     keepRecentTurns: number;
     /** Optional hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
     entryMaxChars?: number;
+    /** Opt-in: keep the steps holding the current view of files being changed raw (src/working-set.ts). */
+    workingSet?: WorkingSetPolicy;
 }
 export interface PlannedAppend {
     message: UserMessage;
@@ -97,7 +104,7 @@ export declare function snapshotNote(recallTurns: readonly number[]): string;
  * backlog falls back to a complete range/recall marker. User nodes are never
  * part of the entry. Never cut locators or rewrite an existing sealed entry.
  */
-export declare function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, maxChars?: number): string;
+export declare function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, maxChars?: number, notes?: ReadonlyMap<number, WorkingSetNote>): string;
 /**
  * Decide the whole seal before any append. Returns an empty plan when every
  * completed turn beyond the keep window is already sealed.
