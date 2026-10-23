@@ -1,12 +1,14 @@
 # Slice vs stock DSH: is the current slice context policy worth using?
 
-> **Status: FROZEN pre-registration, 2026-10-23 (after pilot part 2, before any batch cell).**
-> §1–§12 are frozen by the commit that filled §12.1; no batch cell had run when it was made.
-> Pilot part 1 (§12.3) stopped at the account balance (HTTP 402, 09:12 UTC); the owner topped the
-> account up, the pre-spend review's should-fix findings were fixed before more spend (§10.12),
-> and pilot part 2 ran r5 in STOCK and SLICE and the resized f1 in STOCK-COMPACT (§12.6). Under
-> the pilot rules f1 is 32 excerpts (45 turns) and STOCK-COMPACT runs f1 only (§12.4, §12.7). §13
-> "Results" stays empty until the batch and its report exist.
+> **Status: batch and arbitration done, 2026-10-23. Verdict (pooled, pre-registered rules):
+> inconclusive: a long-session saving (L 0.611) bought with short-session overhead (N 1.167 >
+> 1.10), at equal quality.** §13 holds the results.
+> §1–§12 are the frozen pre-registration (freeze commit `35df351`), unchanged since; no batch cell
+> had run when it was made. Pilot part 1 (§12.3) stopped at the account balance (HTTP 402, 09:12
+> UTC); the owner topped the account up, the pre-spend review's should-fix findings were fixed
+> before more spend (§10.12), and pilot part 2 ran r5 in STOCK and SLICE and the resized f1 in
+> STOCK-COMPACT (§12.6). Under the pilot rules f1 is 32 excerpts (45 turns) and STOCK-COMPACT runs
+> f1 only (§12.4, §12.7).
 
 ## 1. Question
 
@@ -918,4 +920,192 @@ at $0.65 per cell instead of $0.511, P would be about $6.75.
 
 ## 13. Results
 
-Empty until the batch and its report exist.
+Written after the batch and the arbitration; §1–§12 are unchanged. Every number below comes from
+the frozen instrument (`svs_report.py` at the freeze tree) unless it is marked *reported only,
+not pre-registered*.
+
+### 13.1 Runs
+
+| batch | command (§12.1) | time (UTC, 2026-10-23, peak hours) | cells | valid on attempt 1 | spend (peak) |
+|---|---|---|---|---|---|
+| `batch`, invocation 1 | f1, `stock,slice,stock-compact`, 2 reps, seed 20261023 | 10:43–11:30 | 6 | 6 | $2.0429 |
+| `batch`, invocation 2 | r1–r5, c1, c2, `stock,slice`, 3 reps, seed 20261023 | 11:30–13:00 | 42 | 42 | $1.2658 |
+| `arb` (§8) | all eight tasks, `stock,slice`, 1 rep, seed 20261024 | 13:01–13:42 | 16 | 16 | $1.1029 |
+
+- Every manifest: harness `35df351` (the freeze commit, `scripts/ab` tree `b111e434`, not dirty),
+  host tree digest `0c9e7f6b25ec…` at start and end (unchanged), 33 siblings blocked, every cell
+  checked against the frozen fingerprints.
+- **Infra reruns: none.** All 64 cells were valid on their first attempt; no cell needed the
+  second attempt `--max-attempts 2` allows. One turn (r2 rep 1 STOCK, T7) had one failed provider
+  request that the host retried inside the turn; the budget charged it $0.05 as unpriced (the 7th
+  unpriced charge of 40 allowed). The cell's metric cost ($0.0156 at peak) is its priced tokens;
+  the failed request's usage was never logged.
+- **Spend:** ledger total **$5.7403** at peak prices of the $10 cap (warm $0.0038, pilot $0.9624,
+  warm2 $0.0006, pilot2 $0.3618, batch $3.3087, arb $1.1029); $0.30 of it are the six unbilled
+  refusals of pilot part 1 and $0.05 the unpriced attempt above. Projected at the freeze (§12.7):
+  $6.34 with arbitration.
+- **Arbitration** was required by the batch report ("verdict moves to 'worth it' at L 0.645, N
+  1.091": N within 0.05 of the 1.10 threshold) and allowed by §8 ($4.6374 spent + $1.3 estimate <
+  $9.25). It ran once, as pre-declared; there is no second one.
+
+### 13.2 Decision (pooled batch + arb, §7)
+
+| quantity | batch alone | pooled (decides) |
+|---|---|---|
+| valid pairs (min 19; 2 per task) | 23 | 31 |
+| memory items (min 18) | 22 | 31 |
+| **L** = R_f1 | 0.645 | **0.611** |
+| **N** = geo-mean R over r1–r5, c1, c2 | 1.141 | **1.167** |
+| N_recall (r1–r5) / N_coding (c1, c2), secondary | 1.091 / 1.276 | 1.131 / 1.261 |
+| G (all eight) / Σ ratio (dollar-weighted) / median paired ratio, secondary | 1.063 / 0.935 / 1.108 | 1.076 / 0.875 / 1.152 |
+| dS (passes SLICE − STOCK); any dS_t | 0; all 0 | **0**; all 0 |
+| dM (correct items) / dB (bad items) | 0 / 0 | **0 / 0** |
+| quality floor Q / "slice better" | holds / no | holds / no |
+| verdict | inconclusive, arbitration required | **inconclusive** |
+
+**Verdict: inconclusive** (rule 7, the case the record names "a long-session saving bought with
+short-session overhead"): every minimum is met, Q holds, L ≤ 0.80 but N > 1.10, so rule 3 does
+not decide; "slice better" does not hold (dS 0, dM 0), so rule 4 does not; L < 0.95, so rule 5
+does not; N < 1.25, so rule 6 does not. The arbitration moved both quantities away from the
+thresholds (L 0.645 → 0.611, N 1.141 → 1.167). The arbitration batch alone (8 pairs, below every
+minimum, descriptive) gave L 0.551 and N 1.234.
+
+### 13.3 Per task (pooled; cost at peak per cell, mean over the task's pairs)
+
+| task | pairs | SLICE $ | STOCK $ | R_t (Σ ratio) | paired ratios (batch r1–r3, arb) | pass SLICE / STOCK | memory correct SLICE / STOCK |
+|---|---|---|---|---|---|---|---|
+| f1 (45 turns) | 3 | 0.2619 | 0.4287 | **0.611** | 0.560, 0.764, 0.551 | 3 / 3 | 12 / 12 |
+| r1 | 4 | 0.0094 | 0.0121 | 0.777 | 0.635, 0.618, 1.432, 0.759 | 4 / 4 | 4 / 4 |
+| r2 | 4 | 0.0196 | 0.0215 | 0.909 | 1.108, 0.722, 0.704, 1.397 | 4 / 4 | 3 / 3 (1 pair excluded) |
+| r3 | 4 | 0.0091 | 0.0070 | 1.292 | 0.864, 1.023, 1.805, 1.565 | 4 / 4 | 4 / 4 |
+| r4 | 4 | 0.0058 | 0.0042 | 1.363 | 1.673, 1.272, 1.152, 1.400 | 4 / 4 | 4 / 4 |
+| r5 | 4 | 0.0155 | 0.0104 | 1.488 | 1.476, 2.052, 1.107, 1.279 | 4 / 4 | 4 / 4 |
+| c1 | 4 | 0.1624 | 0.1023 | **1.587** | 2.117, 1.510, 1.450, 1.389 | 4 / 4 | – |
+| c2 | 4 | 0.0087 | 0.0087 | 1.001 | 1.175, 1.009, 0.813, 1.055 | 4 / 4 | – |
+| all pairs | 31 | Σ $1.7073 | Σ $1.9513 | 0.875 | | 31 / 31 | 31 / 31 |
+
+All 62 SLICE and STOCK cells passed their oracle (STOCK-COMPACT's two f1 cells failed, §13.5). On the
+memory tasks both arms answered every eligible item correctly; no item was wrong, a decoy, stale,
+hedged or confabulated in either arm. SLICE took every exam answer from its tape or a recall tool
+(recall-sourced 6/6 f1 exams and 4/4 per r-task); STOCK answered from its raw history. One pair
+is memory-ineligible: r2 batch rep 3, where SLICE, at the exam turn T6, ran `find ..` for the
+deleted `stamp.py` and `service.env` outside its workdir (2 flagged calls; it then answered
+correctly); the pair still counts for P1 and P2. SLICE's f1 cells show two exams with a partial
+leak before them (reported only, never an exclusion), STOCK-COMPACT's one. r3's T1 read was
+folded in SLICE in 4 of 4 cells (manipulation check).
+
+### 13.4 Context size, cache and native context management (primary arms)
+
+Medians over valid cells (pooled); request size is provider-reported prompt tokens.
+
+| task | arm | requests | peak request | mean request | cache hit | requests per turn | step-cap cuts (turns) | wall s |
+|---|---|---|---|---|---|---|---|---|
+| f1 | SLICE | 265 | 43,301 | 24,774 | 95.8 % | 5.89 | 0 | 542 |
+| f1 | STOCK | 213 | 234,025 | 116,231 | 99.1 % | 4.73 | 0 | 427 |
+| c1 | SLICE | 91.5 | 38,643 | 20,474 | 96.6 % | 11.44 | 14 of 32 | 824 |
+| c1 | STOCK | 47.5 | 74,338 | 34,361 | 98.3 % | 5.94 | 0 of 32 | 341 |
+| c2 | SLICE | 7 | 14,637 | 9,632 | 89.8 % | 7.00 | 0 | 24 |
+| c2 | STOCK | 8 | 11,610 | 8,279 | 90.8 % | 8.00 | 0 | 30 |
+| r1–r5 | SLICE | 13–27 | 7,100–18,679 | 5,921–11,259 | 87.2–95.4 % | 2.9–6.5 | 0 | 33–82 |
+| r1–r5 | STOCK | 10–24 | 6,024–20,464 | 4,371–12,511 | 90.5–96.0 % | 3.1–5.0 | 0 | 25–94 |
+
+- **No native context management fired in any of the 62 SLICE and STOCK cells**:
+  0 compaction summaries, 0 failed compaction attempts, 0 prunes, 0 native spills, 0
+  context-limit errors. STOCK's largest request in the whole run was 235,449 tokens (f1), far
+  below the shipped 678,464-token trigger (§2.3). So STOCK was a raw, growing transcript
+  throughout and had no post-compaction failure to count.
+- f1: STOCK's request grows linearly with each excerpt read and reaches about 234K tokens at
+  the quizzes; SLICE's stays bounded (peak about 43K, one sealed tape entry per turn), as in the
+  pilot. SLICE pays for the boundedness with a lower cache hit rate (95.8 % vs 99.1 %) and more
+  requests (5.9 vs 4.7 per turn), and still costs 39 % less.
+- SLICE folded 40 large tool results in f1 (3 cells), 6 in c1, 7 in r5, 4 in r3, 1 in c2.
+
+### 13.5 STOCK-COMPACT (configured variant, secondary, never decisive)
+
+| | rep 1 | rep 2 |
+|---|---|---|
+| cost (peak) | $0.3646 | $0.3384 |
+| outcome | fail (substrate): 10 of 32 digest entries wrong | fail (substrate): 6 of 32 wrong |
+| memory items | 4 of 4 correct | 4 of 4 correct |
+| first native action | prunes from T14 | prunes from T14 |
+| pruned results / summaries (turns) | 32 / 5 (T20, T26, T31, T36, T44) | 32 / 4 (T22, T28, T34, T37) |
+| failed attempts / context-limit errors / shadowed tokens | 0 / 0 / 59,504 | 0 / 0 / 48,310 |
+| peak / mean request tokens | 58,426 / 42,322 | 59,435 / 42,003 |
+
+Both exams ran after compaction in both cells (`compacted_before` true) and all memory items were
+right: post-compaction memory failures 0. The substrate failures are the pruning property
+pre-declared in §2.5 (an excerpt replaced by its head and tail before its token was copied), as in
+pilot part 2. Against STOCK on f1: R 0.863 (paired 0.773, 0.988), passes 0 vs 2. SLICE against
+STOCK-COMPACT on f1: R 0.748 (paired 0.725, 0.773), passes 2 vs 0.
+
+### 13.6 Where SLICE's short-session overhead comes from (reported only, not pre-registered)
+
+Tool calls counted from the turn streams of the pooled cells; this is description, not a test.
+
+- **c1 (R 1.587, the largest overhead):** SLICE made 437 tool calls in 32 turns, STOCK 205
+  (edit 161 vs 79, bash 157 vs 68, read 94 vs 52); `expand_result` was called twice and no
+  recall tool at all. A typical STOCK turn reads `calc.py` once and patches it in one bash
+  call (3–5 steps); a typical SLICE turn re-reads the file, makes several edits, and runs several
+  ad-hoc test and fuzz scripts, so 14 of its 32 turns ended at the 14-step cap (STOCK: none).
+  SLICE's requests were smaller (mean 20.5K vs 34.4K tokens) but twice as many. Two plausible
+  causes, not separated here: the sealed tape hides the code the model wrote in earlier turns
+  (STOCK still sees it verbatim), and the plugin's system text replaces the host persona ("You are
+  sliceagent, …") and tells the model that "a recorded file read is not a current file". Both
+  arms passed every c1 cell.
+- **r3–r5 (R 1.29–1.49):** these sessions are 2–4 turns long, so SLICE's longer prefix (about
+  1,800 more tokens per request) and its recall step (`recall_step` or `expand_result` at the
+  exam) are a large share of a cell that costs about a cent. r1 and r2 (R 0.78, 0.91) went the
+  other way: STOCK re-sends the raw probe outputs every request.
+- **f1 reading behaviour varied in SLICE without changing its cost.** In batch rep 1 the model
+  read 24 of 32 excerpts in two or more partial reads, each under the fold threshold (8 folds,
+  10 `expand_result` calls); in rep 2 all 32 (0 folds, 3 calls); in the arbitration cell it read
+  every excerpt whole and expanded every fold (32 folds, 32 calls), as in the pilot. The three
+  cells cost $0.2641, $0.2615 and $0.2601.
+- *Post-hoc arithmetic, not a rule:* at the measured per-session costs (peak), one 45-turn f1
+  session saves $0.167 against STOCK, and one c1 session costs $0.060 more, the others under
+  $0.006 either way; the dollar-weighted ratio over all 31 pairs is 0.875.
+
+### 13.7 What this answers
+
+On this host (DSH 0.2.1-rc.2, deepseek-flash, headless, hermetic composition) and these eight
+tasks, the current slice policy, against stock DSH at its shipped defaults:
+
+- **is equal on quality:** 31 of 31 passes in both arms; every eligible early fact recalled
+  correctly in both (31 of 31 items, 0 bad);
+- **is much cheaper and much smaller on the long session:** f1 costs 0.61x and its requests
+  peak at about 43K tokens instead of 234K;
+- **costs more on short sessions:** 1.17x geometric mean over the seven short tasks, 1.59x on
+  the multi-turn coding task c1;
+- **was compared with a stock arm whose compaction never fired:** stock's shipped trigger never
+  came within reach (largest request 235K of 678K), so the comparison is against a raw transcript.
+  With a 57K trigger (STOCK-COMPACT, a configured variant), native compaction cut f1's cost to
+  0.86x of STOCK but dropped content the task needed (0 of 2 passes), where SLICE passed both.
+
+By the pre-registered rule this is **inconclusive**: the saving on the long session is large, but
+the short sessions cost more than the 10 % the rule allows. Whether slice is worth using therefore
+depends on the workload mix: long sessions with large tool outputs favour it; short or
+coding-heavy sessions favour stock. n is 3–4 per task (f1 3), one model, one host.
+
+### 13.8 Files
+
+- [pooled-summary.md](ab/slice-vs-stock-2026-10-23/pooled-summary.md) /
+  [.json](ab/slice-vs-stock-2026-10-23/pooled-summary.json): the pooled report, which decides;
+  [batch-summary.md](ab/slice-vs-stock-2026-10-23/batch-summary.md) / [.json](ab/slice-vs-stock-2026-10-23/batch-summary.json):
+  the batch alone (with the arbitration test);
+  [arb-summary.md](ab/slice-vs-stock-2026-10-23/arb-summary.md) / [.json](ab/slice-vs-stock-2026-10-23/arb-summary.json):
+  the arbitration batch alone (descriptive). The frozen instrument's output, paths normalized
+  (`AB` = the A/B root), not edited.
+- [cells.json](ab/slice-vs-stock-2026-10-23/cells.json): one row per batch and arbitration cell
+  (cost on both sheets, tokens, requests, context sizes, compaction events, folds, step-cap cuts
+  per turn, memory classes, flags).
+- The summaries and `cells.json` contain no oracle value: the operator's scan checked them
+  against the truth sidecars of all 64 cells and the r1–r5 task tokens (193 strings, 0 hits; the
+  scan found the expected values in raw turn streams as a positive control).
+- `run_ab.py secrets-scan`: 3 cells listed, all from the offline mock isolation probe
+  (`isoprobe`, whose probe names `DSH_HOME` by design); no paid cell. A plain search of every tool
+  input in every turn stream found no other reference to `DSH_HOME`, `~/.dsh` or a `.env` file
+  (only `self.env` attributes and the r2 task's `service.env`). The key links were removed from
+  the three template homes after the arbitration.
+- Raw data: `~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/` (its
+  `README.md` lists the contents and exclusions; the three probe cells are in `held-back/`, chmod
+  700).
