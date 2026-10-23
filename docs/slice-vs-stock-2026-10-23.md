@@ -1,12 +1,11 @@
 # Slice vs stock DSH: is the current slice context policy worth using?
 
-> **Status: DRAFT pre-registration, 2026-10-23 (pilot part 1 done; NOT frozen).** The paid warmup
-> passed and the pilot ran until the provider refused the account (HTTP 402 "Insufficient
-> Balance", 09:12 UTC): r1–r4 in STOCK and SLICE and f1 in SLICE completed, STOCK's f1 stopped
-> after 22 of 61 turns, r5 did not run (§12.3). On that evidence the pilot rules of §12.2 resize f1
-> to 32 excerpts (45 turns) and limit STOCK-COMPACT to f1 (§12.4). What remains before the freeze
-> (§12.5): the account is topped up by its owner, then pilot part 2 (r5 in STOCK and SLICE, the
-> resized f1 in STOCK-COMPACT), then the commit that fills §12.1 and freezes §1–§12. §13
+> **Status: FROZEN pre-registration, 2026-10-23 (after pilot part 2, before any batch cell).**
+> §1–§12 are frozen by the commit that filled §12.1; no batch cell had run when it was made.
+> Pilot part 1 (§12.3) stopped at the account balance (HTTP 402, 09:12 UTC); the owner topped the
+> account up, the pre-spend review's should-fix findings were fixed before more spend (§10.12),
+> and pilot part 2 ran r5 in STOCK and SLICE and the resized f1 in STOCK-COMPACT (§12.6). Under
+> the pilot rules f1 is 32 excerpts (45 turns) and STOCK-COMPACT runs f1 only (§12.4, §12.7). §13
 > "Results" stays empty until the batch and its report exist.
 
 ## 1. Question
@@ -209,7 +208,7 @@ Procedure:
    oracles, delivery, flags, compaction behaviour on the real model (none expected in STOCK and
    SLICE below 678,464 tokens; firing and detected in STOCK-COMPACT), tokens per read turn,
    cost per cell and wall time against §9; then the re-estimate of §12.2. Part 1 ran on
-   2026-10-23 08:51–09:13 UTC and was stopped by the account balance (§12.3); part 2 is §12.5.
+   2026-10-23 08:51–09:13 UTC and was stopped by the account balance (§12.3); part 2 ran 10:24–10:34 UTC (§12.6).
 6. Batch (§12): as planned, `--arms stock,slice,stock-compact --tasks f1,r1,r2,r3,r4,r5,c1,c2
    --reps 3 --reps-from-gates` (per-task reps from `gates-svs.json`: f1 2, the others 3), seed
    20261023, `--budget-usd 10`. An invalid cell is rerun once. With the ladder step of §12.4
@@ -379,8 +378,8 @@ summary call (about 57K mostly cached input, a few thousand output tokens) costs
 the worst case (the 65,536-token summary cap) about $0.09.
 
 **The figures below are the build-stage estimate, kept for the record; the pilot measured f1 at
-1.4x (SLICE) and about 2x (STOCK, projected) these figures, and the re-estimate of §12.4 replaces
-them.**
+1.4x (SLICE) and about 2x (STOCK, projected) these figures, and the re-estimates of §12.4 and
+§12.7 (after part 2, the frozen one) replace them.**
 
 Estimate (peak). Short tasks from the F-only A/B's medians for the slice control on 0.2.0-rc.2 (c1
 $0.159, c2 $0.009, r1 $0.010, r2 $0.020, r3 $0.008, r4 $0.005, r5 $0.013: $0.224 per rep), with
@@ -581,6 +580,48 @@ at T41 and T42; STOCK-COMPACT 2 summaries and 63 prunes, STOCK none, SLICE 64 fo
 cell; run on the uncommitted tree whose code is `a300726`. `selfcheck_tasks.py` 40/40 on the resized task (32 tokens, every memory class, seeding,
 decoys present, oracle absent from the excerpts).
 
+### 10.12 Pre-freeze fixes (after pilot part 1, before pilot part 2)
+
+Harness `74e0475`. The pre-spend review (12 should-fix findings, no must-fix) was answered before
+any further paid call; every change applies to every arm alike:
+
+| finding | change |
+|---|---|
+| f1 grading marks honest or exact answers as bad ("Not provided" → confabulated; "CANNOT RECOVER" with a space → wrong; the exact lint message with a `frames.py: ` prefix → wrong) | `verify.py`: markers with any case or separators; the lint answer correct when exactly one candidate line (a lint code or the message) contains the exact message, quotes, spaces and a trailing period normalized; a second candidate hedges (§4.1) |
+| r3's validity asymmetric: SLICE's cell needed a fold of its T1 read, STOCK's had no T1 condition | r3 `meta.json` `delivery` T1 (the read carries the exam's fact) in every arm; `gates-svs.json` `fold: false` in every arm, the fold reported as a manipulation check (the P1-10 gates keep it required) |
+| pilot rule (b) selects tasks on an outcome | replaced by a defect-only rule (§12.2 (b)); it had not fired under the old text |
+| `gates-svs.json` rule order differs from §7 | "a minimum not met" is now rule 1 there too |
+| the arbitration margin misses the "slice better" threshold | trigger added (§8; `svs_report.arbitration_needed`) |
+| sibling blocking is a manual step | `run_ab.py --block-siblings`, required for a paid run (§3 step 2) |
+| N described as "ordinary sessions" while five of its seven tasks are recall tasks | wording (§6, §7); N_recall and N_coding reported, never decisive |
+| STOCK-COMPACT's pruner hides f1's audit token in trigger turns | stated as an expected property (§2.5); digest misses and re-reads reported per arm |
+| a failed compaction attempt is billed but not logged | the report flags such cells' cost as a lower bound (§5) |
+| a partial restatement of an f1 answer escapes the leak check | a reported, non-excluding partial-leak flag (§5) |
+| SLICE never ran a multi-turn task on the real model before the batch; STOCK's caches warmed alone | answered by pilot part 1, which ran r1–r4 in both arms and f1 in SLICE (§12.3) |
+| the 32-excerpt f1 was not built | built and checked offline before the pilot's decision was applied (§10.11) |
+
+Checks, offline, no key linked during them:
+
+- Tests: `test_run_ab.py` 29/29 (3 new in `BlockSiblings`: symlinks and the A/B root left out and
+  modes restored; shared temp roots and the home directory refused; a paid run without the flag
+  refused; the per-arm validity test now covers r3's delivery in both arms and the F-only gates'
+  fold requirement); `test_ab_metrics.py` 26 (22 pass, 4 skip; 23 pass with
+  `AB_OFFLINE_BATCH=…/offline2 AB_GATES=gates-svs.json`; 1 new, the partial leak);
+  `test_svs_report.py` 10/10 (3 new: the "slice better" margin with and without rule 3 deciding,
+  rule 1 before rule 2, the N split); `test_ab_report.py` 14/14; `selfcheck_tasks.py` 49/49 (9 new
+  f1 grading cases); typecheck, `check:docs` and `check:size` (3.29 MiB, 305 files) pass.
+- Re-evaluation of the finished cells of `pilot`, `offline2` and `offline3-f1` under the new code
+  (metrics, specs and validity recomputed from the session logs; f1 regraded on the packed
+  workdirs): every r3 cell delivers its fact at T1 in every arm (SLICE folded in all, STOCK and
+  STOCK-COMPACT in none), no validity verdict changed except the 61-turn f1 cells, which no longer
+  match the 45-turn task, as expected; the pilot's SLICE f1 keeps 4/4 items correct; no partial
+  leak in any cell.
+- Dry run `offline4-prefreeze` (`hello`, r3, f1 x 3 arms, mock, fingerprints checked,
+  `--block-siblings`): 9/9 cells valid on the first attempt; 33 siblings blocked (part 1's 31
+  directories, `svs-tools/` and the file `issue20-comment.md`; the `node_modules` symlink left out) and their modes restored; r3
+  delivered at T1 in all arms, folded in SLICE only; f1 delivered at T3 and T5 in all arms,
+  STOCK-COMPACT 2 summaries and 63 prunes; host unchanged.
+
 ## 11. Risks and limits
 
 - **Stock's shipped compaction is out of reach.** The primary comparison is SLICE against a raw
@@ -622,12 +663,68 @@ decoys present, oracle absent from the excerpts).
   long raw transcript. The oracle and turns are identical across arms and SLICE passed all four
   items in the pilot.
 
-## 12. Frozen parameters and pilot (to be filled before the batch)
+- **Known limitations kept after the review (§10.12).** STOCK's f1 cost per cell is still a
+  projection ($0.511 at 45 turns), and its quiz turns have never run on the real model; c1 and
+  c2 in STOCK are assumed at 1.2x SLICE's (§12.7). The grading fixes and the partial-leak flag were
+  made after the pilot's SLICE f1 answers had been seen (all four correct under the old and the new
+  grader) and before any STOCK f1 quiz ran; STOCK-COMPACT's pilot answers grade the same under both.
+  Partial leaks are reported and never exclude. The r1–r5 oracle values also sit outside the
+  scratchpad (repository copies, and the orchestrator's task-output directory next to it, which
+  holds the review's text quoting r3's tokens); those are not blocked, and a read there is a
+  flagged access that makes the pair memory-ineligible. `--block-siblings` lists the siblings at
+  the start of each invocation; an entry created later is not blocked until the next one.
 
-### 12.1 Parameters
+## 12. Frozen parameters and pilot
 
-To be recorded at the freeze: harness commit, host tree digest, fingerprints (§10), price sheet,
-budget, commands with seeds.
+### 12.1 Parameters (frozen)
+
+Recorded in the freeze commit, after pilot part 2 and before any batch cell;
+[freeze.json](ab/slice-vs-stock-2026-10-23/freeze.json) holds the same in machine-readable form.
+
+| parameter | frozen value |
+|---|---|
+| harness code | `scripts/ab` as committed in `74e0475` (tree `b111e434d10e`); the freeze commit changes only `docs/`. Every batch manifest's `harness_commit` must be the freeze commit or a later commit with the same `scripts/ab` tree, without `+dirty` |
+| host | `@deepseek-ai/dsh@0.2.1-rc.2` in `AB/host`, host tree digest `0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a` (unchanged through warm, pilot, warm2, pilot2) |
+| model route | host default, `deepseek-official/deepseek-flash`, reasoning effort at the adapter default |
+| slice tarball | `slice-main-c73ee22.tgz` (main `c73ee22`, plugin 0.3.0), sha256 `62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322` ([SHA256SUMS](ab/slice-vs-stock-2026-10-23/SHA256SUMS)); installed copy `plugin-62b0eb7efc3d.tgz`, same hash |
+| compositions | §2.2; dumps 412 / 415 / 417 lines, `dump-compare.json`; overlay `eval-neutral.patch.yml`, STOCK-COMPACT `stock-compact.patch.yml` (`thresholdRatio 0.057344`, `retainTokens 19660`) |
+| fingerprints | `AB/vault/fingerprints.json` (sha256 `bd770eeb…`; the committed copy differs only in normalized paths): system prompt `3f484053…` / `46c592c8…`, tools 12 / 16, prefix 10,192 / 17,974 characters |
+| price sheets | `scripts/ab/prices.json`: off-peak miss $0.22, hit $0.007, output $0.66 per million tokens; peak $0.44, $0.014, $1.32; the budget prices at peak |
+| budget | `--budget-usd 10` over `AB/vault/spend.jsonl` (all stages), reserve $0.75, margin $0.60, $0.05 per unpriced charge, stop after 40 |
+| seeds | batch 20261023 (batch name `batch`; f1's content derives from the vault salt plus batch, task and rep), arbitration 20261024 (batch name `arb`) |
+| tasks and reps | f1 (`svs_f1_flood_recall`, 32 excerpts, 45 turns, exams T41 and T42) 2 reps; r1, r2, r3, r4, r5, c1, c2 3 reps each (`gates-svs.json` `unit.reps`) |
+| arms | SLICE and STOCK on every task; STOCK-COMPACT on f1 only (§12.7) |
+| comparisons | §6: L = R_f1, N = geometric mean of R_t over r1–r5, c1, c2; dS, dS_t; dM, dB over memory-eligible pairs; secondary G, Σ ratio, median paired ratio, N_recall, N_coding, STOCK-COMPACT against STOCK and SLICE |
+| minimum valid pairs | 19 of 23 overall, 2 per task (f1 2 of 2), 18 memory items of 23 |
+| decision | §7 rules 1–7, quality floor Q and "slice better" as stated there; `gates-svs.json` `decision` |
+| arbitration | §8, at most once, +1 rep of every task in SLICE and STOCK, only if ledger spend + its estimate ($1.3, §8; $1.28 in §12.7) stays below the cap minus the reserve ($9.25) |
+| validity | `gates-svs.json` `validity` (§10.12: r3 by delivery in every arm; fold reported) |
+
+Commands (from `AB`; `H=$AB/wt/harness/scripts/ab`, `G=$H/gates-svs.json`; key linked in the three
+template homes; an invalid cell is rerun once by `--max-attempts 2`):
+
+```sh
+# batch, invocation 1: f1 first, three arms
+python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings \
+  --arms stock,slice,stock-compact --tasks f1 --reps 2 --batch batch --seed 20261023
+# batch, invocation 2: the seven short tasks, SLICE and STOCK
+python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings \
+  --arms stock,slice --tasks r1,r2,r3,r4,r5,c1,c2 --reps 3 --batch batch --seed 20261023
+# after a budget, account or crash stop: the same command plus --resume
+# report and the arbitration test
+python3 $H/svs_report.py $AB/vault/results/batch --gates $G --ledger $AB/vault/spend.jsonl \
+  --fingerprints $AB/vault/fingerprints.json
+# only if the report says "arbitration: required" and the budget condition of §8 holds
+python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings \
+  --arms stock,slice --tasks f1,r1,r2,r3,r4,r5,c1,c2 --reps 1 --batch arb --seed 20261024
+python3 $H/svs_report.py $AB/vault/results/batch $AB/vault/results/arb --pooled --gates $G \
+  --ledger $AB/vault/spend.jsonl --fingerprints $AB/vault/fingerprints.json --out $AB/vault/results/arb
+```
+
+Run order inside an invocation: the (task, rep) groups shuffled per rep with the seed, the arms of a
+group back to back, the first arm rotating with (rep − 1 + seed): f1 rep 1 SLICE, STOCK-COMPACT,
+STOCK; rep 2 STOCK-COMPACT, STOCK, SLICE; short tasks SLICE first in reps 1 and 3, STOCK first in
+rep 2; arbitration STOCK first.
 
 ### 12.2 Pilot rules (the only allowed changes)
 
@@ -729,7 +826,8 @@ quizzes renumbered T41–T45, `N_BLOBS` 32, exams T41 and T42); nothing else in 
 checks §10.11).
 
 **(b)** No task failed in STOCK: r1–r4 passed in both arms. r5 has not run in either arm on this
-host (part 2), and STOCK's f1 quiz turns have not run on the real model (§11).
+host (part 2), and STOCK's f1 quiz turns have not run on the real model (§11). The rule was later
+replaced by the defect-only text of §12.2 (§10.12); under either text nothing is fixed or dropped.
 
 **(c) Provisional, to be recomputed after part 2.** Inputs at peak: spend $0.966; f1 per cell at
 45 turns: STOCK $0.511 (the projection above at 32 reads; peak request about 232K tokens), SLICE
@@ -749,17 +847,74 @@ primary design (f1 2 reps, the seven short tasks 3 reps, 23 pairs). With part 2 
 STOCK-COMPACT's f1 measured at about the modelled $0.44, P is about $6.7 after step 1; if its
 measured f1 cost exceeds about $0.55, step 3 (STOCK-COMPACT dropped) applies too.
 
-### 12.5 What remains before the freeze
+### 12.5 What remained before the freeze (as planned after part 1)
 
-1. **The owner tops up the DeepSeek account** (an agent cannot). The remaining spend at peak:
-   part 2 about $0.5, the batch about $4.1, the arbitration about $1.3 if triggered, so up to about
-   $5.9 of the $9.03 left under the cap.
-2. **Pilot part 2** (batch `pilot2`, seed 20261023, the same `--block` list):
-   `--arms stock,slice --tasks r5 --reps 1`, then `--arms stock-compact --tasks f1 --reps 1` (the
-   resized f1): checks as in §3 step 5, compaction firing and detected on the real model.
-3. Recompute (c) with part 2's spend and STOCK-COMPACT's measured f1 cost; apply the ladder.
-4. The freeze commit fills §12.1 (harness commit, host digest, fingerprints, price sheet, budget,
-   the batch commands with seeds, the ladder's outcome) and freezes §1–§12. Only then the batch.
+The owner tops up the account; the review's should-fix findings are fixed (§10.12); pilot part 2
+(batch `pilot2`): r5 in STOCK and SLICE, then the resized f1 in STOCK-COMPACT; (c) recomputed; the
+freeze commit fills §12.1. All done (§12.6, §12.7).
+
+### 12.6 Pilot part 2 (2026-10-23, 10:24–10:34 UTC, peak hours)
+
+Harness `74e0475` (the fixes of §10.12), every paid run with `--block-siblings` (33 entries); the
+key linked again into the three template homes after the offline checks. Summary data:
+[pilot2.json](ab/slice-vs-stock-2026-10-23/pilot2.json) (scanned for oracle values: none).
+
+**Warmup** (`warm2`, `hello` x 1 rep x 3 arms, validated against the fingerprints): the account
+works; 3/3 valid, $0.0006. Step 1 read 4,480 cached tokens in SLICE and 2,688 in STOCK and
+STOCK-COMPACT, the same as part 1's rep 2 (minimums 4,000 and 2,000): the provider still held each
+arm's prefix, and the fingerprints are unchanged.
+
+**Pilot part 2** (`pilot2`, seed 20261023):
+
+| task | arm | outcome | cost (peak) | requests | peak / mean request (tokens) | cache hit | wall |
+|---|---|---|---|---|---|---|---|
+| r5 | SLICE | pass (failing list exact; recall `expand_result`; 1 fold) | $0.0101 | 11 | 15,567 / 9,266 | 87.4 % | 30 s |
+| r5 | STOCK | pass (failing list exact, from raw history) | $0.0137 | 11 | 23,048 / 15,163 | 88.8 % | 30 s |
+| f1 (45) | STOCK-COMPACT | **fail on substrate**: 6 of 32 digest entries wrong; all 4 memory items correct | $0.3380 | 216 | 59,307 / 41,885 | 95.4 % | 471 s |
+
+Every cell valid on its first attempt, no flagged access, leak, partial leak or oracle via the file
+system. In r5 neither arm compacted or pruned.
+
+STOCK-COMPACT's f1 on the real model: the request grew by about 6,400 tokens per excerpt read
+(14,179 at T7, 59,139 at T14; STOCK's part-1 cell, on other seeded content, 6,886); native context
+management first acted at T14 (the 57,344-token trigger): 31 of the 32 excerpt results pruned, in
+13 turns (8 at once at T14, then T18, T20–T22, T26–T28, T31, T33, T36–T38), and 4 summaries (T22,
+T28, T34, T38; 4 summarizer calls priced, 0 failed attempts, 47,698 shadowed tokens); after T14 the
+request stayed between 39K and 59K tokens; 5 requests in every read turn, as in STOCK; no
+context-limit error. The 6 wrong digest entries are the excerpts read at T22, T26, T28, T33, T36
+and T38, each an 8-character value that is no excerpt's audit token: exactly the turns in which
+the pruner replaced the excerpt just read at the very next step, so the model never saw its middle
+(§2.5). In the other 7 pruned turns the prune came one step later, after the model had seen the
+whole excerpt once, and the entry is right. The four memory
+items, all asked after the summaries (`compacted_before` true at both exams), were answered
+correctly; the model's note says it remembered them. Graded the same by the build-stage grader
+(`f8d47f3`).
+
+### 12.7 Decisions on part 2 and the recomputed ladder
+
+**(a)** Applied in part 1 (f1 at 32 excerpts, 45 turns); nothing new.
+
+**(b)** No task defect: r5 passed in both arms; STOCK-COMPACT's digest misses are the configured
+variant's expected pruning (§2.5), not a defect of f1, and STOCK-COMPACT never decides. Nothing is
+fixed or dropped.
+
+**(c)** Inputs at peak: ledger $1.3287 (warm $0.0038, pilot $0.9624, warm2 $0.0006, pilot2
+$0.3618; $0.30 of it the six unbilled refusals of part 1); r1–r5 measured, ΣSTOCK $0.0667 and
+ΣSLICE $0.0569 (ratio 1.174, so c1 and c2 in STOCK at 1.2x: $0.191 and $0.011); short tasks per
+rep SLICE $0.2249, STOCK $0.2683; f1 per cell STOCK $0.511 (part 1's projection, §12.4), SLICE
+$0.275 (§12.4), STOCK-COMPACT $0.338 (measured).
+
+| ladder | batch | arbitration | P |
+|---|---|---|---|
+| full design (f1 resized by (a)) | $4.533 | $1.279 | $7.140 |
+| **step 1: STOCK-COMPACT runs f1 only** | **$3.728** | **$1.279** | **$6.335** |
+| step 3: STOCK-COMPACT dropped (not applied) | $3.052 | $1.279 | $5.660 |
+
+P exceeds $7.00 only for the full design, so step 1 is the last step applied: STOCK-COMPACT runs f1
+only (2 cells) and is kept, since its measured f1 ($0.338) is below the $0.55 at which step 3 would
+apply. SLICE and STOCK keep the primary design. Expected total with arbitration $6.34, without
+$5.06; the cap stays $10 at peak. The largest single uncertainty is STOCK's f1, still a projection:
+at $0.65 per cell instead of $0.511, P would be about $6.75.
 
 ## 13. Results
 

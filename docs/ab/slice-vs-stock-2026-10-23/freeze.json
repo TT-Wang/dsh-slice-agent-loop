@@ -1,0 +1,198 @@
+{
+ "_note": "Frozen pre-registration of docs/slice-vs-stock-2026-10-23.md \u00a712.1, written before any batch cell. Paths relative to the repository; AB = the A/B root in the session scratchpad. No oracle values.",
+ "harness": {
+  "code_commit": "74e047523b0c3295f30e300502b0c25b9c8948d8",
+  "scripts_ab_tree": "b111e434d10e2b9658d32a7bfaafcd33719b1405",
+  "rule": "every batch manifest's harness_commit is the freeze commit or later with the same scripts/ab tree, not +dirty"
+ },
+ "host": {
+  "package": "@deepseek-ai/dsh",
+  "version": "0.2.1-rc.2",
+  "host_tree_digest": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a"
+ },
+ "model_route": "deepseek-official/deepseek-flash (host default), reasoning effort at the adapter default",
+ "slice_tarball": {
+  "name": "slice-main-c73ee22.tgz",
+  "source": "main c73ee22, plugin 0.3.0",
+  "sha256": "62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322",
+  "installed_copy_sha256": "62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322"
+ },
+ "fingerprints": {
+  "path": "AB/vault/fingerprints.json",
+  "sha256": "bd770eeb4e894145361114af6b0238221cb64f034793c569036933b9d6ac4d98",
+  "system_prompt_sha": {
+   "stock": "3f484053",
+   "slice": "46c592c8",
+   "stock-compact": "3f484053"
+  },
+  "tools": {
+   "stock": 12,
+   "slice": 16,
+   "stock-compact": 12
+  },
+  "prefix_chars": {
+   "stock": 10192,
+   "slice": 17974,
+   "stock-compact": 10192
+  }
+ },
+ "prices": {
+  "_source": "docs/dsh-plugin-opportunities.md:6 (DeepSeek pricing page, 2026-09), v4-flash; USD per million tokens. The 0.1.7 base routes to deepseek-flash; that it bills on the v4-flash sheet is an assumption. Token counts are the ground truth.",
+  "offpeak": {
+   "miss": 0.22,
+   "hit": 0.007,
+   "out": 0.66
+  },
+  "peak": {
+   "miss": 0.44,
+   "hit": 0.014,
+   "out": 1.32
+  },
+  "budget_sheet": "peak"
+ },
+ "budget": {
+  "cap_usd_peak": 10,
+  "reserve_usd": 0.75,
+  "margin_usd": 0.6,
+  "unpriced_charge_usd": 0.05,
+  "max_unpriced": 40,
+  "ledger": "AB/vault/spend.jsonl",
+  "spent_at_freeze_usd_peak": 1.328685
+ },
+ "seeds": {
+  "batch": 20261023,
+  "batch_name": "batch",
+  "arbitration": 20261024,
+  "arbitration_batch_name": "arb"
+ },
+ "arms": {
+  "slice": "all eight tasks",
+  "stock": "all eight tasks",
+  "stock-compact": "f1 only (ladder step 1, \u00a712.7), secondary"
+ },
+ "tasks": {
+  "f1": {
+   "dir": "svs_f1_flood_recall",
+   "excerpts": 32,
+   "turns": 45,
+   "exams": [
+    41,
+    42
+   ],
+   "reps": 2
+  },
+  "r1": {
+   "reps": 3
+  },
+  "r2": {
+   "reps": 3
+  },
+  "r3": {
+   "reps": 3
+  },
+  "r4": {
+   "reps": 3
+  },
+  "r5": {
+   "reps": 3
+  },
+  "c1": {
+   "reps": 3
+  },
+  "c2": {
+   "reps": 3
+  }
+ },
+ "planned": {
+  "pairs": 23,
+  "memory_items": 23
+ },
+ "minimums": {
+  "pairs": 19,
+  "per_task": 2,
+  "f1_pairs": 2,
+  "memory_items": 18
+ },
+ "comparisons": "\u00a76 (L = R_f1, N = geomean of R_t over r1-r5, c1, c2; dS, dS_t; dM, dB) and gates-svs.json comparisons",
+ "decision": "\u00a77 rules 1-7 (minimum -> inconclusive; Q fails -> not worth it; L<=0.80 & N<=1.10 -> worth it; slice better & L<=1.00 & N<=1.10 -> worth it; L>=0.95 & N>=1.00 -> not worth it; N>=1.25 & L>0.80 -> not worth it; otherwise inconclusive)",
+ "arbitration": "\u00a78, at most once, +1 rep of every task, SLICE and STOCK, seed 20261024, only if spend + 1.28 < 9.25; pooled decision without band test",
+ "ladder": {
+  "P_full_design": 7.14,
+  "P_step1": 6.335,
+  "applied": [
+   "(a) f1 resize (part 1)",
+   "step 1: STOCK-COMPACT runs f1 only"
+  ],
+  "inputs_peak": {
+   "f1_per_cell": {
+    "stock": 0.511,
+    "slice": 0.275,
+    "stock-compact": 0.338
+   },
+   "short_per_rep": {
+    "slice": 0.2249,
+    "stock": 0.2683
+   }
+  }
+ },
+ "commands": [
+  "python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings --arms stock,slice,stock-compact --tasks f1 --reps 2 --batch batch --seed 20261023",
+  "python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings --arms stock,slice --tasks r1,r2,r3,r4,r5,c1,c2 --reps 3 --batch batch --seed 20261023",
+  "python3 $H/svs_report.py $AB/vault/results/batch --gates $G --ledger $AB/vault/spend.jsonl --fingerprints $AB/vault/fingerprints.json",
+  "(only if arbitration is required and affordable) python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings --arms stock,slice --tasks f1,r1,r2,r3,r4,r5,c1,c2 --reps 1 --batch arb --seed 20261024",
+  "(then) python3 $H/svs_report.py $AB/vault/results/batch $AB/vault/results/arb --pooled --gates $G --ledger $AB/vault/spend.jsonl --fingerprints $AB/vault/fingerprints.json --out $AB/vault/results/arb"
+ ],
+ "frozen_files_sha256": {
+  "scripts/ab/run_ab.py": "aa1c5064a1d0e7252732c5035c3fec804a1f0a92465afa2fed79cd2d8583e300",
+  "scripts/ab/ab_metrics.py": "e136ff5bd1d18a29769936432a4ab475b45b33e9e69df44b6a1baa308e7af3fa",
+  "scripts/ab/svs_report.py": "f199c36bba92222126b2effb6774add0033124f61cd0f7258faf60ae1bf1f9aa",
+  "scripts/ab/ab_report.py": "b53f83c54a3d0f5c417b3648f7d337ab77032442e314d7f3c19bb37c0924abc2",
+  "scripts/ab/gates-svs.json": "8bb1640e3dd249e5eb44d0c69f43d27075ae02861e7bd7cb87c487c32703e776",
+  "scripts/ab/prices.json": "d6311a3038b80d5e2e673d63625c8336389eaf040ebd538f3f5bbde1541f1d61",
+  "scripts/ab/step-cap.mjs": "a8acb63779e6c89a593cab5235ad0794dd837a8b282057fab953691cf5a36cc9",
+  "scripts/ab/mock-llm.mjs": "6f84b153f84759f9a606470282f6dd0eabcd4a633bca966040d3863895fd274e",
+  "scripts/ab/profile/eval-neutral.patch.yml": "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223",
+  "scripts/ab/profile/stock-compact.patch.yml": "ce6a5357fda2063f91713c30108ea9a6f8bf57ba5738b6f0a94abcdb434f53a2",
+  "scripts/ab/tasks/hello/meta.json": "51ddfbce58258798c35aa2edfb5da71a0b37f82767e489268a44c65cecf4553a",
+  "scripts/ab/tasks/hello/prompts.json": "9d9be06871472e1de4229d79ccc1d831e88956fee32f33362dcb1962d405e3b9",
+  "scripts/ab/tasks/hello/setup.py": "6c72d116eab0bf369c699be8fb9d2230fc59e0ab71dd62fce0bb5c612c4bbe0e",
+  "scripts/ab/tasks/hello/verify.py": "782e0f794251311ed6e16c806d164786d41f062e9b16555b5fe268c47d2ec29f",
+  "scripts/ab/tasks/lh1_incremental_build/meta.json": "6daf6d5435ba6dcb41f56cac183c6f200466efd455ce87f56e08deddeb40d511",
+  "scripts/ab/tasks/lh1_incremental_build/prompts.json": "8582a713db21d8e58a373a629b8b0a7e6f0b97b174bbb1fcbfbedfdb62c30732",
+  "scripts/ab/tasks/lh1_incremental_build/setup.py": "7cbb22f68361acfe18da5ed59666536411b2359f234d7da8c80e92d2738feafe",
+  "scripts/ab/tasks/lh1_incremental_build/verify.py": "e657f2dbcbef4f36567e22c32e9dba03b42ccc4d0802a0fa5cbfb6f2355c68dc",
+  "scripts/ab/tasks/m3_consistency_bugfix/meta.json": "76d2c14ce874ac3000bef1fb80ae61ec02570b188810a55c69c0b177badc438b",
+  "scripts/ab/tasks/m3_consistency_bugfix/prompts.json": "dc13fd58445fc590187fb59f95df450686fb3804df4f2dbda9aa48672573dbd0",
+  "scripts/ab/tasks/m3_consistency_bugfix/setup.py": "cbdfa60b1ea09fd683e41800c4e1a7e5e23b00f9338ad26612ed3b3ca4317eda",
+  "scripts/ab/tasks/m3_consistency_bugfix/verify.py": "b0a3308c5e746977bfa385d8e330eac1df45793f25b3926b15dcbee735964d7f",
+  "scripts/ab/tasks/p110_r1_fixture_fp/hooks.py": "2993bbd489bcba97a686c9bf0bf1bb83991c6e943d19d6a29db16b4fa6643566",
+  "scripts/ab/tasks/p110_r1_fixture_fp/meta.json": "02aa3ffb0b4ac42da8591e69bb5f23a8619ca582054704ceee4cf14110ed2886",
+  "scripts/ab/tasks/p110_r1_fixture_fp/prompts.json": "1a2f987bf92cfebbf4e0766d8f59df00622ed8aaae09bab54c6f22cd3b938eb3",
+  "scripts/ab/tasks/p110_r1_fixture_fp/setup.py": "aff0342e36d560cbce1b33fc95656119cee9884ecbdcc969833fa3881efcfa4e",
+  "scripts/ab/tasks/p110_r1_fixture_fp/verify.py": "457c56a8588b6e7ba931bfb3a1ace12bdeebaa6013876263cecdb01382808909",
+  "scripts/ab/tasks/p110_r2_superseded_stamp/hooks.py": "2081c77417288679c5e859ee524b13e23e262db4b3a2931a11acb582997bf20a",
+  "scripts/ab/tasks/p110_r2_superseded_stamp/meta.json": "84ec131381198201d2fd9118e9b337401450ba59e8154c025c3e5547d11f41cc",
+  "scripts/ab/tasks/p110_r2_superseded_stamp/prompts.json": "53881eef17d5a3241ba1de8d45aa2b1fb72bd768de2dc25108fb1c922e1419af",
+  "scripts/ab/tasks/p110_r2_superseded_stamp/setup.py": "6e96cc11b48ec4a575787e2e3f70b88d666950d7f3e8b2bb167b1771fbd4381e",
+  "scripts/ab/tasks/p110_r2_superseded_stamp/verify.py": "782e5ee87565a7d65209983a7d3b29cd3ec240b229d8e32dec60ee78e85db5de",
+  "scripts/ab/tasks/p110_r3_runbook_middle/hooks.py": "1ce03ae0f685bb32d40fb29bf7adbfe0aba7541f5a5a49abf9a4a55360f86698",
+  "scripts/ab/tasks/p110_r3_runbook_middle/meta.json": "e4790647ba4aaa0649775241234cfc7ead234ba07871058c5677248afc788ecb",
+  "scripts/ab/tasks/p110_r3_runbook_middle/prompts.json": "c2a28e6bc3853874a6699fbb7363fb5eadd1eaa034f4e7b6c2862e088f2e5590",
+  "scripts/ab/tasks/p110_r3_runbook_middle/setup.py": "679899fc6a8df1e44911eeafc7de1eb28a90533187cae4ed4841c9cd3f01845b",
+  "scripts/ab/tasks/p110_r3_runbook_middle/verify.py": "4acc2a6128bc39d20dc5bb66e80529224b0bc8fbc8aee1cfd518bd411ebf08e1",
+  "scripts/ab/tasks/p110_r4_probe_compare/hooks.py": "ddc0855f08b205cf66d90952a4cc64c40e6009de355598aad82301b94502bfd3",
+  "scripts/ab/tasks/p110_r4_probe_compare/meta.json": "36894717f7f48ef09c182d2fc3cf0e09f38e88ad2b9e24650ca8b2cb79b2945d",
+  "scripts/ab/tasks/p110_r4_probe_compare/prompts.json": "97f331e096656988ae1cb5e58a82841de4805844484237c5e53fc788ca5491a7",
+  "scripts/ab/tasks/p110_r4_probe_compare/setup.py": "988b77bf7225f75baa6b524acbc5b9c87da5e4aa2e7b1fa7d6a8cddeed3cb26d",
+  "scripts/ab/tasks/p110_r4_probe_compare/verify.py": "846f6c94f5803f89f4a046748ffb2d80b992d1ab41c5d8c88ea61113c8b790e3",
+  "scripts/ab/tasks/p110_r5_initial_failures/meta.json": "9c1a38d30d9cd5480aea193ac7ee8a7a4a191543cf4b6130cb8fdd0fd73d3084",
+  "scripts/ab/tasks/p110_r5_initial_failures/prompts.json": "4e2beed6eba7e340a54af66c912ee9356f5cf037e0bbb64f5a497b54daa17f3d",
+  "scripts/ab/tasks/p110_r5_initial_failures/setup.py": "5adc03a9e45031d7eb2f995b17452b7d398b086df79fc302e006cbacddad9831",
+  "scripts/ab/tasks/p110_r5_initial_failures/verify.py": "cc7dd904f02b926b670ef86af2bf6101ed20cb8d2ecabfd169de6e019dbf30f8",
+  "scripts/ab/tasks/svs_f1_flood_recall/hooks.py": "28a0a2211d62b27ab313ab3e9e742536280e765f268874c70cb4965ea132c023",
+  "scripts/ab/tasks/svs_f1_flood_recall/meta.json": "01e41916139a096552faf1c0979a97bf9c27a58c665118888345e680f592dd8e",
+  "scripts/ab/tasks/svs_f1_flood_recall/prompts.json": "7930e822d2b5e65e39237de772788b6c0aca2fbb6905fff5e87c26b8e6a8af8c",
+  "scripts/ab/tasks/svs_f1_flood_recall/setup.py": "e385e6978838ec8cc264f9b058098778bd8cacd9cff1baecd5fcc88453da3966",
+  "scripts/ab/tasks/svs_f1_flood_recall/verify.py": "d94f2a6229d8593bc8080956012a6302a57b9844ff8c4e2c6de1aa37ea9b219b"
+ }
+}
