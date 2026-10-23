@@ -10,11 +10,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { createMessage, createToolResultMessage, createUserMessage, ToolCallId, type Message } from '@deepseek-ai/dsh-llm'
-import { isReplacementSurfaceEvent, Session, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import { deriveEventMessage, isReplacementSurfaceEvent, Session, SessionId, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import './v4-fixtures.js'
 import { HISTORY_SOURCE, planSeal, sealCompletedTurns, TAPE_PREFIX, type HistoryPolicy } from '../src/context.js'
 import { renderSealedTurn } from '../src/recall.js'
-import { DEFAULT_WORKING_SET, workingSetNote } from '../src/working-set.js'
+import { DEFAULT_WORKING_SET, keepWorkingSet, workingSetNote } from '../src/working-set.js'
 import { editText, readText, writeText } from './fs-fixtures.js'
 
 const WS: HistoryPolicy = { keepRecentTurns: 0, workingSet: { ...DEFAULT_WORKING_SET } }
@@ -38,6 +38,8 @@ interface Step { head: SessionSeq; results: SessionSeq[]; all: SessionSeq[] }
 class Script {
   turn = 0
   step = 0
+  /** Reasoning of the next step only; each step otherwise reasons `REASONING_<turn>_<step>`. */
+  reasoning: string | undefined
   constructor(readonly session: Session) {}
   start(turn: number): void {
     this.turn = turn
@@ -54,8 +56,10 @@ class Script {
   call(...calls: Call[]): Step {
     this.step += 1
     const ids = calls.map((_, index) => ToolCallId(`t${this.turn}-s${this.step}-c${index}`))
+    const reasoning = this.reasoning
+    this.reasoning = undefined
     const head = this.assistant([
-      { type: 'reasoning', text: `REASONING_${this.turn}_${this.step}` },
+      { type: 'reasoning', text: reasoning ?? `REASONING_${this.turn}_${this.step}` },
       ...calls.map((call, index) => ({ type: 'tool-call' as const, id: ids[index]!, name: call.name, arguments: JSON.stringify(call.args) })),
     ])
     calls.forEach((call, index) => this.session.append('tool/call', { turn: this.turn, step: this.step, callId: ids[index]!, name: call.name, arguments: JSON.stringify(call.args) }))
@@ -72,6 +76,13 @@ class Script {
 }
 
 function script(id: string): Script { return new Script(Session.create(SessionId(id))) }
+/** Another producer's in-place view of a result (the fold, the host's pruner). */
+function replaceResult(session: Session, seq: SessionSeq, text: string): SessionEvent {
+  const original = session.eventAt(seq) as SessionEvent<'tool/result'>
+  return session.append('tool/result', { ...original.data, message: { ...original.data.message, content: [{ type: 'text', text }] } }, {
+    surfaceOp: { op: 'replace', startSeq: seq, endSeq: seq }, sourceEventSeqs: [seq],
+  })
+}
 const textOf = (message: Message | null): string => (message?.content ?? []).map(block => block.type === 'text' ? block.text : '').join('')
 const sealed = (session: Session): SessionEvent<'user/message'>[] => session.snapshotEvents().filter((event): event is SessionEvent<'user/message'> =>
   event.type === 'user/message' && event.data.source.kind === HISTORY_SOURCE)
@@ -312,10 +323,7 @@ describe('working-set retention when a turn seals', () => {
     const refused = s.call(edit('a.py', true))
     const folded = s.call(read('b.py', lines('B')))
     // Another producer condensed b.py's result in place: the model never saw the whole file.
-    const original = s.session.eventAt(folded.results[0]!) as SessionEvent<'tool/result'>
-    const view = s.session.append('tool/result', { ...original.data, message: { ...original.data.message, content: [{ type: 'text', text: 'FOLDED_VIEW' }] } }, {
-      surfaceOp: { op: 'replace', startSeq: original.seq, endSeq: original.seq }, sourceEventSeqs: [original.seq],
-    })
+    const view = replaceResult(s.session, folded.results[0]!, 'FOLDED_VIEW')
     const changeB = s.call(edit('b.py'))
     s.end()
     s.start(2)
@@ -431,6 +439,115 @@ describe('working-set retention when a turn seals', () => {
     const live = planSeal(s.session, [], WS)
     expect(fromLog.appends.map(append => [append.start, append.end, append.sources])).toEqual(live.appends.map(append => [append.start, append.end, append.sources]))
     expect(fromLog.appends.map(append => textOf(append.message))).toEqual(live.appends.map(append => textOf(append.message)))
+  })
+
+  it('keeps its decision when another producer replaces a kept result after the turn ended', () => {
+    // The step-capped shape: the turn's last step read the notes again and no request followed it, so the fold
+    // condenses that result at the next turn's first step, right after the seal kept the step raw.
+    const notes = lines('NOTE', 400) // non-code prose the fold condenses
+    const s = script('ws-after-end')
+    s.start(1)
+    const first = s.call(read('notes.md', notes))
+    s.call(edit('notes.md'))
+    const last = s.call(read('notes.md', notes), read('README.md', lines('README', 250)))
+    s.end(null, 'blocked')
+    s.start(2)
+    sealCompletedTurns(s.session, [], WS)
+    expect(raw(s.session, last)).toBe(true)
+    expect(swallowed(s.session, first)).toBe(true)
+    // After the seal: the notes result shrinks to a fold view the sibling README now outweighs.
+    const folded = replaceResult(s.session, last.results[0]!, 'FOLDED_NOTES')
+    const carried = [...s.session.surface.nodes]
+    s.call(bash('python3 -m unittest'))
+    s.end()
+    for (let turn = 3; turn <= 4; turn += 1) {
+      s.start(turn)
+      expect(planSeal(s.session, [], WS).appends.flatMap(append => append.sources)).not.toContain(folded.seq)
+      sealCompletedTurns(s.session, [], WS)
+      // Every node the turn-2 requests carried up to the kept step is still in place.
+      const through = carried.indexOf(folded.seq)
+      expect(s.session.surface.nodes.slice(0, through + 1)).toEqual(carried.slice(0, through + 1))
+      s.end()
+    }
+    // A replacement made before the turn ended still means the model never saw the whole file (in-turn fold).
+    const inTurn = script('ws-in-turn')
+    inTurn.start(1)
+    const seen = inTurn.call(read('notes.md', notes))
+    replaceResult(inTurn.session, seen.results[0]!, 'FOLDED_NOTES')
+    inTurn.call(edit('notes.md'))
+    inTurn.end()
+    inTurn.start(2)
+    sealCompletedTurns(inTurn.session, [], WS)
+    expect(entryTexts(inTurn.session).join('\n')).not.toContain('working set')
+  })
+
+  it('does not keep a step that lacks a result on the surface, so calls stay paired', () => {
+    const s = script('ws-missing-result')
+    s.start(1)
+    const view = s.call(read('calc.py', lines('CALC')))
+    const change = s.call(edit('calc.py'))
+    s.end()
+    s.start(2)
+    const nodes = s.session.surface.nodes.filter(seq => seq !== view.results[0]).map(seq => {
+      const event = s.session.eventAt(seq)!
+      return { seq, event, message: deriveEventMessage(event) }
+    })
+    const kept = keepWorkingSet(s.session, nodes, 2, DEFAULT_WORKING_SET)
+    expect(kept.seqs.has(view.head)).toBe(false)
+    expect(kept.seqs.has(change.head)).toBe(false)
+    expect(kept.notes.size).toBe(0)
+    // With the result in place the same chain is kept.
+    const whole = s.session.surface.nodes.map(seq => { const event = s.session.eventAt(seq)!; return { seq, event, message: deriveEventMessage(event) } })
+    expect([...keepWorkingSet(s.session, whole, 2, DEFAULT_WORKING_SET).seqs].sort((a, b) => a - b)).toEqual([...view.all, ...change.all])
+  })
+
+  it('skips a file that does not fit the cap and still keeps a later, smaller one', () => {
+    const s = script('ws-cap-skip')
+    s.start(1)
+    const small = s.call(read('small.py', lines('SMALL')))
+    const smallEdit = s.call(edit('small.py'))
+    const big = s.call(read('big.py', lines('BIG', 2_000)))
+    const bigEdit = s.call(edit('big.py'))
+    s.end()
+    s.start(2)
+    // big.py was touched last, so it is tried first; it does not fit, small.py still does.
+    sealCompletedTurns(s.session, [], { keepRecentTurns: 0, workingSet: { turns: 2, maxChars: 10_000 } })
+    expect(swallowed(s.session, big) && swallowed(s.session, bigEdit)).toBe(true)
+    expect(raw(s.session, small) && raw(s.session, smallEdit)).toBe(true)
+    expect(entryTexts(s.session).join('\n')).toContain('kept raw in place for small.py]')
+  })
+
+  it('counts a step\'s reasoning toward the cap', () => {
+    const s = script('ws-reasoning')
+    s.start(1)
+    s.reasoning = 'R'.repeat(DEFAULT_WORKING_SET.maxChars)
+    const view = s.call(read('calc.py', lines('CALC')))
+    s.call(edit('calc.py'))
+    s.end()
+    s.start(2)
+    sealCompletedTurns(s.session, [], WS)
+    expect(swallowed(s.session, view)).toBe(true)
+    expect(entryTexts(s.session).join('\n')).not.toContain('working set')
+  })
+
+  it('bounds the window by the session, however large turns is', () => {
+    const s = script('ws-huge-window')
+    const policy: HistoryPolicy = { keepRecentTurns: 0, workingSet: { turns: Number.MAX_SAFE_INTEGER, maxChars: 48_000 } }
+    s.start(1)
+    s.call(read('calc.py', lines('V1')))
+    s.call(edit('calc.py'))
+    s.end()
+    const views: Step[] = []
+    for (let turn = 2; turn <= 5; turn += 1) {
+      s.start(turn)
+      sealCompletedTurns(s.session, [], policy)
+      views.push(s.call(read('calc.py', lines(`T${turn}`))))
+      s.end()
+    }
+    s.start(6)
+    sealCompletedTurns(s.session, [], policy)
+    // The turn-1 change keeps calc.py in the working set for the whole session.
+    for (const view of views) expect(raw(s.session, view)).toBe(true)
   })
 
   it('drops the note from a compact capped entry but keeps the steps raw', () => {

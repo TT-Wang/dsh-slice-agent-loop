@@ -20,16 +20,26 @@
  * content (beyond SIBLING_ALLOWANCE) is not kept: a small file read beside a
  * large log must not carry the log along. A file's steps are kept all or
  * nothing, files changed in more turns of the window first, then the most
- * recently touched; a file whose steps do not fit, or are no longer intact on the
- * surface (another producer replaced them), is sealed as today. A later view of a
- * file never retires an earlier kept one: that would rewrite a carried prefix.
+ * recently touched; a file whose steps do not fit, or are not all on the surface
+ * with every result, is sealed as today. A later view of a file never retires an
+ * earlier kept one: that would rewrite a carried prefix. So nothing bounds the
+ * kept text of a whole session but `maxChars` per sealed turn: where every turn
+ * has to read the file again before editing it (one process per turn resets the
+ * host's edit guard), every coding turn keeps one more view.
  *
  * Cache safety: a kept step is protected exactly like a human message, so it
- * cuts the entry instead of being rewritten. The decision for turn N is a pure
- * function of the log through turn N and of which of those steps are still raw
- * on the surface, so every later seal makes the same decision for it: kept nodes
- * are never sealed later, sealed nodes are never thawed, and the prefix through
- * the last entry stays frozen as before.
+ * cuts the entry instead of being rewritten. The decision for turn N reads the
+ * log as it stood when turn N ended: which reads were full views, and every
+ * size, come from the original results or from another producer's in-place view
+ * made before the turn ended (the fold condenses a result before the first
+ * request that shows it). A replacement made after the turn ended changes
+ * nothing: the fold condensing a step-capped turn's last results at the next
+ * step, right after this seal kept them, must not undo the decision at the next
+ * seal. The surface is consulted only for which steps are still there, and a
+ * step a seal kept stays there. So every later seal, and a resumed process,
+ * makes the same decision for turn N: kept nodes are never sealed later, sealed
+ * nodes are never thawed, and the prefix through the last entry stays frozen as
+ * before.
  */
 import type { Message } from '@deepseek-ai/dsh-llm';
 import { type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session';

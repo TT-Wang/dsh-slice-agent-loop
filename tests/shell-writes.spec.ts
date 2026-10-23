@@ -79,6 +79,13 @@ describe('shell write recognition', () => {
     expect(shellWriteTargets('python3 calc.py > /dev/null')).toEqual([])
   })
 
+  it('does not count printing to the standard streams as a write, but still a file handle write', () => {
+    expect(shellWriteTargets("python3 - <<'PY'\nimport sys\nsrc = open('calc.py').read()\nsys.stdout.write(src[:200])\nsys.stderr.write('done.\\n')\nPY")).toEqual([])
+    expect(shellWriteTargets(`python3 -c "import sys; sys.stdout.buffer.write(open('calc.py', 'rb').read())"`)).toEqual([])
+    expect(shellWriteTargets(`node -e "process.stdout.write(require('fs').readFileSync('calc.py', 'utf8'))"`)).toEqual([])
+    expect(shellWriteTargets("python3 - <<'PY'\nimport sys\nfh = open(sys.argv[0] and 'out/report.txt', mode)\nfh.write('x')\nsys.stdout.write('ok')\nPY")).toEqual(['out/report.txt'])
+  })
+
   it('recurses into a shell here-document and stops at a bounded depth', () => {
     expect(shellWriteTargets("bash <<'SH'\necho x > deep.txt\nSH")).toEqual(['deep.txt'])
     const nested = "bash -c \"bash -c 'bash -c \\\"bash -c \\\\\\\"echo > z.txt\\\\\\\"\\\"'\""

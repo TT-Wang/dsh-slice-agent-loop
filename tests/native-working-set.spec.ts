@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { RequestMessage, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { PtcRunResult, PtcRunSpec } from '@deepseek-ai/dsh-ptc-runtime'
-import { deriveEventMessage, foldSurface, SESSION_FORMAT_VERSION, SessionId, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
+import { deriveEventMessage, foldSurface, isReplacementSurfaceEvent, SESSION_FORMAT_VERSION, SessionId, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { HISTORY_SOURCE, TAPE_PREFIX } from '../src/context.js'
 import type { Config } from '../src/index.js'
 import { FixtureCodeRuntime } from './fixture-code-runtime.js'
@@ -56,6 +56,28 @@ function expectStablePrefix(requests: ReadonlyArray<{ messages: readonly Request
     const earlier = requests[i - 1]!.messages
     const lastEntry = earlier.reduce((last, message, index) => entriesIn([message]).length ? index : last, -1)
     expect(firstDivergence(earlier, requests[i]!.messages)).toBeGreaterThan(lastEntry)
+  }
+}
+/**
+ * A node a request carried raw beside its turn's entries (an assistant or tool node of a turn some entry already
+ * covers) is still on the surface of every later request: kept steps are never sealed or replaced later.
+ */
+function expectKeptStayRaw(captured: readonly CapturedRequest[]): void {
+  const carried = new Map<SessionSeq, number>()
+  for (const [index, { events }] of captured.entries()) {
+    const surface = foldSurface(events).nodes
+    for (const [seq, since] of carried) expect(surface, `node ${seq}, raw beside its turn's entries since request ${since}, at request ${index}`).toContain(seq)
+    let sealedThrough = 0
+    for (const seq of surface) {
+      const event = events[seq]!
+      if (event.type !== 'user/message' || event.data.source.kind !== HISTORY_SOURCE) continue
+      const range = /turns (\d+)-(\d+)/.exec(deriveEventMessage(event)!.content.map(block => block.type === 'text' ? block.text : '').join(''))
+      if (range) sealedThrough = Math.max(sealedThrough, Number(range[2]))
+    }
+    for (const seq of surface) {
+      const event = events[seq]! as SessionEvent
+      if ((event.type === 'assistant/message' || event.type === 'tool/result') && event.data.turn <= sealedThrough && !carried.has(seq)) carried.set(seq, index)
+    }
   }
 }
 function expectReconstructable({ request, events }: CapturedRequest): void {
@@ -133,6 +155,7 @@ describe('working-set retention on the native loop', () => {
     for (const request of h.adapter.requests) expectPaired(request.messages)
     for (const captured of h.captured) expectReconstructable(captured)
     expectStablePrefix(h.adapter.requests)
+    expectKeptStayRaw(h.captured)
 
     const derived = structuredClone(session.deriveMessages())
     const surface = [...session.surface.nodes]
@@ -149,6 +172,7 @@ describe('working-set retention on the native loop', () => {
     expect(resumed.agent.session.surface.nodes.slice(0, surface.indexOf(kept.at(-1)!) + 1)).toEqual(surface.slice(0, surface.indexOf(kept.at(-1)!) + 1))
     expectStablePrefix([{ messages: derived }, ...second.h.adapter.requests])
     for (const captured of second.h.captured) expectReconstructable(captured)
+    expectKeptStayRaw([...h.captured, ...second.h.captured])
   })
 
   it('keeps the run_code step whose dispatched edit changed a viewed file', async () => {
@@ -183,6 +207,69 @@ describe('working-set retention on the native loop', () => {
     for (const request of h.adapter.requests) expectPaired(request.messages)
     for (const captured of h.captured) expectReconstructable(captured)
     expectStablePrefix(h.adapter.requests)
+    expectKeptStayRaw(h.captured)
+  })
+
+  // Regression (2026-10-24 review): a step-capped turn whose last step re-read a non-code file. No request followed
+  // that step, so the fold condenses its result at the next turn's first step, after the seal kept the step raw.
+  // The next seal must keep it: sealing it then would rewrite nodes the previous requests carried.
+  const NOTES = '/work/notes.md'
+  const prose = `${Array.from({ length: 160 }, (_, i) => `Paragraph ${i} of the running notes is prose with nothing structured in it at all`).join('\n')}\nMARKER_OLD\n`
+  const cutTurn = (): StreamChunk[][] => [
+    nativeTool('cut-read', 'read', { file_path: NOTES }),
+    nativeTool('cut-edit', 'edit', { file_path: NOTES, old_string: 'MARKER_OLD', new_string: 'MARKER_NEW' }),
+    nativeTool('cut-reread', 'read', { file_path: NOTES }),
+  ]
+  const CUT: Config = { history: { workingSet: {} }, maxStepsPerTurn: 3 }
+  /** The re-read result was folded after the seal, and both its step's nodes are on the surface. */
+  function expectFoldedAndKept(session: Session): void {
+    const original = resultSeq(session, 'cut-reread')
+    const fold = session.snapshotEvents().find(event => event.type === 'tool/result' && isReplacementSurfaceEvent(event) && event.sourceEventSeqs?.includes(original))
+    expect(fold).toBeDefined()
+    expect(session.surface.nodes).toContain(fold!.seq)
+    expect(session.surface.nodes).toContain(stepOf(session, 'cut-reread')[0])
+  }
+
+  it('keeps a step-capped turn\'s last step raw after the fold condenses it', async () => {
+    const h = await nativeHarness([...cutTurn(), nativeText('TURN_TWO_DONE'), nativeText('TURN_THREE_DONE'), nativeText('TURN_FOUR_DONE')], { config: CUT })
+    live.push(h)
+    registerFsFixtures(h.ctx, new Map([[NOTES, prose]]))
+    const agent = await create(h, 'native-working-set-cut')
+    for (const text of ['edit the notes', 'two', 'three', 'four']) await nativeSend(agent, text)
+    expect(h.errors).toEqual([])
+    expect(agent.session.snapshotEvents().find(event => event.type === 'turn/end' && event.data.turn === 1)).toMatchObject({ data: { reason: { kind: 'blocked' } } })
+    expectFoldedAndKept(agent.session)
+    for (const request of h.adapter.requests) expectPaired(request.messages)
+    for (const captured of h.captured) expectReconstructable(captured)
+    expectStablePrefix(h.adapter.requests)
+    expectKeptStayRaw(h.captured)
+  })
+
+  it('keeps it raw with one process per turn and a JSONL resume, the harness shape', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'slice-working-set-cut-'))
+    roots.push(root)
+    const id = SessionId('native-working-set-cut-resume')
+    const opts = { provider: 'native-mock', model: 'deterministic' }
+    const files = new Map([[NOTES, prose]])
+    const captured: CapturedRequest[] = []
+    let session: Session | undefined
+    for (const [turn, script] of [cutTurn(), [nativeText('TURN_TWO_DONE')], [nativeText('TURN_THREE_DONE')], [nativeText('TURN_FOUR_DONE')]].entries()) {
+      const h = await nativeHarness(script, { config: CUT, persistenceRoot: root })
+      registerFsFixtures(h.ctx, files)
+      const agent = turn === 0
+        ? (await h.ctx.agents.create({ sessionId: id, agentOptions: opts })).agent
+        : (await h.ctx.agents.resume({ resumeSessionId: id, agentOptions: opts })).agent
+      await nativeSend(agent, `turn ${turn + 1}`)
+      expect(h.errors).toEqual([])
+      captured.push(...h.captured)
+      session = agent.session
+      if (turn > 0) expectFoldedAndKept(session)
+      await h.ctx.fiber.dispose()
+    }
+    for (const request of captured) expectPaired(request.request.messages)
+    for (const request of captured) expectReconstructable(request)
+    expectStablePrefix(captured.map(({ request }) => request))
+    expectKeptStayRaw(captured)
   })
 
   it('seals every step as before when the key is omitted', async () => {
@@ -210,6 +297,7 @@ describe('history.workingSet configuration', () => {
     await load({})
     await load({ turns: 0, maxChars: 1 })
     await load({ turns: 5, maxChars: 200_000 })
+    await load({ turns: Number.MAX_SAFE_INTEGER })
   })
 
   it.each([true, null, [], 2, 'on'])('rejects a non-object value: %j', async value => {
