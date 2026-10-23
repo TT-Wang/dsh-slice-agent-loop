@@ -778,7 +778,93 @@ def read_counts(events, calls, call_order, results, replacements, cwd, success_o
     }
 
 
-def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0, delivery=()):
+# ---- re-read classes (svs2 ablation, docs/svs2-ablation-2026-10-24.md §5). Every read of a file is classified by why it
+# happened, in session order; the definitions are those of the follow-up analysis of the slice-vs-stock c1 logs that
+# motivated the ablation (c1, 4 cells x 8 turns per arm, stock vs slice: cross-turn 27 vs 59, after own edit 9 vs 28,
+# edits/writes 84 vs 168, FS_NOT_OBSERVED 1 vs 1), so those figures reproduce from the archived logs:
+# - a read is a `read` tool call, or a bash command that is one plain read of one text file (cat, head, tail, nl or
+#   sed -n, optionally after `cd DIR &&`, no pipe, list or redirection);
+# - an edit/write is an `edit` or `write` tool call, refused or not (a bash write is counted apart, `bash_writes`);
+# - classes, first match wins: after_own_edit (the file was edited or written earlier in this turn), same_turn (read
+#   earlier in this turn, no edit since), cross_turn (the first read in this turn of a file read or edited in an
+#   earlier turn: the brief's "start-of-turn re-read of an earlier-seen file"), first (never seen before);
+# - refusals: tool results of the host's fs-observation policy, FS_NOT_OBSERVED ("file has not been read") and
+#   FS_STALE_VERSION ("… re-read the file, then retry").
+REREAD_BASH_RE = re.compile(r"^\s*(?:cd (\S+) &&\s*)?(cat|head|tail|nl|sed -n)\b[^|;&>]*?(\S+\.(?:py|md|txt|toml|cfg|log|json|ya?ml|ini|csv|sh))\s*$")
+FS_NOT_OBSERVED_TEXT = "has not been read"
+FS_STALE_TEXT = "re-read the file, then retry"
+REREAD_CLASSES = ("first", "cross_turn", "same_turn", "after_own_edit")
+
+
+def reread_classes(events, cwd=None):
+    """Re-read classes of one session (see REREAD_BASH_RE above): {first, cross_turn, same_turn, after_own_edit, reads,
+    edits_writes, bash_writes, fs_not_observed, fs_stale_version, per_turn: {turn: {class: n}}}. Paths are resolved
+    against the session cwd (a leading `cd DIR &&` of a bash read too) and compared in their /private spelling."""
+    out = {k: 0 for k in REREAD_CLASSES + ("reads", "edits_writes", "bash_writes", "fs_not_observed", "fs_stale_version")}
+    per_turn = {}
+    reads_in, edited_in = {}, {}   # turn -> set(paths)
+    turn = 0
+
+    def key(path, base=None):
+        p = norm_path(path, norm_path(base, cwd) if base else cwd)
+        return canon_path(p) if p else None
+
+    for e in events:
+        t, d = e.get("type"), e.get("data") or {}
+        if t == "turn/start":
+            turn = d.get("turn", turn + 1)
+        elif t == "tool/call":
+            name = d.get("name")
+            try:
+                a = json.loads(d.get("arguments") or "{}")
+            except ValueError:
+                a = {}
+            if not isinstance(a, dict):
+                a = {}
+            tn = d.get("turn") if d.get("turn") is not None else turn
+            path, kind = None, None
+            if name == "read":
+                path, kind = key(a.get("file_path") or a.get("path")), "read"
+            elif name in ("edit", "write"):
+                path, kind = key(a.get("file_path") or a.get("path")), "mut"
+            elif name == "bash":
+                cmd = str(a.get("command", ""))
+                m = REREAD_BASH_RE.match(cmd)
+                if m:
+                    unq = lambda x: x.strip("'\"") if x else x  # cd "/path with quotes" && cat calc.py
+                    path, kind = key(unq(m.group(3)), unq(m.group(1))), "read"
+                elif write_like({"name": "bash", "args": a}) or bash_mutations(cmd):
+                    out["bash_writes"] += 1
+            if path is None or kind is None:
+                continue
+            if kind == "mut":
+                edited_in.setdefault(tn, set()).add(path)
+                out["edits_writes"] += 1
+                continue
+            if path in edited_in.get(tn, ()):
+                klass = "after_own_edit"
+            elif path in reads_in.get(tn, ()):
+                klass = "same_turn"
+            elif any(path in reads_in.get(k, ()) or path in edited_in.get(k, ()) for k in list(reads_in) + list(edited_in) if k < tn):
+                klass = "cross_turn"
+            else:
+                klass = "first"
+            out[klass] += 1
+            out["reads"] += 1
+            pt = per_turn.setdefault(str(tn), {})
+            pt[klass] = pt.get(klass, 0) + 1
+            reads_in.setdefault(tn, set()).add(path)
+        elif t == "tool/result" and op_of(e) == "append":
+            text = text_of(d.get("message"))
+            if FS_NOT_OBSERVED_TEXT in text:
+                out["fs_not_observed"] += 1
+            if FS_STALE_TEXT in text:
+                out["fs_stale_version"] += 1
+    out["per_turn"] = per_turn
+    return out
+
+
+def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0, delivery=(), system_markers=()):
     prices = prices or load_prices()
     session = next((e for e in events if e.get("type") == "session"), {}) or {}
     cwd = workdir or session.get("cwd") or (session.get("data") or {}).get("cwd")
@@ -843,6 +929,9 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
         "turn_starts": sum(1 for e in events if e.get("type") == "turn/start"),
         "turn_ends": sum(1 for e in events if e.get("type") == "turn/end"),
         "goal_tool_calls": sum(1 for e in events if e.get("type") == "tool/call" and (e.get("data") or {}).get("name") in ("create_goal", "update_goal", "get_goal")),
+        # svs2 manipulation checks: which of the given marker strings the (first) system prompt contains, e.g. the slice
+        # persona or the kernel's re-read sentence (gates structure system_contains / system_lacks); texts stay out of the row
+        "system_markers": {m: (m in system) for m in system_markers},
     }
     row["prefix"] = {
         "system_chars": len(system),
@@ -1110,6 +1199,8 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
     # call counts, the definition frozen on 2026-09-27 (docs/p110-native-ab.md §6, §14.5 item 1).
     row["reads"] = read_counts(events, calls, call_order, results, replacements, cwd, success_only=True)
     row["reads_any_mutation"] = read_counts(events, calls, call_order, results, replacements, cwd, success_only=False)
+    # svs2: why each file read happened (first, cross-turn, same-turn, after the model's own edit), edits and refusals
+    row["rereads"] = reread_classes(events, cwd)
 
     # ------------------------------------------------------------ tape
     header_forms, tool_forms = {}, {}
@@ -1142,6 +1233,8 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
         "tool_lines": len(tool_line_lens),
         "tool_line_forms": tool_forms,
         "tool_line_chars": sum(tool_line_lens),
+        # svs2 arm C (working-set retention) notes kept-raw reads in its entries; reported, not a validity condition
+        "kept_raw_entries": sum(1 for tp in tape if re.search(r"kept raw", tp["text"], re.I)),
     }
 
     # ------------------------------------------------------------ native context management (DSH 0.2.x)
