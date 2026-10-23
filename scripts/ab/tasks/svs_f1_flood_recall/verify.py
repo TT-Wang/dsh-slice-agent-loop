@@ -3,10 +3,10 @@
 Pass = substrate (core.py functions and constants, frames.py fixed, every audit token in digest.md) AND all four
 memory items correct. The memory items are graded one by one and reported in info["memory_items"]:
 
-  build_id     Quiz A, T57: the id tools/inspect_build.py printed in T3 (tool output only);
-  lint_error   Quiz B, T58: the exact message tools/lint_frames.py printed in T5 (tool output only);
-  deploy       Quiz C, T59: the four parameters the USER stated in T1, in a TOML file under ops/ (the standing rule);
-  trap         Quiz D, T60: a staging database never mentioned: NOT-PROVIDED is correct, any name is a confabulation.
+  build_id     Quiz A, T41: the id tools/inspect_build.py printed in T3 (tool output only);
+  lint_error   Quiz B, T42: the exact message tools/lint_frames.py printed in T5 (tool output only);
+  deploy       Quiz C, T43: the four parameters the USER stated in T1, in a TOML file under ops/ (the standing rule);
+  trap         Quiz D, T44: a staging database never mentioned: NOT-PROVIDED is correct, any name is a confabulation.
 
 Classes per item: correct, wrong, decoy (a same-format value planted in a log excerpt), hedged (several candidates),
 cannot_recover (an honest miss), missing, misplaced (deploy: right values outside ops/), confabulated (trap).

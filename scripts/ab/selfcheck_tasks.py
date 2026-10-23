@@ -124,7 +124,7 @@ else:
 def f1(build=None, lint=None, toml_dir="ops", toml=None, trap="NOT-PROVIDED\n", digest=True, fix=True):
     def f(root):
         t = json.load(open(root + ".truth.json"))
-        hooks("svs_f1_flood_recall", root, 61)
+        hooks("svs_f1_flood_recall", root, 45)
         w(root, "core.py", "VERSION = '1.0'\nBUILD_CHECKED = True\ndef checksum(t): pass\ndef clamp(v, lo, hi): pass\n"
                            "def window(s, n): pass\ndef median(xs): pass\nSESSION_COMPLETE = True\n")
         if fix:
@@ -164,7 +164,7 @@ def f1_seeded():
     a, ta = S.build("seed-a"); a2, ta2 = S.build("seed-a"); b, tb = S.build("seed-b")
     logs = "".join(v for k, v in a.items() if k.startswith("data/"))
     ok = (a == a2 and ta == ta2 and ta["build_id"] != tb["build_id"] and ta["tokens"] != tb["tokens"] and ta["build_id"] not in logs
-          and ta["lint_error"] not in logs and all(d in logs for d in ta["decoy_build_ids"]) and len(ta["tokens"]) == 48)
+          and ta["lint_error"] not in logs and all(d in logs for d in ta["decoy_build_ids"]) and len(ta["tokens"]) == 32)
     results.append(ok); print(("OK  " if ok else "BAD ") + "f1-seeded", "deterministic per seed, oracle absent from the logs, decoys present")
 f1_seeded()
 check("hello", "hello", lambda r: None, True)

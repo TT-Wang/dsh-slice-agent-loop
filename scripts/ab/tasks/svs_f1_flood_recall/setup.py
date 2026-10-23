@@ -22,7 +22,7 @@ import json
 import os
 import random
 
-N_BLOBS = 48
+N_BLOBS = 32  # 48 in the build stage; resized by the pilot rule (docs/slice-vs-stock-2026-10-23.md §12.2 (a))
 BLOB_CHARS = 12_000
 # User-stated facts of turn 1 (they are in the prompt itself, so they are static).
 HOST, PORT, TOKEN_ENV, BACKOFF, CONSTRAINT_DIR = "10.7.4.23", "6311", "ORCHID_DEPLOY_KEY", "350", "ops"
@@ -106,7 +106,7 @@ def build(seed):
         "deploy": {"host": HOST, "port": PORT, "token_env": TOKEN_ENV, "retry_backoff_ms": BACKOFF, "dir": CONSTRAINT_DIR},
         # ab_metrics specs (run_ab.py merges them with meta.json): exams address the quiz turns, delivery the turns whose
         # tool output must carry the fact (a run whose output was discarded leaves nothing to recall).
-        "exams": [{"turn": 57, "tokens": [build_id]}, {"turn": 58, "tokens": [lint_error]}],
+        "exams": [{"turn": 41, "tokens": [build_id]}, {"turn": 42, "tokens": [lint_error]}],
         "delivery": [{"turn": 3, "tokens": [build_id]}, {"turn": 5, "tokens": [lint_error]}],
     }
     files = {

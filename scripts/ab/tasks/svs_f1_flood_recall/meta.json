@@ -1,7 +1,7 @@
 {
  "name": "svs_f1_flood_recall",
  "alias": "f1",
- "turns": 61,
+ "turns": 45,
  "max_steps_per_turn": 12,
  "turn_timeout_s": 900,
  "recall": true,
@@ -12,7 +12,7 @@
  "exams": [],
  "delivery": [],
  "source": "new for slice-vs-stock (2026-10-23): sliceagent benchmarks/multiturn_coding s10_compactloss (one-shot build id, ephemeral lint error, full reads of large files, quizzes) and s13_compact_amnesia (user-stated deployment parameters with a placement rule, a never-given fact as a trap), merged and resized; realistic service-log excerpts instead of random letters; oracle values generated at setup from AB_TASK_SEED.",
- "stressor": "61 turns: T1 the user states four deployment parameters and a standing placement rule; T3 a one-shot script prints a build id (tool output only; script and seed deleted after T3); T5 a linter prints one exact error, fixed in the same turn (linter deleted after T5); T7-T56 48 full reads of ~12,000-character log excerpts, each turn appending the excerpt's audit token to digest.md, with two coding turns (T23 window, T40 median) and same-format decoy build ids and lint findings inside the logs; T57-T60 quizzes: build id, exact lint message, the TOML config under ops/, a never-given staging database (NOT-PROVIDED); T61 closeout.",
- "_exam_note": "Exam and delivery token specs are generated with the oracle values and read from the truth sidecar (truth_specs): exams T57 (build id) and T58 (lint message); delivery T3 and T5. The deploy (T59) and trap (T60) items are graded by verify only: their source is the user's own T1 text, which every arm keeps verbatim (slice by design, stock until a compaction summarizes it).",
+ "stressor": "45 turns: T1 the user states four deployment parameters and a standing placement rule; T3 a one-shot script prints a build id (tool output only; script and seed deleted after T3); T5 a linter prints one exact error, fixed in the same turn (linter deleted after T5); T7-T39 32 full reads of ~12,000-character log excerpts, each turn appending the excerpt's audit token to digest.md, with one coding turn (T23 window) between the two blocks of 16 and same-format decoy build ids and lint findings inside the logs; T40 a coding turn (median); T41-T44 quizzes: build id, exact lint message, the TOML config under ops/, a never-given staging database (NOT-PROVIDED); T45 closeout. Resized from 61 turns (48 excerpts) by the pilot rule of docs/slice-vs-stock-2026-10-23.md §12.2 (a).",
+ "_exam_note": "Exam and delivery token specs are generated with the oracle values and read from the truth sidecar (truth_specs): exams T41 (build id) and T42 (lint message); delivery T3 and T5. The deploy (T43) and trap (T44) items are graded by verify only: their source is the user's own T1 text, which every arm keeps verbatim (slice by design, stock until a compaction summarizes it).",
  "_cap_note": "12 steps per turn, as s10's max_steps_per_turn, applied identically in every arm by the harness's step-cap row (scripts/ab/step-cap.mjs)."
 }
