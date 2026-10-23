@@ -1,9 +1,10 @@
 # Slice vs stock DSH: is the current slice context policy worth using?
 
-> **Status: DRAFT pre-registration, 2026-10-23 (design and build stage).** No paid call has run and
-> no model key is linked anywhere under the A/B root. The harness, arms, tasks, metrics, comparisons
-> and decision rule below are built and dry-run offline (§10). The paid warmup and the pilot (§12)
-> come next; the pilot may resize f1 (§12.2) and nothing else. The commit that fills §12 freezes
+> **Status: DRAFT pre-registration, 2026-10-23 (design and build stage, pilot plan declared).** No
+> paid call has run and no model key is linked anywhere under the A/B root. The harness, arms,
+> tasks, metrics, comparisons and decision rule below are built and dry-run offline (§10). The paid
+> warmup and the pilot (§3 step 5, §12) come next; the pilot may change only what §12.2 allows
+> (the f1 resize, a task STOCK cannot pass, the cost ladder). The commit that fills §12 freezes
 > §1–§12. §13 "Results" stays empty until the batch and its report exist.
 
 ## 1. Question
@@ -175,8 +176,9 @@ Procedure:
    are not deleted here: every paid `run_ab.py` call passes `--block <dir>` for each sibling
    directory of the A/B root in the scratchpad (directories only, never the `node_modules`
    symlink), which makes them mode 000 while a turn runs, with the same tamper check as the vault.
-   `AB/scratch` and `AB/build` hold no oracle and are removed before the key is linked. The
-   self-checks run in a temporary directory only.
+   `AB/scratch` and `AB/build` hold no oracle; they are moved into the vault (`vault/prekey/`,
+   blocked while a turn runs) before the key is linked. The self-checks run in a temporary
+   directory only.
 3. Operator links the key into the three template homes (`ln -s ~/.dsh/.env
    vault/homes/<arm>/.env`, never read, printed or copied).
 4. Warmup: `hello` x 2 reps x 3 arms, `--fingerprints none`, then `run_ab.py fingerprints
@@ -184,9 +186,13 @@ Procedure:
    them, as in the F-only run). From rep 2 on, step 1 must read at least 4,000 cached tokens in
    SLICE and 2,000 in STOCK and STOCK-COMPACT (their prefix is 10,192 characters, about 2,500
    tokens).
-5. Pilot (§12): f1 x 1 in STOCK-COMPACT, and r1–r5 and c2 x 1 in STOCK. Checks: oracles,
-   delivery, flags, compaction firing and detected on the real model, per-blob tokens and f1's
-   cost against §9.
+5. Pilot (§12), batch name `pilot`, seed 20261023 (its f1 content differs from the batch's,
+   since the task seed derives from the batch name; pilot cells are never pooled with the batch):
+   r1–r5 and f1 x 1 in STOCK and SLICE (one invocation), then f1 x 1 in STOCK-COMPACT unless the
+   ladder of §12.2 would drop STOCK-COMPACT's f1 anyway on the costs measured so far. Checks:
+   oracles, delivery, flags, compaction behaviour on the real model (none expected in STOCK and
+   SLICE below 678,464 tokens; firing and detected in STOCK-COMPACT), tokens per read turn,
+   cost per cell and wall time against §9; then the re-estimate of §12.2.
 6. Batch (§12): `--arms stock,slice,stock-compact --tasks f1,r1,r2,r3,r4,r5,c1,c2 --reps 3
    --reps-from-gates` (per-task reps from `gates-svs.json`: f1 2, the others 3), seed 20261023,
    `--budget-usd 10`. An invalid cell is rerun once.
@@ -347,10 +353,13 @@ digest step), 3 requests per turn, 400 output tokens per request:
 | stage | estimate |
 |---|---|
 | warmup (hello x 2 x 3) | $0.01 |
-| pilot (f1 x 1 STOCK-COMPACT; r1–r5, c2 x 1 STOCK) | $0.54 |
+| pilot (r1–r5, f1 x 1 STOCK and SLICE; f1 x 1 STOCK-COMPACT) | $1.30 (declared before the pilot; the build stage's $0.54 was a smaller pilot) |
 | batch: f1 2 reps x 3 arms + short 3 reps x 3 arms | $2.40 + $2.29 = $4.69 |
 | arbitration, if triggered: +1 rep, SLICE and STOCK | $1.22 |
-| **total** | **$5.24 without arbitration, $6.46 with** |
+| **total** | **$6.00 without arbitration, $7.22 with** (with the build stage's pilot: $5.24 and $6.46) |
+
+The total with arbitration exceeds the $7.00 planning target by $0.22 on these estimates; the
+re-estimate of §12.2 decides on the pilot's measured costs, not on these figures.
 
 Wall time: the F-only batch took 86 minutes for 42 cells; with 63 short-task cells and six f1 cells
 of 61 turns (about 10–15 minutes each on the real model), the batch takes about 3.5–4 hours, run in
@@ -532,13 +541,34 @@ the A/B root; they are build checks, not part of any comparison.
 To be recorded at the freeze: harness commit, host tree digest, fingerprints (§10), price sheet,
 budget, commands with seeds.
 
-### 12.2 Pilot rule (the only allowed change)
+### 12.2 Pilot rules (the only allowed changes)
 
-If the pilot's f1 cell costs more than $0.70 at peak (1.5x its estimate) or its tokens per read
-turn exceed 7,000, f1 is resized before the freeze to keep the expected total at or below $7: the
-number of excerpts drops from 48 to 32 (45 turns, still at least 40), with the quiz and exam turns
-renumbered; nothing else changes. If a task cannot pass at all on STOCK in the pilot, it is fixed
-here or dropped, and the minimums scale with the planned pairs.
+Declared before any paid call; applied after the pilot and before the freeze.
+
+**(a) f1 resize.** If the pilot's STOCK f1 cell costs more than $0.70 at peak (1.5x its estimate)
+or STOCK's request size grows by more than 7,000 tokens per excerpt-read turn (mean over T7–T56),
+f1 is resized before the freeze: the number of excerpts drops from 48 to 32 (45 turns, still at
+least 40), with the quiz and exam turns renumbered; nothing else changes.
+
+**(b) A task that cannot pass at all on STOCK** in the pilot is fixed here or dropped, and the
+minimums scale with the planned pairs.
+
+**(c) Re-estimate and cost ladder.** After the pilot the projected total is P = ledger spend so
+far + batch estimate + arbitration estimate (§8, SLICE and STOCK, +1 rep), all at peak, with:
+f1 and r1–r5 per arm at the pilot's measured cost per cell (STOCK-COMPACT's r1–r5 at STOCK's; its
+f1 at STOCK's f1 x 1.0 if it was not piloted); c1 and c2 in SLICE at §9's figures ($0.159,
+$0.009) and in the stock arms at those x max(1.2, the pilot's ΣSTOCK/ΣSLICE over r1–r5). If
+P > $7.00, the steps below apply in order, P is recomputed after each, and the first that brings P
+to $7.00 or less is the last applied:
+
+1. STOCK-COMPACT runs f1 only (its seven short-task cells are dropped; it is secondary, §2.5);
+2. (a)'s f1 resize, if not already applied;
+3. STOCK-COMPACT is dropped;
+4. the arbitration batch drops f1 (short tasks only; the pooled f1 minimum stays 2 pairs).
+
+If P is still above $8.65 (cap − reserve − margin), no batch runs and the record says so. The
+primary design (SLICE and STOCK, f1 2 reps, the seven short tasks 3 reps, 23 pairs, the minimums
+of §6) is never reduced by (c).
 
 ## 13. Results
 
