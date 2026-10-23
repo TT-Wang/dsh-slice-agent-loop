@@ -21,12 +21,17 @@
  * the host's newest projection already declares earlier snapshots obsolete.
  * Existing entries, including snapshot-only entries from older builds, freeze
  * the whole prefix through their position and are never rewritten here.
+ *
+ * With `workingSet` (opt-in, src/working-set.ts) the steps that hold the current
+ * view of a file the model is changing stay raw: they are protected like a human
+ * message, so they cut the turn's entry instead of entering it, and stay raw.
  */
 import { createUserMessage, type Message, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { SESSION_FORMAT_VERSION, deriveEventMessage, type Session, type SessionEvent, type SessionSeq } from '@deepseek-ai/dsh-session'
 import { renderTapeReply, type ReplyCaps } from './slice/tape.js'
 import { readHistory, readIndexLine, readsForResult, type ReadHistory, type ReadRef } from './context-reads.js'
 import { userMessageTurn } from './turn-ownership.js'
+import { keepWorkingSet, workingSetNote, type WorkingSetNote, type WorkingSetPolicy } from './working-set.js'
 
 /**
  * Source kind of every sealed entry. Session format V4 has no shared `plugin`
@@ -61,6 +66,8 @@ export interface HistoryPolicy {
   keepRecentTurns: number
   /** Optional hard character limit for one new sealed entry; at least MIN_ENTRY_MAX_CHARS. */
   entryMaxChars?: number
+  /** Opt-in: keep the steps holding the current view of files being changed raw (src/working-set.ts). */
+  workingSet?: WorkingSetPolicy
 }
 
 export interface PlannedAppend {
@@ -266,7 +273,7 @@ function inspectSurface(session: Session, pending: readonly Message[]): Layout {
 
 interface Run { nodes: Node[]; message: UserMessage }
 
-interface TurnItem { kind: 'turn'; turn: number; replies: Array<{ seq: SessionSeq; step: number; text: string }>; emptyReplies: number; tools: string[]; reads: ReadRef[]; snapshots: number[] }
+interface TurnItem { kind: 'turn'; turn: number; replies: Array<{ seq: SessionSeq; step: number; text: string }>; emptyReplies: number; tools: string[]; reads: ReadRef[]; snapshots: number[]; kept?: WorkingSetNote }
 interface EarlierItem { kind: 'earlier'; turns: [number, number] }
 
 function excerpt(text: string, head: number, tail: number): string {
@@ -275,14 +282,18 @@ function excerpt(text: string, head: number, tail: number): string {
   return `${all.slice(0, head).join('')}…[+${all.length - head - tail} chars, recall_turn]…${all.slice(all.length - tail).join('')}`
 }
 
-function collectItems(session: Session, run: readonly Node[], toolNames: Map<string, string>, history: ReadHistory): Array<TurnItem | EarlierItem> {
+function collectItems(session: Session, run: readonly Node[], toolNames: Map<string, string>, history: ReadHistory, notes?: ReadonlyMap<number, WorkingSetNote>): Array<TurnItem | EarlierItem> {
   const items: Array<TurnItem | EarlierItem> = []
   let current: TurnItem | undefined
   for (const node of run) {
     const { event } = node
     if (ours(event) && !node.superseded) { items.push({ kind: 'earlier', turns: node.turns }); current = undefined; continue }
     const turn = node.turns[0]
-    if (!current || current.turn !== turn) { current = { kind: 'turn', turn, replies: [], emptyReplies: 0, tools: [], reads: [], snapshots: [] }; items.push(current) }
+    if (!current || current.turn !== turn) {
+      const kept = notes?.get(turn)
+      current = { kind: 'turn', turn, replies: [], emptyReplies: 0, tools: [], reads: [], snapshots: [], ...kept ? { kept } : {} }
+      items.push(current)
+    }
     // A superseded snapshot is neither user speech nor current truth: never a request line.
     if (node.superseded) { current.snapshots.push(...node.recallTurns); continue }
     if (event.type === 'assistant/message') {
@@ -329,6 +340,8 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
     if (item.snapshots.length) lines.push(shrink.compact
       ? `[${item.snapshots.length} runtime-context snapshot(s) superseded; recall_turn({"turn":"${item.turn}"})]`
       : snapshotNote(item.snapshots))
+    // The kept steps are on the surface; the line only accounts for them. Compact entries drop it with the tool lines.
+    if (item.kept && !shrink.compact) lines.push(workingSetNote(item.kept))
     for (const reply of item.replies) lines.push(shrink.compact && shrink.reply
       ? `[reply step ${reply.step} seq ${reply.seq}] ${excerpt(reply.text, shrink.reply.head, shrink.reply.tail)}`
       : renderTapeReply(`slice-turn-${item.turn}-step-${reply.step}-seq-${reply.seq}`, reply.text, shrink.reply).trimEnd())
@@ -351,10 +364,10 @@ function renderItems(items: ReadonlyArray<TurnItem | EarlierItem>, range: [numbe
  * backlog falls back to a complete range/recall marker. User nodes are never
  * part of the entry. Never cut locators or rewrite an existing sealed entry.
  */
-export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, maxChars?: number): string {
+export function renderCheckpoint(session: Session, run: readonly Node[], toolNames: Map<string, string>, maxChars?: number, notes?: ReadonlyMap<number, WorkingSetNote>): string {
   checkEntryLimit(maxChars)
   const history = readHistory(session)
-  const items = collectItems(session, run, toolNames, history)
+  const items = collectItems(session, run, toolNames, history, notes)
   const covered = new Set<number>()
   for (const item of items) {
     if (item.kind === 'turn') covered.add(item.turn)
@@ -426,6 +439,22 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
   // Seal completed turns beyond the configured raw tail. Never backfill a seal
   // ahead of an established entry, even when an old protected node becomes eligible.
   const sealBefore = layout.lastTurn - policy.keepRecentTurns + 1
+  // Working-set steps are decided from the log and the raw surface alone, so a step kept by an
+  // earlier seal is kept again here: protected, it is never swallowed by a later entry.
+  const kept = policy.workingSet === undefined ? undefined : keepWorkingSet(session, layout.nodes, sealBefore, policy.workingSet)
+  if (kept) for (const node of layout.nodes) if (kept.seqs.has(node.seq)) node.protected = true
+  /** A turn's note goes into the first entry of this plan that renders the turn. */
+  const noted = new Set<number>()
+  const notesFor = (nodes: readonly Node[]): Map<number, WorkingSetNote> | undefined => {
+    if (!kept?.notes.size) return undefined
+    const notes = new Map<number, WorkingSetNote>()
+    for (const node of nodes) {
+      const turn = node.turns[0]
+      const note = kept.notes.get(turn)
+      if (note && !noted.has(turn) && !ours(node.event)) { notes.set(turn, note); noted.add(turn) }
+    }
+    return notes
+  }
 
   const cuts = new Map<string, string>()
   const buildRuns = (before: number): Run[] => {
@@ -433,7 +462,7 @@ export function planSeal(session: Session, pending: readonly Message[], policy: 
     let current: Node[] = []
     const push = (nodes: Node[]): void => {
       if (!nodes.length) return
-      const text = renderCheckpoint(session, nodes, layout.toolNames, policy.entryMaxChars)
+      const text = renderCheckpoint(session, nodes, layout.toolNames, policy.entryMaxChars, notesFor(nodes))
       runs.push({ nodes, message: createUserMessage({ content: [{ type: 'text', text }], source: { kind: HISTORY_SOURCE } }) })
     }
     // A turn whose calls are not all closed cuts the run instead of suppressing it (calls close within their turn),

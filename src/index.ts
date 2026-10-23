@@ -1,6 +1,7 @@
 /** Slice context policy for the stock DSH agent loop. */
 import { Context, Service } from '@deepseek-ai/cordis'
 import { MIN_ENTRY_MAX_CHARS, sealCompletedTurns, type HistoryPolicy } from './context.js'
+import { DEFAULT_WORKING_SET } from './working-set.js'
 import { applyEffortDefault, declaredEfforts, DEFAULT_REASONING_EFFORT, REASONING_EFFORT_DEFAULTS, type ReasoningEffortDefault } from './effort-default.js'
 import { recallToolDefinition, recallSearchToolDefinition } from './recall.js'
 import { recallStepToolDefinition } from './recall-step.js'
@@ -16,6 +17,18 @@ export interface HistoryConfig {
   keepRecentTurns?: number
   /** Optional code-point cap for new entry text (minimum 256); omitted preserves all assistant text. Never caps user nodes or rewrites frozen entries. */
   entryMaxChars?: number
+  /**
+   * Opt-in working-set retention (omitted: off). When a turn seals, the steps holding the latest
+   * full view of each file changed in that turn or the `turns` turns before it (default 2), and
+   * that turn's later changes to it, stay raw at their positions, up to `maxChars` per turn
+   * (default 48,000). `{}` enables the defaults. See src/working-set.ts.
+   */
+  workingSet?: WorkingSetConfig
+}
+
+export interface WorkingSetConfig {
+  turns?: number
+  maxChars?: number
 }
 
 export interface Config {
@@ -105,7 +118,7 @@ function nonNegative(value: number | undefined, fallback: number, name: string):
 
 function resolveHistory(config: Config): HistoryPolicy {
   const history = config.history ?? {}
-  const allowed = new Set(['keepRecentTurns', 'entryMaxChars'])
+  const allowed = new Set(['keepRecentTurns', 'entryMaxChars', 'workingSet'])
   for (const key of Object.keys(history)) {
     if (allowed.has(key)) continue
     const retired = RETIRED_HISTORY[key]
@@ -123,7 +136,21 @@ function resolveHistory(config: Config): HistoryPolicy {
     if (history.entryMaxChars < MIN_ENTRY_MAX_CHARS) throw new Error(`history.entryMaxChars must be at least ${MIN_ENTRY_MAX_CHARS} to preserve complete recall locators`)
     policy.entryMaxChars = history.entryMaxChars
   }
+  if (history.workingSet !== undefined) policy.workingSet = resolveWorkingSet(history.workingSet)
   return policy
+}
+
+function resolveWorkingSet(value: unknown): NonNullable<HistoryPolicy['workingSet']> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('history.workingSet must be an object ({} enables the defaults); omit it to seal every step')
+  }
+  const config = value as WorkingSetConfig
+  for (const key of Object.keys(config)) {
+    if (key !== 'turns' && key !== 'maxChars') throw new Error(`Unknown history.workingSet configuration ${key}; valid keys: turns, maxChars`)
+  }
+  const maxChars = config.maxChars ?? DEFAULT_WORKING_SET.maxChars
+  if (!Number.isSafeInteger(maxChars) || maxChars < 1) throw new Error('history.workingSet.maxChars must be a positive safe integer')
+  return { turns: nonNegative(config.turns, DEFAULT_WORKING_SET.turns, 'history.workingSet.turns'), maxChars }
 }
 
 export class SliceLoopPlugin extends Service {

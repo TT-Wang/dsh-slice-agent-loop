@@ -13,6 +13,17 @@ export interface HistoryConfig {
     keepRecentTurns?: number;
     /** Optional code-point cap for new entry text (minimum 256); omitted preserves all assistant text. Never caps user nodes or rewrites frozen entries. */
     entryMaxChars?: number;
+    /**
+     * Opt-in working-set retention (omitted: off). When a turn seals, the steps holding the latest
+     * full view of each file changed in that turn or the `turns` turns before it (default 2), and
+     * that turn's later changes to it, stay raw at their positions, up to `maxChars` per turn
+     * (default 48,000). `{}` enables the defaults. See src/working-set.ts.
+     */
+    workingSet?: WorkingSetConfig;
+}
+export interface WorkingSetConfig {
+    turns?: number;
+    maxChars?: number;
 }
 export interface Config {
     /** Optional positive step cap; omitted means the stock loop controls termination. */
