@@ -150,6 +150,15 @@ offline mock route resolves the same budgets. Headroom, summary cap, retries, ov
 and the pruner stay at their defaults. In the live slicey session the largest request was 85K
 tokens, so a 57K trigger is within the range real sessions reach.
 
+An expected property of this variant, not corrected: once the 57,344-token trigger qualifies, the
+shipped pruner replaces every tool result over 8,192 characters, the excerpt just read included,
+before the model's next request. An excerpt of about 12,100 characters keeps its first 4,096 and
+last 1,024 characters (0–34 % and 91.5–100 % of the file), and its `AUDIT-TOKEN` line sits at
+40–60 %, so in a turn where the trigger fires the token is pruned before the model has written it
+to `digest.md`. Expect re-reads and digest misses in STOCK-COMPACT's f1; the report lists f1's
+missing digest tokens and same-turn re-reads per arm next to the pruned turns (§5). The primary
+STOCK arm never reaches its trigger (§2.3), so this does not touch the decision.
+
 ## 3. Isolation and procedure
 
 The harness of the F-only A/B, extended (§3.1 of [p110-f-native-ab.md](p110-f-native-ab.md)
@@ -177,9 +186,12 @@ Procedure:
    same session scratchpad: three task trees under `dsh021/` (`raft-cutover/slice-src`,
    `understand-packaging-deploy/compat-sim`, `…/slice-export`) and the F-only A/B root `fab/`, whose
    vault (session logs, truth files) is no longer blocked. They are not this run's files, so they
-   are not deleted here: every paid `run_ab.py` call passes `--block <dir>` for each sibling
-   directory of the A/B root in the scratchpad (directories only, never the `node_modules`
-   symlink), which makes them mode 000 while a turn runs, with the same tamper check as the vault.
+   are not deleted here: every entry next to the A/B root in the scratchpad (directories and files,
+   never a symlink such as `node_modules`) is mode 000 while a turn runs, with the same tamper check
+   as the vault. Pilot part 1 passed one `--block <dir>` per sibling directory by hand (31); since
+   the pre-freeze fixes (§10.12) `run_ab.py --block-siblings` enumerates them at the start of each
+   invocation, records them in the manifest (`isolation.siblings_blocked`), and a paid run refuses
+   to start without the flag.
    `AB/scratch` and `AB/build` hold no oracle; they are moved into the vault (`vault/prekey/`,
    blocked while a turn runs) before the key is linked. The self-checks run in a temporary
    directory only.
@@ -223,7 +235,7 @@ recall tool. That is the trade the policy makes, so it is a fair test of both.
 | **f1** | `svs_f1_flood_recall` (new) | 45 (61 before the pilot resize, §12.4) | 12 | long + memory | context growth over 32 full reads of large log excerpts; four early facts quizzed 35+ turns later |
 | r1 | `p110_r1_fixture_fp` | 6 | 12 | memory | fingerprint printed once in T1; script and fixtures deleted after T2; same-format decoys; exam T5 |
 | r2 | `p110_r2_superseded_stamp` | 7 | 12 | memory | stamp A (T2, stale) and stamp B (T4, current); sources deleted after T4; exam T6 must pick B |
-| r3 | `p110_r3_runbook_middle` | 3 | 12 | memory | 28 KB runbook read in T1 (SLICE folds it; validity requires that fold in SLICE only); `docs/` deleted; exam T3 asks a second fact of the same read |
+| r3 | `p110_r3_runbook_middle` | 3 | 12 | memory | 28 KB runbook read in T1 (SLICE folds it); validity in every arm: the T1 read carries the exam's fact (delivery); SLICE's fold is a reported manipulation check (§10.12); `docs/` deleted; exam T3 asks a second fact of the same read |
 | r4 | `p110_r4_probe_compare` | 4 | 12 | memory | two probe outputs (T1, T2); `tools/` deleted; exam T4 needs one row of each |
 | r5 | `p110_r5_initial_failures` | 2 | 60 | memory + coding | T1 fixes a red 400-test suite (5 bugs); T2 lists the tests that failed before any change |
 | c1 | `lh1_incremental_build` | 8 | 14 | coding | 8 dependent turns building `calc.py` |
@@ -264,7 +276,11 @@ Oracle (`verify.py`): pass = substrate (seven names in `core.py`, `frames.py` fi
 in `digest.md`, both sources gone) and all four memory items correct. Items: `build_id` and
 `lint_error` (correct, wrong, decoy, hedged, cannot_recover, missing); `deploy` (correct only with
 all four values in a TOML file under `ops/`; misplaced; wrong); `trap` (correct = NOT-PROVIDED;
-confabulated). The self-check covers each class (`selfcheck_tasks.py`, 40/40, §10).
+confabulated). Honest markers count with any case and separators ("Cannot recover", "CANNOT_RECOVER",
+"Not provided"); the lint answer is correct when exactly one line names a lint code or the message
+and that line contains the exact message (quotes, spaces and a trailing period normalized, so a
+`frames.py: ` prefix or a code fence does not change it); a second candidate line hedges (pre-freeze
+fix, §10.12). The self-check covers each class (`selfcheck_tasks.py`, 49/49, §10.12).
 
 ## 5. Metrics
 
@@ -281,7 +297,13 @@ One row per cell from `ab_metrics.py`, as in the P1-10 records, plus:
   anywhere outside message text), native spills; SLICE's folds counted apart from prune
   replacements.
 - **Per exam:** recall sourcing (SLICE), leak and oracle via the file system (all arms), and
-  whether history was compacted or pruned before the exam turn (post-compaction failures).
+  whether history was compacted or pruned before the exam turn (post-compaction failures). Reported
+  only, never an exclusion: a **partial leak** (f1: the id's `bx-` and first four hex digits, the
+  lint code or the sentinel name in assistant text before the quiz, e.g. a T5 reply naming the
+  binding it removed), shown next to recall sourcing.
+- **Reported flags:** a cell with a failed compaction attempt has a cost that is a lower bound (the
+  attempt is billed, its usage is never logged; the budget charges $0.05 for it); r3's T1 fold in
+  SLICE (manipulation check); f1's missing digest tokens per arm.
 - Requests and steps per turn, step-cap cuts, closeouts, wall time, same-turn re-reads under the
   success-only mutation rule of the F-only A/B (reported only).
 - **Memory items:** f1 four per cell (verify's `memory_classes`); r1–r5 one per cell (the exam
@@ -294,9 +316,11 @@ Unit: a (task, rep) pair whose two cells are both valid. Planned: 2 f1 pairs + 7
 memory items (f1 4 x 2, r1–r5 1 x 3 each).
 
 - **P1 cost.** Per task R_t = Σcost(SLICE) / Σcost(STOCK) over the task's valid pairs.
-  **L** = R_f1 (the long session); **N** = geometric mean of R_t over the seven short tasks (each
-  task weighs the same, so c1's dollars do not swamp the others); G = geometric mean over all eight,
-  the Σ ratio over all pairs (dollar-weighted) and the median paired ratio are reported.
+  **L** = R_f1 (the long session); **N** = geometric mean of R_t over the seven short sessions, five
+  short recall sessions (r1–r5) and two coding sessions (c1, c2), each task weighing the same, so
+  c1's dollars do not swamp the others; G = geometric mean over all eight, the Σ ratio over all
+  pairs (dollar-weighted) and the median paired ratio are reported. Secondary, never decisive:
+  N_recall (r1–r5 alone) and N_coding (c1, c2 alone).
 - **P2 success.** dS = Σpass(SLICE) − Σpass(STOCK); dS_t per task.
 - **P3 memory.** Over memory-eligible pairs: dM = correct items(SLICE) − correct items(STOCK);
   dB = bad items(SLICE) − bad items(STOCK). A pair is memory-ineligible when either cell had a
@@ -312,7 +336,8 @@ Below a minimum the verdict is "inconclusive" unless the arbitration (§8) resto
 Quality floor **Q** holds iff dS ≥ −1, no task with dS_t ≤ −2, dM ≥ −1 and dB ≤ +1. "Slice
 better" means dS ≥ +2 or dM ≥ +2 (with Q holding).
 
-Rules, applied top to bottom; the first that matches decides:
+Rules, applied top to bottom; the first that matches decides (`gates-svs.json` lists them in the
+same order since §10.12; `svs_report.verdict` always did):
 
 | # | condition | verdict |
 |---|---|---|
@@ -321,11 +346,11 @@ Rules, applied top to bottom; the first that matches decides:
 | 3 | L ≤ 0.80 and N ≤ 1.10 | **worth it** |
 | 4 | slice better, L ≤ 1.00 and N ≤ 1.10 | **worth it** |
 | 5 | L ≥ 0.95 and N ≥ 1.00 | **not worth it** (no saving where the policy should save, none elsewhere) |
-| 6 | N ≥ 1.25 and L > 0.80 | **not worth it** (large overhead on ordinary sessions without a large long-session saving) |
+| 6 | N ≥ 1.25 and L > 0.80 | **not worth it** (large overhead on the short sessions without a large long-session saving) |
 | 7 | otherwise | **inconclusive**; the case L ≤ 0.80 with N > 1.10 is reported as "a long-session saving bought with short-session overhead" |
 
-Reading: a 20 % saving on the long session (f1) with no more than 10 % overhead on ordinary
-sessions, at no loss of quality, is "worth it". No meaningful long-session saving with no saving
+Reading: a 20 % saving on the long session (f1) with no more than 10 % overhead on the short
+sessions (five recall, two coding), at no loss of quality, is "worth it". No meaningful long-session saving with no saving
 elsewhere, or any quality loss beyond one unit, is "not worth it". STOCK-COMPACT and every other
 quantity of §5 are reported and never change the verdict. The verdict says what was observed on
 these eight tasks, one model and one host, at n = 2–3 per task; it is not a claim of equivalence.
@@ -334,7 +359,10 @@ these eight tasks, one model and one host, at n = 2–3 per task; it is not a cl
 
 Triggered on the batch, before pooling, if a minimum is not met, or the verdict would change when L
 or N moved by 0.05 in either direction, or Q is decided at its margin (dS = −1 or −2, some dS_t =
-−1 or −2, dM = −1 or −2, dB = +1 or +2). Then one arbitration batch: +1 rep of every task, SLICE and
+−1 or −2, dM = −1 or −2, dB = +1 or +2), or "slice better" is at its margin where it matters: Q
+holds, rule 3 does not decide, L ≤ 1.00 and N ≤ 1.10, and max(dS, dM) is +1 or +2 (added before
+the freeze, §10.12: without it a lucky +2 would decide rule 4 with no arbitration, while +1 gives
+"inconclusive"). Then one arbitration batch: +1 rep of every task, SLICE and
 STOCK only, seed 20261024, only if ledger spend plus its estimate ($1.3, §9) stays below the cap
 minus the reserve; otherwise the batch verdict stands, marked unarbitrated. The decision is then
 taken on the pooled batches with the same rules and thresholds, minimums unchanged, without the
@@ -610,8 +638,12 @@ or STOCK's request size grows by more than 7,000 tokens per excerpt-read turn (m
 f1 is resized before the freeze: the number of excerpts drops from 48 to 32 (45 turns, still at
 least 40), with the quiz and exam turns renumbered; nothing else changes.
 
-**(b) A task that cannot pass at all on STOCK** in the pilot is fixed here or dropped, and the
-minimums scale with the planned pairs.
+**(b) Task defects only** (replaced before the freeze, §10.12; the build-stage text selected
+tasks on an outcome, "a task that cannot pass at all on STOCK"). A task is fixed or dropped only for
+a defect found in the logs or the code that holds in every arm by construction: a setup or oracle
+error, a fact the task makes undeliverable, a prompt the harness cannot run as written, or an
+infra failure; never for a model's failure to pass in any arm. Only then do the minimums scale with
+the planned pairs.
 
 **(c) Re-estimate and cost ladder.** After the pilot the projected total is P = ledger spend so
 far + batch estimate + arbitration estimate (§8, SLICE and STOCK, +1 rep), all at peak, with:

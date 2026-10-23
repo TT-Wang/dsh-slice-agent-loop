@@ -331,6 +331,19 @@ class Recall(unittest.TestCase):
         g3.call(1, 3, "write", {"file_path": "notes.txt", "content": "fixed tokens_f3"})
         self.assertEqual(M.metrics(g3.ev, exams=[skip], prices=M.load_prices())["exams"][0]["leak_write_turns"], [1])
 
+    def test_partial_leak_is_reported_apart_from_the_leak(self):
+        # f1 (2026-10-23): a fragment of the answer in assistant text before the exam is reported, never a leak
+        g = Log()
+        g.call(5, 1, "bash", {"command": "python3 tools/lint_frames.py"}, result="E4821 unsealed-binding: 'qz_marker' bound but never sealed (frame 3)")
+        g.assistant(5, 2, text="Removed the qz_marker line from frames.py.")
+        g.end(5)
+        spec = {"turn": 42, "tokens": ["E4821 unsealed-binding: 'qz_marker' bound but never sealed (frame 3)"],
+                "partial_leak": {"tokens": ["E4821", "qz_marker"]}}
+        e = M.metrics(g.ev, exams=[spec], prices=M.load_prices())["exams"][0]
+        self.assertEqual((e["leak_assistant_turns"], e["partial_leak_assistant_turns"]), ([], [5]))
+        e = M.metrics(g.ev, exams=[{"turn": 42, "tokens": ["E4821"]}], prices=M.load_prices())["exams"][0]
+        self.assertEqual(e["partial_leak_assistant_turns"], [])  # no partial_leak spec: nothing reported
+
     def test_heredoc_leaks_only_when_it_writes_a_file(self):
         spec = {"turn": 2, "tokens": ["test_tokens_f3_0"], "leak": {"regex": ["(?<![A-Za-z0-9])tokens_f3(?!\\d)"]}}
 

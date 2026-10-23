@@ -320,7 +320,8 @@ plugin from main with the host's own context management, on DSH 0.2.1-rc.2, with
 - **Per-arm validity** from the gates file's `structure`: tool count (stock 12, slice 16), slice's tools equal
   stock's plus the four recall tools (`tool_names_plus`), no tape entry in an arm without the plugin
   (`"header": null`), compaction allowed and recorded (`"compaction": "allowed"`), and r3's fold requirement only
-  where `"fold": true`.
+  where `"fold": true` (gates-svs.json: false in every arm since 2026-10-23; r3's validity there is its T1 delivery,
+  the same in every arm, and the fold is reported).
 - **Seeded tasks.** A task with `"seeded": true` gets `AB_TASK_SEED` at setup, derived from a salt in
   `vault/task-seed-salt` plus (batch, task, rep), so every arm of a group sees identical content and no oracle value
   exists outside the workdir and the vault. With `"truth_specs": true` its exam and delivery token specs come from
@@ -335,6 +336,14 @@ plugin from main with the host's own context management, on DSH 0.2.1-rc.2, with
   the summarizer's `purpose: 'compaction'` request with a short text, and with `AB_MOCK_PRESSURE_TOKENS=N` reports N
   input tokens on every usage sample, which the token meter reuses as pressure: the forced-compaction dry runs. With
   `AB_MOCK_QUOTA_FILE=<path>` every request ends in a `QUOTA` error while that file exists (the account stop below).
+- **Sibling blocking.** `--block-siblings` blocks every entry next to the A/B root in its parent directory (the
+  session scratchpad), symlinks excepted, while a turn runs; the list is in the manifest
+  (`isolation.siblings_blocked`). A paid run refuses to start without it; a parent that is a shared temp root or a
+  home directory is refused.
+- **Reported only.** Per exam `partial_leak_assistant_turns` (an exam spec's `partial_leak` fragments in assistant
+  text before the exam; f1 sets them in its truth sidecar); in `svs_report.py` recall sourcing, partial leaks, r3's T1
+  fold, f1's missing digest tokens, cells whose cost is a lower bound (a failed compaction attempt), and N split into
+  N_recall and N_coding.
 - **Account stop.** An infra turn with an account-level code (`QUOTA`, which is how DeepSeek's HTTP 402 "Insufficient
   Balance" arrives, `ACCOUNT_QUOTA`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `AUTH`) ends its cell as `account_stop`:
   not retried, not counted against `--max-attempts`, kept as `cells/<cell>.account_stop.json`, and the run stops with

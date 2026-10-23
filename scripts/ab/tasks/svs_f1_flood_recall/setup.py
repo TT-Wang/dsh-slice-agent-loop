@@ -106,7 +106,11 @@ def build(seed):
         "deploy": {"host": HOST, "port": PORT, "token_env": TOKEN_ENV, "retry_backoff_ms": BACKOFF, "dir": CONSTRAINT_DIR},
         # ab_metrics specs (run_ab.py merges them with meta.json): exams address the quiz turns, delivery the turns whose
         # tool output must carry the fact (a run whose output was discarded leaves nothing to recall).
-        "exams": [{"turn": 41, "tokens": [build_id]}, {"turn": 42, "tokens": [lint_error]}],
+        # partial_leak (reported, never excluding; pre-freeze addition 2026-10-23): a fragment that helps rebuild the answer
+        # without recall, in assistant text before the exam (the id's "bx-" and first four hex digits; the lint code or
+        # the sentinel name, e.g. a T5 reply saying which binding it removed)
+        "exams": [{"turn": 41, "tokens": [build_id], "partial_leak": {"tokens": [build_id[:7]]}},
+                  {"turn": 42, "tokens": [lint_error], "partial_leak": {"tokens": [lint_code, sentinel]}}],
         "delivery": [{"turn": 3, "tokens": [build_id]}, {"turn": 5, "tokens": [lint_error]}],
     }
     files = {

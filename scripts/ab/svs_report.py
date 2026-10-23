@@ -70,6 +70,12 @@ def values(c):
         "memory": items, "memory_correct": sum(items.values()), "memory_total": len(items), "memory_bad": bad,
         "memory_excluded": bool(c.get("g2_excluded")),
         "compacted_before_exam": any(e.get("compacted_before") for e in (m.get("exams") or [])),
+        # reported only (pre-freeze additions, 2026-10-23)
+        "exams": len(m.get("exams") or []),
+        "exams_recall_sourced": sum(1 for e in (m.get("exams") or []) if e.get("recall_sourced")),
+        "exams_partial_leak": sum(1 for e in (m.get("exams") or []) if e.get("partial_leak_assistant_turns")),
+        "fold_of_read_t1": any(r.get("fold_of_read") for r in (m.get("in_turn") or []) if r.get("turn") == 1) if m.get("in_turn") else None,
+        "digest_missing": (c.get("verify_info") or {}).get("digest_missing"),
     }
 
 
@@ -113,6 +119,12 @@ def comparison(cells, gates, arm, base):
     L = R.get(unit["long_tasks"][0]) if unit["long_tasks"] else None
     N = geomean([R[t] for t in unit["short_tasks"]]) if all(R.get(t) for t in unit["short_tasks"]) else None
     G = geomean([R[t] for t in unit["tasks"]]) if all(R.get(t) for t in unit["tasks"]) else None
+    # secondary, never decisive: N split into its recall tasks (r1-r5) and its coding tasks (c1, c2)
+    sub = {}
+    for name, key in (("N_recall", "short_recall_tasks"), ("N_coding", "short_coding_tasks")):
+        ts = unit.get(key) or []
+        v = geomean([R[t] for t in ts]) if ts and all(R.get(t) for t in ts) else None
+        sub[name] = round(v, 4) if v is not None else None
     tot_a, tot_b = sum(a["cost"] for _, a, _ in kept), sum(b["cost"] for _, _, b in kept)
     all_ratios = [a["cost"] / b["cost"] for _, a, b in kept if b["cost"] > 0]
     mem = [(k, a, b) for k, a, b in kept if k[1] in unit["memory_tasks"]]
@@ -138,6 +150,7 @@ def comparison(cells, gates, arm, base):
     return {
         "arm": arm, "baseline": base, "pairs": len(kept), "dropped_pairs": dropped, "tasks": tasks,
         "L": round(L, 4) if L is not None else None, "N": round(N, 4) if N is not None else None, "G": round(G, 4) if G is not None else None,
+        **sub,
         "sum_ratio": round(tot_a / tot_b, 4) if tot_b else None,
         "median_paired_ratio": round(statistics.median(all_ratios), 4) if all_ratios else None,
         "cost_arm": round(tot_a, 6), "cost_base": round(tot_b, 6),
@@ -194,6 +207,12 @@ def arbitration_needed(cmp, gates):
     if (cmp["dS"] in (q["dS_min"], q["dS_min"] - 1) or any(v in (q["dS_t_min"], q["dS_t_min"] - 1) for v in cmp["dS_t"].values())
             or m["dM"] in (q["dM_min"], q["dM_min"] - 1) or m["dB"] in (q["dB_max"], q["dB_max"] + 1)):
         why.append(f"quality floor at its margin (dS {cmp['dS']}, dS_t {cmp['dS_t']}, dM {m['dM']}, dB {m['dB']})")
+    # 'slice better' (rule 4) at its margin where it matters: Q holds, rule 3 does not decide, rule 4's cost conditions
+    # hold, and the larger of dS and dM is one unit either side of the +2 threshold (pre-freeze addition, 2026-10-23)
+    qb = dec["quality_better"]
+    if (Q and L is not None and N is not None and not (L <= 0.80 and N <= 1.10) and L <= 1.00 and N <= 1.10
+            and max(cmp["dS"], m["dM"]) in (qb["dS_min"] - 1, qb["dS_min"])):
+        why.append(f"'slice better' at its margin (dS {cmp['dS']}, dM {m['dM']}) with L {L:.3f}, N {N:.3f} inside rule 4's cost conditions")
     return why
 
 
@@ -224,6 +243,12 @@ def describe(cells):
                 "memory_bad": sum(x["memory_bad"] for x in vs),
                 "post_compaction_memory_failures": sum(x["memory_total"] - x["memory_correct"] for x in vs if x["compacted_before_exam"]),
                 "cells_compacted_before_exam": sum(1 for x in vs if x["compacted_before_exam"]),
+                # a failed compaction attempt is billed but its usage is never logged: the cell's cost is a lower bound
+                "cells_cost_lower_bound": sum(1 for x in vs if x["failed_compactions"]),
+                "exams_recall_sourced": f"{sum(x['exams_recall_sourced'] for x in vs)}/{sum(x['exams'] for x in vs)}",
+                "exams_partial_leak": sum(x["exams_partial_leak"] for x in vs),
+                "r3_t1_fold": (f"{sum(1 for x in vs if x['fold_of_read_t1'])}/{len(vs)}" if t == "r3" else None),
+                "digest_missing": (sum(x["digest_missing"] or 0 for x in vs) if any(x["digest_missing"] is not None for x in vs) else None),
             }
     return res
 
@@ -306,7 +331,8 @@ def render_md(s):
     for k, c in s["comparisons"].items():
         m = c["memory"]
         L += ["", f"## {k}" + (f" ({c['descriptive_verdict']})" if c.get("descriptive_verdict") else ""), "",
-              f"Pairs {c['pairs']}; L = {fmt(c['L'])}, N = {fmt(c['N'])}, G = {fmt(c['G'])}; sum ratio {fmt(c['sum_ratio'])}, "
+              f"Pairs {c['pairs']}; L = {fmt(c['L'])}, N = {fmt(c['N'])} (secondary: N_recall {fmt(c.get('N_recall'))}, N_coding {fmt(c.get('N_coding'))}), "
+              f"G = {fmt(c['G'])}; sum ratio {fmt(c['sum_ratio'])}, "
               f"median paired ratio {fmt(c['median_paired_ratio'])}; dS {c['dS']}; memory {m['correct_arm']} vs {m['correct_base']} correct "
               f"of {m['items']} items (dM {m['dM']}), bad {m['bad_arm']} vs {m['bad_base']} (dB {m['dB']})."
               + (f" Insufficient: {'; '.join(c['insufficient'])}." if c["insufficient"] else ""), "",
@@ -334,7 +360,14 @@ def render_md(s):
     if s["invalid_cells"]:
         L += ["", "## Invalid cells (not counted)", ""]
         L += [f"- {c['cell']} ({c['batch']}), infra {c['infra']}: {'; '.join(c['reasons'] or [])[:300]}" for c in s["invalid_cells"]]
-    L += ["", "Ratios are the named arm over its baseline; cost on the off-peak sheet (peak is exactly 2x every field)."]
+    L += ["", "## Recall sourcing, partial leaks and manipulation checks (valid cells, reported only)", "",
+          "| arm | task | exams recall-sourced | exams with a partial leak before them | r3 T1 fold | f1 digest tokens missing | cells whose cost is a lower bound (failed compactions) |",
+          "|---|---|---|---|---|---|---|"]
+    for a, tasks in sorted(s["describe"].items()):
+        for t, r in sorted(tasks.items()):
+            L.append(f"| {a} | {t} | {r['exams_recall_sourced']} | {r['exams_partial_leak']} | {fmt(r['r3_t1_fold'])} | {fmt(r['digest_missing'])} | {r['cells_cost_lower_bound']} |")
+    L += ["", "Ratios are the named arm over its baseline; cost on the off-peak sheet (peak is exactly 2x every field). "
+          "A cell with a failed compaction attempt has a cost that is a lower bound (the attempt is billed, its usage is not logged)."]
     return "\n".join(L) + "\n"
 
 

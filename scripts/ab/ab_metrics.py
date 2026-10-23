@@ -551,6 +551,8 @@ def exam_spec(e):
     leak:   enough to answer; in assistant text, or written by a tool, before the exam turn = leak (default: tokens);
     fs:     in a non-recall tool result of the exam turn before any recall result has it and before the model
             itself wrote it = the oracle came from the file system (default: tokens);
+    partial_leak: a fragment of the answer (f1: the id's prefix, the lint code or sentinel); in assistant text before the
+            exam turn it is reported (partial_leak_assistant_turns), never an exclusion;
     leak_write.skip_paths: write/edit calls on files under these workdir-relative prefixes are not write leaks
             (r5: fixing a bug means editing the buggy function, so its id lands in the edit input; the edited
             file holds every function id anyway and tool inputs never reach the tape)."""
@@ -561,7 +563,9 @@ def exam_spec(e):
         turn, toks = e[0], list(e[1])
         leak = fs = {"tokens": toks}
     skip = [p.strip("/") for p in ((e.get("leak_write") or {}).get("skip_paths", []) if isinstance(e, dict) else [])]
-    return {"turn": turn, "tokens": toks, "leak": Matcher(leak), "fs": Matcher(fs), "recall": Matcher({"tokens": toks}), "write_skip": skip}
+    partial = (e.get("partial_leak") if isinstance(e, dict) else None) or {}
+    return {"turn": turn, "tokens": toks, "leak": Matcher(leak), "fs": Matcher(fs), "recall": Matcher({"tokens": toks}), "write_skip": skip,
+            "partial": Matcher(partial)}
 
 
 def write_skipped(call, prefixes, cwd):
@@ -1238,6 +1242,8 @@ def metrics(events, workdir=None, exams=(), in_turn=(), prices=None, bad_lines=0
             "recall_tool": found,
             "recall_calls": sum(1 for cid in call_order if calls[cid]["turn"] == turn and calls[cid]["name"] in RECALL_TOOLS),
             "leak_assistant_turns": sorted({t for t, txt in assistant_texts if t is not None and t < turn and spec["leak"](txt)}),
+            # reported only: a fragment of the answer in assistant text before the exam (exam spec partial_leak)
+            "partial_leak_assistant_turns": sorted({t for t, txt in assistant_texts if t is not None and t < turn and spec["partial"](txt)}),
             # Tool inputs never reach the tape (tool lines carry name, size and locator); only a tool input that
             # writes the answer to a file can shortcut the exam, so only write-like inputs count.
             "leak_write_turns": sorted({calls[cid]["turn"] for cid in call_order if calls[cid]["turn"] is not None and calls[cid]["turn"] < turn

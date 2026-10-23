@@ -11,7 +11,7 @@ Subcommands (system python3; stdlib only, plus zstandard through ab_metrics):
   run_ab.py [run] --ab-root AB --arms control,F --tasks all|r1,r3,... --reps N --batch NAME [--gates GATES.json]
                   [--offline] [--resume] [--budget-usd 10] [--budget-reserve-usd 0.75] [--budget-margin-usd 0.6]
                   [--unpriced-step-usd 0.05] [--max-unpriced-steps 40] [--seed 20261022]
-                  [--fingerprints AB/vault/fingerprints.json|none] [--max-attempts 2] [--block PATH]...
+                  [--fingerprints AB/vault/fingerprints.json|none] [--max-attempts 2] [--block PATH]... [--block-siblings]
       Runs every (task, rep) cell for every arm, ONE CELL AT A TIME: the two cells of a (task, rep) pair run back to
       back, the first arm rotating with (rep - 1 + seed). Per cell: a fresh cell root AB/live/c-<id>/ with a copy of
       the arm's template home, a private TMPDIR and the workdir; setup(); one headless process per turn (prompt on
@@ -87,6 +87,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 import threading
 import time
 
@@ -1168,6 +1169,28 @@ def worktree_blocks(ab):
     return out
 
 
+# Parents whose entries are never blocked wholesale: a shared temp root or a home directory holds other programs' files.
+UNSAFE_SIBLING_PARENTS = ("/", "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp", os.path.expanduser("~"))
+
+
+def sibling_blocks(ab):
+    """--block-siblings: every entry next to the A/B root in its parent directory (the session scratchpad), symlinks
+    excepted (chmod would follow one to its target, e.g. scratchpad/node_modules -> the main checkout's). Earlier
+    experiments left readable task trees, records and A/B roots there (r1-r5 oracles among them); before 2026-10-23 the
+    operator passed one --block per entry by hand. Refuses a parent that is a shared temp root or a home directory."""
+    parent = os.path.dirname(os.path.realpath(ab))
+    unsafe = {os.path.realpath(p) for p in UNSAFE_SIBLING_PARENTS} | {os.path.realpath(tempfile.gettempdir())}
+    if parent in unsafe:
+        raise SystemExit(f"--block-siblings: {parent} is a shared directory; put the A/B root in a directory of its own")
+    out = []
+    for name in sorted(os.listdir(parent)):
+        p = os.path.join(parent, name)
+        if os.path.realpath(p) == os.path.realpath(ab) or os.path.islink(p):
+            continue
+        out.append(p)
+    return out
+
+
 def worktree_state(ab):
     """Per worktree under AB/wt: a digest of `git status` with untracked and ignored entries (bytecode left out). The
     worktrees' source trees stay readable and writable while a turn runs; a file a cell left there would reach a later
@@ -1226,7 +1249,8 @@ def make_ctx(args, ab, tasks, offline, batch):
     ledger = os.path.join(batch_dir if offline else vault(ab), "spend.jsonl")
     no_fp = (getattr(args, "fingerprints", None) or "").lower() == "none"
     fp_path = None if no_fp else (getattr(args, "fingerprints", None) or vault(ab, "fingerprints.json"))
-    blocked = [vault(ab)] + worktree_blocks(ab) + list(getattr(args, "block", None) or [])
+    siblings = sibling_blocks(ab) if getattr(args, "block_siblings", False) else []
+    blocked = [vault(ab)] + worktree_blocks(ab) + siblings + list(getattr(args, "block", None) or [])
     os.makedirs(os.path.join(ab, LIVE), exist_ok=True)
     read_only = [ab] + [os.path.join(ab, d) for d in (LIVE, PATCHES, MOCK, WT, PLUGINS, "host")] + [patch_dir]
     ctx = {
@@ -1238,7 +1262,7 @@ def make_ctx(args, ab, tasks, offline, batch):
         "fingerprints": load_json(fp_path) if fp_path and os.path.exists(fp_path) else None, "fingerprints_path": fp_path, "no_fp": no_fp,
         "structure": gates.get("structure"), "gates_file": getattr(args, "gates", None) or GATES_DEFAULT, "step_cap_mode": step_mode,
         "steps_patch": steps_patch, "offline_patch": offline_patch, "index": os.path.join(batch_dir, "index.jsonl"),
-        "isolation": Isolation(ab, blocked, read_only), "ledger": ledger,
+        "isolation": Isolation(ab, blocked, read_only), "ledger": ledger, "blocked_siblings": siblings,
     }
     return ctx
 
@@ -1291,6 +1315,8 @@ def cmd_run(args):
     tasks = load_tasks()
     arms = [a.strip() for a in args.arms.split(",") if a.strip()]
     check_homes(ab, arms, args.offline)
+    if not args.offline and not args.block_siblings:
+        raise SystemExit("a paid run needs --block-siblings: every entry next to the A/B root (except symlinks) is blocked while a turn runs")
     selected = select_tasks(args.tasks, tasks)
     ctx = make_ctx(args, ab, tasks, args.offline, args.batch)
     install_unblock_guards(ctx)
@@ -1309,7 +1335,8 @@ def cmd_run(args):
         "isolation": {"blocked_while_a_turn_runs": ctx["isolation"].paths, "read_only_while_a_turn_runs": ctx["isolation"].ro_paths,
                       "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}", "one_cell_at_a_time": True,
                       "strays": "processes naming live/c-<id> in their command line or environment, or with a cwd in it, are killed before unblocking",
-                      "worktrees": "git status of every AB/wt worktree must not change during a cell"},
+                      "worktrees": "git status of every AB/wt worktree must not change during a cell",
+                      "siblings_blocked": ctx["blocked_siblings"]},
         "python": sys.version.split()[0], "harness_commit": git_head(),
     } | env_record()
     write_json(manifest_path, manifest)
@@ -1822,6 +1849,8 @@ def main(argv):
     ap.add_argument("--fingerprints", help="fingerprints.json (default AB/vault/fingerprints.json), or 'none' to skip the check (warmup only)")
     ap.add_argument("--max-attempts", type=int, default=2)
     ap.add_argument("--block", action="append", help="another path to block while a turn runs (repeatable)")
+    ap.add_argument("--block-siblings", action="store_true",
+                    help="block every entry next to the A/B root in its parent directory, symlinks excepted (required for a paid run)")
     return cmd_run(ap.parse_args(rest))
 
 

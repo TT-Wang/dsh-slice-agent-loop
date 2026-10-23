@@ -261,6 +261,52 @@ class Isolation(unittest.TestCase):
         self.assertEqual(oct(os.stat(os.path.join(self.ab, "wt")).st_mode & 0o777), "0o755")
 
 
+class BlockSiblings(unittest.TestCase):
+    """--block-siblings (2026-10-23): every entry next to the A/B root except symlinks; required for a paid run."""
+
+    def test_siblings_listed_without_symlinks_or_the_root(self):
+        parent = os.path.realpath(tempfile.mkdtemp(prefix="ab-sib-test-"))
+        try:
+            ab = os.path.join(parent, "svs")
+            for d in ("svs", "fab", "dsh021"):
+                os.makedirs(os.path.join(parent, d))
+            with open(os.path.join(parent, "note.md"), "w") as fh:
+                fh.write("x\n")
+            os.symlink(os.path.join(parent, "fab"), os.path.join(parent, "node_modules"))
+            got = [os.path.basename(p) for p in A.sibling_blocks(ab)]
+            self.assertEqual(got, ["dsh021", "fab", "note.md"])
+            before = os.stat(os.path.join(parent, "fab")).st_mode & 0o777
+            iso = A.Isolation(ab, A.sibling_blocks(ab))
+            iso.block()
+            try:
+                self.assertEqual(os.stat(os.path.join(parent, "fab")).st_mode & 0o777, 0)
+                self.assertNotEqual(os.lstat(os.path.join(parent, "node_modules")).st_mode & 0o777, 0)
+                self.assertEqual(iso.check(), [])
+            finally:
+                iso.unblock()
+            self.assertEqual(os.stat(os.path.join(parent, "fab")).st_mode & 0o777, before)
+        finally:
+            shutil.rmtree(parent)
+
+    def test_shared_parents_are_refused(self):
+        for ab in (os.path.join(tempfile.gettempdir(), "svs"), "/tmp/svs", os.path.join(os.path.expanduser("~"), "svs")):
+            with self.assertRaises(SystemExit):
+                A.sibling_blocks(ab)
+
+    def test_paid_run_without_the_flag_is_refused(self):
+        parent = os.path.realpath(tempfile.mkdtemp(prefix="ab-sib-test-"))
+        try:
+            ab = os.path.join(parent, "svs")
+            for arm in ("stock", "slice"):
+                os.makedirs(os.path.join(ab, "vault", "homes", arm, "profiles", A.PROFILE))
+                os.symlink(os.path.join(parent, "no-such-key"), os.path.join(ab, "vault", "homes", arm, ".env"))
+            with self.assertRaises(SystemExit) as cm:
+                A.main(["--ab-root", ab, "--arms", "stock,slice", "--tasks", "r1", "--batch", "x"])
+            self.assertIn("--block-siblings", str(cm.exception))
+        finally:
+            shutil.rmtree(parent)
+
+
 class Quarantine(unittest.TestCase):
     def test_only_the_cells_own_new_entries_move(self):
         base = os.path.realpath(tempfile.mkdtemp(prefix="ab-q-test-"))
@@ -453,7 +499,18 @@ class SliceVsStock(unittest.TestCase):
         self.assertEqual(rs, [])
         bad = slice_tools[:-1] + ["web_fetch"]
         self.assertTrue(any("structural: tools are not stock's" in r for r in A.validity(ctx, "slice", {"turns": 1}, [turn], self.row(bad, tape_entries=1))))
-        self.assertTrue(any("fold replacement" in r for r in A.validity(ctx, "slice", meta, [turn], self.row(slice_tools, tape_entries=1))))
+        # slice-vs-stock: the r3 fold is reported, not required (2026-10-23; r3's validity is its T1 delivery in every arm)
+        self.assertEqual(A.validity(ctx, "slice", meta, [turn], self.row(slice_tools, tape_entries=1)), [])
+        undelivered = dict(self.row(slice_tools, tape_entries=1), delivery=[{"turn": 1, "delivered": False}])
+        self.assertTrue(any("fact not delivered" in r for r in A.validity(ctx, "slice", meta, [turn], undelivered)))
+        self.assertTrue(any("fact not delivered" in r for r in A.validity(ctx, "stock", meta, [turn], dict(self.row(stock_tools), delivery=[{"turn": 1, "delivered": False}]))))
+        # the F-only A/B's structure (gates-f.json) keeps the fold required in its slice arms
+        gf = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "gates-f.json")))
+        arm_f = next(a for a, v in gf["structure"].items() if isinstance(v, dict) and v.get("header"))
+        fps_f = {"arms": {arm_f: {"tools_count": 16, "tool_names": sorted(slice_tools), "system_sha": "s", "slice_tools_sha": "t", "prefix_chars": 1}}}
+        ctx_f = {"fingerprints": fps_f, "structure": gf["structure"]}
+        rs_f = A.validity(ctx_f, arm_f, meta, [turn], self.row(slice_tools, tape_entries=1))
+        self.assertTrue(any("fold replacement" in r for r in rs_f), rs_f)
         # the P1-10 structure keeps its rules: a compaction event makes the cell invalid
         legacy = {"fingerprints": None, "structure": None}
         self.assertTrue(any("compaction events" in r for r in A.validity(legacy, "control", {"turns": 1}, [turn], self.row(slice_tools, compaction=1))))

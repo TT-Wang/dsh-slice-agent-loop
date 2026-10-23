@@ -101,6 +101,36 @@ class Decision(unittest.TestCase):
         self.assertEqual(s["decision"]["verdict"], "worth it")
         self.assertIn("better", s["decision"]["because"])
 
+    def test_slice_better_margin_triggers_arbitration(self):
+        # dM +2 decides rule 4 at L 0.9: one item less and the verdict would be inconclusive, so the batch arbitrates
+        lost = {"build_id": "cannot_recover", "lint_error": "cannot_recover", "deploy": "correct", "trap": "correct"}
+        s = self.run_cells(full({"f1": 0.9}, {}, {("stock", "f1", 1): {"mem": lost, "ok": False}}))
+        self.assertEqual(s["decision"]["verdict"], "worth it")
+        self.assertIn("'slice better' at its margin", s["decision"]["arbitration"])
+        # the same margin under rule 3 (L 0.6) does not matter: no trigger
+        s = self.run_cells(full({"f1": 0.6}, {}, {("stock", "f1", 1): {"mem": lost, "ok": False}}))
+        self.assertEqual((s["decision"]["verdict"], s["decision"]["arbitration"]), ("worth it", "not required"))
+        # dM +1 with L 0.9 (rule 4 would decide at +2): inconclusive now, arbitration required
+        one = {"build_id": "cannot_recover", "lint_error": "correct", "deploy": "correct", "trap": "correct"}
+        s = self.run_cells(full({"f1": 0.9}, {}, {("stock", "f1", 1): {"mem": one, "ok": False}}))
+        self.assertEqual(s["decision"]["verdict"], "inconclusive")
+        self.assertIn("'slice better' at its margin", s["decision"]["arbitration"])
+
+    def test_minimum_rule_precedes_quality_floor(self):
+        # §7 rule 1 before rule 2: a minimum not met is inconclusive even where Q fails (gates-svs.json rules[0])
+        self.assertEqual(GATES["decision"]["rules"][0]["verdict"], "inconclusive")
+        bad = {"build_id": "decoy", "lint_error": "wrong", "deploy": "wrong", "trap": "confabulated"}
+        over = {("slice", "f1", 1): {"mem": bad, "ok": False}, ("slice", "c1", 1): {"valid": False}, ("slice", "c1", 2): {"valid": False}}
+        s = self.run_cells(full({"f1": 0.5}, {}, over))
+        self.assertEqual(s["decision"]["verdict"], "inconclusive")
+        self.assertIn("minimum", s["decision"]["because"])
+
+    def test_n_split_is_reported(self):
+        s = self.run_cells(full({"f1": 0.6, "c1": 1.21, "c2": 1.21}, {}))
+        c = s["comparisons"]["slice vs stock"]
+        self.assertEqual((c["N_recall"], c["N_coding"]), (1.0, 1.21))
+        self.assertEqual(s["decision"]["verdict"], "worth it")  # N = 1.21^(2/7) = 1.056: the split never decides
+
     def test_pooled_has_no_band_test(self):
         s = self.run_cells(full({"f1": 0.79}, {}), pooled=True)
         self.assertEqual(s["decision"]["verdict"], "worth it")
