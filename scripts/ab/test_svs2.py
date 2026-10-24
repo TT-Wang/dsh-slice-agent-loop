@@ -432,6 +432,34 @@ class Plan(unittest.TestCase):
         finally:
             shutil.rmtree(d)
 
+    def test_pilot_cells_set_the_projection_but_are_never_done(self):
+        d = tempfile.mkdtemp()
+        try:
+            os.makedirs(os.path.join(d, "pilot", "cells"))
+            for arm, cost in (("a", 0.05), ("b", 0.05), ("c", 0.2)):              # c1 at peak: a, b $0.10; c $0.40
+                c = cell("c1", 1, arm, cost)
+                c["status"] = "done"
+                with open(os.path.join(d, "pilot", "cells", c["cell"] + ".json"), "w") as fh:
+                    json.dump(c, fh)
+            res = P.plan(GATES, pilot_dirs=[os.path.join(d, "pilot")])
+            self.assertEqual(res["pilot_cells"], 3)
+            self.assertEqual(res["per_cell_pre_batch"]["c:c1"], {"usd": 0.48, "from": "pilot"})           # pilot mean x safety
+            self.assertEqual(res["per_cell_pre_batch"]["c:f1"]["from"], "prior")
+            self.assertEqual(res["per_cell_estimate"]["c:c1"], {"usd": 0.4, "from": "measured"})          # running: the mean
+            s1 = next(s for s in res["stages"] if s["id"] == "S1")
+            self.assertEqual(s1["cells_to_run"], 24)                               # pilot cells are not batch cells
+            pr = res["per_cell_prior"]
+            self.assertAlmostEqual(s1["pre_batch_usd"], round(2 * (0.12 + 0.12 + 0.48) + 6 * (pr["c2"] + pr["r2"] + pr["f1"]), 4), places=3)
+            self.assertAlmostEqual(res["arbitration_pre_batch_usd"], 4 * (0.48 + pr["c2"]), places=3)  # the worst arm, c
+            # C's c1 at $0.48 a cell pushes the full design past the $7.00 target: cut from the end until it fits
+            self.assertEqual(res["planning_ladder_dropped"], ["S5", "S4", "S3"])
+            self.assertLessEqual(res["planned_with_arbitration_usd"] - sum(s["pre_batch_usd"] for s in res["stages"] if s["id"] in ("S5", "S4", "S3")),
+                                 GATES["budget"]["planning_target_usd"])
+            same = P.plan(GATES)
+            self.assertEqual([s["pre_batch_usd"] for s in same["stages"]], [s["prior_usd"] for s in same["stages"]])   # no pilot: the prior
+        finally:
+            shutil.rmtree(d)
+
 
 class Conditions(unittest.TestCase):
     @unittest.skipUnless(subprocess.run(["git", "-C", HERE, "cat-file", "-t", GATES["pairing"]["baseline_conditions"]["scripts_ab_tree"]],

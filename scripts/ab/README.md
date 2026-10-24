@@ -429,9 +429,12 @@ What it changes in this harness:
 - **Same conditions.** `svs2_checks.py conditions`: the five task directories, the price sheet, the step-cap row, the
   overlays, the profile template and the offline adapter byte-identical to tree `b111e434`, and the step-cap patch
   equal to the baseline's patch files.
-- **Cost ladder.** `svs2_plan.py --baseline $AB/vault/baseline [--batch …] [--ledger …]` prices the stages (warm,
-  S1–S5) from priors, then from measured means, and says which stage is affordable; `--arbitrate a:c1,c2` prices an
-  arbitration.
+- **Cost ladder.** `svs2_plan.py --baseline $AB/vault/baseline [--batch …] [--pilot …] [--ledger …]` prices the stages
+  (warm, S1–S5) from priors, then from measured means, and says which stage is affordable; `--arbitrate a:c1,c2` prices
+  an arbitration. `--pilot $AB/vault/results/pilot` adds the pilot's cells as measurements only: they never count as
+  done cells of a stage, and they set the pre-batch projection (an arm and task with pilot cells at its pilot mean x
+  the prior's safety factor 1.2, every other one at its prior), against which the planning target cuts stages from the
+  end.
 
 Runbook (offline part; the paid part is in the record, §4):
 

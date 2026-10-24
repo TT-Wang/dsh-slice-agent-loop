@@ -3,14 +3,18 @@
 
 usage:
   svs2_plan.py [--gates scripts/ab/gates-svs2.json] [--baseline AB/vault/baseline] [--batch AB/vault/results/<b>]...
-               [--ledger AB/vault/spend.jsonl] [--arbitrate ARM:TASK,TASK]... [--json]
+               [--pilot AB/vault/results/pilot]... [--ledger AB/vault/spend.jsonl] [--arbitrate ARM:TASK,TASK]... [--json]
 
 Prices every stage of gates budget.stages (warm, S1-S5) for the three new arms at peak:
-- per cell: the measured mean cost of that arm and task in the given batches once one exists, else the prior
-  (budget.prior: max(SLICE, STOCK) per task, SLICE's for f1, x 1.2), the baseline means taken from the imported
+- per cell: the measured mean cost of that arm and task in the given batches and pilots once one exists, else the
+  prior (budget.prior: max(SLICE, STOCK) per task, SLICE's for f1, x 1.2), the baseline means taken from the imported
   baseline cells when --baseline is given, else from gates budget.baseline_per_cell_peak;
-- before the batch: the full design (all stages + the arbitration reserve) must project to <= planning_target_usd,
-  else stages are dropped from the end (S5, S4, S3, S2; S1 and warm are never dropped) until it does;
+- --pilot: a pilot batch's cells are measurements only. They are never "done" cells of a stage (pilot cells are not
+  pooled with the batch), and they set the pre-batch projection: an (arm, task) with pilot cells is projected at
+  its pilot mean x the prior's safety factor, every other one at its prior;
+- before the batch: the full design (all stages + the arbitration reserve) at that projection must be <=
+  planning_target_usd, else stages are dropped from the end (S5, S4, S3, S2; S1 and warm are never dropped) until it
+  is (without --pilot the projection is the prior);
 - while the batch runs: a stage still to run is affordable when ledger + its unrun cells + the arbitration reserve
   <= cap - reserve - margin; the first stage that is not affordable is skipped with every later one;
 - --arbitrate a:c1,c2 prices an arbitration (one more cell at every rep index of those tasks for that arm) against
@@ -84,17 +88,23 @@ def done_cells(batch_dirs):
     return out
 
 
-def plan(gates, baseline_dir=None, batch_dirs=(), ledger=None, arbitrate=()):
+def plan(gates, baseline_dir=None, batch_dirs=(), ledger=None, arbitrate=(), pilot_dirs=()):
     b = gates["budget"]
     arms = gates["arms"]
     base = baseline_means(gates, baseline_dir)
     prior = priors(gates, base)
-    meas = measured(batch_dirs)
+    meas = measured(list(batch_dirs or []) + list(pilot_dirs or []))
+    pilot = measured(pilot_dirs)
     done = done_cells(batch_dirs)
 
     def est(arm, t):
         xs = meas.get((arm, t))
         return (sum(xs) / len(xs), "measured") if xs else (prior[t], "prior")
+
+    def pre(arm, t):
+        """The pre-batch projection of one cell: its pilot mean x the safety factor, else the prior."""
+        xs = pilot.get((arm, t))
+        return (sum(xs) / len(xs) * b["prior"]["safety"], "pilot") if xs else (prior[t], "prior")
     spent = 0.0
     if ledger and os.path.exists(ledger):
         spent = sum(r.get("usd", 0) for r in run_ab.read_jsonl(ledger))
@@ -107,24 +117,31 @@ def plan(gates, baseline_dir=None, batch_dirs=(), ledger=None, arbitrate=()):
         worst = max(arms, key=lambda a: sum(est(a, t)[0] for t in ar["tasks"]))
         arb_cells = [(worst, t, r) for t in ar["tasks"] for r in ar["reps"]]
     arb_usd = sum(est(a, t)[0] for a, t, _ in arb_cells)
+    if arbitrate:
+        arb_pre = sum(pre(a, t)[0] for a, t, _ in arb_cells)
+    else:
+        worst_pre = max(arms, key=lambda a: sum(pre(a, t)[0] for t in ar["tasks"]))
+        arb_pre = sum(pre(worst_pre, t)[0] for t in ar["tasks"] for _ in ar["reps"])
     stages = []
     for st in b["stages"]:
         cells = [(a, t, r) for t in st["tasks"] for r in st["reps"] for a in arms]
         todo = [c for c in cells if c not in done]
         stages.append({"id": st["id"], "tasks": st["tasks"], "reps": st["reps"], "cells": len(cells), "cells_to_run": len(todo),
                        "prior_usd": round(sum(prior[t] for _, t, _ in cells), 4),
+                       "pre_batch_usd": round(sum(pre(a, t)[0] for a, t, _ in cells), 4),
                        "estimate_usd": round(sum(est(a, t)[0] for a, t, _ in cells), 4),
                        "to_run_usd": round(sum(est(a, t)[0] for a, t, _ in todo), 4)})
-    # before the batch: the full design at priors (+ the reserve) against the planning target; drop from the end
-    full = sum(s["prior_usd"] for s in stages)
+    # before the batch: the full design at the pre-batch projection (priors, or pilot means x safety) plus the reserve
+    # against the planning target; drop from the end
+    full = sum(s["pre_batch_usd"] for s in stages)
     design = [s["id"] for s in stages]
-    p = full + arb_usd
+    p = full + arb_pre
     droppable = [s["id"] for s in stages if s["id"] not in ("warm", "S1")]
     dropped = []
     while p > b["planning_target_usd"] and droppable:
         sid = droppable.pop()
         dropped.append(sid)
-        p -= next(s["prior_usd"] for s in stages if s["id"] == sid)
+        p -= next(s["pre_batch_usd"] for s in stages if s["id"] == sid)
     # while running: the first unaffordable stage is skipped with every later one
     running, run_ok = spent, True
     for s in stages:
@@ -139,9 +156,12 @@ def plan(gates, baseline_dir=None, batch_dirs=(), ledger=None, arbitrate=()):
         "cap_usd_peak": b["cap_usd_peak"], "limit_usd": round(limit, 4), "planning_target_usd": b["planning_target_usd"],
         "spent_usd": round(spent, 4), "per_cell_prior": prior, "baseline_means": base,
         "per_cell_estimate": {f"{a}:{t}": {"usd": round(est(a, t)[0], 6), "from": est(a, t)[1]} for a in arms for t in sorted(prior)},
+        "per_cell_pre_batch": {f"{a}:{t}": {"usd": round(pre(a, t)[0], 6), "from": pre(a, t)[1]} for a in arms for t in sorted(prior)},
+        "pilot_cells": sum(len(v) for v in pilot.values()),
         "stages": stages, "full_design_usd": round(full, 4), "arbitration_usd": round(arb_usd, 4),
+        "arbitration_pre_batch_usd": round(arb_pre, 4),
         "arbitration_cells": len(arb_cells), "arbitration_is_reserve": not arbitrate,
-        "planned_with_arbitration_usd": round(full + arb_usd, 4), "planning_ladder_dropped": dropped, "design": [x for x in design if x not in dropped],
+        "planned_with_arbitration_usd": round(full + arb_pre, 4), "planning_ladder_dropped": dropped, "design": [x for x in design if x not in dropped],
         "projected_end_usd": round(running + arb_usd, 4),
         "expected_usd_no_safety": round(sum(sum(base["slice"].get(t, 0) if t in gates["unit"].get("long_tasks", []) else max(base["slice"].get(t, 0), base["stock"].get(t, 0))
                                                 for t in st["tasks"]) * len(st["reps"]) * len(arms) for st in b["stages"]), 4),
@@ -152,12 +172,17 @@ def render(res):
     L = [f"cap ${res['cap_usd_peak']:.2f} at peak; stop line (cap - reserve - margin) ${res['limit_usd']:.2f}; planning target ${res['planning_target_usd']:.2f}; "
          f"spent so far ${res['spent_usd']:.4f}",
          "per-cell prior (peak): " + ", ".join(f"{t} ${v:.4f}" for t, v in sorted(res["per_cell_prior"].items())),
-         "", "| stage | tasks | reps | cells | prior $ | estimate $ | cells to run | to run $ | affordable now |", "|---|---|---|---|---|---|---|---|---|"]
+         "", "| stage | tasks | reps | cells | prior $ | pre-batch $ | estimate $ | cells to run | to run $ | affordable now |", "|---|---|---|---|---|---|---|---|---|---|"]
     for s in res["stages"]:
-        L.append(f"| {s['id']} | {','.join(s['tasks'])} | {s['reps']} | {s['cells']} | {s['prior_usd']:.4f} | {s['estimate_usd']:.4f} | {s['cells_to_run']} | "
+        L.append(f"| {s['id']} | {','.join(s['tasks'])} | {s['reps']} | {s['cells']} | {s['prior_usd']:.4f} | {s['pre_batch_usd']:.4f} | {s['estimate_usd']:.4f} | {s['cells_to_run']} | "
                  f"{s['to_run_usd']:.4f} | {'yes' if s['affordable'] else 'NO'}{' (' + s['note'] + ')' if s.get('note') else ''} |")
-    L += ["", f"full design ${res['full_design_usd']:.4f} + arbitration {'reserve' if res['arbitration_is_reserve'] else 'requested'} "
-          f"${res['arbitration_usd']:.4f} ({res['arbitration_cells']} cells) = ${res['planned_with_arbitration_usd']:.4f}; "
+    if res["pilot_cells"]:
+        L.insert(2, "pre-batch projection per cell (pilot mean x safety, else prior): "
+                 + ", ".join(f"{k} ${v['usd']:.4f}" for k, v in sorted(res["per_cell_pre_batch"].items()) if v["from"] == "pilot")
+                 + f" ({res['pilot_cells']} pilot cells)")
+    L += ["", f"full design (pre-batch projection) ${res['full_design_usd']:.4f} + arbitration {'reserve' if res['arbitration_is_reserve'] else 'requested'} "
+          f"${res['arbitration_pre_batch_usd']:.4f} ({res['arbitration_cells']} cells) = ${res['planned_with_arbitration_usd']:.4f}; "
+          f"arbitration at measured means ${res['arbitration_usd']:.4f}; "
           f"planning ladder dropped {res['planning_ladder_dropped'] or 'nothing'}; projected end ${res['projected_end_usd']:.4f}; "
           f"expected without the safety factor ${res['expected_usd_no_safety']:.4f} (no arbitration)"]
     return "\n".join(L) + "\n"
@@ -168,6 +193,7 @@ def main(argv):
     ap.add_argument("--gates", default=GATES_DEFAULT)
     ap.add_argument("--baseline")
     ap.add_argument("--batch", action="append")
+    ap.add_argument("--pilot", action="append", help="a pilot batch: measurements only, never done cells (repeatable)")
     ap.add_argument("--ledger")
     ap.add_argument("--arbitrate", action="append", help="ARM:TASK,TASK (repeatable)")
     ap.add_argument("--json", action="store_true")
@@ -176,7 +202,7 @@ def main(argv):
     for spec in a.arbitrate or []:
         arm, _, ts = spec.partition(":")
         arb.append((arm, [t for t in ts.split(",") if t]))
-    res = plan(run_ab.load_json(a.gates), a.baseline, a.batch or [], a.ledger, arb)
+    res = plan(run_ab.load_json(a.gates), a.baseline, a.batch or [], a.ledger, arb, a.pilot or [])
     print(json.dumps(res, indent=1) if a.json else render(res))
     return 0
 
