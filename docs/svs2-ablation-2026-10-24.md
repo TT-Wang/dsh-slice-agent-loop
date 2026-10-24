@@ -1,11 +1,13 @@
 # svs2: which part of slice's short-session overhead do the re-read rule, the persona and sealing cause?
 
-> **Status: pre-registration draft, assembled (2026-10-24). No paid call has been made for this
-> experiment.** §1–§11 are the design to be frozen before the first paid batch; the arm texts and
-> diffs of §2.2 are final and the three tarballs are packed; §12 is the offline build evidence,
-> including the real arms' homes, fingerprints and dry run (§12.7–§12.10); §13 lists what the
-> freeze must still do. Times are UTC. The baseline is the record
-> [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md) ("the baseline record" below).
+> **Status: pre-registration draft, assembled (2026-10-24); pilot plan declared (§13.1). No paid
+> call has been made for this experiment.** §1–§11 are the design to be frozen before the first
+> paid batch; the arm texts and diffs of §2.2 are final and the three tarballs are packed; §12 is
+> the offline build evidence, including the real arms' homes, fingerprints and dry run
+> (§12.7–§12.10) and the isolation probe (§12.11); §13 is the pilot, whose plan was committed
+> before any paid call; §14 lists what the freeze must still do. Times are UTC. The baseline is
+> the record [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md) ("the baseline record"
+> below).
 
 ## Summary in plain words
 
@@ -762,20 +764,102 @@ nodes raw beside entries, none ever leaves a later request). The growth from tur
 session-wide property of §2.2: the mock re-reads before every edit, as the edit guard makes every
 arm do in this harness.
 
-## 13. What the freeze must still do
+### 12.11 Isolation probe and the planner's pilot option
+
+- **Harness `c7acfa8`** ("the planner takes pilot cells as measurements only"): `svs2_plan.py
+  --pilot DIR` reads a pilot batch's cells as measurements that never count as done cells of a
+  stage, and projects the full design before the batch at the pilot mean x 1.2 (the prior's safety
+  factor) for every arm and task with pilot cells, at the prior elsewhere (§13.1 (c)); without
+  `--pilot` nothing changes. `test_svs2.py` 27/27 (one new test), `test_run_ab.py` 29/29,
+  `test_ab_metrics.py` 26 (22 pass, 4 skip), `test_ab_report.py` 14/14, `test_svs_report.py`
+  10/10, `selfcheck_tasks.py` 49/49, `svs2_checks.py conditions` ok, `check:docs`, `check:size`.
+  `scripts/ab` tree `143ff86a`, final from this commit on.
+- **Rerun at `c7acfa8`, as §14 required for a `scripts/ab` change:** `import-baseline`: 30 cells, 0
+  mismatches, every row equal to the `fcca7c4` import apart from the recording commit; offline
+  fingerprints (`offline-fp2`, hello x a, b, c, all valid): `fingerprints --compare
+  vault/fingerprints.json` changed nothing, no delta mismatch (the vault file stays the
+  `offline-fp` one).
+- **Isolation probe** (`isolation-probe --arms a,b,c --target-batch offline --gates $G`,
+  2026-10-24 07:25–07:26 UTC, `AB = $SCRATCHPAD/svs2`, while no other agent worked in the
+  worktrees; [isolation-probe.json](ab/svs2-2026-10-24/isolation-probe.json)): **ok in every
+  arm.** Read mode: 48 targets per arm (the other arms' template homes, the vault and its listing,
+  the target batch's manifest, ledger, truth file, a finished cell's home, session log, packed
+  workdir and turn stream, and `scripts/` and `docs/` of all six top-level worktrees, `review-ws`
+  included, with their listings and the task oracles in them), all denied, no canary leaked; the
+  write into each of the 7 read-only harness directories denied; the cell's own files readable;
+  `live/` shows only the running cell; the background jobs killed (2 strays per cell), none left,
+  the one that dropped `DSH_HOME` and `TMPDIR` too; the `/tmp` plant quarantined. Tamper mode: the
+  vault's `chmod` from inside a turn detected as a breach, and the file left in a worktree's
+  `src/` (`review-ws`) caught by `git status`; each tamper cell invalid, as it must be. Every
+  worktree's `git status` afterwards equals its state before the probe.
+
+## 13. Pilot
+
+### 13.1 Pilot plan (declared before any paid call)
+
+Committed with this record before the key was linked. The pilot uses the real model at the
+conditions of §3 and the procedure of §4; its cells are never paired with a baseline cell nor
+pooled with the batch or the arbitration: they enter the cost projection (c) and this record only.
+
+1. **Key.** The operator links the key into the three template homes A, B and C (`ln -s
+   ~/.dsh/.env $AB/vault/homes/<arm>/.env`; the STOCK home never runs and gets no link).
+2. **Warmup** (`warm`): `$R --tasks hello --reps 2 --fingerprints none` with `R` as §4 step 7 (so
+   `--arms a,b,c --block-siblings --budget-usd 10 --seed 20261024`), then `run_ab.py fingerprints
+   --batch-dir $AB/vault/results/warm --compare $AB/vault/fingerprints.json`. Pass: 6 of 6 cells
+   valid; in every arm the rep-2 cell's first request reads at least 4,000 cached tokens (gates
+   `warm_min_cache_read`, the row's `usage.first_request_hits[0]`); the compare reports no
+   changed field (system prompt sha, tool sha, tool count, prefix characters) and no delta
+   mismatch. Otherwise no pilot cell runs and the record says why.
+3. **Pilot** (`pilot`, seed 20261024), two invocations, one cell at a time as always:
+   - `$R --tasks c1 --reps 1 --batch pilot` (A, B and C; order by the rotation of §4: C, A, B);
+   - `python3 $H/run_ab.py --ab-root $AB --gates $G --budget-usd 10 --block-siblings --arms c
+     --tasks f1 --reps 1 --batch pilot --seed 20261024 --resume` (C only: the one arm whose
+     long-session behaviour can change by construction; f1 rep 1 takes the seed key (batch, 1), so
+     its content is that of the baseline's batch r1 cells and of the batch's f1 rep 1).
+   An invalid cell is rerun once (`--max-attempts 2`); an HTTP 402 / account error stops the
+   pilot (`account_stop`) and the record says so.
+4. **Reported per pilot cell:** validity and its reasons; pass and verify info (c1's oracle);
+   delivery (f1 T3 and T5); f1's four memory items; cost at peak; requests and steps per turn,
+   step-cap cuts; peak and mean request tokens; cache hit rate; wall time; the re-read classes of
+   §6.2; for C, the kept-raw entries and the prefix check of §12.9 on its real logs (no node a
+   request carried raw beside its turn's entries leaves a later request; consecutive requests
+   first differ after the earlier one's last entry).
+5. **Stop rules.** (a) A manipulation check of §4 failing in a pilot cell (tools, markers, tape
+   forms), or C's prefix check failing on a real log, is a build defect of that arm: no batch runs;
+   the record says so, and only a new build, piloted again, could replace the arm. (b) **Tasks are
+   never changed**: they must stay byte-identical to tree `b111e434`, as the baseline cells ran
+   them. A defect that the pilot shows in every arm by construction is recorded; if it makes the
+   cells of every arm invalid, no batch runs and the record says so. Outcomes (pass, cost, recall)
+   never change a task, an arm or a threshold.
+6. **(c) Re-estimate and ladder.** `svs2_plan.py --baseline $AB/vault/baseline --pilot
+   $AB/vault/results/pilot --ledger $AB/vault/spend.jsonl` projects each new cell at its pilot
+   mean x 1.2 where the pilot measured that arm and task (A, B, C on c1; C on f1), at the prior of
+   §10 elsewhere (A's and B's f1 at SLICE's f1 x 1.2, c2 and r2 at max(SLICE, STOCK) x 1.2, hello
+   from the warmup). The pre-declared reductions of §10 then apply unchanged: the full design plus
+   the arbitration reserve at this projection must be at most $7.00, else stages are cut from the
+   end (S5, then S4, S3, S2; S1 never), and before each stage the ledger (warmup and pilot
+   included) plus the stage's unrun cells plus the reserve must stay at most $8.65, else that
+   stage and every later one are skipped. The reps per task per arm that remain are frozen in §14
+   with the rest.
+7. **Wall time** is reported per cell and projected for the batch (one stage per background
+   invocation, polled through `AB/progress.txt`; no tool call longer than ten minutes).
+
+## 14. What the freeze must still do
 
 Done at assembly (§2.2, §12.7–§12.10): the arm texts and diffs, C's key, default, K, cap and tape
 note; the three tarballs; A's marker in the gates file; `prepare` on the real arms with both dump
 comparisons; their fingerprints; the offline dry run of the real arms on all four tasks and C's
-retention on c1; the import rerun.
+retention on c1; the import rerun. Done before the pilot (§12.11): the planner's pilot option, the
+import and offline fingerprints rerun at `c7acfa8`, the isolation probe.
 
-Still to do before the first paid call:
+Still to do:
 
-- The isolation probe at `AB = $SCRATCHPAD/svs2` with the worktrees at the top level
-  (`isolation-probe --arms a,b,c --target-batch offline --gates $G`), while no other agent works
-  in the worktrees (`wt-a`, `wt-b`, `wt-c`, `wt-ws`, `wt-harness`, `review-ws`).
-- The freeze commit: this record's status line, the final commands of §4, and nothing under
-  `scripts/ab`, so every paid manifest's `harness_commit` is the freeze commit or a later one with
-  the same `scripts/ab` tree as `fcca7c4`, not dirty. If `scripts/ab` changes, rerun the import
-  and the offline fingerprints at the new commit.
-- The operator links the key into the three template homes (§4 step 5).
+- The pilot of §13.1 and its re-estimate.
+- The freeze commit, after the pilot and before any batch cell: this record's status line, the
+  frozen parameters (harness commit, tarball `SHA256SUMS`, host version and digests, price sheet,
+  seeds 20261024 (batch) and 20261025 (arbitration), the comparisons of §7, the interpretation rule
+  of §8, the minimum pairs of §8.1, the reps per task per arm after (c)), and nothing under
+  `scripts/ab`, so every paid manifest's `harness_commit` has the `scripts/ab` tree `143ff86a` of
+  `c7acfa8` and is not dirty. If `scripts/ab` changes, rerun the import and the offline
+  fingerprints at the new commit (which needs the key links removed first: `--offline` refuses a
+  home with one).
