@@ -1,11 +1,38 @@
 # slice-orientation test (2026-10-25): D, slice without its persona, with a section rewritten for what it does now
 
-> **Status: done, verdict "do not ship (S1 failed)" (2026-10-25).** §1–§9 were written and committed (`2ea0717`)
-> before any paid call, after the offline dry run, and are unchanged. The batch stopped at its second cell on a
-> DeepSeek HTTP 402 (§10); after the top-up it was resumed with `--resume` and finished 15 of 15 cells (§11). D costs
-> 1.100x B's N_code (bound 1.05), so S1 fails; S2 (0 real probes), S3 (0 empty turns) and S4 (no pass or memory item
-> lost) pass (§12). Spend $1.6375 at peak of the $4 cap. Times are UTC. The baselines are imported read-only and
-> never re-run: STOCK and SLICE of [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md), and B of
+## Summary
+
+**Decision: do not ship D.** D is slice with its old "You are sliceagent" persona removed and a rewritten section
+placed after the host's own identity line. It had to pass four tests fixed in advance (§7). It passed three and
+failed the cost test, and by the frozen rule one failure means "do not ship".
+
+| test | what it asks | result |
+|---|---|---|
+| S1 cost | on the two short coding tasks, D may cost at most 5 % more than B (the previous version, svs2); on the long session it must cost at most 0.70x stock DSH | **fail.** Short tasks: D cost 1.31x stock, B 1.19x, so D is 10 % above B. Long session: D cost 0.58x stock, within the limit. |
+| S2 probes | no command may look outside the task's working directory | pass: none in 19 runs (B did it in 3 of its 15 cells) |
+| S3 empty turns | no turn may end with an empty reply | pass: none (B had one) |
+| S4 quality | no task failed and no remembered fact lost against stock DSH | pass: D and stock each solved 15 of 15 cells and answered every memory question in the comparison correctly (11 of 11) |
+
+**How firm the cost failure is: weak.** It rests on 15 pairs of runs, 8 of them on the two short tasks. Leaving out
+either one of two pairs (c1 rep 2 or c2 rep 3) would bring D under the 5 % limit, and D's short-task cost (1.31x
+stock) lies inside the 90 % range that svs2 gave for B's own short-task cost (1.04x–1.35x). So this test shows that D
+did not meet the cost limit; it does not show that D really costs more than B. Settling that needs more runs of the
+two short tasks, which is a new experiment.
+
+**What D fixed and what it did not.** The new text stopped the out-of-workspace searches and the empty reply seen in
+B, and kept the long-session saving. Its sentence against re-reading a file after one's own edit was not followed: D
+re-read after its own edits more than B did (c1 23 vs 14, f1 55 vs 26).
+
+**Checks.** Two verifiers recomputed every decision number from the raw session logs and agreed with all of them. They
+found small errors in the descriptive parts (a rounding, one count, two wordings, and the "one pair" claim above);
+these are corrected in §12 and listed in §13. Caveats are in §14. The whole test cost $1.6375 at peak prices of the
+$4 cap.
+
+> **Record status (2026-10-26).** §1–§9 were written and committed (`2ea0717`) before any paid call, after the
+> offline dry run, and are unchanged. The batch stopped at its second cell on a DeepSeek HTTP 402 (§10); after the
+> top-up it was resumed with `--resume` and finished 15 of 15 cells (§11). The result is in §12, the verification in
+> §13 and the caveats in §14. Times are UTC. The baselines are imported read-only and never re-run: STOCK and SLICE of
+> [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md), and B of
 > [svs2-ablation-2026-10-24.md](svs2-ablation-2026-10-24.md) ("svs2" below).
 
 ## 1. Question
@@ -213,7 +240,7 @@ time, and empty turns in the imported arms.
   vault salt the baseline's.
   - **c2 rep 1** (11:53:18–11:53:43): valid, **passed**, $0.0090 at peak, 7 requests, 4 edits/writes, no re-read
     after its own edit, no flagged call, no empty turn. Against its pairs (one pair each, indicative only): 1.064x
-    STOCK, 0.803x B, 0.905x SLICE.
+    STOCK, 0.802x B, 0.905x SLICE (B corrected from 0.803, §13).
   - **c1 rep 1** (11:53:43–11:57:17): turns 1–5 completed; turn 6 ended after 13 steps with `turn_end` kind `error`,
     code `QUOTA`, status 402, "Insufficient Balance". The harness recorded the cell as `account_stop`
     (`cells/lh1_incremental_build.r1.d.account_stop.json`): not counted, not retried, rerun by `--resume`. Its charge,
@@ -287,27 +314,36 @@ STOCK reproduces svs2: N_code 1.193, R_f1 0.555.
 | task | pairs | R vs STOCK | R vs B | R vs SLICE | paired ratios vs B | pass D / STOCK | memory D / STOCK |
 |---|---|---|---|---|---|---|---|
 | c1 | 4 | 1.605 | 1.159 | 1.011 | 1.116, 2.015, 0.795, 1.004 | 4/4 | – |
-| c2 | 4 | 1.072 | 1.044 | 1.071 | 0.803, 1.070, 1.403, 0.990 | 4/4 | – |
+| c2 | 4 | 1.072 | 1.044 | 1.071 | 0.802, 1.070, 1.403, 0.990 | 4/4 | – |
 | r2 | 4 | 0.833 | 0.895 | 0.916 | 0.870, 0.939, 1.092, 0.721 | 4/4 | 3/3 (rep 2 excluded) |
-| f1 | 3 | 0.583 | 1.050 | 0.955 | 1.216, 1.022, 0.908 | 3/3 | 8/8 (rep 3 excluded) |
+| f1 | 3 | 0.583 | 1.050 | 0.955 | 1.216, 1.022, 0.907 | 3/3 | 8/8 (rep 3 excluded) |
 | **N_code** (c1, c2) | | **1.312** | **1.100** | 1.040 | | | |
 
 Memory: every D cell answered every item correctly (f1 12 of 12, r2 4 of 4); two D cells are left out of the memory
 comparison by the frozen exclusion rule (any flagged call in a memory cell): r2 rep 2 (its F4 call) and f1 rep 3 (an
 F1 `rm -rf "${PWD:?}/__pycache__"`).
 
-What drives S1, descriptively: the c1 sum ratio against B is carried by rep 2 (2.01x: D's rep 2 made 93 requests and
-114k output tokens, 4 step-cap cuts, against B's cheapest c1 cell); the median paired ratio against B is 1.060 on c1
-and 1.030 on c2. Against SLICE, D is 1.011 on c1. §8 named this risk: svs2's 90 % interval for B's N_code was
-[1.04, 1.35], and D's 1.312 lies inside it. The rule is frozen and S1 fails; the data do not show that D costs more
-than B beyond that noise, only that it does not meet the 1.05 bound.
+What drives S1, descriptively: the fail depends on either of two pairs. Leaving out one pair at a time (from D, B and
+STOCK alike) and recomputing N_code(D)/N_code(B):
+
+| pair left out | c1 r1 | c1 r2 | c1 r3 | c1 r4 | c2 r1 | c2 r2 | c2 r3 | c2 r4 |
+|---|---|---|---|---|---|---|---|---|
+| N_code(D)/N_code(B) | 1.108 | **1.005** | 1.168 | 1.124 | 1.157 | 1.096 | **1.041** | 1.109 |
+
+c1 rep 2 is 2.01x B (D $0.1041 off-peak, 93 requests, 114k output tokens, 4 step-cap cuts, against B's cheapest c1
+cell at $0.0517); c2 rep 3 is 1.40x B on cells that cost under one cent ($0.0058 against $0.0041), and N_code weights
+c2 as much as c1. The median paired ratio against B is 1.060 on c1 and 1.030 on c2. Against SLICE, D is 1.011 on c1.
+§8 named this risk: svs2's 90 % interval for B's N_code was [1.04, 1.35], and D's 1.312 lies inside it. The rule is
+frozen and S1 fails; the data do not show that D costs more than B beyond that noise, only that it does not meet the
+1.05 bound.
 
 ### 12.3 Flagged calls (every attempt; full commands in summary.md)
 
-- **F1, 30:** 28 are Python's `/` and `//` in operator lists and expressions inside quoted heredocs (c1, every rep and
-  both rep-1 attempts; two of these calls begin with `cd "$PWD"` or a `cd` into the cell's own workdir, which is not
-  what was flagged); 2 are unexpanded text, `rm -rf -- "$(pwd)/__pycache__"` (c1 rep 2) and
-  `rm -rf "${PWD:?}/__pycache__"` (f1 rep 3).
+- **F1, 30:** 28 are Python text inside quoted heredocs, all in c1 (every rep and both rep-1 attempts): the `/` and
+  `//` operators in expressions, the strings `"/"` and `"//"` in operator-name lists, and test strings such as `"/0"`
+  in an AssertionError message (rep 2 turn 2 step 6) and `"/3"` (rep 2 turn 3 steps 11–12). Two of these calls begin
+  with `cd "$PWD"` or a `cd` into the cell's own workdir, which is not what was flagged. The other 2 are unexpanded
+  text, `rm -rf -- "$(pwd)/__pycache__"` (c1 rep 2) and `rm -rf "${PWD:?}/__pycache__"` (f1 rep 3).
 - **F3, 3:** c1 rep 2 wrote two scratch scripts to `/tmp` (`/tmp/fuzz_diag.py`, `/tmp/fuzz_full.py`) and ran one;
   the harness quarantined both files. Not a probe under §6.2, but a write outside the working directory that the new
   section does not address (its "never outside the working directory" sentence is about searching).
@@ -335,13 +371,17 @@ than B beyond that noise, only that it does not meet the 1.05 bound.
 | B | c2 | 33 | 0 | 0 | 0 | 33 | 20 | 6 | 0 | 0 of 4 |
 | D | r2 | 8 | 8 | 0 | 2 | 18 | 22 | 14 | 0 | 0 of 28 |
 | B | r2 | 9 | 8 | 0 | 2 | 19 | 21 | 17 | 0 | 0 of 28 |
-| D | f1 | 108 | 103 | 82 | 55 | 348 | 125 | 36 | 8 | 0 of 135 |
+| D | f1 | 108 | 103 | 82 | 55 | 348 | 125 | 36 | 7 (metric 8) | 0 of 135 |
 | B | f1 | 107 | 98 | 21 | 26 | 252 | 88 | 60 | 7 | 0 of 135 |
 | SLICE | f1 | 109 | 105 | 118 | 39 | 371 | 98 | 61 | 2 | 0 of 135 |
 
 D re-reads after its own edits more than B on c1 (23 vs 14) and f1 (55 vs 26), and reads more within a turn on f1 (82
-vs 21), despite the sentence "never re-read a file just to be safe or to check your own successful edit"; on c2 it
-has none (SLICE 12, STOCK 5). No `FS_STALE_VERSION` in any arm. Cache hit (median): D c1 0.956, f1 0.943; B 0.961,
+vs 21), despite the sentence "never re-read a file just to be safe or to check your own successful edit". On c2 the
+metric counts none (SLICE 12, STOCK 5), but it counts only the read tool and plain one-file bash reads: c2 rep 1 turn
+1 step 6 re-read all four files it had just edited with `sed -n` inside a compound command ("show final diffs for
+confidence"), and reps 2 and 3 ran `git diff` to look at their edits (no repository, so the output was empty). D's
+f1 `FS_NOT_OBSERVED` is 7 real edit-guard refusals; the metric's 8th is a `recall_turn` output quoting an earlier
+refusal (§13.1). No `FS_STALE_VERSION` in any arm. Cache hit (median): D c1 0.956, f1 0.943; B 0.961,
 0.946. Median wall time per cell: D c1 525 s, f1 500 s (B 699 s, 459 s).
 
 ### 12.5 What this says
@@ -349,5 +389,94 @@ has none (SLICE 12, STOCK 5). No `FS_STALE_VERSION` in any arm. Cache hit (media
 D removed what svs2 found wrong with B: no real out-of-workspace probe in 19 attempts (B had real probes in 3 of its
 15 cells) and no empty turn (B had 1), with no loss of passes or memory against STOCK and the long-session saving kept (R_f1 0.583).
 It did not keep B's short-session cost within the pre-registered 5 %: N_code 1.312 against STOCK, 1.100x B's, so by
-the frozen rule D is **not shipped**. The cost gap rests mostly on one c1 pair and is inside the noise §8 declared;
-telling a real 10 % from noise would need more c1 and c2 reps, which is a new experiment, not a reading of this one.
+the frozen rule D is **not shipped**. The cost gap depends on either of two pairs (leaving out c1 rep 2 gives 1.005,
+leaving out c2 rep 3 gives 1.041) and is inside the noise §8 declared; telling a real 10 % from noise would need more
+c1 and c2 reps, which is a new experiment, not a reading of this one.
+
+## 13. Verification
+
+Two verifiers worked independently after `209f134`, read-only and with no paid call. Each decompressed the 19 D
+session logs (15 valid cells, the account-stopped attempt, the 3 warmup cells) and wrote its own extractors.
+
+- **Cost:** both recomputed the cost of all 60 cells (D, STOCK, SLICE and B, 15 each) from the raw session logs,
+  summing every priced record. Every cell equals the harness's off-peak cost (0 mismatches); no record is duplicated
+  and the logs hold no compaction call. B against STOCK (N_code 1.1926, R_f1 0.5553) and SLICE against STOCK (1.2606,
+  0.6109) reproduce svs2. N_code(D)/N_code(B) = 1.3115 / 1.1926 = 1.0998; R_f1(D) = 0.5833.
+- **Probes:** verifier 1 scanned every tool argument, the shell text with heredoc bodies removed and the bodies on
+  their own, and every path and workdir argument; verifier 2 scanned all 1,352 tool calls, including the host's
+  resolved paths (938 path records and 360 bash cwd records, all inside the cell's workdir). Both read the two
+  hand-checked commands in full and agree they are F4. Real probes: 0.
+- **Empty turns:** verifier 2 read all 198 final messages of the 208 turns; the shortest are the HELLO, STAMP-OK,
+  RESTAMP-OK and ARCHIVED-OK the prompts ask for. 9 turns end on the step cap and 1 on the 402. Empty turns: 0.
+- **Quality:** verifier 1 re-ran each task's `verify.py` (fresh `python3 -I -B`) on the archived final workdir of all
+  60 cells: 60 of 60 pass. Verifier 2 did the same for the 15 D cells and checked each memory answer against the
+  value in that session's own tool output. Every f1 truth sidecar is byte-identical across the four arms, rep by rep.
+- **Spend:** the ledger's $1.6375 at peak and §11's $1.5070 reproduce from the logs.
+
+Both agree with §12.1: S1 fails, S2, S3 and S4 pass, verdict "do not ship (S1 failed)".
+
+### 13.1 Discrepancies and resolutions
+
+None changes a condition or the verdict.
+
+| # | what a verifier found | resolution |
+|---|---|---|
+| 1 | §12.2's paired D/B ratios c2 rep 1 "0.803" and f1 rep 3 "0.908" were rounded twice, from summary.json's 4-decimal 0.8025 and 0.9075; from tokens they are 0.80247 and 0.90748 | corrected to 0.802 and 0.907 in §12.2, and c2 rep 1's 0.803 in §10; summary.md and summary.json keep the report's 4-decimal values |
+| 2 | summary.json's `N_code_d_over_b` 1.0997 is computed from inputs rounded to 4 decimals; from unrounded costs it is 1.0998 | no change: both are 1.100, and S1 fails either way |
+| 3 | "rests mostly on one c1 pair" was too narrow: leaving out c2 rep 3 also brings the ratio under 1.05 (1.041), as leaving out c1 rep 2 does (1.005); the other six single removals give 1.096–1.168 (both verifiers) | recomputed here from verifier 2's per-cell costs, same values; the summary, §12.2 (now with the whole leave-one-out table) and §12.5 say "either of two pairs" |
+| 4 | §12.4's D f1 `FS_NOT_OBSERVED` of 8 counts a `recall_turn` output in f1 rep 1 turn 41 step 1 that quotes turn 3's refusal; the real refusals are 7 (rep 1: 4, rep 2: 2, rep 3: 1); c1's 4 is right | confirmed here: f1 rep 1's log has 5 refusal results, one of them the recall output quoting the first refusal's id. The table reads "7 (metric 8)". B's and SLICE's counts were not hand-checked for the same effect. Descriptive only |
+| 5 | c2's "0 re-reads after own edit" is right by the frozen metric but incomplete: `sed -n` in a compound command (rep 1) and `git diff` (reps 2 and 3) checked the model's own edits (verifier 2; §10's verifier for rep 1) | §12.4 says so; the metric is unchanged |
+| 6 | §12.3 described all 28 heredoc F1 calls as Python `/` and `//`; some of the flagged text is the test strings `"/0"` and `"/3"` | §12.3 reworded; every call stays F1 |
+
+### 13.2 What the verifiers added (descriptive, never decisive)
+
+- **The re-read sentence was not followed.** 10 of the 15 valid cells re-read a file right after their own
+  successful edit, and the reasoning says why ("view the final file to verify correctness", "Verify append").
+  Counting only reads that directly follow the model's own successful edit: c1 14 read-tool calls (12 of them
+  windowed) and 2 `git diff`; f1 44 read-tool calls and 37 bash reads, mostly of `digest.md` after each append (24 full
+  reads in rep 3, 22 `tail` checks in rep 1); r2 reps 1 and 3 read their answer files back; c2 rep 1 the `sed -n`
+  above.
+- **Edit-guard refusals, 11:** c1 rep 4 turn 2 sent four edits in parallel without a read in that turn; f1 had 7
+  edits of `core.py` or `digest.md` without a read in the turn. In f1 rep 1 turn 23 the model fetched an old read of
+  `core.py` with `expand_result` instead of reading the file; the edit was refused, and then it read the file. Here
+  the recall sentence pulled the model toward recall where the guard needs a real read.
+- **"Say so" was only partly followed.** In r2 all 4 reps went to recall first (`expand_result` of the turn-2 and
+  turn-4 outputs), searched no file system and answered correctly, but only rep 1 told the user that `config/` and
+  `tools/stamp.py` were gone; reps 2–4 said nothing, although their own `ls` showed `config/` missing.
+- **Recall where history held the answer:** f1's quiz turns 41–45 used the recall tools in all 3 reps, with no
+  file-system search and no re-run of `inspect_build` or lint; r2's exam turn used `expand_result` first in all 4 reps.
+- **Writes outside the workdir:** c1 rep 2's two `/tmp` scratch scripts (F3, §12.3); its own reasoning noted that it
+  could have written them in the working directory. The new sentence covers searching only.
+- **git:** 12 `git status`, `diff` and `log` calls make git look in parent directories for a repository; all found
+  none. The frozen flagger does not count this, for the baselines either.
+- **f1 same-turn reads (82):** much of the count is windowed reads of the `data/blob_*.log` files the task requires;
+  the exact repeats are mainly rep 3's `digest.md` reads after its own edits. **c1's cross-turn re-reads** follow from
+  the one-process-per-turn harness (§14).
+- **Housekeeping:** verifier 2's runs left Python bytecode caches in three harness task folders (git-ignored), which
+  it deleted. Nothing else in the A/B root changed, and neither `vault/homes/d` nor the archive holds a `.env`.
+
+## 14. Caveats
+
+- **Cross-batch baselines.** There is no concurrent control: STOCK and SLICE ran on 2026-10-23, B on 2026-10-24/25
+  and D on 2026-10-25. The host copy, tasks, prices, caps, overlays and f1 content were held identical and checked
+  (§3), and every ratio uses the same off-peak price sheet, so a price change cannot move a ratio; a change in the
+  provider's serving between days (model build, caching, load) can. B against STOCK reproducing svs2 checks the
+  import, not that day effect.
+- **n.** 3–4 reps per task, 15 pairs, 8 of them on the two tasks that decide S1. Leaving out one pair flips S1 in 2
+  of 8 cases (§12.2), and c2 cells cost under a cent each, so one cell moves R_c2 a lot while N_code weights c2 as
+  much as c1. The zeros of S2 and S3 come from 19 attempts. As a rough check, if D probed as often per cell as B did
+  (3 of 15), 15 clean cells would happen about 3.5 % of the time (0.8^15): evidence of a lower rate, not proof of none.
+- **One model, one host.** Every arm ran DeepSeek's `deepseek-flash` through the host's default route
+  `deepseek-official`, reasoning effort at the adapter default, on DSH `0.2.1-rc.2`. The section order was checked on
+  both admitted hosts (§2) but measured only on 0.2.1-rc.2; the other admitted host, 0.2.0-rc.2, was not measured,
+  and another model may read the section differently.
+- **One process per turn.** The harness runs each turn as a new headless process, which resets the host's edit guard
+  every turn, in every arm. c1's cross-turn re-reads (D 57, B 54) are what the guard then requires, not a choice the
+  section can remove. In an interactive session the guard lasts across turns, so the re-read counts and the
+  short-task costs may differ there, for every arm.
+- **Several changes at once.** D changes the persona, the order and several sentences together; this test cannot say
+  which one moved a number.
+- **Step caps.** c1's cap cut 9 of D's 32 turns (B 4, SLICE 14, STOCK 0); a cut turn ends unfinished and its cost is
+  bounded by the cap, so the cap shapes c1's cost in every arm.
+- **Four synthetic tasks.** c1 and c2 are short coding sessions, r2 a short recall check and f1 the one long session;
+  none is a real user's session.
