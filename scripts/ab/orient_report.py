@@ -14,9 +14,11 @@ usage:
 
   orient_report.py report <batch-dir> [<warm-dir> ...] --baseline DIR --b DIR [--gates G] [--ledger FILE] [--out DIR]
       D against STOCK, B and SLICE per task (R_t, paired ratios, pass, memory), N_code, R_f1, N_code(D)/N_code(B), the
-      quality floor, the four ship conditions, re-read classes, cost structure, flagged calls with their commands and
-      classes, empty turns. B against STOCK is recomputed beside it (it must reproduce the svs2 record: N_code 1.193,
-      R_f1 0.555). Writes summary.json and summary.md to --out (default: the first dir).
+      quality floor, the four ship conditions (each "pass", "fail" or "not evaluable"), re-read classes, cost
+      structure, and, over every attempt of every D cell (account and budget stops and rerun invalid attempts
+      included, from index.jsonl and the archived homes), flagged calls with their commands and classes and empty
+      turns. B against STOCK is recomputed beside it (it must reproduce the svs2 record: N_code 1.193, R_f1 0.555).
+      Writes summary.json and summary.md to --out (default: the first dir).
 
   orient_report.py calibrate [--gates G]
       The flag classifier and the empty-turn detector on the archived svs2 (batch, arb, pilot) and 2026-10-23 (batch,
@@ -225,11 +227,15 @@ def flagged_calls(c):
 def empty_turns(events):
     """Turns whose last committed assistant message has no tool call and fewer than EMPTY_MIN_CHARS non-whitespace
     visible characters, and turns that started but committed no assistant message. Returns [(turn, kind, detail)]."""
-    last, started = {}, set()
+    last, started, ends = {}, set(), {}
     for e in events:
         t, d = e.get("type"), e.get("data") or {}
         if t == "turn/start":
             started.add(d.get("turn"))
+        if t == "turn/end":
+            r = d.get("reason") or {}
+            err = r.get("error") or {}
+            ends[d.get("turn")] = r.get("kind", "") + (f" {err.get('code')} {err.get('status')}" if err else "")
         if t != "assistant/message":
             continue
         msg = d.get("message") or {}
@@ -242,9 +248,10 @@ def empty_turns(events):
         if t is None:
             continue
         if not la["tool"] and la["chars"] < EMPTY_MIN_CHARS:
-            out.append({"turn": t, "kind": "empty reply", "visible_chars": la["chars"], "steps": la["step"], "reasoning_chars": la["reasoning_chars"]})
+            out.append({"turn": t, "kind": "empty reply", "visible_chars": la["chars"], "steps": la["step"], "reasoning_chars": la["reasoning_chars"],
+                        "turn_end": ends.get(t)})
     for t in sorted(x for x in started - set(last) if x is not None):
-        out.append({"turn": t, "kind": "no committed reply", "visible_chars": 0, "steps": 0, "reasoning_chars": 0})
+        out.append({"turn": t, "kind": "no committed reply", "visible_chars": 0, "steps": 0, "reasoning_chars": 0, "turn_end": ends.get(t)})
     return out
 
 
@@ -257,8 +264,48 @@ def cell_empty_turns(c):
 
 # ---------------------------------------------------------------------------- the report
 
+def find_log(batch_dir, sid):
+    """The archived session log of an attempt (the batch dir's homes/ keep every attempt's home), found by session id."""
+    if not sid:
+        return None
+    hits = sorted(glob.glob(os.path.join(batch_dir, "homes", "*", "sessions", "*", sid, "session.v4.jsonl*")))
+    return hits[0] if hits else None
+
+
+def every_attempt(d):
+    """Every attempt of a batch dir, as the docs §6.2-§6.3 count S2 and S3: the final cell records of cells/, the
+    account and budget stops kept there, and the earlier attempts that only index.jsonl records (an invalid attempt
+    that was rerun). Each record has its session log ("log", None when no session started or none is archived)."""
+    batch = os.path.basename(os.path.normpath(d))
+    cdir = os.path.join(d, "cells")
+    stored = {}
+    for path in sorted(glob.glob(os.path.join(cdir, "*.json"))):
+        c = load(path)
+        if "cell" in c and "arm" in c:
+            stored[(c["cell"], c.get("attempt"))] = dict(c, _path=path)
+    rows = []
+    idx = os.path.join(d, "index.jsonl")
+    if os.path.exists(idx):
+        with open(idx, encoding="utf-8") as fh:
+            rows = [json.loads(line) for line in fh if line.strip()]
+    out, seen = [], set()
+    for r in rows + list(stored.values()):
+        key = (r.get("cell"), r.get("attempt"))
+        if key in seen or not r.get("cell") or not r.get("arm"):
+            continue
+        seen.add(key)
+        c = dict(stored.get(key) or r)
+        c["status"] = c.get("status") or r.get("status")
+        c["_batch"] = batch
+        log = c.get("log") if c.get("log") and os.path.exists(c["log"]) else find_log(d, c.get("sid"))
+        c["log"] = log
+        c["_started"] = bool(c.get("sid"))
+        out.append(c)
+    return out
+
+
 def all_cells(d):
-    """Every cell record of a batch dir, every attempt (index.jsonl order is not needed), stops left out."""
+    """Every final cell record of a batch dir (one per cell), stops left out; the calibration and the cell table use it."""
     cdir = os.path.join(d, "cells") if os.path.isdir(os.path.join(d, "cells")) else d
     out = []
     for path in sorted(glob.glob(os.path.join(cdir, "*.json"))):
@@ -286,24 +333,44 @@ def attempts_of(batch_dir, cell):
     return rows
 
 
-def ship(cmp_ds, cmp_bs, cmp_db, flags_real, empties, dec):
+def status_of(holds, why_not=None):
+    """A condition's state as the table and the verdict use it: "pass", "fail" or "not evaluable" (why_not given)."""
+    return "not evaluable" if why_not else ("pass" if holds else "fail")
+
+
+def ship(cmp_ds, cmp_bs, cmp_db, flags_real, empties, dec, coverage=None):
+    """The four conditions of docs §7, each "pass", "fail" or "not evaluable", and the verdict that follows from them.
+    S1 and S4 need the minimums of §6.1 (against STOCK and against B); S2 and S3 count every attempt and need every
+    started attempt's session log (coverage["missing_logs"])."""
     s = dec["ship"]
+    coverage = coverage or {}
     insufficient = (cmp_ds["insufficient"] or []) + [f"vs B: {x}" for x in (cmp_db["insufficient"] or [])]
     N_d, N_b, Rf = cmp_ds["N_code"], cmp_bs["N_code"], cmp_ds["R_f1"]
     ratio = svs2_report.rnd(N_d / N_b) if N_d and N_b else None
-    s1 = ratio is not None and Rf is not None and ratio <= s["S1_cost"]["N_code_vs_B_max"] and Rf <= s["S1_cost"]["R_f1_max"]
-    s2 = flags_real <= s["S2_probes"]["max"]
-    s3 = empties <= s["S3_empty_turns"]["max"]
-    s4 = svs2_report.quality(cmp_ds, dec)
-    conds = {"S1_cost": {"holds": s1, "N_code_d": N_d, "N_code_b": N_b, "N_code_d_over_b": ratio, "R_f1_d": Rf,
+    mins = ("minimums not met: " + "; ".join(insufficient)) if insufficient else None
+    s1_why = mins or (None if ratio is not None and Rf is not None else "N_code(d), N_code(b) or R_f1(d) not computable")
+    s1 = None if s1_why else (ratio <= s["S1_cost"]["N_code_vs_B_max"] and Rf <= s["S1_cost"]["R_f1_max"])
+    s4 = None if mins else svs2_report.quality(cmp_ds, dec)
+    missing = coverage.get("missing_logs") or []
+    log_why = ("no session log for " + ", ".join(missing)) if missing else None
+    s2 = None if log_why else flags_real <= s["S2_probes"]["max"]
+    s3 = None if log_why else empties <= s["S3_empty_turns"]["max"]
+    over = f"over {coverage.get('attempts', '?')} attempts of {coverage.get('cells', '?')} D cells ({coverage.get('stops', 0)} account/budget stops included)"
+    conds = {"S1_cost": {"status": status_of(s1, s1_why), "holds": s1, "not_evaluable": s1_why, "N_code_d": N_d, "N_code_b": N_b,
+                         "N_code_d_over_b": ratio, "R_f1_d": Rf,
                          "rule": f"N_code(d)/N_code(b) <= {s['S1_cost']['N_code_vs_B_max']} and R_f1(d) <= {s['S1_cost']['R_f1_max']}"},
-             "S2_probes": {"holds": s2, "real_probes": flags_real}, "S3_empty_turns": {"holds": s3, "empty_turns": empties},
-             "S4_quality": {"holds": s4, "dS": cmp_ds["dS"], "dS_t": cmp_ds["dS_t"], "dM": cmp_ds["memory"]["dM"], "dB": cmp_ds["memory"]["dB"]}}
-    if insufficient:
-        verdict = "inconclusive: do not ship (" + "; ".join(insufficient) + ")"
+             "S2_probes": {"status": status_of(s2, log_why), "holds": s2, "not_evaluable": log_why, "real_probes": flags_real, "scope": over},
+             "S3_empty_turns": {"status": status_of(s3, log_why), "holds": s3, "not_evaluable": log_why, "empty_turns": empties, "scope": over},
+             "S4_quality": {"status": status_of(s4, mins), "holds": s4, "not_evaluable": mins, "dS": cmp_ds["dS"], "dS_t": cmp_ds["dS_t"],
+                            "dM": cmp_ds["memory"]["dM"], "dB": cmp_ds["memory"]["dB"]}}
+    failed = [k for k, v in conds.items() if v["status"] == "fail"]
+    open_ = [k for k, v in conds.items() if v["status"] == "not evaluable"]
+    if open_:
+        why = "; ".join(insufficient) if insufficient else "; ".join(f"{k}: {conds[k]['not_evaluable']}" for k in open_)
+        verdict = "inconclusive: do not ship (" + why + ")" + (f"; failed regardless: {', '.join(failed)}" if failed else "")
     else:
-        verdict = "SHIP" if all(v["holds"] for v in conds.values()) else "do not ship (" + ", ".join(k for k, v in conds.items() if not v["holds"]) + " failed)"
-    return {"verdict": verdict, "conditions": conds, "insufficient": insufficient}
+        verdict = "SHIP" if not failed else "do not ship (" + ", ".join(failed) + " failed)"
+    return {"verdict": verdict, "conditions": conds, "insufficient": insufficient, "failed": failed, "not_evaluable": open_}
 
 
 def build(batch_dirs, baseline_dir, b_dir, gates, ledger=None, hand=None):
@@ -315,14 +382,18 @@ def build(batch_dirs, baseline_dir, b_dir, gates, ledger=None, hand=None):
     dec = gates["decision"]
     cmp = {f"{x} vs {y}": svs2_report.compare(cells, gates, x, y) for x, y in
            (("d", "stock"), ("d", "b"), ("d", "slice"), ("b", "stock"), ("b", "slice"))}
-    # flagged calls and empty turns: every attempt of every D cell (warmup included), plus the imported arms for reference
+    # flagged calls and empty turns: every attempt of every D cell (warmup, invalid and stopped attempts included),
+    # plus the imported arms for reference
     hand = hand or {}
     d_cells = [c for d in batch_dirs for c in all_cells(d) if c["arm"] in gates["arms"]]
+    d_attempts = [c for d in batch_dirs for c in every_attempt(d) if c["arm"] in gates["arms"]]
     flags, empties = [], []
-    for c in d_cells:
+    for c in d_attempts:
+        if not c["log"]:
+            continue
         for f in flagged_calls(c) or []:
             key = f"{c['_batch']}/{c['cell']}.a{c.get('attempt')}/t{f['turn']}s{f['step']}"
-            f = dict(f, cell=c["cell"], batch=c["_batch"], attempt=c.get("attempt"), valid=c.get("valid"), key=key)
+            f = dict(f, cell=c["cell"], batch=c["_batch"], attempt=c.get("attempt"), status=c.get("status"), valid=c.get("valid"), key=key)
             if f["class"] == "candidate":
                 h = hand.get(key)
                 f["final"] = ("F4 (hand check: " + h + ")") if h else "real probe"
@@ -330,14 +401,23 @@ def build(batch_dirs, baseline_dir, b_dir, gates, ledger=None, hand=None):
                 f["final"] = f["class"]
             flags.append(f)
         for e in cell_empty_turns(c) or []:
-            empties.append(dict(e, cell=c["cell"], batch=c["_batch"], attempt=c.get("attempt"), valid=c.get("valid")))
+            empties.append(dict(e, cell=c["cell"], batch=c["_batch"], attempt=c.get("attempt"), status=c.get("status"), valid=c.get("valid")))
+    coverage = {"attempts": sum(1 for c in d_attempts if c["_started"]), "cells": len({(c["_batch"], c["cell"]) for c in d_attempts}),
+                "stops": sum(1 for c in d_attempts if c["_started"] and c.get("status") in ("account_stop", "budget_stop")),
+                "missing_logs": [f"{c['_batch']}/{c['cell']}.a{c.get('attempt')}" for c in d_attempts if c["_started"] and not c["log"]],
+                "not_started": [f"{c['_batch']}/{c['cell']}.a{c.get('attempt')} ({c.get('status')})" for c in d_attempts if not c["_started"]]}
+    attempt_rows = [{"cell": c["cell"], "batch": c["_batch"], "attempt": c.get("attempt"), "status": c.get("status"), "valid": c.get("valid"),
+                     "pass": c.get("pass"), "spend_peak_usd": c.get("spend_peak_usd"), "log": bool(c["log"]),
+                     "flagged": sum(1 for f in flags if f["batch"] == c["_batch"] and f["cell"] == c["cell"] and f["attempt"] == c.get("attempt")),
+                     "empty": sum(1 for e in empties if e["batch"] == c["_batch"] and e["cell"] == c["cell"] and e["attempt"] == c.get("attempt")),
+                     "reasons": c.get("invalid_reasons") or c.get("reasons")} for c in d_attempts]
     ref_empty = {}
     for (t, r, a), cs in sorted(svs2_report.merge(base, bb).items()):
         for c in cs:
             for e in cell_empty_turns(c) or []:
                 ref_empty.setdefault(a, []).append(dict(e, cell=c["cell"]))
     real = sum(1 for f in flags if f["final"] == "real probe")
-    verdict = ship(cmp["d vs stock"], cmp["b vs stock"], cmp["d vs b"], real, len(empties), dec)
+    verdict = ship(cmp["d vs stock"], cmp["b vs stock"], cmp["d vs b"], real, len(empties), dec, coverage)
     spend = None
     if ledger and os.path.exists(ledger):
         with open(ledger, encoding="utf-8") as fh:
@@ -355,8 +435,9 @@ def build(batch_dirs, baseline_dir, b_dir, gates, ledger=None, hand=None):
                 need = (gates["structure"].get(a) or {}).get("warm_min_cache_read", 4000)
                 warm.append({"batch": c["_batch"], "rep": r, "valid": c.get("valid"), "step1_cache_read": hits[0] if hits else None, "min": need,
                              "ok": r < 2 or bool(hits and hits[0] >= need)})
-    invalid = [{"cell": c["cell"], "batch": c["_batch"], "attempt": c.get("attempt"), "infra": c.get("infra"), "reasons": c.get("invalid_reasons")}
-               for c in d_cells if not c.get("valid")]
+    invalid = [{"cell": c["cell"], "batch": c["_batch"], "attempt": c.get("attempt"), "status": c.get("status"), "infra": c.get("infra"),
+                "reasons": c.get("invalid_reasons") or c.get("reasons")}
+               for c in d_attempts if not c.get("valid")]
     per_cell = []
     for c in d_cells:
         if c["alias"] == "hello":
@@ -371,7 +452,7 @@ def build(batch_dirs, baseline_dir, b_dir, gates, ledger=None, hand=None):
         "batches": [os.path.realpath(b) for b in batch_dirs], "baseline": os.path.realpath(baseline_dir), "b_import": os.path.realpath(b_dir),
         "ship": verdict, "comparisons": cmp, "rereads": svs2_report.reread_table(cells), "describe": svs2_report.describe(cells),
         "flagged_calls": flags, "empty_turns": empties, "empty_turns_reference": ref_empty, "warmup": warm, "invalid_d_attempts": invalid,
-        "d_cells": per_cell, "spend": spend,
+        "d_cells": per_cell, "d_attempts": attempt_rows, "attempt_coverage": coverage, "spend": spend,
         "caveat": "cross-batch: STOCK and SLICE ran on 2026-10-23, B on 2026-10-24/25, D on 2026-10-25; no concurrent control. "
                   "Provider-side variance between the days is not separable from an arm effect. n = 3-4 per task.",
     }
@@ -395,13 +476,18 @@ def render(s):
          f"Caveat: {s['caveat']}", ""]
     if s["spend"]:
         L.append(f"Spend (peak sheet): ${s['spend']['total_usd_peak_sheet']:.4f} over {s['spend']['turns']} turns; by batch {s['spend']['by_batch']}.")
-    L += ["", f"## Verdict: **{v['verdict']}**", "", "| condition | holds | value |", "|---|---|---|"]
+    L += ["", f"## Verdict: **{v['verdict']}**", "", "| condition | status | value |", "|---|---|---|"]
     c = v["conditions"]
-    L.append(f"| S1 cost | {c['S1_cost']['holds']} | N_code(d) {fmt(c['S1_cost']['N_code_d'])} / N_code(b) {fmt(c['S1_cost']['N_code_b'])} = "
-             f"{fmt(c['S1_cost']['N_code_d_over_b'])} (<= 1.05); R_f1(d) {fmt(c['S1_cost']['R_f1_d'])} (<= 0.70) |")
-    L.append(f"| S2 probes | {c['S2_probes']['holds']} | {c['S2_probes']['real_probes']} real out-of-workspace probes (max 0) |")
-    L.append(f"| S3 empty turns | {c['S3_empty_turns']['holds']} | {c['S3_empty_turns']['empty_turns']} (max 0) |")
-    L.append(f"| S4 quality floor | {c['S4_quality']['holds']} | dS {c['S4_quality']['dS']}, dS_t {c['S4_quality']['dS_t']}, dM {c['S4_quality']['dM']}, dB {c['S4_quality']['dB']} |")
+
+    def why(k):
+        return f" Not evaluable: {c[k]['not_evaluable']}." if c[k]["not_evaluable"] else ""
+    L.append(f"| S1 cost | {c['S1_cost']['status']} | N_code(d) {fmt(c['S1_cost']['N_code_d'])} / N_code(b) {fmt(c['S1_cost']['N_code_b'])} = "
+             f"{fmt(c['S1_cost']['N_code_d_over_b'])} (<= 1.05); R_f1(d) {fmt(c['S1_cost']['R_f1_d'])} (<= 0.70).{why('S1_cost')} |")
+    L.append(f"| S2 probes | {c['S2_probes']['status']} | {c['S2_probes']['real_probes']} real out-of-workspace probes (max 0), "
+             f"{c['S2_probes']['scope']}.{why('S2_probes')} |")
+    L.append(f"| S3 empty turns | {c['S3_empty_turns']['status']} | {c['S3_empty_turns']['empty_turns']} (max 0), {c['S3_empty_turns']['scope']}.{why('S3_empty_turns')} |")
+    L.append(f"| S4 quality floor | {c['S4_quality']['status']} | dS {c['S4_quality']['dS']}, dS_t {c['S4_quality']['dS_t']}, dM {c['S4_quality']['dM']}, "
+             f"dB {c['S4_quality']['dB']} (floor: dS >= -1, no dS_t <= -2, dM >= -1, dB <= +1).{why('S4_quality')} |")
     for k, cm in s["comparisons"].items():
         m = cm["memory"]
         L += ["", f"## {k}", "",
@@ -433,21 +519,33 @@ def render(s):
     for r in s["d_cells"]:
         L.append(f"| {r['cell']} | {r['batch']} | {r['attempt']} | {r['valid']} | {r['pass']} | {fmt(r['cost_peak'], 4)} | {r['requests']} | {r['step_cap_cuts']} | "
                  f"{r['flag_count']} | {r['g2_excluded']} | {len(r['quarantined'] or [])} | {fmt(r['wall_s'], 0)} |")
-    L += ["", f"## Flagged calls of D ({len(s['flagged_calls'])}; real probes: {v['conditions']['S2_probes']['real_probes']})", ""]
+    cov = s["attempt_coverage"]
+    L += ["", f"## Every D attempt ({cov['attempts']} started, of {cov['cells']} cells; the scope of S2 and S3)", "",
+          "| batch | cell | attempt | status | valid | pass | $ peak | session log | flagged calls | empty turns |", "|" + "---|" * 10]
+    for r in s["d_attempts"]:
+        L.append(f"| {r['batch']} | {r['cell']} | {r['attempt']} | {r['status']} | {r['valid']} | {r['pass']} | {fmt(r['spend_peak_usd'], 4)} | "
+                 f"{'yes' if r['log'] else 'none'} | {r['flagged']} | {r['empty']} |")
+    if cov["missing_logs"]:
+        L += ["", "Started attempts without a session log (S2 and S3 not evaluable): " + ", ".join(cov["missing_logs"])]
+    if cov["not_started"]:
+        L += ["", "Attempts that never started a session (nothing to count): " + ", ".join(cov["not_started"])]
+    L += ["", f"## Flagged calls of D, every attempt ({len(s['flagged_calls'])}; real probes: {v['conditions']['S2_probes']['real_probes']})", ""]
     if s["flagged_calls"]:
-        L += ["| cell | turn | tool | automatic class | final | why | command |", "|---|---|---|---|---|---|---|"]
+        L += ["| cell | attempt (status) | turn.step | tool | automatic class | final | why | command |", "|---|---|---|---|---|---|---|---|"]
         for f in s["flagged_calls"]:
             why = "; ".join(f"{x['class']}: {x['why']}" for x in f["reasons"]) + ("; hint " + "; ".join(f["hints"]) if f["hints"] else "")
-            L.append(f"| {f['cell']} a{f['attempt']} | {f['turn']} | {f['tool']} | {f['class']} | {f['final']} | {why} | `{short(f['command']).replace('|', '¦').replace('`', '´')}` |")
+            L.append(f"| {f['cell']} ({f['batch']}) | a{f['attempt']} ({f['status']}) | {f['turn']}.{f['step']} | {f['tool']} | {f['class']} | {f['final']} | {why} | "
+                     f"`{short(f['command']).replace('|', '¦').replace('`', '´')}` |")
     else:
         L.append("None.")
-    L += ["", f"## Empty turns of D ({len(s['empty_turns'])})", ""]
-    L += [f"- {e['cell']} ({e['batch']}, attempt {e['attempt']}) turn {e['turn']}: {e['kind']}, {e['visible_chars']} visible characters, step {e['steps']}"
+    L += ["", f"## Empty turns of D, every attempt ({len(s['empty_turns'])})", ""]
+    L += [f"- {e['cell']} ({e['batch']}, attempt {e['attempt']}, {e['status']}) turn {e['turn']}: {e['kind']}, {e['visible_chars']} visible characters, "
+          f"step {e['steps']}, turn end {e.get('turn_end')}"
           for e in s["empty_turns"]] or ["None."]
     L += ["", "Reference (imported cells): " + (", ".join(f"{a}: " + "; ".join(f"{e['cell']} t{e['turn']} ({e['kind']})" for e in es)
                                                    for a, es in sorted(s["empty_turns_reference"].items())) or "none")]
     if s["invalid_d_attempts"]:
-        L += ["", "## Invalid D attempts (not counted)", ""] + [f"- {c['cell']} ({c['batch']}, attempt {c['attempt']}), infra {c['infra']}: "
+        L += ["", "## Invalid and stopped D attempts (not counted as cells)", ""] + [f"- {c['cell']} ({c['batch']}, attempt {c['attempt']}, {c['status']}), infra {c['infra']}: "
                                                                  f"{'; '.join(c['reasons'] or [])[:300]}" for c in s["invalid_d_attempts"]]
     if s["warmup"]:
         L += ["", "## Warmup (hello): step-1 cache read", ""] + [f"- rep {w['rep']} ({w['batch']}): {w['step1_cache_read']} (min {w['min']} from rep 2), "

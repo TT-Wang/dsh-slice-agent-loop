@@ -79,6 +79,57 @@ class EmptyTurns(unittest.TestCase):
         self.assertEqual(got, {(2, "empty reply"), (5, "empty reply"), (3, "no committed reply")})
 
 
+class EveryAttempt(unittest.TestCase):
+    """S2 and S3 count every attempt (docs §7): stopped and rerun attempts too, not only the final cell records."""
+
+    def test_stops_and_rerun_attempts_are_counted(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            os.makedirs(os.path.join(d, "cells"))
+            for sid in ("session-a", "session-b", "session-c"):
+                p = os.path.join(d, "homes", "c-" + sid[-1], "sessions", "--w--", sid)
+                os.makedirs(p)
+                open(os.path.join(p, "session.v4.jsonl.zstd"), "wb").close()
+            rows = [{"cell": "x.r1.d", "arm": "d", "attempt": 1, "status": "invalid", "valid": False, "sid": "session-a", "log": None},
+                    {"cell": "x.r1.d", "arm": "d", "attempt": 2, "status": "done", "valid": True, "sid": "session-b", "log": None},
+                    {"cell": "y.r1.d", "arm": "d", "attempt": 1, "status": "account_stop", "valid": False, "sid": "session-c", "log": None},
+                    {"cell": "z.r1.d", "arm": "d", "attempt": 1, "status": "budget_stop", "valid": False}]
+            with open(os.path.join(d, "index.jsonl"), "w") as fh:
+                fh.write("".join(json.dumps(r) + "\n" for r in rows))
+            for name, row in (("x.r1.d.json", dict(rows[1], alias="x", rep=1)), ("y.r1.d.account_stop.json", dict(rows[2], alias="y", rep=1))):
+                with open(os.path.join(d, "cells", name), "w") as fh:
+                    json.dump(row, fh)
+            got = {(c["cell"], c["attempt"]): (c["status"], bool(c["log"]), c["_started"]) for c in orr.every_attempt(d)}
+            self.assertEqual(got, {("x.r1.d", 1): ("invalid", True, True), ("x.r1.d", 2): ("done", True, True),
+                                   ("y.r1.d", 1): ("account_stop", True, True), ("z.r1.d", 1): ("budget_stop", False, False)})
+            self.assertEqual([c["cell"] for c in orr.all_cells(d)], ["x.r1.d"])
+
+
+class ShipConditions(unittest.TestCase):
+    DEC = {"ship": {"S1_cost": {"N_code_vs_B_max": 1.05, "R_f1_max": 0.70}, "S2_probes": {"max": 0}, "S3_empty_turns": {"max": 0}},
+           "quality_floor": {"dS_min": -1, "dS_t_min": -1, "dM_min": -1, "dB_max": 1}}
+
+    def cmp(self, N=1.2, Rf=0.6, insufficient=(), dS=0):
+        return {"N_code": N, "R_f1": Rf, "insufficient": list(insufficient), "dS": dS, "dS_t": {"c1": dS}, "memory": {"dM": 0, "dB": 0}}
+
+    def test_statuses_follow_the_verdict(self):
+        cov = {"attempts": 3, "cells": 3, "stops": 1, "missing_logs": []}
+        v = orr.ship(self.cmp(None, None, ["1 valid pairs < 10"]), self.cmp(1.193), self.cmp(), 0, 0, self.DEC, cov)
+        st = {k: x["status"] for k, x in v["conditions"].items()}
+        self.assertEqual(st, {"S1_cost": "not evaluable", "S2_probes": "pass", "S3_empty_turns": "pass", "S4_quality": "not evaluable"})
+        self.assertTrue(v["verdict"].startswith("inconclusive: do not ship"))
+        v = orr.ship(self.cmp(None, None, ["1 valid pairs < 10"]), self.cmp(1.193), self.cmp(), 1, 0, self.DEC, cov)
+        self.assertEqual(v["conditions"]["S2_probes"]["status"], "fail")
+        self.assertIn("failed regardless: S2_probes", v["verdict"])
+        v = orr.ship(self.cmp(1.2, 0.6), self.cmp(1.193), self.cmp(), 0, 0, self.DEC, cov)
+        self.assertEqual((v["verdict"], v["failed"]), ("SHIP", []))
+        v = orr.ship(self.cmp(1.3, 0.6), self.cmp(1.193), self.cmp(), 0, 1, self.DEC, cov)
+        self.assertEqual(v["verdict"], "do not ship (S1_cost, S3_empty_turns failed)")
+        v = orr.ship(self.cmp(1.2, 0.6), self.cmp(1.193), self.cmp(), 0, 0, self.DEC, dict(cov, missing_logs=["batch/x.r1.d.a1"]))
+        self.assertEqual((v["conditions"]["S2_probes"]["status"], v["conditions"]["S3_empty_turns"]["status"]), ("not evaluable", "not evaluable"))
+        self.assertTrue(v["verdict"].startswith("inconclusive"))
+
+
 class Calibration(unittest.TestCase):
     """§6.2-§6.3 on the archived cells; skipped when the archives are not on this machine."""
 
