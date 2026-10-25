@@ -1,7 +1,9 @@
 # slice-orientation test (2026-10-25): D, slice without its persona, with a section rewritten for what it does now
 
-> **Status: pre-registration.** §1–§8 were written and committed before any paid call, after the offline dry run, and
-> are not changed afterwards. Results follow in later sections. Times are UTC. The baselines are imported read-only and
+> **Status: stopped, no verdict (2026-10-25).** §1–§9 were written and committed (`2ea0717`) before any paid call,
+> after the offline dry run, and are unchanged. The batch stopped at its second cell: DeepSeek answered HTTP 402
+> "Insufficient Balance" (§10). One batch cell finished, so no minimum of §6.1 is met and the decision of §7 cannot be
+> taken. Spend $0.1305 at peak of the $4 cap. Times are UTC. The baselines are imported read-only and
 > never re-run: STOCK and SLICE of [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md), and B of
 > [svs2-ablation-2026-10-24.md](svs2-ablation-2026-10-24.md) ("svs2" below).
 
@@ -197,3 +199,36 @@ time, and empty turns in the imported arms.
 - `isolation-probe --arms d,stock --target-batch offline`: ok. Every protected read was denied and no canary reached a
   tool result in either arm's read cell, and both tamper cells were invalid, as they must be.
 - `test_orient.py`: 8 of 8 (the classes, the empty-turn detector, and the calibration of §6.2–§6.3 on the archives).
+
+## 10. The run, as it went: stopped by the provider account
+
+- **Key** linked into `vault/homes/d/` only at 11:51:55 (`ln -s`, never read); removed at 11:57:51, after the stop.
+- **Warmup** `warm`, 11:52:05–11:52:16, harness `2ea0717`, `--block-siblings` (26 entries of `$SCRATCHPAD/orient`) and
+  `--block` for 40 entries of `$SCRATCHPAD`: 2 of 2 valid and passed; rep 2's first request read 4,480 cached tokens
+  (rep 1: 0, the first use of D's prefix); `fingerprints --compare` changed nothing; every marker as declared. $0.0024.
+  The pass condition of §5 step 4 held.
+- **Batch** `batch`, one invocation from 11:52:56, seed 20261024, the same blocking (69 paths blocked while a turn ran),
+  manifest: harness `2ea0717`, host tree digest `0c9e7f6b25ec…` at start and end, content digest `5c0747d0…`, the
+  vault salt the baseline's.
+  - **c2 rep 1** (11:53:18–11:53:43): valid, **passed**, $0.0090 at peak, 7 requests, 4 edits/writes, no re-read
+    after its own edit, no flagged call, no empty turn. Against its pairs (one pair each, indicative only): 1.064x
+    STOCK, 0.803x B, 0.905x SLICE.
+  - **c1 rep 1** (11:53:43–11:57:17): turns 1–5 completed; turn 6 ended after 13 steps with `turn_end` kind `error`,
+    code `QUOTA`, status 402, "Insufficient Balance". The harness recorded the cell as `account_stop`
+    (`cells/lh1_incremental_build.r1.d.account_stop.json`): not counted, not retried, rerun by `--resume`. Its charge,
+    $0.1191, includes $0.05 for the one unpriced record of the failed request. What its six turns show, descriptively
+    (from its session log; no metrics row exists for a stopped cell): 4 flagged calls, all F1 (Python's `//` in test
+    scripts); no empty turn; 2 first reads, 10 cross-turn re-reads (README.md and calc.py at each turn start), no
+    re-read after its own edit, 20 edits/writes, no edit-guard refusal.
+  - The run stopped before f1 rep 1 (exit 2, "STOPPED (account)"). 13 of the 15 planned cells never ran.
+- **Ledger** `vault/spend.jsonl`: 9 turns, **$0.1305 at peak** (warm $0.0024, batch $0.1281), one unpriced record.
+- `secrets-scan`: two cells, both of the offline isolation probe (mock, no key), whose probe script names `DSH_HOME` by
+  design; held back in the archive. No paid cell.
+- **Archive:** `~/Documents/kimi/workspace/dsh-slice/results/20261025-orientation/` (the A/B root without `host/`,
+  `wt-harness/`, `live/` and `storages/`; `held-back/` mode 700). The partial report is
+  `vault/results/batch-report/summary.{md,json}` there: verdict "inconclusive: do not ship" by the minimums (1 valid
+  pair of 10).
+
+**What resumes it.** Top up the DeepSeek account; link the key again into `vault/homes/d/`; then the same command with
+`--resume` (it reruns c1 rep 1 and runs the 13 cells left, under the same ledger and the same $4 cap; nothing in §1–§9
+changes). The warmup need not be repeated unless the host, the tarball or the harness changes.
