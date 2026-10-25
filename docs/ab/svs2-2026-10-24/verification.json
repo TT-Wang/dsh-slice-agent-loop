@@ -1,0 +1,384 @@
+{
+ "_note": "Recorder's re-checks for record \u00a721 (record-check/tools in the archive), run on the verifiers' decompressed session logs after all 83 were found byte-identical to their compressed originals. Counts and turn numbers only, no token values.",
+ "c1": {
+  "_note": "4 cells per arm (8 turns each). cross_turn_by_file and after_own_edit split are sums; out_cost_mean is mean output cost per cell at peak; first_calc counts the first access to calc.py in a turn that was a read, full or windowed; edit_before_read counts edits in turns 2-8 of a file not yet read or successfully edited in that turn; refusal_turn_steps lists (turn, step) of FS_NOT_OBSERVED refusals per cell",
+  "a": {
+   "cross_turn_by_file": {
+    "calc.py": 28,
+    "README.md": 27
+   },
+   "after_own_edit_after_successful_edit": 19,
+   "after_own_edit_after_refused_edit_only": 0,
+   "first_calc_read": {
+    "full": 32
+   },
+   "edit_before_read_ok": 3,
+   "edit_before_read_refused": 0,
+   "refusal_bursts": 0,
+   "refusal_turn_steps": [
+    [],
+    [],
+    [],
+    []
+   ],
+   "out_cost_mean_peak": 0.1164
+  },
+  "b": {
+   "cross_turn_by_file": {
+    "calc.py": 27,
+    "README.md": 27
+   },
+   "after_own_edit_after_successful_edit": 14,
+   "after_own_edit_after_refused_edit_only": 0,
+   "first_calc_read": {
+    "full": 31
+   },
+   "edit_before_read_ok": 0,
+   "edit_before_read_refused": 0,
+   "refusal_bursts": 0,
+   "refusal_turn_steps": [
+    [],
+    [],
+    [],
+    []
+   ],
+   "out_cost_mean_peak": 0.0996
+  },
+  "c": {
+   "cross_turn_by_file": {
+    "calc.py": 22,
+    "README.md": 5
+   },
+   "after_own_edit_after_successful_edit": 2,
+   "after_own_edit_after_refused_edit_only": 6,
+   "first_calc_read": {
+    "full": 24,
+    "window": 2
+   },
+   "edit_before_read_ok": 0,
+   "edit_before_read_refused": 22,
+   "refusal_bursts": 6,
+   "refusal_turn_steps": [
+    [
+     [
+      2,
+      1
+     ]
+    ],
+    [
+     [
+      2,
+      1
+     ]
+    ],
+    [
+     [
+      3,
+      2
+     ],
+     [
+      7,
+      1
+     ]
+    ],
+    [
+     [
+      2,
+      2
+     ],
+     [
+      7,
+      1
+     ]
+    ]
+   ],
+   "out_cost_mean_peak": 0.0689
+  },
+  "slice": {
+   "cross_turn_by_file": {
+    "calc.py": 28,
+    "README.md": 28,
+    "test_calc.py": 3
+   },
+   "after_own_edit_after_successful_edit": 27,
+   "after_own_edit_after_refused_edit_only": 1,
+   "first_calc_read": {
+    "full": 32
+   },
+   "edit_before_read_ok": 3,
+   "edit_before_read_refused": 1,
+   "refusal_bursts": 1,
+   "refusal_turn_steps": [
+    [],
+    [],
+    [],
+    [
+     [
+      5,
+      9
+     ]
+    ]
+   ],
+   "out_cost_mean_peak": 0.1077
+  },
+  "stock": {
+   "cross_turn_by_file": {
+    "calc.py": 27
+   },
+   "after_own_edit_after_successful_edit": 8,
+   "after_own_edit_after_refused_edit_only": 1,
+   "first_calc_read": {
+    "full": 11,
+    "window": 19
+   },
+   "edit_before_read_ok": 0,
+   "edit_before_read_refused": 0,
+   "refusal_bursts": 1,
+   "refusal_turn_steps": [
+    [],
+    [
+     [
+      1,
+      4
+     ]
+    ],
+    [],
+    []
+   ],
+   "out_cost_mean_peak": 0.0691
+  },
+  "per_cell_means_tool_calls": {
+   "_note": "bash split by command pattern (heuristic)",
+   "a": {
+    "bash": 40.0,
+    "bash_running_python": 26.0,
+    "read": 20.5,
+    "edit": 38.0,
+    "write": 2.0
+   },
+   "b": {
+    "bash": 34.2,
+    "bash_running_python": 26.8,
+    "read": 18.8,
+    "edit": 30.8,
+    "write": 1.2
+   },
+   "c": {
+    "bash": 19.2,
+    "bash_running_python": 18.0,
+    "read": 11.0,
+    "edit": 38.0,
+    "write": 1.0
+   },
+   "slice": {
+    "bash": 39.2,
+    "bash_running_python": 24.5,
+    "read": 23.5,
+    "edit": 40.2,
+    "write": 1.8
+   },
+   "stock": {
+    "bash": 17.0,
+    "bash_running_python": 16.0,
+    "read": 13.0,
+    "edit": 19.8,
+    "write": 1.2
+   }
+  },
+  "readme_raw_at_turn_start_and_touched": {
+   "_note": "per turn 2-8: vis = README text raw in the first request of the turn; read = a call in the turn names README",
+   "batch.lh1_incremental_build.r1.a.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r1.b.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r1.c.1": "T2:-/- T3:-/- T4:-/- T5:-/- T6:-/read T7:vis/- T8:vis/-",
+   "batch.lh1_incremental_build.r2.a.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r2.b.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r2.c.1": "T2:-/- T3:-/read T4:-/read T5:vis/- T6:vis/read T7:vis/- T8:vis/-",
+   "batch.lh1_incremental_build.r3.a.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r3.b.1": "T2:-/- T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r3.c.1": "T2:-/- T3:-/read T4:-/- T5:-/read T6:-/read T7:vis/- T8:vis/-",
+   "batch.lh1_incremental_build.r4.a.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r4.b.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:-/read T8:-/read",
+   "batch.lh1_incremental_build.r4.c.1": "T2:-/read T3:-/read T4:-/read T5:-/read T6:-/read T7:vis/read T8:vis/-"
+  }
+ },
+ "f1_unseen_first_writes": {
+  "_note": "per read turn: the first token written for an excerpt is checked against every version of the turn's results the model saw (a condensed view replaces the raw read in place) and against the raw read",
+  "arb.svs_f1_flood_recall.r1.c.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "arb.svs_f1_flood_recall.r2.c.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "arb.svs_f1_flood_recall.r3.c.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r1.a.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r1.b.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r1.c.1": {
+   "first_write_unseen_turns": [
+    28,
+    31,
+    32,
+    33,
+    35,
+    36,
+    37,
+    38
+   ],
+   "last_write_wrong_turns": [
+    33,
+    35,
+    37
+   ]
+  },
+  "batch.svs_f1_flood_recall.r2.a.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r2.b.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r2.c.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r3.a.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r3.a.2": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r3.b.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r3.c.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "pilot.svs_f1_flood_recall.r1.c.1": {
+   "first_write_unseen_turns": [
+    11,
+    17,
+    18,
+    21,
+    22,
+    24,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+   ],
+   "last_write_wrong_turns": [
+    11,
+    17,
+    18,
+    21,
+    22,
+    24,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39
+   ]
+  },
+  "arb.svs_f1_flood_recall.r1.slice.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "arb.svs_f1_flood_recall.r1.stock.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r1.slice.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r1.stock.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r2.slice.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  },
+  "batch.svs_f1_flood_recall.r2.stock.1": {
+   "first_write_unseen_turns": [],
+   "last_write_wrong_turns": []
+  }
+ },
+ "a_f1_rep3_attempt2": {
+  "turns_with_excerpt_reads_and_no_expand_result": 24,
+  "of_which_with_a_condensed_read": 0,
+  "mean_excerpt_reads_per_such_turn": 4.0
+ },
+ "b_c1_rep3_turn2": {
+  "steps": 1,
+  "reply": "one reasoning token, no tool call",
+  "output_tokens": 1
+ },
+ "bootstrap_N_code_vs_stock": {
+  "_note": "20,000 draws, pairs resampled within c1 and c2, verify-0 per-cell costs; cross-batch drift not included",
+  "a": {
+   "N_code": 1.2533,
+   "p05": 1.15,
+   "p95": 1.356,
+   "share_above_1.10": 0.993
+  },
+  "b": {
+   "N_code": 1.1926,
+   "p05": 1.042,
+   "p95": 1.349,
+   "share_above_1.10": 0.839
+  },
+  "c": {
+   "N_code": 1.0233,
+   "p05": 0.909,
+   "p95": 1.146,
+   "share_above_1.10": 0.152
+  },
+  "slice": {
+   "N_code": 1.2606,
+   "p05": 1.16,
+   "p95": 1.382,
+   "share_above_1.10": 0.998
+  },
+  "c_leave_one_out_max": 1.074
+ },
+ "fisher_one_sided_unseen_value_cells": {
+  "c_2_of_7_vs_0_of_15": 0.091,
+  "c_1_of_6_vs_0_of_15": 0.286
+ }
+}

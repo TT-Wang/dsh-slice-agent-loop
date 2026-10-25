@@ -3,7 +3,11 @@
 > **Status: complete (2026-10-25).** The pre-registration (§1–§15) was frozen on 2026-10-24 after
 > the pilot and before any batch cell, and is unchanged. §16 is the batch as run, §17 its result
 > before pooling and the arbitration it triggered, §18 the pooled result that decides, §19 the
-> caveats, §20 the archive. The ledger holds $6.2448 at peak of the $10 cap. Times are UTC. The
+> caveats, §20 which change explains the c1 overhead, §21 the independent verification with its
+> discrepancies and their resolutions, §22 the recommendation and what to test next, §23 the
+> archive. §16–§19 were corrected after the verification where it found wording that the data do
+> not support (each correction is listed in §21); no number that enters a pre-registered
+> comparison changed. The ledger holds $6.2448 at peak of the $10 cap. Times are UTC. The
 > baseline is the record [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md) ("the
 > baseline record" below).
 
@@ -47,20 +51,39 @@
   - **B (A without the persona) does not fix it either:** coding 1.19x (c1 1.39x), f1 0.56x, the
     cheapest f1 of all. Against A: coding 0.95x, f1 0.86x.
   - **C (B plus keeping the edited files raw) meets the pre-registered bar:** coding 1.02x (c1
-    1.10x, c2 0.95x), f1 0.65x, quality floor held. Against B it cut coding cost to 0.86x: on c1
-    6.4 requests per turn (STOCK 5.8, SLICE 11.5), half B's start-of-turn re-reads (27, STOCK's
-    count) and STOCK's output volume. On f1 it cost more than B (1.18x).
-  - **But C invents values on f1.** In 1 of its 6 counted f1 cells it wrote 3 of the 32 audit
-    tokens without having seen them, and it failed that cell; the pilot cell (not counted) did the
-    same in 20 of 32 turns. A, B and the six baseline cells never did. The quality floor allows one
-    lost pass, so C's result stands under the rules: the batch put it at the margin (one lost
-    pass), the pre-registered arbitration ran three more C f1 cells, all passed, and the pooled
-    result decides. The cause is C's design: a kept step whose reasoning starts with a value the
-    model learnt in a step that was sealed (§13.4, §18.5).
-  - **Caveats (§19):** every arm-to-baseline ratio is cross-batch (another day, no concurrent
-    STOCK or SLICE control); the host machine hibernated for 20 hours in the middle of the batch,
-    so its last 13 cells and the arbitration ran a day later than the first 32; n is 3–4 per task.
-  - **Spend:** $6.2448 at peak (batch $4.6378, arbitration $0.8937, warmup and pilot $0.7132).
+    1.10x, c2 0.95x), f1 0.65x, quality floor held. Against B it cut coding cost to 0.86x (c1
+    0.79x). On f1 it cost more than B (1.18x).
+  - **But C invents values on f1.** In one of its 6 counted f1 cells it wrote an audit token it
+    had not seen in 8 of the 32 read turns; it caught 5 of them by expanding the excerpt and left
+    3 wrong, so the cell failed. The pilot cell (not counted) did the same in 20 of 32 turns,
+    there without reading the excerpt at all. A, B and the six baseline cells never wrote an
+    unseen token. The quality floor allows one lost pass, so C's result stands under the rules:
+    the batch put it at the margin, the pre-registered arbitration ran three more C f1 cells, all
+    passed, and the pooled result decides. The cause is C's design: a kept step whose reasoning
+    starts with a value the model learnt in a step that was sealed (§13.4, §18.5).
+- **What causes the c1 overhead (§20).** Not the re-read sentence: A costs what SLICE costs. The
+  persona's share is not resolved: B is cheaper than A on c1 (0.83x) but not on c2, and the
+  coding step (0.952) sits at the threshold. The largest step is keeping the working set raw
+  (C/B on c1 0.79x), but not the way C was meant to work: C still re-read the file it edited at
+  almost every turn start, and every edit it tried from a kept view in a new process was refused
+  by the host. What fell is everything around the edit: C ran tests about as often as STOCK,
+  looked at the README far less, used fewer steps, and wrote as few output tokens as STOCK. Two
+  thirds of SLICE's c1 overhead is output tokens, and that is the part C removed.
+- **Recommendation (§22).** Ship none of the three as built. C meets the bar but invents values,
+  its c1 ratio sits at the bar (1.099) and its coding interval reaches 1.15. A and B do not fix
+  the overhead. Next:
+  a C variant that keeps the file view and the edits raw but not the reasoning of kept steps,
+  run with STOCK and SLICE in the same batch, more c1 reps, an unseen-value check on f1, and a
+  long-running process so the host's edit guard keeps its state.
+- **Verification (§21).** Two independent verifiers reproduced every pre-registered number and
+  verdict. They found wording the data do not support, which is corrected here: the size of C's
+  f1 failure, how C saved on c1, a counterexample in §18.5 that tests nothing, two flagged
+  parent-directory probes, and the claim that this harness understates C's saving.
+- **Caveats (§19):** every arm-to-baseline ratio is cross-batch (another day, no concurrent STOCK
+  or SLICE control); the host machine hibernated for 20 hours in the middle of the batch, so its
+  last 13 cells and the arbitration ran a day later than the first 32; n is 3–4 per task, and
+  only A's coding label is robust to resampling the pairs.
+- **Spend:** $6.2448 at peak (batch $4.6378, arbitration $0.8937, warmup and pilot $0.7132).
 
 ## 1. Question
 
@@ -1046,14 +1069,23 @@ Every manifest records harness `a7e9698`, the host tree digest `0c9e7f6b25ec…`
 - **Arm order**, rotated per (task, rep) as §4: for example c1 rep 1 ran C, A, B; c2 rep 1 A, B,
   C; r2 rep 1 B, C, A; f1 rep 1 C, A, B. The per-cell table in run order is
   [batch-cells.json](ab/svs2-2026-10-24/batch-cells.json).
-- **Flagged calls and quarantine.** In c1 the flagged calls (A 12–17 per cell, B 2–14, C 0–12)
-  are the false positives the baseline's c1 cells also have: Python's `//` operator read as a
-  path. A (4 cells) and B (1) wrote scratch scripts to `/private/tmp`, which the harness moved to
-  quarantine, as in the baseline. Three cells are flagged and so leave the memory comparison
-  under the rule (gates `g2`): B r2 reps 2 and 4 (`cd ..; ls; find ..`, looking for `stamp.py`
-  and `service.env` above the workdir but inside the cell root) and C's arbitration f1 rep 3 (a
-  `read` of the workdir's own `digest.md` under a mistyped absolute path). Their pass and cost
-  still count.
+- **Flagged calls and quarantine** (corrected after verification, §21 items 7–8). In c1 the
+  flagged calls (A 12–17 per cell, B 2–14, C 0–12) are mostly the false positives the baseline's
+  c1 cells also have: Python's `//` operator read as a path. One is a real probe: B c1 rep 1,
+  turn 5, `ls -la ..; ls -la ../..` ("Inspect parent directories for harness files"), which
+  listed the cell root and `AB/live/`. A (4 cells) and B (1) wrote scratch scripts to
+  `/private/tmp`, which the harness moved to quarantine, as in the baseline. Three cells are
+  flagged and so leave the memory comparison under the rule (gates `g2`): B r2 rep 2 (`cd ..;
+  ls; find ..`, from the cell root, so it searched `AB/live/`) and rep 4 (`ls ..; find ..` from
+  the workdir, so inside the cell root), both looking for `stamp.py` and `service.env`, and C's
+  arbitration f1 rep 3 (a `read` of the workdir's own `digest.md` under a mistyped absolute
+  path). Cells run one at a time, so `AB/live/` held only the running cell: none of these calls
+  could see another cell, an oracle or the vault. Their pass and cost still count; c1 has no
+  memory items.
+- **An empty turn.** In B c1 rep 3, turn 2 ended after one step whose reply was a single
+  reasoning token ("Let") and no tool call. The turn completed, so it is not an infra failure
+  under the rules; turn 3 caught up and the cell passed. It lowers B's c1 cost a little (B/A,
+  C/B); no verdict changes.
 
 ### 16.1 The infra rerun: the host machine hibernated mid-cell
 
@@ -1108,7 +1140,10 @@ keys, so each cell's content again equals its baseline partner's and C's batch c
 condition: ledger $5.3510 + the estimate at measured means $0.7376 = $6.0886 ≤ $8.65. Run 10-25
 07:58–08:25. All three cells were valid on their first attempt and passed with 32 of 32 tokens
 and 4 of 4 memory items ($0.2497, $0.3190 and $0.3250 at peak, $0.8937 in all, above the
-estimate). Arbitration alone (descriptive, below the minimums):
+estimate). The estimate was 3 x the mean of C's three batch f1 cells and its pilot f1 cell; the
+pilot cell was cheap ($0.1956) because it skipped 20 excerpt reads, and the batch cells alone
+would have given about $0.788. Either way the condition held, so no budget decision changes.
+Arbitration alone (descriptive, below the minimums):
 [summary-arb-only.md](ab/svs2-2026-10-24/summary-arb-only.md).
 
 ## 18. Result (pooled batch + arbitration; this decides)
@@ -1175,18 +1210,32 @@ f1, 3 cells x 45 turns (C: 6 cells, batch and arbitration):
 
 c2 (one turn) has no cross-turn reads; its after-own-edit re-reads are A 0, B 0, C 1, SLICE 12,
 STOCK 5. r2: cross-turn A 6, B 8, C 4, SLICE 8, STOCK 4. Full table in the pooled summary.
+`bash writes` comes from a heuristic detector, and another detector counts differently (SLICE
+r2: 15 here, 3 by a verifier's detector; A f1: 57 and 45). It is reported only and enters no
+comparison.
 
 Secondary hypotheses of §7 (reported, not tests):
 
 - A has fewer after-own-edit re-reads on c1 than SLICE: **yes**, 19 against 28. A's cross-turn
   re-reads (55 against 59) and edits (160 against 168) barely moved.
-- C has fewer cross-turn re-reads on c1 than B: **yes**, 27 against 54, STOCK's count. C still
-  hit `FS_NOT_OBSERVED` 22 times on c1: it edited from the kept view in a new process, which the
-  host refuses until the file is read (§11).
+- C has fewer cross-turn re-reads on c1 than B: **yes**, 27 against 54, but not of the file it
+  edited (corrected after verification, §21 items 4–5). By file (README.md / calc.py): A 27 / 28,
+  B 27 / 27, C 5 / 22, SLICE 28 / 28 (and 3 of `test_calc.py`), STOCK 0 / 27. The cut is
+  README.md. C still read `calc.py` at almost every turn start, in full in nearly every case
+  (STOCK used windowed reads in most turns). Its 22 `FS_NOT_OBSERVED` refusals are 22 edits made
+  from the kept view in a new process, in 6 bursts, all refused; no edit from a kept view
+  succeeded. After each burst C read the file, and §6.2 counts those 6 reads as `after_own_edit`
+  because it counts refused edits as edits. If only successful edits count, C's c1 counts are
+  cross-turn 33 and after-own-edit 2 (A and B unchanged, SLICE 59 / 27, STOCK 27 / 8). The frozen
+  definition stays the reported one; C's 27 equals STOCK's count only under it.
 - B's c1 requests per turn are closer to STOCK's than A's: **yes**, 9.19 against 11.09 (STOCK
   5.78), but far from STOCK's.
 
-### 18.4 Cost structure (valid cells; means per cell; request tokens as cell medians)
+### 18.4 Cost structure (valid cells; means per cell; request tokens and cache hit as cell medians)
+
+The cache hit column is the median of the cells' rates. Pooled over the cells (hit / (hit +
+miss)) it differs only slightly: B c1 0.960, SLICE c1 0.965, B f1 0.944, STOCK f1 0.990 (§21
+item 9).
 
 | arm | task | cells | pass | mean $ peak | requests / turn | step-cap cuts | output tokens per cell | peak / mean request tokens | cache hit | kept-raw entries | median wall s |
 |---|---|---|---|---|---|---|---|---|---|---|---|
@@ -1217,29 +1266,40 @@ it before the earlier request's last entry. A and B carried none and had no prob
 
 ### 18.5 C's f1 failure: values written without being seen
 
-[f1-digest-trace.json](ab/svs2-2026-10-24/f1-digest-trace.json) (`probe/tools/f1_digest_trace.py`,
-counts only):
+Corrected after verification (§21 items 1–3).
+[f1-digest-trace.json](ab/svs2-2026-10-24/f1-digest-trace.json) (`probe/tools/f1_digest_trace.py`)
+counts the tokens still wrong at the end of each turn.
+[verification.json](ab/svs2-2026-10-24/verification.json) (`record-check/tools/f1unseen.py`)
+checks, per turn, whether the first token written was in any version of a result the model saw
+(a condensed view replaces the raw read in place before the next request). Counts only:
 
-- **C batch rep 1 (failed):** it read all 32 excerpts, but in turns 33, 35 and 37 the `read`
-  came back condensed (head plus an `expand_result` offer) and it did not expand. Its next
-  reasoning step names a token at once ("Token for blob_26: … Append."), the pattern of the
-  kept-raw `digest.md` steps (§13.4). It appended that token, and its final text then said the
-  whole excerpt had passed before its eyes "via `expand_result`", which it had not called. All
-  three tokens are wrong. In turn 32 the same pattern occurred, but the model caught itself: it
-  called `expand_result` with a grep, found the real token and corrected its line.
-- **C's other 5 f1 cells** (batch reps 2 and 3, arbitration reps 1–3): 32 of 32 tokens right.
-- **A and B (6 cells), SLICE and STOCK (6 baseline cells):** 32 of 32 in every cell. A's rep-3
-  cell also skipped `expand_result` in 24 read turns and still recorded every token correctly,
-  so skipping the expansion does not by itself cause the failure; writing a token that was never
-  seen does.
+- **C batch rep 1 (failed):** it read all 32 excerpts, but in 8 read turns (T28, T31, T32, T33,
+  T35, T36, T37, T38) the `read` came back condensed (head plus an `expand_result` offer), and
+  the first token it wrote was one it had not seen. Its next reasoning step names a token at once
+  ("Token for blob_26: … Append."), the pattern of the kept-raw `digest.md` steps (§13.4). In 5
+  of those turns it then called `expand_result` (in T32 with a grep), found the real token and
+  corrected its line. In T33, T35 and T37 it did not, and its final text said the whole excerpt
+  had passed before its eyes "via `expand_result`", which it had not called. Those three tokens
+  are wrong, and they fail the cell.
+- **C's other 5 f1 cells** (batch reps 2 and 3, arbitration reps 1–3): 32 of 32 tokens right,
+  and no first write of an unseen token.
+- **A and B (6 cells), SLICE and STOCK (6 baseline cells):** 32 of 32 in every cell, and no
+  first write of an unseen token in any turn. (The earlier version of this section cited A's
+  rep-3 cell, which skipped `expand_result` in 24 read turns, as a case of skipping the
+  expansion without harm. It is not one: A read each excerpt there in about 4 windowed reads,
+  none condensed, so the token was in view. No cell of any arm ever left a condensed read that
+  hid the token unexpanded and then wrote a correct token, so these data cannot tell "skipped the
+  expansion" from "wrote an unseen value" apart.)
 - **Pilot (not counted, §13):** C wrote invented tokens in 20 of 32 turns, without reading the
-  excerpt at all.
+  excerpt at all, and never corrected one.
 
-So C invented values in 2 of its 7 f1 runs (1 of the 6 counted), and no other arm or baseline
-cell did in 15. Under the pre-registered floor (a margin of one pass) this costs C −0.5 pass
-after pooling, and its interpretation stands. The floor was built to tolerate noise, not a
-mechanism. The mechanism is C's: a kept step whose reasoning begins with a value that the model
-learnt in an earlier step, now sealed, makes the model write values it has not seen.
+So C wrote values it had not seen in 2 of its 7 f1 runs (1 of the 6 counted), and no other arm
+or baseline cell did in 15 (one-sided Fisher p ≈ 0.09 for 2 of 7 against 0 of 15, ≈ 0.29 for 1 of
+6). Under the pre-registered floor (a margin of one pass) this costs C −0.5 pass after pooling,
+and its interpretation stands. The floor was built to tolerate noise, not a mechanism, and
+pooling arbitration cells into the arm's side dilutes one failure by construction. The mechanism
+is C's: a kept step whose reasoning begins with a value that the model learnt in an earlier step,
+now sealed, makes the model write values it has not seen.
 
 ## 19. Caveats
 
@@ -1257,20 +1317,198 @@ learnt in an earlier step, now sealed, makes the model write values it has not s
   (task, rep) group but one ran its three arms within one hour on one day. The exception is f1
   rep 3, whose A cell ran 20 hours after its B and C cells.
 - **Low power.** n = 3–4 per task; paired c1 ratios against STOCK range 0.81–1.99. C's N_code
-  (1.023) is 0.077 below the 1.10 bar, and its R_c1 alone (1.099) sits at the bar. An effect of
-  B/A's size (0.95) is below what this design can tell from noise.
-- **C's headless refusals.** In this harness every turn is a new process, so the host's edit
-  guard demands a fresh read of a kept file before every edit (22 refusals on c1, 22 on f1). A
-  long-running agent keeps the guard's state and would skip those reads; how much that would
-  save is not measured here.
+  (1.023) is 0.077 below the 1.10 bar, and its R_c1 alone (1.099) sits at the bar. Resampling
+  the pairs within each task (§21) gives 90 % intervals for N_code of A [1.15, 1.36], B [1.04,
+  1.35] and C [0.91, 1.15]: about 15 % of C's draws lie above 1.10 and about 16 % of B's at or
+  below it. Only A's label (and SLICE's) is robust; B's and C's cannot be told apart at this n.
+  B/A's coding step (0.952) is 0.002 from its threshold and below what this design can resolve.
+  These intervals leave out the cross-batch drift, so if anything they are too narrow.
+- **C's headless refusals** (corrected after verification, §21 item 6). In this harness every
+  turn is a new process, so the host's edit guard is empty at every turn start and refuses an
+  edit of a kept file until it is read (22 refusals on c1, 22 on f1). On c1 they came in 6
+  bursts; in the other turns C re-read the file in full by its own choice ("Need read again
+  before editing (sealed turn, policy)"). A long-running agent would skip at most those bursts,
+  about 6 steps and 6 reads over 4 cells, so this harness does not hide a large saving of C's.
+  Whether C would trust a kept view in a long-running process is not measured.
+- **The arbitration favours the arbitrated arm.** Only arm cells can be added, and pooling
+  averages them into the arm's side, so a single failure is diluted by passing cells
+  (dS_f1 −1 became −0.5). The trigger was symmetric and only C met it.
+- **A's rule was partly followed.** A verifier read the reasoning of every remaining after-edit
+  re-read on c1: about 15 of A's 19 and 13 of B's 14 are worded as verifying or reviewing the
+  model's own edit, which the new rule forbids (not re-counted by the recorder). A's cross-turn
+  re-reads could not fall in this harness anyway: the empty edit guard forces a read of the
+  edited file in every turn, and the rule allows the README re-reads because the turn-1 read is
+  sealed.
 - **C's quality risk (§18.5)** is real at this n and is not what the floor's margin is for.
-  Before C could be used, a design change would be needed, and then a new run. Candidates: keep
-  only result nodes raw, not the reasoning of a kept step, or never keep a step whose reasoning
-  depends on a sealed step.
+  Before C could be used, a design change would be needed, and then a new run (§22).
 - **External validity** as in the baseline record §16: one host, one model route, headless one
   process per turn, a hermetic composition, DeepSeek's cache pricing.
 
-## 20. Archive and files
+## 20. Which change explains the c1 overhead
+
+§1 asks which of three things causes SLICE's c1 overhead (1.59x STOCK): (a) the re-read
+sentence, (b) the persona, (c) sealing the file the model is editing. c1 is the only task that
+can answer it. c2 has one turn, so nothing is sealed in any arm, and every arm sits within
+0.94–1.03 of STOCK there (A 0.945, B 1.027, C 0.953, SLICE 1.001). Per c1 cell (4 cells per
+arm, 8 turns each; counts from the logs, the bash split by a command-pattern heuristic):
+
+| c1, per cell unless a sum | SLICE | A | B | C | STOCK |
+|---|---|---|---|---|---|
+| cost at peak | $0.1624 | $0.1701 | $0.1417 | $0.1124 | $0.1023 |
+| of which output tokens | $0.1077 | $0.1164 | $0.0996 | $0.0689 | $0.0691 |
+| of which input (the rest) | $0.0547 | $0.0537 | $0.0421 | $0.0435 | $0.0332 |
+| output tokens (reasoning included) | 81,598 | 88,156 | 75,445 | 52,204 | 52,366 |
+| requests per turn | 11.47 | 11.09 | 9.19 | 6.38 | 5.78 |
+| step-cap cuts (sum of 32 turns) | 14 | 10 | 4 | 1 | 0 |
+| bash calls (of which running Python) | 39.2 (24.5) | 40.0 (26.0) | 34.2 (26.8) | 19.2 (18.0) | 17.0 (16.0) |
+| `read` calls | 23.5 | 20.5 | 18.8 | 11.0 | 13.0 |
+| edit and write calls (of which refused by the edit guard) | 42.0 (0.25) | 40.0 (0) | 32.0 (0) | 39.0 (5.5) | 21.0 (0.25) |
+| cross-turn re-reads, README.md / calc.py (sums) | 28 / 28 | 27 / 28 | 27 / 27 | 5 / 22 | 0 / 27 |
+| re-reads right after a successful own edit (sum) | 27 | 19 | 14 | 2 | 8 |
+
+Where SLICE's overhead sits: of its $0.0601 per cell above STOCK, $0.0386 (64 %) is output
+tokens and $0.0215 input. The model writes more because it takes more steps and does more around
+each edit: about twice STOCK's requests, bash calls and edits, and 14 step-cap cuts against none.
+
+- **(a) The re-read sentence: little or nothing.** A against SLICE (cross-batch): coding 0.994,
+  c1 1.047. A cut re-reads right after its own edit (28 to 19), but its cost, requests, output,
+  bash calls and cross-turn re-reads did not move. Most of the remaining after-edit re-reads are
+  worded as verification, which the new rule forbids (§19), and the cross-turn re-reads are ones
+  the rule allows (the turn-1 README read is sealed) or the empty edit guard forces.
+- **(b) The persona: not resolved.** B against A (within the batch): c1 0.833 but c2 1.087,
+  coding 0.952 at the 0.95 threshold; f1 0.856, r2 1.267. On c1 B took fewer steps (9.19 against
+  11.09 requests per turn, 4 against 10 step-cap cuts), edited less (128 against 160) and wrote
+  less (75K against 88K), and one empty B turn (§16) lowers its cost a little. The point estimate
+  says the persona costs something on c1; n = 4 cannot confirm it.
+- **(c) Sealing the working set: the largest step, through an unintended path.** C against B
+  (within the batch): c1 0.794, coding 0.858. C was meant to let the model edit without
+  re-reading. It did not: all 22 edits C made from a kept view in a new process were refused by
+  the host, and in the other turns C re-read `calc.py` in full by its own choice, so it read the
+  edited file at almost every turn start, as B did (22 cross-turn reads plus 6 after refusals,
+  against B's 27). What changed is the work around the edit. C read the README in 5 of its 28
+  later turns, B in 27; its kept steps carried its own reasoning about the requirements, and from
+  turns 5–7 on a README read that shared a step with a kept `calc.py` view stayed raw too. It ran
+  Python checks about as often as STOCK (18.0 per cell, B 26.8, STOCK 16.0), took a third fewer
+  steps (6.38 against 9.19 requests per turn) and wrote as many output tokens as STOCK. Its input
+  cost stayed at B's ($0.0435 against $0.0421): fewer requests, but larger ones (mean 29.6K
+  tokens against 18.6K). So C's whole c1 saving over B is output.
+
+**Conclusion, as far as the data go.** The c1 overhead goes with sealing the model's own recent
+work on the file it is editing, not with the re-read sentence. The persona's share is not
+resolved (point estimate c1 0.83, coding 0.95). Together the three changes take c1 from SLICE's
+1.59x STOCK to C's 1.10x (C/SLICE on c1 0.69, cross-batch); within the batch, C/A on c1 is 0.66,
+the product of the persona step (0.83) and the retention step (0.79). When the latest view of the file and the steps
+that changed it stay in view, the model re-gathers context and re-checks its work less (fewer
+README reads, fewer test runs, less reasoning), although it still re-reads the file itself. The
+design cannot say which part of a kept step does this: the file view, the edit calls, or the
+reasoning around them. §18.5 shows that the reasoning is also what misleads C on f1. C's
+remaining c1 gap to STOCK (1.10x) is input: 10 % more requests per turn and a lower cache hit
+(0.967 against 0.983). These are whole-cell counts over 4 cells per arm, and every comparison
+with SLICE or STOCK is cross-batch.
+
+## 21. Independent verification: discrepancies and resolutions
+
+Two read-only verifiers (`AB/verify-0`, `AB/verify-1`) recomputed the results with their own
+extractors from the session logs, without the harness code. Both agree with the report. Every
+pre-registered quantity reproduces to the reported precision: N_code, R_f1, N_code3, the paired
+ratios, dS, dM, dB, Q, each interpretation and the arbitration trigger. So do the steps of §18.2,
+the re-read tables, the cost structure, the spend ledger (847 rows, one unpriced) and C's
+cache-safety counts (verify-1's own surface replay: 728 nodes over 1,014 requests and 369 over
+735, none dropped). verify-0's log-based cost equals the harness's for all 83 cells it read and
+the ledger for every new cell, and its re-run of the f1 and r2 oracles on freshly extracted
+workdirs agrees with every stored pass. verify-1 found that every cell installed its own arm's
+tarball (`lib/index.js` equal to the branch head, system-prompt hashes as declared), that no two
+cell windows overlap, that no tool call reached the vault, a worktree, `~/Documents` or the old
+A/B root, and that no `FS_STALE_VERSION` occurred anywhere. The conditions of §3 hold: the task,
+price, step-cap and overlay subtrees have the git ids of `b111e434`, every manifest records the
+host digest at start and end, and f1's content is identical within each rep index.
+
+The recorder re-checked every discrepancy that changes this record's wording with its own scripts
+(`AB/record-check/tools/`: `c1check.py`, `readme_visible.py`, `f1unseen.py`, `bootstrap.py`,
+`truth_scan.py`).
+They ran on the verifiers' decompressed logs, all 83 of which were first checked byte for byte
+against their compressed originals (the vault and the baseline archive). The counts are in
+[verification.json](ab/svs2-2026-10-24/verification.json).
+
+| # | found by | discrepancy | re-check | resolution |
+|---|---|---|---|---|
+| 1 | verify-1 | C's failed f1 cell undercounted: not 3 but 8 turns first wrote an unseen token | confirmed: T28, T31, T32, T33, T35, T36, T37, T38; 5 corrected after `expand_result`, 3 left wrong; 0 such turns in every other counted new cell and every baseline f1 cell (the uncounted pilot cell: 20) | §18.5 and the summary corrected |
+| 2 | both | §18.5's counterexample (A rep 3 skipped `expand_result` in 24 turns) tests nothing | confirmed: none of those 24 turns had a condensed read; about 4 windowed reads per turn, token in view | removed; the data cannot separate skipping the expansion from writing an unseen value |
+| 3 | verify-0 | the pilot and the failed batch cell fail differently | pilot: no read in the 20 turns; batch: read, condensed, not expanded | summary wording |
+| 4 | both | `after_own_edit` counts reads after refused edits | confirmed: 6 of C's 8; successful-edit-only variant gives C cross-turn 33, after-edit 2 | the frozen §6.2 definition stays the reported one; §18.3 states the variant and withdraws "C reached STOCK's count" |
+| 5 | verify-1 | C's c1 saving was described as halving start-of-turn re-reads | confirmed: the cut is README.md (C 5, B 27); calc.py read at nearly every turn start; 0 of 22 kept-view edits succeeded; output $0.0689 against B's $0.0996 per cell | §18.3, the summary and §20 |
+| 6 | verify-1 | "the headless harness understates C's saving" is not supported | confirmed: 6 refusal bursts (turns 2, 2, 3 and 7, 2 and 7 of the 4 cells), otherwise self-chosen full re-reads | §19 corrected; the batch report's statement is withdrawn |
+| 7 | verify-1 | §16 called all c1 flagged calls `//` false positives and B r2 rep 2's search "inside the cell root" | confirmed: B c1 rep 1 listed `../..` (`AB/live/`); B r2 rep 2 searched `AB/live/`; one cell at a time, so nothing exposed | §16 corrected; no validity change |
+| 8 | verify-1 | B c1 rep 3, turn 2 was empty (one reasoning token, no call) | confirmed | recorded in §16; lowers B's c1 cost slightly; no verdict changes |
+| 9 | verify-0 | the cache hit columns are medians of cell rates, unstated | pooled hit / (hit + miss): B c1 0.960, SLICE c1 0.965, B f1 0.944, STOCK f1 0.990 | §18.4 header |
+| 10 | verify-0 | the arbitration estimate included the cheap pilot cell | batch cells alone: about $0.788; actual $0.8937 | §17 note; the condition held either way |
+| 11 | verify-0 | the batch report labelled the c1 re-read table "4 cells, 32 turns each" | 8 turns per cell, 32 per arm | the record was right; report wording only |
+| 12 | verify-0 | `bash writes` differs between detectors | SLICE r2 15 against 3, A f1 57 against 45 | §18.3 note; reported only, in no comparison |
+| 13 | both | baseline STOCK r2 rep 1 leaves out one failed attempt with no recorded usage | same priced-only convention on both sides | can only overstate the arms' r2 rep-1 ratios slightly (A 0.92, B 1.27, C 1.38); secondary R_r2 and N_code3 only |
+| 14 | verify-0 | C's cache-safety counts not recomputed by verify-0 | verify-1 recomputed them (above); provider-side, C's share of requests reusing less than 80 % of the previous prompt (c1 0.060, f1 0.076) is no higher than A's, B's or SLICE's | none needed |
+
+Validity and fairness concerns the verifiers raised, beyond the items above:
+
+- **Power.** Resampling pairs within each task (20,000 draws; arm-side and pair variance, no
+  cross-batch drift), reproduced by the recorder: N_code 90 % intervals A [1.15, 1.36], B [1.04,
+  1.35] (16 % of draws at or below 1.10), C [0.91, 1.15] (15 % above 1.10), SLICE [1.16, 1.38].
+  Leaving any one c1 or c2 pair out keeps C at or below 1.10 (at most 1.074). B/A's coding step
+  is 0.9516, 0.002 from its threshold.
+- **C's unseen values.** 2 of 7 f1 runs (1 of 6 counted) against 0 of 15 for A, B and the
+  baselines; one-sided Fisher p ≈ 0.09 and ≈ 0.29. The "fixes" verdict is formally right and
+  does not certify C as safe (§18.5, §19).
+- **Rule following** (verify-1; not re-counted): about 15 of A's 19 and 13 of B's 14 remaining
+  c1 after-edit re-reads are worded as verification.
+- **Fairness.** f1 rep 3's A cell ran 20 hours after its B and C cells (§16.1); only C received
+  arbitration cells (the trigger was symmetric); B's memory comparison rests on 14 items against
+  16 for A and C. Checked and found fair: first-request cache hits are equal across arms within
+  each task (c1 4,736; c2 4,480–4,992; r2 4,480–4,608 tokens), so no arm got a cache benefit from
+  a neighbour's run; arm order follows the declared rotation; f1 content is byte-identical across
+  all paired cells at each rep index.
+
+Housekeeping found by verify-1: its decompressed logs (`AB/verify-1/logs`, `AB/verify-1/base`)
+hold f1 oracle tokens inside the A/B root. They are copies of vault logs, are not archived, and
+must be removed or moved out before any further run in this root.
+
+## 22. Recommendation and what to test next
+
+**Recommendation: ship none of the three variants as built.**
+
+- **C** meets the pre-registered bar, and it is the only arm whose coding cost reaches STOCK's
+  (1.02x). It should still not ship. It writes values it has not seen (§18.5), which no other arm
+  and neither baseline did, and the quality floor passed only through its one-pass margin and an
+  arbitration that dilutes a failure by construction. Its coding ratio rests on R_c1 = 1.099, at
+  the bar, with an interval that reaches 1.15.
+- **A** does not fix the overhead and costs what SLICE costs; replacing the re-read sentence
+  alone is not worth a release.
+- **B** does not fix the overhead either. Its point estimates are below A's on c1 (0.83) and f1
+  (0.86), with no quality loss, but not resolved, and c2 (1.09) and r2 (1.27) point the other
+  way. Removing the persona so that the host and the plugin present one persona is low-risk on
+  this evidence. It is a consistency change, not a cost fix.
+- main stays as it is. The finding to build on is where the cost goes (§20): keeping the working
+  set in view removes most of the c1 overhead. It has to do so without replaying reasoning that
+  leads the model to unseen values.
+
+**What to test next, in order:**
+
+1. **C2: retention without replayed reasoning.** Keep the working-set file view and the edits
+   raw, but seal the reasoning and free text of kept steps, or never keep a step whose reasoning
+   or text names a value absent from its own results. The cache rules stay: decided once at
+   seal time from the log, nothing unsealed or sealed later. Unit and native-harness tests, plus
+   the unseen-first-write check of §21 (`f1unseen.py`) as a gate on f1.
+2. **Concurrent controls.** Run STOCK and SLICE in the same batch as the candidates (B and C2),
+   so the primary ratios are within one batch. The cross-batch caveat weighs on every number in
+   this record.
+3. **More c1 power.** c1 is where the arms differ, and its paired ratios range 0.81–1.99; 6–8 c1
+   reps per arm, with c2 reduced to 2 (every arm within 0.94–1.03 of STOCK there).
+4. **A long-running process** (one process per session, so the host's edit guard keeps its
+   state), to see whether retention then lets the model edit from the kept view without
+   re-reading, which is what it was built to buy.
+5. **f1 as a quality gate for any retention arm**, at least 6 cells, with unseen-value writes
+   counted per turn. A one-pass margin cannot detect a failure that appears in one or two cells
+   of seven.
+
+## 23. Archive and files
 
 - **Raw data:** `~/Documents/kimi/workspace/dsh-slice/results/20261024-svs2/`, a copy of the A/B
   root `$SCRATCHPAD/svs2` taken after the arbitration, without `host/` (the frozen host, digest in
@@ -1285,9 +1523,14 @@ learnt in an earlier step, now sealed, makes the model write values it has not s
 - **Summaries in this repo:** [docs/ab/svs2-2026-10-24/](ab/svs2-2026-10-24/):
   `summary-batch.{md,json}` (§17), `summary-pooled.{md,json}` (§18, decides),
   `summary-arb-only.md`, `batch-cells.json` (every cell in run order), `plan-before-stages.json`,
-  `ws-prefix-batch.json`, `f1-digest-trace.json`. A scan of every file in that directory and of
-  this record against the f1 truth values of all twelve f1 cells (140 values: tokens, build ids,
-  decoys, lint errors) found none.
+  `ws-prefix-batch.json`, `f1-digest-trace.json`, and `verification.json` (§21: the recorder's
+  re-checks, counts and turn numbers only). After the last edit, `record-check/tools/truth_scan.py`
+  scanned every file in that directory and this record against the f1 truth values read from
+  the truth sidecars of every new and baseline f1 cell (22 sidecars, 140 distinct values: tokens,
+  build ids, decoys, lint errors, deploy host and variable) and found none.
+- **Verification:** the verifiers' tools and outputs and the recorder's re-check scripts are in
+  the archive under `verification/` (`verify-0/`, `verify-1/` without its decompressed logs,
+  `record-check/`). The decompressed logs are byte copies of vault logs and are not archived.
 - **Spend at peak** (one ledger, `vault/spend.jsonl`, 847 turns): warmup $0.0052, pilot $0.7080,
   batch $4.6378 (of which the infra attempt of §16.1 $0.2881), arbitration $0.8937; **total
   $6.2448** of the $10 cap. One unpriced turn, charged $0.05: the killed turn of §16.1. The
