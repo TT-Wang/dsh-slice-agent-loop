@@ -1,0 +1,1790 @@
+{
+ "_note": "one row per finished cell of batches 'batch' (seed 20261024) and 'arb' (seed 20261025), in run order; costs at peak; no oracle values",
+ "cells": [
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r1.a",
+   "arm": "a",
+   "task": "c2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.009113,
+   "wall_s": 26.9,
+   "started": "2026-10-24T08:25:06+00:00",
+   "ended": "2026-10-24T08:25:33+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r1.b",
+   "arm": "b",
+   "task": "c2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.011271,
+   "wall_s": 30.9,
+   "started": "2026-10-24T08:25:34+00:00",
+   "ended": "2026-10-24T08:26:05+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r1.c",
+   "arm": "c",
+   "task": "c2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.010182,
+   "wall_s": 27.9,
+   "started": "2026-10-24T08:26:05+00:00",
+   "ended": "2026-10-24T08:26:33+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 7,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.c",
+   "arm": "c",
+   "task": "c1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.088571,
+   "wall_s": 311.2,
+   "started": "2026-10-24T08:26:33+00:00",
+   "ended": "2026-10-24T08:31:45+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 3,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 7,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 35,
+    "bash_writes": 8,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 7
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.a",
+   "arm": "a",
+   "task": "c1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.166385,
+   "wall_s": 588.1,
+   "started": "2026-10-24T08:31:45+00:00",
+   "ended": "2026-10-24T08:41:33+00:00",
+   "step_limit_turns": 2,
+   "flag_count": 13,
+   "quarantined": 1,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 13,
+    "same_turn": 0,
+    "after_own_edit": 6,
+    "edits_writes": 44,
+    "bash_writes": 26,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.b",
+   "arm": "b",
+   "task": "c1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.156954,
+   "wall_s": 685.2,
+   "started": "2026-10-24T08:41:34+00:00",
+   "ended": "2026-10-24T08:52:59+00:00",
+   "step_limit_turns": 2,
+   "flag_count": 14,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 4,
+    "edits_writes": 30,
+    "bash_writes": 21,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r1.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": false,
+   "cost_peak": 0.25299,
+   "wall_s": 447.7,
+   "started": "2026-10-24T08:53:01+00:00",
+   "ended": "2026-10-24T09:00:28+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 3,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 34,
+    "same_turn": 0,
+    "after_own_edit": 16,
+    "edits_writes": 51,
+    "bash_writes": 4,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 41
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r1.a",
+   "arm": "a",
+   "task": "f1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.262593,
+   "wall_s": 512.6,
+   "started": "2026-10-24T09:00:29+00:00",
+   "ended": "2026-10-24T09:09:02+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 37,
+    "cross_turn": 36,
+    "same_turn": 1,
+    "after_own_edit": 1,
+    "edits_writes": 41,
+    "bash_writes": 6,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r1.b",
+   "arm": "b",
+   "task": "f1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.246298,
+   "wall_s": 504.4,
+   "started": "2026-10-24T09:09:02+00:00",
+   "ended": "2026-10-24T09:17:27+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 25,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 29,
+    "bash_writes": 18,
+    "fs_not_observed": 3,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r1.b",
+   "arm": "b",
+   "task": "r2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.019771,
+   "wall_s": 81.2,
+   "started": "2026-10-24T09:17:28+00:00",
+   "ended": "2026-10-24T09:18:49+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 2,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 4,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r1.c",
+   "arm": "c",
+   "task": "r2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.021458,
+   "wall_s": 78.1,
+   "started": "2026-10-24T09:18:49+00:00",
+   "ended": "2026-10-24T09:20:07+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 3,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 6,
+    "bash_writes": 5,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 3
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r1.a",
+   "arm": "a",
+   "task": "r2",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.014346,
+   "wall_s": 63.1,
+   "started": "2026-10-24T09:20:07+00:00",
+   "ended": "2026-10-24T09:21:10+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 2,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.a",
+   "arm": "a",
+   "task": "c1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.192325,
+   "wall_s": 807.2,
+   "started": "2026-10-24T09:21:11+00:00",
+   "ended": "2026-10-24T09:34:38+00:00",
+   "step_limit_turns": 2,
+   "flag_count": 14,
+   "quarantined": 5,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 6,
+    "edits_writes": 37,
+    "bash_writes": 28,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.b",
+   "arm": "b",
+   "task": "c1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.103319,
+   "wall_s": 296.1,
+   "started": "2026-10-24T09:34:39+00:00",
+   "ended": "2026-10-24T09:39:35+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 4,
+   "quarantined": 2,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 3,
+    "edits_writes": 30,
+    "bash_writes": 12,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.c",
+   "arm": "c",
+   "task": "c1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.09224,
+   "wall_s": 261.0,
+   "started": "2026-10-24T09:39:36+00:00",
+   "ended": "2026-10-24T09:43:57+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 7,
+    "same_turn": 0,
+    "after_own_edit": 1,
+    "edits_writes": 37,
+    "bash_writes": 4,
+    "fs_not_observed": 5,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 7
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r2.b",
+   "arm": "b",
+   "task": "c2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.007642,
+   "wall_s": 23.5,
+   "started": "2026-10-24T09:43:58+00:00",
+   "ended": "2026-10-24T09:44:21+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 9,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r2.c",
+   "arm": "c",
+   "task": "c2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.007013,
+   "wall_s": 21.7,
+   "started": "2026-10-24T09:44:21+00:00",
+   "ended": "2026-10-24T09:44:43+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r2.a",
+   "arm": "a",
+   "task": "c2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.007976,
+   "wall_s": 21.0,
+   "started": "2026-10-24T09:44:43+00:00",
+   "ended": "2026-10-24T09:45:04+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 9,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r2.a",
+   "arm": "a",
+   "task": "f1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.293419,
+   "wall_s": 546.3,
+   "started": "2026-10-24T09:45:05+00:00",
+   "ended": "2026-10-24T09:54:11+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 37,
+    "cross_turn": 36,
+    "same_turn": 4,
+    "after_own_edit": 1,
+    "edits_writes": 31,
+    "bash_writes": 21,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r2.b",
+   "arm": "b",
+   "task": "f1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.227473,
+   "wall_s": 459.0,
+   "started": "2026-10-24T09:54:12+00:00",
+   "ended": "2026-10-24T10:01:51+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 35,
+    "cross_turn": 38,
+    "same_turn": 0,
+    "after_own_edit": 21,
+    "edits_writes": 45,
+    "bash_writes": 4,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r2.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.264981,
+   "wall_s": 427.1,
+   "started": "2026-10-24T10:01:52+00:00",
+   "ended": "2026-10-24T10:08:59+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 36,
+    "same_turn": 0,
+    "after_own_edit": 8,
+    "edits_writes": 46,
+    "bash_writes": 2,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 42
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.c",
+   "arm": "c",
+   "task": "r2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.017158,
+   "wall_s": 63.7,
+   "started": "2026-10-24T10:08:59+00:00",
+   "ended": "2026-10-24T10:10:03+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 1,
+    "cross_turn": 1,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 3
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.a",
+   "arm": "a",
+   "task": "r2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.017147,
+   "wall_s": 68.6,
+   "started": "2026-10-24T10:10:03+00:00",
+   "ended": "2026-10-24T10:11:12+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 2,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 3,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.b",
+   "arm": "b",
+   "task": "r2",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.019119,
+   "wall_s": 78.2,
+   "started": "2026-10-24T10:11:12+00:00",
+   "ended": "2026-10-24T10:12:30+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 2,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 1,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 3,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.b",
+   "arm": "b",
+   "task": "c1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.163514,
+   "wall_s": 1245.7,
+   "started": "2026-10-24T10:12:51+00:00",
+   "ended": "2026-10-24T10:33:37+00:00",
+   "step_limit_turns": 1,
+   "flag_count": 10,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 12,
+    "same_turn": 0,
+    "after_own_edit": 5,
+    "edits_writes": 31,
+    "bash_writes": 20,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.c",
+   "arm": "c",
+   "task": "c1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.159725,
+   "wall_s": 648.0,
+   "started": "2026-10-24T10:33:38+00:00",
+   "ended": "2026-10-24T10:44:26+00:00",
+   "step_limit_turns": 1,
+   "flag_count": 12,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 7,
+    "same_turn": 1,
+    "after_own_edit": 3,
+    "edits_writes": 45,
+    "bash_writes": 23,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 7
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.a",
+   "arm": "a",
+   "task": "c1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.158275,
+   "wall_s": 504.0,
+   "started": "2026-10-24T10:44:27+00:00",
+   "ended": "2026-10-24T10:52:51+00:00",
+   "step_limit_turns": 3,
+   "flag_count": 12,
+   "quarantined": 2,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 4,
+    "edits_writes": 41,
+    "bash_writes": 24,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r3.c",
+   "arm": "c",
+   "task": "c2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.008861,
+   "wall_s": 23.9,
+   "started": "2026-10-24T10:52:52+00:00",
+   "ended": "2026-10-24T10:53:16+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 9,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 1,
+    "edits_writes": 5,
+    "bash_writes": 3,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r3.a",
+   "arm": "a",
+   "task": "c2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.007358,
+   "wall_s": 20.0,
+   "started": "2026-10-24T10:53:16+00:00",
+   "ended": "2026-10-24T10:53:36+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 9,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r3.b",
+   "arm": "b",
+   "task": "c2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.008294,
+   "wall_s": 24.6,
+   "started": "2026-10-24T10:53:36+00:00",
+   "ended": "2026-10-24T10:54:01+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.b",
+   "arm": "b",
+   "task": "f1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.240327,
+   "wall_s": 458.0,
+   "started": "2026-10-24T10:54:39+00:00",
+   "ended": "2026-10-24T11:02:17+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 35,
+    "same_turn": 21,
+    "after_own_edit": 3,
+    "edits_writes": 14,
+    "bash_writes": 38,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.269925,
+   "wall_s": 428.7,
+   "started": "2026-10-24T11:02:17+00:00",
+   "ended": "2026-10-24T11:09:26+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 35,
+    "same_turn": 0,
+    "after_own_edit": 21,
+    "edits_writes": 47,
+    "bash_writes": 3,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 43
+  },
+  {
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.a",
+   "arm": "a",
+   "task": "f1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "invalid",
+     "infra": true,
+     "reasons": [
+      "completed 40/45 turns",
+      "turn 40: exit 0 (None, None, timeout)"
+     ]
+    },
+    {
+     "attempt": 2,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.278672,
+   "wall_s": 629.2,
+   "started": "2026-10-25T07:01:40+00:00",
+   "ended": "2026-10-25T07:12:09+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 29,
+    "same_turn": 79,
+    "after_own_edit": 3,
+    "edits_writes": 21,
+    "bash_writes": 30,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.c",
+   "arm": "c",
+   "task": "c1",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.109196,
+   "wall_s": 300.3,
+   "started": "2026-10-25T07:12:16+00:00",
+   "ended": "2026-10-25T07:17:16+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 1,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 6,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 39,
+    "bash_writes": 10,
+    "fs_not_observed": 9,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 7
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.a",
+   "arm": "a",
+   "task": "c1",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.163265,
+   "wall_s": 1031.1,
+   "started": "2026-10-25T07:17:17+00:00",
+   "ended": "2026-10-25T07:34:28+00:00",
+   "step_limit_turns": 3,
+   "flag_count": 17,
+   "quarantined": 4,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 3,
+    "edits_writes": 38,
+    "bash_writes": 22,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.b",
+   "arm": "b",
+   "task": "c1",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.142842,
+   "wall_s": 712.5,
+   "started": "2026-10-25T07:34:31+00:00",
+   "ended": "2026-10-25T07:46:24+00:00",
+   "step_limit_turns": 1,
+   "flag_count": 2,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 37,
+    "bash_writes": 18,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r4.a",
+   "arm": "a",
+   "task": "c2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.008438,
+   "wall_s": 29.3,
+   "started": "2026-10-25T07:46:25+00:00",
+   "ended": "2026-10-25T07:46:54+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r4.b",
+   "arm": "b",
+   "task": "c2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.008542,
+   "wall_s": 26.9,
+   "started": "2026-10-25T07:46:54+00:00",
+   "ended": "2026-10-25T07:47:21+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 1,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r4.c",
+   "arm": "c",
+   "task": "c2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.007104,
+   "wall_s": 21.0,
+   "started": "2026-10-25T07:47:22+00:00",
+   "ended": "2026-10-25T07:47:43+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 8,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r3.a",
+   "arm": "a",
+   "task": "r2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.018556,
+   "wall_s": 81.7,
+   "started": "2026-10-25T07:47:49+00:00",
+   "ended": "2026-10-25T07:49:11+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 1,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 4,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r3.b",
+   "arm": "b",
+   "task": "r2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.01851,
+   "wall_s": 78.3,
+   "started": "2026-10-25T07:49:11+00:00",
+   "ended": "2026-10-25T07:50:29+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 2,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 5,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r3.c",
+   "arm": "c",
+   "task": "r2",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.014105,
+   "wall_s": 60.1,
+   "started": "2026-10-25T07:50:29+00:00",
+   "ended": "2026-10-25T07:51:30+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 3,
+    "edits_writes": 6,
+    "bash_writes": 0,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 3
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r4.b",
+   "arm": "b",
+   "task": "r2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.022796,
+   "wall_s": 94.3,
+   "started": "2026-10-25T07:51:30+00:00",
+   "ended": "2026-10-25T07:53:04+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 1,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 3,
+    "cross_turn": 3,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 6,
+    "bash_writes": 5,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r4.c",
+   "arm": "c",
+   "task": "r2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.01846,
+   "wall_s": 76.8,
+   "started": "2026-10-25T07:53:04+00:00",
+   "ended": "2026-10-25T07:54:21+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 1,
+    "cross_turn": 0,
+    "same_turn": 0,
+    "after_own_edit": 1,
+    "edits_writes": 7,
+    "bash_writes": 2,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 3
+  },
+  {
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r4.a",
+   "arm": "a",
+   "task": "r2",
+   "rep": 4,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.01326,
+   "wall_s": 57.9,
+   "started": "2026-10-25T07:54:21+00:00",
+   "ended": "2026-10-25T07:55:19+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": null,
+   "memory_correct": null,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 1,
+    "same_turn": 0,
+    "after_own_edit": 0,
+    "edits_writes": 5,
+    "bash_writes": 0,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0
+  },
+  {
+   "batch": "arb",
+   "cell": "svs_f1_flood_recall.r1.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 1,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.249722,
+   "wall_s": 506.4,
+   "started": "2026-10-25T07:58:30+00:00",
+   "ended": "2026-10-25T08:06:57+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 36,
+    "same_turn": 0,
+    "after_own_edit": 7,
+    "edits_writes": 46,
+    "bash_writes": 1,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 43
+  },
+  {
+   "batch": "arb",
+   "cell": "svs_f1_flood_recall.r2.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 2,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.318999,
+   "wall_s": 566.7,
+   "started": "2026-10-25T08:06:58+00:00",
+   "ended": "2026-10-25T08:16:25+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 0,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 24,
+    "same_turn": 0,
+    "after_own_edit": 46,
+    "edits_writes": 55,
+    "bash_writes": 5,
+    "fs_not_observed": 12,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 42
+  },
+  {
+   "batch": "arb",
+   "cell": "svs_f1_flood_recall.r3.c",
+   "arm": "c",
+   "task": "f1",
+   "rep": 3,
+   "attempts": [
+    {
+     "attempt": 1,
+     "status": "done",
+     "infra": false,
+     "reasons": []
+    }
+   ],
+   "valid": true,
+   "pass": true,
+   "cost_peak": 0.325009,
+   "wall_s": 542.1,
+   "started": "2026-10-25T08:16:25+00:00",
+   "ended": "2026-10-25T08:25:28+00:00",
+   "step_limit_turns": 0,
+   "flag_count": 1,
+   "quarantined": 0,
+   "digest_missing": 0,
+   "memory_correct": 4,
+   "rereads": {
+    "first": 36,
+    "cross_turn": 35,
+    "same_turn": 0,
+    "after_own_edit": 32,
+    "edits_writes": 48,
+    "bash_writes": 1,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 44
+  }
+ ]
+}

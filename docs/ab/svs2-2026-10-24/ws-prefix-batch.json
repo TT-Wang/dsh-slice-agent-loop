@@ -1,0 +1,327 @@
+{
+ "_note": "probe/tools/ws_prefix.py on the real-host logs of batch and arb (record \u00a712.9 prefix check): per batch and arm",
+ "by_batch_arm": {
+  "batch:a": {
+   "cells": 15,
+   "requests": 1208,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 176,
+   "problems": 0
+  },
+  "batch:b": {
+   "cells": 15,
+   "requests": 1108,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 175,
+   "problems": 0
+  },
+  "batch:c": {
+   "cells": 15,
+   "requests": 1014,
+   "nodes_kept_raw_beside_entries": 728,
+   "requests_that_rewrote_a_tail": 175,
+   "problems": 0
+  },
+  "arb:c": {
+   "cells": 3,
+   "requests": 735,
+   "nodes_kept_raw_beside_entries": 369,
+   "requests_that_rewrote_a_tail": 132,
+   "problems": 0
+  }
+ },
+ "per_cell": {
+  "batch": {
+   "lh1_incremental_build.r1.a": {
+    "requests": 92,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r1.b": {
+    "requests": 77,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r1.c": {
+    "requests": 43,
+    "nodes_kept_raw_beside_entries": 50,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r2.a": {
+    "requests": 85,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r2.b": {
+    "requests": 62,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r2.c": {
+    "requests": 39,
+    "nodes_kept_raw_beside_entries": 51,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r3.a": {
+    "requests": 89,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r3.b": {
+    "requests": 76,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 6,
+    "problems": []
+   },
+   "lh1_incremental_build.r3.c": {
+    "requests": 80,
+    "nodes_kept_raw_beside_entries": 69,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r4.a": {
+    "requests": 89,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r4.b": {
+    "requests": 79,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "lh1_incremental_build.r4.c": {
+    "requests": 42,
+    "nodes_kept_raw_beside_entries": 51,
+    "requests_that_rewrote_a_tail": 7,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r1.a": {
+    "requests": 7,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r1.b": {
+    "requests": 7,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r1.c": {
+    "requests": 7,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r2.a": {
+    "requests": 6,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r2.b": {
+    "requests": 7,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r2.c": {
+    "requests": 6,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r3.a": {
+    "requests": 5,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r3.b": {
+    "requests": 10,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r3.c": {
+    "requests": 8,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r4.a": {
+    "requests": 8,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r4.b": {
+    "requests": 8,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "m3_consistency_bugfix.r4.c": {
+    "requests": 6,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 0,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r1.a": {
+    "requests": 24,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r1.b": {
+    "requests": 24,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r1.c": {
+    "requests": 29,
+    "nodes_kept_raw_beside_entries": 13,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r2.a": {
+    "requests": 28,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r2.b": {
+    "requests": 27,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r2.c": {
+    "requests": 24,
+    "nodes_kept_raw_beside_entries": 9,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r3.a": {
+    "requests": 25,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r3.b": {
+    "requests": 26,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r3.c": {
+    "requests": 22,
+    "nodes_kept_raw_beside_entries": 10,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r4.a": {
+    "requests": 21,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r4.b": {
+    "requests": 28,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "p110_r2_superseded_stamp.r4.c": {
+    "requests": 22,
+    "nodes_kept_raw_beside_entries": 11,
+    "requests_that_rewrote_a_tail": 4,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r1.a": {
+    "requests": 250,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r1.b": {
+    "requests": 235,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r1.c": {
+    "requests": 224,
+    "nodes_kept_raw_beside_entries": 170,
+    "requests_that_rewrote_a_tail": 43,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r2.a": {
+    "requests": 228,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r2.b": {
+    "requests": 217,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r2.c": {
+    "requests": 222,
+    "nodes_kept_raw_beside_entries": 154,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r3.a": {
+    "requests": 251,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r3.b": {
+    "requests": 225,
+    "nodes_kept_raw_beside_entries": 0,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r3.c": {
+    "requests": 240,
+    "nodes_kept_raw_beside_entries": 140,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   }
+  },
+  "arb": {
+   "svs_f1_flood_recall.r1.c": {
+    "requests": 221,
+    "nodes_kept_raw_beside_entries": 159,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r2.c": {
+    "requests": 263,
+    "nodes_kept_raw_beside_entries": 95,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   },
+   "svs_f1_flood_recall.r3.c": {
+    "requests": 251,
+    "nodes_kept_raw_beside_entries": 115,
+    "requests_that_rewrote_a_tail": 44,
+    "problems": []
+   }
+  }
+ }
+}

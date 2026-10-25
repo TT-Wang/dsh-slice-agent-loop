@@ -1,12 +1,11 @@
 # svs2: which part of slice's short-session overhead do the re-read rule, the persona and sealing cause?
 
-> **Status: pre-registration frozen (2026-10-24, after the pilot, before any batch cell).** §1–§11
-> are the design; §12 is the offline build evidence (the real arms' homes, fingerprints and dry
-> run, §12.7–§12.10; the isolation probe, §12.11); §13 is the pilot, whose plan (§13.1) was
-> committed before any paid call, and its results; §14 lists the frozen parameters; §15 what the
-> batch must do. The ledger holds $0.7132 at peak (warmup and pilot). Times are UTC. The baseline
-> is the record [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md) ("the baseline
-> record" below).
+> **Status: complete (2026-10-25).** The pre-registration (§1–§15) was frozen on 2026-10-24 after
+> the pilot and before any batch cell, and is unchanged. §16 is the batch as run, §17 its result
+> before pooling and the arbitration it triggered, §18 the pooled result that decides, §19 the
+> caveats, §20 the archive. The ledger holds $6.2448 at peak of the $10 cap. Times are UTC. The
+> baseline is the record [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md) ("the
+> baseline record" below).
 
 ## Summary in plain words
 
@@ -38,6 +37,30 @@
   built and the quality floor will judge it; nothing was cut from the design.
 - **Budget.** $10 hard cap at peak prices; the full design is estimated at $5.61 with a 1.2x
   safety factor ($4.67 without), $6.43 with one arbitration reserved.
+- **Result (§18; the full design ran: 45 batch cells, all valid, plus 3 arbitration cells).**
+  Costs are against the baseline's STOCK cells unless named; "coding" is the geometric mean over
+  c1 and c2 (the pre-registered N_code).
+  - **A (new re-read rule) does not fix the overhead:** coding 1.25x STOCK (c1 1.66x), f1 0.65x.
+    It costs what SLICE costs (coding 0.99x SLICE, f1 1.06x). It cut re-reads right after its own
+    edit on c1 by a third (19 against SLICE's 28) but not re-reads at the start of a turn (55
+    against 59), and it edited as often (160 against 168).
+  - **B (A without the persona) does not fix it either:** coding 1.19x (c1 1.39x), f1 0.56x, the
+    cheapest f1 of all. Against A: coding 0.95x, f1 0.86x.
+  - **C (B plus keeping the edited files raw) meets the pre-registered bar:** coding 1.02x (c1
+    1.10x, c2 0.95x), f1 0.65x, quality floor held. Against B it cut coding cost to 0.86x: on c1
+    6.4 requests per turn (STOCK 5.8, SLICE 11.5), half B's start-of-turn re-reads (27, STOCK's
+    count) and STOCK's output volume. On f1 it cost more than B (1.18x).
+  - **But C invents values on f1.** In 1 of its 6 counted f1 cells it wrote 3 of the 32 audit
+    tokens without having seen them, and it failed that cell; the pilot cell (not counted) did the
+    same in 20 of 32 turns. A, B and the six baseline cells never did. The quality floor allows one
+    lost pass, so C's result stands under the rules: the batch put it at the margin (one lost
+    pass), the pre-registered arbitration ran three more C f1 cells, all passed, and the pooled
+    result decides. The cause is C's design: a kept step whose reasoning starts with a value the
+    model learnt in a step that was sealed (§13.4, §18.5).
+  - **Caveats (§19):** every arm-to-baseline ratio is cross-batch (another day, no concurrent
+    STOCK or SLICE control); the host machine hibernated for 20 hours in the middle of the batch,
+    so its last 13 cells and the arbitration ran a day later than the first 32; n is 3–4 per task.
+  - **Spend:** $6.2448 at peak (batch $4.6378, arbitration $0.8937, warmup and pilot $0.7132).
 
 ## 1. Question
 
@@ -995,3 +1018,277 @@ Recorded in the freeze commit, the commit on `exp/svs2-harness` that adds this s
   `held-back/`), and the results into this record.
 - If `scripts/ab` changes, rerun the import and the offline fingerprints at the new commit (with
   the key links removed first: `--offline` refuses a home with one), and say so here.
+
+## 16. The batch, as run
+
+Batch `batch`, seed 20261024, harness `a7e9698` (the freeze commit; `scripts/ab` tree `143ff86a`,
+not dirty), the five stages of §4 step 7 in order, one invocation each, one cell at a time,
+`--block-siblings`, `--budget-usd 10`, `--max-attempts 2` (the default). Before each stage
+`svs2_plan.py` said it was affordable: S1 and S2 by the printed plan, S3, S4, S5 and the
+arbitration by its `--json` output ([plan-before-stages.json](ab/svs2-2026-10-24/plan-before-stages.json)).
+Every manifest records harness `a7e9698`, the host tree digest `0c9e7f6b25ec…` at start and end
+(unchanged), the vault salt as the baseline's and the fingerprint check against
+`vault/fingerprints.json`. S1 and the arbitration also recorded the content digest `5c0747d0…`.
+
+| stage | window (UTC) | cells | ledger after |
+|---|---|---|---|
+| S1: c1, c2, r2, f1 reps 1–2 | 10-24 08:25–10:12 | 24 | $3.2229 |
+| S2: c1, c2 rep 3 | 10-24 10:12–10:54 | 6 | $3.7290 |
+| S3: f1 rep 3 | 10-24 10:54–11:16; the host asleep until 10-25 07:01; then to 07:12 | 3 | $4.8060 |
+| S4: c1, c2 rep 4 | 10-25 07:12–07:47 | 6 | $5.2453 |
+| S5: r2 reps 3–4 | 10-25 07:47–07:55 | 6 | $5.3510 |
+
+- **45 of 45 cells valid**: 44 on their first attempt, one on its pre-declared second attempt
+  (below). Every manipulation check held in every cell: 16 tools with the exact names, the
+  declared system-prompt markers, short tape headers. No cell had a secret reference, a leak, an
+  oracle read through the file system, a worktree change or a stray process.
+- **One failed cell**: C, f1 rep 1 (3 of 32 digest tokens wrong, §18.5). Every other cell passed.
+- **Arm order**, rotated per (task, rep) as §4: for example c1 rep 1 ran C, A, B; c2 rep 1 A, B,
+  C; r2 rep 1 B, C, A; f1 rep 1 C, A, B. The per-cell table in run order is
+  [batch-cells.json](ab/svs2-2026-10-24/batch-cells.json).
+- **Flagged calls and quarantine.** In c1 the flagged calls (A 12–17 per cell, B 2–14, C 0–12)
+  are the false positives the baseline's c1 cells also have: Python's `//` operator read as a
+  path. A (4 cells) and B (1) wrote scratch scripts to `/private/tmp`, which the harness moved to
+  quarantine, as in the baseline. Three cells are flagged and so leave the memory comparison
+  under the rule (gates `g2`): B r2 reps 2 and 4 (`cd ..; ls; find ..`, looking for `stamp.py`
+  and `service.env` above the workdir but inside the cell root) and C's arbitration f1 rep 3 (a
+  `read` of the workdir's own `digest.md` under a mistyped absolute path). Their pass and cost
+  still count.
+
+### 16.1 The infra rerun: the host machine hibernated mid-cell
+
+The third f1 rep-3 cell (A) started at 10-24 11:09:27. At 11:16:30 the laptop running the
+harness went to sleep at 1 % battery (`pmset` log: "Entering Sleep state due to 'Low Power
+Sleep' … Using Batt (Charge:1%)") and hibernated until 10-25 07:01:28 ("Wake from Hibernate …
+Using AC"). Turn 40 of the cell was in flight. On waking, the harness's wall-clock turn timeout
+(900 s for f1) fired, killed the turn and ended the attempt: invalid, infra, "completed 40/45
+turns", "turn 40: exit 0 (None, None, timeout)". Its cost, $0.2881 at peak, includes the $0.05
+unpriced-step charge for the killed turn, whose usage never reached the log. The harness then ran
+the pre-declared second attempt at once (07:01:40–07:12:09), which was valid and passed. This is
+the one infra retry the rules allow (§4 step 7). Nothing was done by hand, and no outcome was
+looked at before it.
+
+During the 20 hours the vault and the blocked siblings stayed at mode 000. The tamper checks
+after the turn found every blocked path unchanged, and the host digest was unchanged at S3's end.
+
+### 16.2 An isolation deviation, checked
+
+At 07:12:40 UTC on 10-25, 26 s after S4's invocation had listed the scratchpad entries to block,
+the operator made a scratch directory in the scratchpad (`svs2view`) holding copies of five
+harness files (`svs2_report.py`, `svs2_plan.py`, `ab_metrics.py`, `README.md`,
+`gates-svs2.json`), to read the report code while the vault and the worktrees were blocked. It
+held no task file, oracle, truth file or result until S4 had ended. Because S4 listed the
+siblings before it existed, it stayed readable during S4's six cells (c1 and c2 rep 4). S5 and
+the arbitration blocked it (their manifests list it; a copy of `run_ab.py` made at 07:03 was
+blocked from S4 on). Check: no decompressed session log of the six S4 cells mentions
+`svs2view`, `run_ab_view`, `gates-svs2` or any worktree path, and their flagged calls are only
+the `//` false positives (c1 r4 B: 2, C: 1, A: 17; c2: none). The deviation therefore reached no
+cell, and the cells stay valid. Scratch of this kind belongs outside the scratchpad while a batch
+runs.
+
+## 17. The batch alone, and the arbitration it triggered
+
+`svs2_report.py report $AB/vault/results/batch --baseline $AB/vault/baseline --gates $G --ledger
+$AB/vault/spend.jsonl` ([summary-batch.md](ab/svs2-2026-10-24/summary-batch.md), json beside it;
+sha256 of the summary.json `ca4b4b93…`, kept unchanged in `vault/results/batch/`):
+
+| arm | interpretation on the batch | N_code | R_f1 | dS | dM | dB | arbitration (§9) |
+|---|---|---|---|---|---|---|---|
+| A | does not fix the short-session overhead | 1.253 | 0.649 | 0 | 0 | 0 | not required |
+| B | does not fix the short-session overhead | 1.193 | 0.555 | 0 | 0 | 0 | not required |
+| C | fixes the short-session overhead | 1.023 | 0.613 | −1 (f1 −1) | 0 | 0 | **required**: quality floor at its margin |
+
+A and B: no quantity is within 0.05 of a threshold that would change the interpretation, the
+quality floor is not at its margin and every minimum is met. C: its one failed f1 cell puts
+dS = −1 and dS_f1 = −1, both the floor's margin, so §9 triggers. The tasks to add are those whose
+dS_t decides: f1.
+
+**Arbitration** (batch `arb`, seed 20261025, C only, f1 at rep indices 1–3 with the same seed
+keys, so each cell's content again equals its baseline partner's and C's batch cell's). Budget
+condition: ledger $5.3510 + the estimate at measured means $0.7376 = $6.0886 ≤ $8.65. Run 10-25
+07:58–08:25. All three cells were valid on their first attempt and passed with 32 of 32 tokens
+and 4 of 4 memory items ($0.2497, $0.3190 and $0.3250 at peak, $0.8937 in all, above the
+estimate). Arbitration alone (descriptive, below the minimums):
+[summary-arb-only.md](ab/svs2-2026-10-24/summary-arb-only.md).
+
+## 18. Result (pooled batch + arbitration; this decides)
+
+`svs2_report.py report $AB/vault/results/batch $AB/vault/results/arb --pooled …`
+([summary-pooled.md](ab/svs2-2026-10-24/summary-pooled.md), json beside it). A and B have no
+arbitration cells, so their pooled numbers are their batch numbers; C's f1 sides average two
+cells. 15 pairs per arm, every task at its planned count (c1 4, c2 4, r2 4, f1 3).
+
+### 18.1 Interpretation (§8, against STOCK)
+
+| arm | interpretation | N_code (R_c1, R_c2) | R_f1 | N_code3 (R_r2) | dS | dM (items) | dB | quality floor |
+|---|---|---|---|---|---|---|---|---|
+| **A** | **does not fix the short-session overhead** | 1.253 (1.662, 0.945) | 0.649 | 1.049 (0.735) | 0 | 0 (16) | 0 | holds |
+| **B** | **does not fix the short-session overhead** | 1.193 (1.385, 1.027) | 0.555 | 1.098 (0.931) | 0 | 0 (14) | 0 | holds |
+| **C** | **fixes the short-session overhead** | 1.023 (1.099, 0.953) | 0.654 | 0.953 (0.826) | −0.5 (f1 −0.5) | 0 (16) | 0 | holds |
+
+For reference, the baseline's own SLICE under the same rules: N_code 1.261 (1.587, 1.001), R_f1
+0.611, "does not fix the short-session overhead".
+
+Paired ratios against STOCK (rep 1–4; f1 rep 1–3):
+
+| arm | c1 | c2 | r2 | f1 |
+|---|---|---|---|---|
+| A | 1.99, 1.69, 1.47, 1.57 | 1.07, 1.04, 0.70, 1.03 | 0.92, 0.67, 0.63, 0.84 | 0.56, 0.86, 0.59 |
+| B | 1.88, 0.91, 1.52, 1.37 | 1.33, 1.00, 0.79, 1.04 | 1.27, 0.75, 0.63, 1.44 | 0.52, 0.66, 0.51 |
+| C | 1.06, 0.81, 1.49, 1.05 | 1.20, 0.91, 0.85, 0.87 | 1.38, 0.67, 0.48, 1.17 | 0.53, 0.85, 0.63 |
+
+### 18.2 Against SLICE, and which change moves the cost
+
+| comparison | kind | R_c1 | R_c2 | N_code | R_r2 | R_f1 | label (N_code; R_f1) |
+|---|---|---|---|---|---|---|---|
+| A / SLICE (the re-read rule) | cross-batch | 1.047 | 0.944 | 0.994 | 0.808 | 1.062 | no measurable effect; up |
+| B / A (the persona) | within the batch | 0.833 | 1.087 | 0.952 | 1.267 | 0.856 | no measurable effect (0.952 > 0.95); down |
+| C / B (working-set retention) | within the batch | 0.794 | 0.928 | 0.858 | 0.888 | 1.177 | down; up |
+| C / A | within the batch | 0.661 | 1.008 | 0.817 | 1.124 | 1.007 | down; no measurable effect |
+| B / SLICE | cross-batch | 0.873 | 1.026 | 0.946 | 1.024 | 0.909 | (secondary) |
+| C / SLICE | cross-batch | 0.693 | 0.952 | 0.812 | 0.909 | 1.070 | (secondary) |
+
+Before pooling C/B's R_f1 was 1.103 and C/A's 0.944 (C's arbitration cells cost more than its
+batch cells: $0.298 against $0.263 on average).
+
+### 18.3 Re-read classes (§6.2; sums over valid cells)
+
+c1, 4 cells x 8 turns per arm:
+
+| c1 | first | cross-turn | same-turn | after own edit | edits/writes | bash writes | FS_NOT_OBSERVED | FS_STALE_VERSION |
+|---|---|---|---|---|---|---|---|---|
+| A | 8 | 55 | 0 | 19 | 160 | 100 | 0 | 0 |
+| B | 8 | 54 | 0 | 14 | 128 | 71 | 0 | 0 |
+| C | 8 | 27 | 1 | 8 | 156 | 45 | 22 | 0 |
+| SLICE (baseline) | 8 | 59 | 0 | 28 | 168 | 90 | 1 | 0 |
+| STOCK (baseline) | 6 | 27 | 10 | 9 | 84 | 23 | 1 | 0 |
+
+f1, 3 cells x 45 turns (C: 6 cells, batch and arbitration):
+
+| f1 | first | cross-turn | same-turn | after own edit | edits/writes | bash writes | FS_NOT_OBSERVED |
+|---|---|---|---|---|---|---|---|
+| A | 110 | 101 | 84 | 5 | 93 | 57 | 0 |
+| B | 107 | 98 | 21 | 26 | 88 | 60 | 7 |
+| C (6 cells) | 216 | 200 | 0 | 130 | 293 | 16 | 22 |
+| SLICE | 109 | 105 | 118 | 39 | 98 | 61 | 2 |
+| STOCK | 108 | 107 | 0 | 90 | 139 | 3 | 4 |
+
+c2 (one turn) has no cross-turn reads; its after-own-edit re-reads are A 0, B 0, C 1, SLICE 12,
+STOCK 5. r2: cross-turn A 6, B 8, C 4, SLICE 8, STOCK 4. Full table in the pooled summary.
+
+Secondary hypotheses of §7 (reported, not tests):
+
+- A has fewer after-own-edit re-reads on c1 than SLICE: **yes**, 19 against 28. A's cross-turn
+  re-reads (55 against 59) and edits (160 against 168) barely moved.
+- C has fewer cross-turn re-reads on c1 than B: **yes**, 27 against 54, STOCK's count. C still
+  hit `FS_NOT_OBSERVED` 22 times on c1: it edited from the kept view in a new process, which the
+  host refuses until the file is read (§11).
+- B's c1 requests per turn are closer to STOCK's than A's: **yes**, 9.19 against 11.09 (STOCK
+  5.78), but far from STOCK's.
+
+### 18.4 Cost structure (valid cells; means per cell; request tokens as cell medians)
+
+| arm | task | cells | pass | mean $ peak | requests / turn | step-cap cuts | output tokens per cell | peak / mean request tokens | cache hit | kept-raw entries | median wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A | c1 | 4 | 4 | 0.1701 | 11.09 | 10 of 32 | 88,156 | 44,383 / 21,028 | 0.966 | 0 | 698 |
+| B | c1 | 4 | 4 | 0.1417 | 9.19 | 4 of 32 | 75,445 | 36,206 / 18,625 | 0.961 | 0 | 699 |
+| C | c1 | 4 | 4 | 0.1124 | 6.38 | 1 of 32 | 52,204 | 62,821 / 29,575 | 0.967 | 28 | 306 |
+| SLICE | c1 | 4 | 4 | 0.1624 | 11.47 | 14 of 32 | 81,598 | 38,643 / 20,474 | 0.966 | 0 | 824 |
+| STOCK | c1 | 4 | 4 | 0.1023 | 5.78 | 0 of 32 | 52,366 | 74,338 / 34,361 | 0.983 | 0 | 341 |
+| A | f1 | 3 | 3 | 0.2782 | 5.40 | 0 of 135 | 46,069 | 48,809 / 27,049 | 0.955 | 0 | 546 |
+| B | f1 | 3 | 3 | 0.2380 | 5.01 | 0 of 135 | 37,052 | 36,706 / 22,425 | 0.946 | 0 | 459 |
+| C | f1 | 6 | 5 | 0.2803 | 5.26 | 0 of 270 | 36,068 | 58,630 / 31,749 | 0.962 | 255 | 477 |
+| SLICE | f1 | 3 | 3 | 0.2619 | 5.80 | 0 of 135 | 40,898 | 43,301 / 24,774 | 0.958 | 0 | 542 |
+| STOCK | f1 | 3 | 3 | 0.4287 | 4.21 | 0 of 135 | 20,276 | 234,025 / 116,231 | 0.991 | 0 | 426 |
+| A / B / C | c2 | 4 each | 4 each | 0.0082 / 0.0089 / 0.0083 | 6.50 / 8.00 / 6.75 | 0 | 3,648 / 3,983 / 3,728 | 13,604 / 13,147 / 12,847 peak | 0.90–0.93 | 0 | 23–26 |
+| SLICE / STOCK | c2 | 4 each | 4 each | 0.0087 / 0.0087 | 7.00 / 7.50 | 0 | 3,560 / 4,023 | 14,637 / 11,610 peak | 0.90 / 0.91 | 0 | 24 / 30 |
+| A / B / C | r2 | 4 each | 4 each | 0.0158 / 0.0200 / 0.0178 | 3.50 / 3.75 / 3.46 | 0 | 5,363 / 8,033 / 5,992 | 13,940 / 15,787 / 16,145 peak | 0.95 | 0 / 0 / 12 | 66 / 80 / 70 |
+| SLICE / STOCK | r2 | 4 each | 4 each | 0.0196 / 0.0215 | 3.86 / 3.46 | 0 | 7,181 / 9,600 | 15,238 / 20,464 peak | 0.95 / 0.96 | 0 | 82 / 94 |
+
+Memory items (f1 4 per cell, r2 1): every valid cell of every arm got every item right; no item
+was wrong, a decoy, stale, hedged or confabulated. Output tokens (reasoning included) are where
+the c1 cost differs: A and B wrote as much as SLICE, C as little as STOCK.
+
+**C's cache safety on the real host** (the prefix check of §12.9, `probe/tools/ws_prefix.py`,
+[ws-prefix-batch.json](ab/svs2-2026-10-24/ws-prefix-batch.json)): in C's 15 batch cells 728 nodes
+were carried raw beside their turn's entries over 1,014 requests, and in its 3 arbitration cells
+369 over 735. None left a later request, and no request's surface differed from the one before
+it before the earlier request's last entry. A and B carried none and had no problem either.
+
+### 18.5 C's f1 failure: values written without being seen
+
+[f1-digest-trace.json](ab/svs2-2026-10-24/f1-digest-trace.json) (`probe/tools/f1_digest_trace.py`,
+counts only):
+
+- **C batch rep 1 (failed):** it read all 32 excerpts, but in turns 33, 35 and 37 the `read`
+  came back condensed (head plus an `expand_result` offer) and it did not expand. Its next
+  reasoning step names a token at once ("Token for blob_26: … Append."), the pattern of the
+  kept-raw `digest.md` steps (§13.4). It appended that token, and its final text then said the
+  whole excerpt had passed before its eyes "via `expand_result`", which it had not called. All
+  three tokens are wrong. In turn 32 the same pattern occurred, but the model caught itself: it
+  called `expand_result` with a grep, found the real token and corrected its line.
+- **C's other 5 f1 cells** (batch reps 2 and 3, arbitration reps 1–3): 32 of 32 tokens right.
+- **A and B (6 cells), SLICE and STOCK (6 baseline cells):** 32 of 32 in every cell. A's rep-3
+  cell also skipped `expand_result` in 24 read turns and still recorded every token correctly,
+  so skipping the expansion does not by itself cause the failure; writing a token that was never
+  seen does.
+- **Pilot (not counted, §13):** C wrote invented tokens in 20 of 32 turns, without reading the
+  excerpt at all.
+
+So C invented values in 2 of its 7 f1 runs (1 of the 6 counted), and no other arm or baseline
+cell did in 15. Under the pre-registered floor (a margin of one pass) this costs C −0.5 pass
+after pooling, and its interpretation stands. The floor was built to tolerate noise, not a
+mechanism. The mechanism is C's: a kept step whose reasoning begins with a value that the model
+learnt in an earlier step, now sealed, makes the model write values it has not seen.
+
+## 19. Caveats
+
+- **Cross-batch.** Every ratio against STOCK or SLICE compares cells of different days: the
+  baseline ran on 2026-10-23 10:43–13:42 UTC, the new arms on 2026-10-24 08:25–11:16 and
+  2026-10-25 07:01–08:25, with no concurrent STOCK or SLICE control. Provider-side variance
+  (latency, cache retention, routing, serving changes) cannot be told apart from an arm effect.
+  Pairing by rep index is bookkeeping for c1, c2 and r2 (identical content in every rep); only
+  f1's pairs share seeded content. B/A, C/B and C/A are within one batch and are the cleanest
+  comparisons. A/SLICE (0.99 on coding) is the one that says whether the new re-read rule alone
+  changed anything, and it is cross-batch.
+- **The batch spans two days.** The host machine hibernated from 10-24 11:16 to 10-25 07:01
+  (§16.1). Reps 1–3 of c1 and c2, reps 1–2 of r2 and f1, and f1 rep 3 of B and C ran on 10-24;
+  f1 rep 3 of A, reps 4 of c1 and c2, reps 3–4 of r2 and the arbitration ran on 10-25. Every
+  (task, rep) group but one ran its three arms within one hour on one day. The exception is f1
+  rep 3, whose A cell ran 20 hours after its B and C cells.
+- **Low power.** n = 3–4 per task; paired c1 ratios against STOCK range 0.81–1.99. C's N_code
+  (1.023) is 0.077 below the 1.10 bar, and its R_c1 alone (1.099) sits at the bar. An effect of
+  B/A's size (0.95) is below what this design can tell from noise.
+- **C's headless refusals.** In this harness every turn is a new process, so the host's edit
+  guard demands a fresh read of a kept file before every edit (22 refusals on c1, 22 on f1). A
+  long-running agent keeps the guard's state and would skip those reads; how much that would
+  save is not measured here.
+- **C's quality risk (§18.5)** is real at this n and is not what the floor's margin is for.
+  Before C could be used, a design change would be needed, and then a new run. Candidates: keep
+  only result nodes raw, not the reasoning of a kept step, or never keep a step whose reasoning
+  depends on a sealed step.
+- **External validity** as in the baseline record §16: one host, one model route, headless one
+  process per turn, a hermetic composition, DeepSeek's cache pricing.
+
+## 20. Archive and files
+
+- **Raw data:** `~/Documents/kimi/workspace/dsh-slice/results/20261024-svs2/`, a copy of the A/B
+  root `$SCRATCHPAD/svs2` taken after the arbitration, without `host/` (the frozen host, digest in
+  every manifest), the worktrees (their commits are on the `exp/svs2-*` branches), `dry/` (the
+  offline dry-run root of §12.6, mostly a host copy), the empty `live/`, every `storages/`
+  directory (session projection caches) and the probe's extracted f1 workdirs (copies of packed
+  workdirs). `run_ab.py secrets-scan` lists 3 cells, all of the offline isolation probe
+  (`isoprobe`, mock provider, no key linked), whose probe script names `DSH_HOME` by design. Their
+  session logs and turn files are in `held-back/` (chmod 700); see `HELD-BACK.md` there. No paid
+  cell is listed. The template homes' key links were removed after the arbitration (10-25 08:27),
+  before the copy.
+- **Summaries in this repo:** [docs/ab/svs2-2026-10-24/](ab/svs2-2026-10-24/):
+  `summary-batch.{md,json}` (§17), `summary-pooled.{md,json}` (§18, decides),
+  `summary-arb-only.md`, `batch-cells.json` (every cell in run order), `plan-before-stages.json`,
+  `ws-prefix-batch.json`, `f1-digest-trace.json`. A scan of every file in that directory and of
+  this record against the f1 truth values of all twelve f1 cells (140 values: tokens, build ids,
+  decoys, lint errors) found none.
+- **Spend at peak** (one ledger, `vault/spend.jsonl`, 847 turns): warmup $0.0052, pilot $0.7080,
+  batch $4.6378 (of which the infra attempt of §16.1 $0.2881), arbitration $0.8937; **total
+  $6.2448** of the $10 cap. One unpriced turn, charged $0.05: the killed turn of §16.1. The
+  expectation was ≤ $6; the planning target with the arbitration was $7.00.

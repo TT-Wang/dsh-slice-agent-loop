@@ -1,0 +1,117 @@
+{
+ "_note": "probe/tools/f1_digest_trace.py per f1 cell: of the 32 read turns, digest tokens wrong (missing), excerpts never read, lines written but wrong, read turns with no expand_result; counts only, no token values",
+ "cells": {
+  "svs_f1_flood_recall.r1.a@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r1.b@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r1.c@batch": {
+   "missing": 3,
+   "not_read": 0,
+   "line_present_but_wrong": 3,
+   "no_line": 0,
+   "read_turns_without_expand_result": 3,
+   "wrong_token_turns": [
+    33,
+    35,
+    37
+   ],
+   "wrong_token_turns_without_expand_result": 3
+  },
+  "svs_f1_flood_recall.r2.a@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r2.b@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r2.c@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r3.a@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 24,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r3.b@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r3.c@batch": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r1.c@arb": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r2.c@arb": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  },
+  "svs_f1_flood_recall.r3.c@arb": {
+   "missing": 0,
+   "not_read": 0,
+   "line_present_but_wrong": 0,
+   "no_line": 0,
+   "read_turns_without_expand_result": 0,
+   "wrong_token_turns": [],
+   "wrong_token_turns_without_expand_result": 0
+  }
+ }
+}
