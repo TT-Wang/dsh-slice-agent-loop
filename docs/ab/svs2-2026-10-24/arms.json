@@ -1,0 +1,101 @@
+{
+ "_note": "svs2 arm tarballs (npm pack --ignore-scripts after npm run check:build in a clean worktree at the commit), as prepare installed them; vault/artifacts/SHA256SUMS",
+ "arms": {
+  "a": {
+   "branch": "exp/svs2-a",
+   "commit": "421d6959cf9513667dc87f2961efb05881d91c16",
+   "tarball": "slice-svs2-a-421d695.tgz",
+   "sha256": "dd23e957be30076ffbc4a7d8e759048803de340d29d42600db80a895c82b720d",
+   "files": 35,
+   "installed_as": "plugin-dd23e957be30.tgz",
+   "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless",
+    "@dsh-external/dsh-slice-agent-loop"
+   ],
+   "overlay_sha256": [
+    "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+   ]
+  },
+  "b": {
+   "branch": "exp/svs2-b",
+   "commit": "f27f3f2ddc1ab92618b74cfe435b3cd9bdc788a4",
+   "tarball": "slice-svs2-b-f27f3f2.tgz",
+   "sha256": "896ee6988f1bd3b5013c523e31cdc47c9ecb4a867e3ed7cff9a5252850d8bb97",
+   "files": 35,
+   "installed_as": "plugin-896ee6988f1b.tgz",
+   "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless",
+    "@dsh-external/dsh-slice-agent-loop"
+   ],
+   "overlay_sha256": [
+    "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+   ]
+  },
+  "c": {
+   "branch": "exp/svs2-c",
+   "commit": "caf82d98f7e3c2ed9c6b4c280eb75dfa4f85dc69",
+   "tarball": "slice-svs2-c-caf82d9.tgz",
+   "sha256": "22b10cbcdf39359540df1e3cc2ca0775771216a0c42c4c4ad908bad277c30fa5",
+   "files": 39,
+   "installed_as": "plugin-22b10cbcdf39.tgz",
+   "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless",
+    "@dsh-external/dsh-slice-agent-loop"
+   ],
+   "overlay_sha256": [
+    "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+   ]
+  },
+  "stock": {
+   "plugin": "none (the host's own composition; home prepared for the dump comparison only, never run)",
+   "overlay_sha256": [
+    "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223"
+   ],
+   "bundles": [
+    "@deepseek-ai/dsh-base",
+    "@deepseek-ai/dsh-headless"
+   ]
+  }
+ },
+ "prepare_dump_compare_vs_stock": {
+  "arms": {
+   "a": {
+    "declared": [
+     "slice-agent-loop"
+    ],
+    "differing_rows": [],
+    "rows_only_in_arm": [
+     "slice-agent-loop"
+    ],
+    "rows_only_in_baseline": [],
+    "unexpected": []
+   },
+   "b": {
+    "declared": [
+     "slice-agent-loop"
+    ],
+    "differing_rows": [],
+    "rows_only_in_arm": [
+     "slice-agent-loop"
+    ],
+    "rows_only_in_baseline": [],
+    "unexpected": []
+   },
+   "c": {
+    "declared": [
+     "slice-agent-loop"
+    ],
+    "differing_rows": [],
+    "rows_only_in_arm": [
+     "slice-agent-loop"
+    ],
+    "rows_only_in_baseline": [],
+    "unexpected": []
+   }
+  },
+  "baseline": "stock"
+ }
+}

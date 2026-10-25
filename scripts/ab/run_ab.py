@@ -40,6 +40,17 @@ Subcommands (system python3; stdlib only, plus zstandard through ab_metrics):
       key). Those cells' logs and turn files are held back from the archive until the owner has looked. Never reads the
       key or greps for it. Exit 1 when any exist.
 
+  run_ab.py host-digest HOST [HOST ...] [--expect-tree PREFIX]
+      The (path, size, mtime) tree digest the manifests record and an mtime-free content digest of each host tree;
+      exit 1 when the trees' contents differ or the first tree digest does not start with PREFIX.
+
+svs2 additions (docs/svs2-ablation-2026-10-24.md, gates-svs2.json): the arm order rotates per (task, rep) with gates
+order.rotate "task_rep"; a seeded task takes its seed from gates pairing.seed_keys (the baseline cell's batch and rep,
+with the baseline's salt, which a paid run requires); a paid run may use only gates run_arms_only; validity checks the
+gates structure's tool_names and system-prompt markers (system_contains / system_lacks); worktrees are also found at
+the top of AB (AB/wt-<name>), and --block-siblings also blocks the A/B root's own extra entries; --structure-as
+ARM=OTHER (offline only) validates a stand-in arm; --host-content-digest records the host's content digest.
+
 Isolation (docs/p110-f-native-ab.md §3): DSH's sandbox confines writes only, and every cell runs as the same user, so
 reads are confined with POSIX permissions instead. While any turn runs, AB/vault (template homes, finished cell homes and
 session logs, results, manifests, ledger, truth files, packed workdirs) and the scripts/ and docs/ directories of every
@@ -734,9 +745,23 @@ def cell_id(task, rep, arm):
 
 
 def expected_structure(ctx, arm):
-    """Manipulation checks per arm: tape header form, tool-line form and prefix relation (gates file "structure")."""
+    """Manipulation checks per arm: tape header form, tool-line form and prefix relation (gates file "structure").
+    An offline dry run may check an arm against another arm's entry (--structure-as a=slice: a stand-in built from the
+    SLICE tarball validates the harness for an arm that is not packed yet)."""
     spec = ctx.get("structure") if isinstance(ctx, dict) else None
-    return (spec or LEGACY_STRUCTURE).get(arm)
+    alias = (ctx.get("structure_as") or {}) if isinstance(ctx, dict) else {}
+    return (spec or LEGACY_STRUCTURE).get(alias.get(arm, arm))
+
+
+def structure_markers(structure):
+    """Every system-prompt marker string the gates structure names (system_contains, system_lacks), in a stable order."""
+    out = []
+    for spec in (structure or {}).values():
+        if isinstance(spec, dict):
+            for m in (spec.get("system_contains") or []) + (spec.get("system_lacks") or []):
+                if m not in out:
+                    out.append(m)
+    return out
 
 
 def validity(ctx, arm, meta, turns, row, complete=True):
@@ -754,6 +779,18 @@ def validity(ctx, arm, meta, turns, row, complete=True):
     expected_tools = (fp_all.get("arms", {}).get(arm) or {}).get("tools_count", (exp or {}).get("tools", EXPECTED_TOOLS))
     if v["tools_count"] != expected_tools:
         reasons.append(f"tools_count {v['tools_count']} != {expected_tools}")
+    names = (exp or {}).get("tool_names")
+    if names and sorted(v.get("tool_names") or []) != sorted(names):
+        reasons.append(f"structural: tools {sorted(v.get('tool_names') or [])} are not the declared {len(names)}")
+    # svs2: the arm's system prompt must carry (system_contains) or must not carry (system_lacks) the declared markers,
+    # e.g. arm B has no slice persona and no "recorded file read" sentence; a marker the row did not compute fails too
+    marks = v.get("system_markers") or {}
+    for m in (exp or {}).get("system_contains") or []:
+        if marks.get(m) is not True:
+            reasons.append(f"structural: system prompt lacks the declared marker {m[:60]!r}" + ("" if m in marks else " (not computed)"))
+    for m in (exp or {}).get("system_lacks") or []:
+        if marks.get(m) is not False:
+            reasons.append(f"structural: system prompt carries the excluded marker {m[:60]!r}" + ("" if m in marks else " (not computed)"))
     if v["tool_lists_distinct"] != 1:
         reasons.append(f"tool list changed within the session ({v['tool_lists_distinct']} variants)")
     if v["system_distinct"] != 1:
@@ -815,10 +852,25 @@ def cell_names(ctx, task, rep, arm, attempt):
     return "w-" + hashlib.sha1(key.encode()).hexdigest()[:10], "c-" + hashlib.sha1(("root:" + key).encode()).hexdigest()[:10]
 
 
+def seed_key(ctx, task, rep):
+    """(batch, rep) the seed of a seeded task derives from: the cell's own, or, when the gates file maps this (task alias,
+    rep) to a baseline cell (svs2: pairing.seed_keys), that cell's batch and rep, so with the baseline's salt the arm
+    gets byte-identical content to its baseline partner whatever this batch is called."""
+    alias = ((ctx.get("tasks") or {}).get(task) or {}).get("alias", task)
+    mapped = ((ctx.get("seed_keys") or {}).get(alias) or {}).get(str(rep))
+    return (mapped[0], int(mapped[1])) if mapped else (ctx["batch"], rep)
+
+
+def salt_sha256(ab):
+    """sha256 of the vault's task-seed salt (never the salt itself), or None."""
+    path = vault(ab, "task-seed-salt")
+    return sha256_file(path) if os.path.exists(path) else None
+
+
 def task_seed(ctx, task, rep):
     """Seed of a seeded task's content and oracle values: equal for every arm of one (batch, task, rep), derived from a
     salt that lives only in the vault (blocked while turns run), so neither the values nor the seed can be recomputed
-    from anything a cell can read."""
+    from anything a cell can read. With gates pairing.seed_keys the (batch, rep) part is the baseline cell's (seed_key)."""
     salt_path = vault(ctx["ab_root"], "task-seed-salt")
     if not os.path.exists(salt_path):
         with open(salt_path, "w", encoding="utf-8") as fh:
@@ -826,7 +878,8 @@ def task_seed(ctx, task, rep):
         os.chmod(salt_path, 0o600)
     with open(salt_path, encoding="utf-8") as fh:
         salt = fh.read().strip()
-    return hashlib.sha256(f"{salt}:{ctx['batch']}:{task}:{rep}".encode()).hexdigest()[:32]
+    batch, rep = seed_key(ctx, task, rep)
+    return hashlib.sha256(f"{salt}:{batch}:{task}:{rep}".encode()).hexdigest()[:32]
 
 
 def clear_live(ctx):
@@ -991,7 +1044,8 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
         # the home (and the log in it) moves into the vault when the cell ends; record where it will be
         cell["log"] = os.path.join(batch_dir, "homes", os.path.basename(cell_root), os.path.relpath(log_path, home))
         row = ab_metrics.metrics(events, exams=specs["exams"], in_turn=[(e["turn"], e["tokens"]) for e in specs["in_turn"]],
-                                 prices=ctx["prices"], bad_lines=bad, delivery=[(e["turn"], e["tokens"]) for e in specs["delivery"]])
+                                 prices=ctx["prices"], bad_lines=bad, delivery=[(e["turn"], e["tokens"]) for e in specs["delivery"]],
+                                 system_markers=ctx.get("system_markers") or ())
         cell["metrics"] = row
     if meta.get("probe"):
         cell["probe"] = ctx["probe_evaluator"](ctx, meta, cell, events)
@@ -1001,25 +1055,32 @@ def _run_cell(ctx, meta, task, rep, arm, attempt, cid, wid, workdir, home, tmp, 
     if cell["worktrees_changed"]:
         reasons.append(f"isolation: worktree {', '.join(cell['worktrees_changed'])} changed during the cell (git status)")
     infra = any(t["infra"] for t in cell["turns"]) or (complete and row is None)
+    cell.update({"status": "done" if not reasons else "invalid", "valid": not reasons, "invalid_reasons": reasons, "infra": infra,
+                 **exam_flags(row, specs), "step_limit_turns": sum(1 for t in cell["turns"] if t.get("step_limit"))})
+    return cell
+
+
+def exam_flags(row, specs):
+    """The memory-exclusion flags of a cell from its metrics row and exam specs (also used by svs2_report.py when it
+    recomputes the baseline cells): a flagged tool call up to the last exam turn, a leak before an exam, the oracle via
+    the file system; g2_excluded is their union."""
     exam_turn = max((e["turn"] for e in specs["exams"]), default=None)
     flags = (row or {}).get("flagged_access") or []
     exams = (row or {}).get("exams") or []
     flagged = bool(exam_turn and any(f["turn"] is not None and f["turn"] <= exam_turn for f in flags))
     leak = any(e["leak_assistant_turns"] or e["leak_write_turns"] for e in exams)
     via_fs = any(e["oracle_via_fs"] for e in exams)
-    cell.update({"status": "done" if not reasons else "invalid", "valid": not reasons, "invalid_reasons": reasons, "infra": infra,
-                 "flagged": flagged, "flag_count": len(flags), "secret_flags": sum(1 for f in flags if f.get("secret")),
-                 "leak": leak, "oracle_via_fs": via_fs, "g2_excluded": flagged or leak or via_fs,
-                 "step_limit_turns": sum(1 for t in cell["turns"] if t.get("step_limit"))})
-    return cell
+    return {"flagged": flagged, "flag_count": len(flags), "secret_flags": sum(1 for f in flags if f.get("secret")),
+            "leak": leak, "oracle_via_fs": via_fs, "g2_excluded": flagged or leak or via_fs}
 
 
-def cell_specs(meta, truth):
+def cell_specs(meta, truth, truth_rec=None):
     """Exam, delivery and in-turn token specs of a cell: meta.json's, plus (meta truth_specs) those a seeded task wrote
-    into its truth sidecar with the oracle values it generated. The sidecar sits in the vault until the cell is packed."""
+    into its truth sidecar with the oracle values it generated. The sidecar sits in the vault until the cell is packed.
+    `truth_rec`: the sidecar's content when it is read from elsewhere (svs2_report.py reads a packed workdir in memory)."""
     out = {k: list(meta.get(k) or []) for k in ("exams", "delivery", "in_turn")}
-    if meta.get("truth_specs") and truth and os.path.exists(truth):
-        rec = load_json(truth) or {}
+    if meta.get("truth_specs") and (truth_rec is not None or (truth and os.path.exists(truth))):
+        rec = truth_rec if truth_rec is not None else (load_json(truth) or {})
         for k in out:
             out[k] += list(rec.get(k) or [])
     return out
@@ -1110,10 +1171,11 @@ def env_record():
     }
 
 
-def host_digest(ab):
-    """sha256 over (path, size, mtime) of every file of the frozen host: equal at batch start and end, or a cell wrote there."""
+def host_digest(ab, base=None):
+    """sha256 over (path, size, mtime) of every file of the frozen host: equal at batch start and end, or a cell wrote there.
+    `base` overrides AB/host (used by `host-digest` to compare two host trees)."""
     h = hashlib.sha256()
-    base = os.path.join(ab, "host")
+    base = base or os.path.join(ab, "host")
     for d, dirs, files in os.walk(base):
         dirs.sort()
         for f in sorted(files):
@@ -1126,16 +1188,71 @@ def host_digest(ab):
     return h.hexdigest()
 
 
+def host_content_digest(base):
+    """sha256 over (path, kind, content sha256 or link text) of every entry of a host tree, mtimes ignored: equal for two
+    installs of the same packages at the same versions (svs2, 2026-10-24: the frozen host of 2026-10-23 is compared with
+    other installs by content, since every fresh npm install has its own mtimes). Directories count by path, so an empty
+    directory is seen too. Returns (digest, files, symlinks)."""
+    h = hashlib.sha256()
+    files = links = 0
+    for d, dirs, names in os.walk(base):
+        dirs.sort()
+        rel_d = os.path.relpath(d, base)
+        h.update(f"D\0{rel_d}\n".encode("utf-8", "surrogateescape"))
+        for name in sorted(names + [x for x in dirs if os.path.islink(os.path.join(d, x))]):
+            p = os.path.join(d, name)
+            rel = os.path.relpath(p, base)
+            if os.path.islink(p):
+                links += 1
+                h.update(f"L\0{rel}\0{os.readlink(p)}\n".encode("utf-8", "surrogateescape"))
+            elif os.path.isfile(p):
+                files += 1
+                h.update(f"F\0{rel}\0{sha256_file(p)}\n".encode("utf-8", "surrogateescape"))
+    return h.hexdigest(), files, links
+
+
+def cmd_host_digest(args):
+    """Both digests of one or more host trees (a directory holding node_modules/@deepseek-ai/dsh): the harness's
+    (path, size, mtime) digest, which only a copy that keeps mtimes reproduces, and the content digest."""
+    out = []
+    for base in args.host:
+        base = os.path.realpath(base)
+        content, files, links = host_content_digest(base)
+        version = load_json(os.path.join(base, "node_modules", "@deepseek-ai", "dsh", "package.json"), {}).get("version")
+        out.append({"host": base, "dsh_version": version, "tree_digest": host_digest(None, base), "content_digest": content,
+                    "files": files, "symlinks": links})
+    res = {"hosts": out}
+    if len(out) > 1:
+        res["same_tree_digest"] = len({o["tree_digest"] for o in out}) == 1
+        res["same_content"] = len({o["content_digest"] for o in out}) == 1
+    if args.expect_tree:
+        res["expected_tree_digest_prefix"] = args.expect_tree
+        res["tree_digest_as_expected"] = out[0]["tree_digest"].startswith(args.expect_tree)
+    print(json.dumps(res, indent=1))
+    ok = res.get("same_content", True) and res.get("tree_digest_as_expected", True)
+    return 0 if ok else 1
+
+
+# Offline adapters AB_MOCK_ADAPTER may name; mock-llm-edit.mjs (the svs2 working-set demonstration) wraps mock-llm.mjs.
+MOCK_ADAPTERS = ("mock-llm.mjs", "mock-llm-edit.mjs")
+
+
 def write_offline_adapter(ab):
     """Copy the scripted adapter out of the worktree (which is blocked while turns run) into AB/mock/, next to a
-    package.json whose peers admit the host: the host attributes a path row to the nearest package.json above it."""
+    package.json whose peers admit the host: the host attributes a path row to the nearest package.json above it.
+    AB_MOCK_ADAPTER picks a variant from MOCK_ADAPTERS (default mock-llm.mjs, the only file copied then); a variant
+    is copied beside mock-llm.mjs, which it imports. The manifest's mock_env records the choice."""
+    adapter = os.environ.get("AB_MOCK_ADAPTER") or "mock-llm.mjs"
+    if adapter not in MOCK_ADAPTERS:
+        raise SystemExit(f"AB_MOCK_ADAPTER={adapter!r}: not one of {', '.join(MOCK_ADAPTERS)}")
     d = os.path.join(ab, MOCK)
     os.makedirs(d, exist_ok=True)
-    shutil.copy(os.path.join(HERE, "mock-llm.mjs"), os.path.join(d, "mock-llm.mjs"))
+    for name in sorted({"mock-llm.mjs", adapter}):
+        shutil.copy(os.path.join(HERE, name), os.path.join(d, name))
     root = load_json(os.path.join(REPO_ROOT, "package.json"), {})
     peers = {k: v for k, v in (root.get("peerDependencies") or {}).items() if k.startswith("@deepseek-ai/")}
     write_json(os.path.join(d, "package.json"), {"name": "ab-mock-llm", "private": True, "type": "module", "version": "0.0.0", "peerDependencies": peers})
-    return os.path.join(d, "mock-llm.mjs")
+    return os.path.join(d, adapter)
 
 
 def write_harness_plugins(ab):
@@ -1160,12 +1277,45 @@ def steps_patch_text(n, mode, plugin_path=None):
     return f"# Per-task step cap, identical across arms.\n- id: slice-agent-loop\n  config:\n    maxStepsPerTurn: {n}\n"
 
 
-def worktree_blocks(ab):
-    """scripts/ and docs/ of every worktree under AB/wt (see WT_BLOCKED)."""
+def worktree_dirs(ab):
+    """Every checkout a cell could read task oracles from inside the A/B root: the directories under AB/wt (the earlier
+    layout), plus every top-level entry of AB that is a git checkout (svs2, 2026-10-24: the A/B root holds its worktrees
+    as AB/wt-<name>). Symlinks are left out."""
     out = []
     wt = os.path.join(ab, WT)
     for name in sorted(os.listdir(wt)) if os.path.isdir(wt) else []:
-        out += [os.path.join(wt, name, sub) for sub in WT_BLOCKED if os.path.isdir(os.path.join(wt, name, sub))]
+        d = os.path.join(wt, name)
+        if os.path.isdir(d) and not os.path.islink(d):
+            out.append(d)
+    for name in sorted(os.listdir(ab)) if os.path.isdir(ab) else []:
+        d = os.path.join(ab, name)
+        if name not in AB_ENTRIES and os.path.isdir(d) and not os.path.islink(d) and os.path.lexists(os.path.join(d, ".git")):
+            out.append(d)
+    return out
+
+
+def worktree_label(ab, d):
+    """Short name of a worktree for reports: relative to AB/wt or to AB."""
+    base = os.path.join(ab, WT)
+    return os.path.relpath(d, base if d.startswith(base + os.sep) else ab)
+
+
+def worktree_blocks(ab):
+    """scripts/ and docs/ of every worktree (worktree_dirs; see WT_BLOCKED)."""
+    return [os.path.join(d, sub) for d in worktree_dirs(ab) for sub in WT_BLOCKED if os.path.isdir(os.path.join(d, sub))]
+
+
+def ab_extras(ab):
+    """Top-level entries of the A/B root that are neither the harness's own (AB_ENTRIES) nor a worktree, symlinks
+    excepted: scratch other work left there (svs2: a build directory, a decompressed session log, host provenance).
+    A paid run with --block-siblings blocks them like the siblings, since a cell could read them otherwise."""
+    wts = set(worktree_dirs(ab))
+    out = []
+    for name in sorted(os.listdir(ab)) if os.path.isdir(ab) else []:
+        p = os.path.join(ab, name)
+        if name in AB_ENTRIES or p in wts or os.path.islink(p):
+            continue
+        out.append(p)
     return out
 
 
@@ -1196,9 +1346,8 @@ def worktree_state(ab):
     worktrees' source trees stay readable and writable while a turn runs; a file a cell left there would reach a later
     cell, so a change between a cell's first and last turn makes the cell invalid."""
     out = {}
-    wt = os.path.join(ab, WT)
-    for name in sorted(os.listdir(wt)) if os.path.isdir(wt) else []:
-        d = os.path.join(wt, name)
+    for d in worktree_dirs(ab):
+        name = worktree_label(ab, d)
         if not os.path.exists(os.path.join(d, ".git")):
             continue
         try:
@@ -1250,7 +1399,8 @@ def make_ctx(args, ab, tasks, offline, batch):
     no_fp = (getattr(args, "fingerprints", None) or "").lower() == "none"
     fp_path = None if no_fp else (getattr(args, "fingerprints", None) or vault(ab, "fingerprints.json"))
     siblings = sibling_blocks(ab) if getattr(args, "block_siblings", False) else []
-    blocked = [vault(ab)] + worktree_blocks(ab) + siblings + list(getattr(args, "block", None) or [])
+    extras = ab_extras(ab) if getattr(args, "block_siblings", False) else []
+    blocked = [vault(ab)] + worktree_blocks(ab) + siblings + extras + list(getattr(args, "block", None) or [])
     os.makedirs(os.path.join(ab, LIVE), exist_ok=True)
     read_only = [ab] + [os.path.join(ab, d) for d in (LIVE, PATCHES, MOCK, WT, PLUGINS, "host")] + [patch_dir]
     ctx = {
@@ -1261,8 +1411,10 @@ def make_ctx(args, ab, tasks, offline, batch):
                          args.unpriced_step_usd, args.max_unpriced_steps),
         "fingerprints": load_json(fp_path) if fp_path and os.path.exists(fp_path) else None, "fingerprints_path": fp_path, "no_fp": no_fp,
         "structure": gates.get("structure"), "gates_file": getattr(args, "gates", None) or GATES_DEFAULT, "step_cap_mode": step_mode,
+        "system_markers": structure_markers(gates.get("structure")), "seed_keys": (gates.get("pairing") or {}).get("seed_keys") or {},
+        "structure_as": dict(getattr(args, "structure_as_map", None) or {}),
         "steps_patch": steps_patch, "offline_patch": offline_patch, "index": os.path.join(batch_dir, "index.jsonl"),
-        "isolation": Isolation(ab, blocked, read_only), "ledger": ledger, "blocked_siblings": siblings,
+        "isolation": Isolation(ab, blocked, read_only), "ledger": ledger, "blocked_siblings": siblings, "blocked_ab_extras": extras,
     }
     return ctx
 
@@ -1301,11 +1453,53 @@ def progress(ab, text):
         pass
 
 
-def arm_order(arms, rep, seed):
+def arm_order(arms, rep, seed, offset=0):
     """The arms of one (task, rep) pair, in run order: the first arm rotates with (rep - 1 + seed), so with two arms
-    and seeds 20261022 (batch) and 20261023 (arbitration) each arm goes first in 3 of the 6 reps."""
-    k = (rep - 1 + seed) % len(arms)
+    and seeds 20261022 (batch) and 20261023 (arbitration) each arm goes first in 3 of the 6 reps. `offset` (svs2,
+    gates order.rotate "task_rep": the task's index in unit.tasks) also turns the rotation from task to task, so with
+    three arms every arm goes first once in every three consecutive reps of a task and in every rep across three tasks."""
+    k = (rep - 1 + seed + offset) % len(arms)
     return arms[k:] + arms[:k]
+
+
+def rotation_offset(gates, alias):
+    """The per-task rotation offset of gates order.rotate "task_rep" (0 otherwise, the earlier experiments' order)."""
+    if ((gates.get("order") or {}).get("rotate")) != "task_rep":
+        return 0
+    tasks = (gates.get("unit") or {}).get("tasks") or []
+    return tasks.index(alias) if alias in tasks else len(tasks)
+
+
+def run_guards(gates, arms, offline, structure_as=()):
+    """svs2 guards of a run; returns the --structure-as map. A paid run may use only the gates file's run_arms_only (the
+    baselines are imported, never re-run: the owner's instruction), and --structure-as (a stand-in arm validated against
+    another arm's structure) is for offline dry runs only."""
+    only = gates.get("run_arms_only")
+    if only and not offline and set(arms) - set(only):
+        raise SystemExit(f"this gates file runs only the arms {only} in a paid run (the baselines are imported): {sorted(set(arms) - set(only))}")
+    out = {}
+    for spec in structure_as or []:
+        arm, _, other = spec.partition("=")
+        if not offline:
+            raise SystemExit("--structure-as is for offline dry runs only (a stand-in arm validated against another arm's structure)")
+        out[arm] = other
+    return out
+
+
+def salt_guard(gates, ab, seeded, offline):
+    """svs2: seeded tasks paired with baseline cells must be generated from the baseline's salt (gates pairing.salt_sha256),
+    so a paid run refuses a missing or different vault salt; an offline run only notes it. Returns the manifest note."""
+    want = (gates.get("pairing") or {}).get("salt_sha256")
+    if not want or not seeded:
+        return None
+    have = salt_sha256(ab)
+    if have == want:
+        return "the vault salt is the baseline's: seeded content equals the paired baseline cells'"
+    if not offline:
+        raise SystemExit(f"vault/task-seed-salt {'missing' if have is None else 'differs'} (sha256 {str(have)[:12]}…; the gates file pairs "
+                         f"seeded tasks with baseline cells made from salt sha256 {want[:12]}…): copy the baseline's vault/task-seed-salt "
+                         "into this vault (mode 600) before a paid run")
+    return "offline dry run: the vault salt is not the baseline's, so seeded content differs from the baseline cells'"
 
 
 def cmd_run(args):
@@ -1317,7 +1511,10 @@ def cmd_run(args):
     check_homes(ab, arms, args.offline)
     if not args.offline and not args.block_siblings:
         raise SystemExit("a paid run needs --block-siblings: every entry next to the A/B root (except symlinks) is blocked while a turn runs")
+    gates = load_gates(args.gates or GATES_DEFAULT)
+    args.structure_as_map = run_guards(gates, arms, args.offline, args.structure_as)
     selected = select_tasks(args.tasks, tasks)
+    salt_note = salt_guard(gates, ab, [t for t in selected if tasks[t].get("seeded")], args.offline)
     ctx = make_ctx(args, ab, tasks, args.offline, args.batch)
     install_unblock_guards(ctx)
     manifest_path = os.path.join(ctx["batch_dir"], f"manifest-{dt.datetime.now().strftime('%Y%m%dT%H%M%S')}.json")
@@ -1329,6 +1526,9 @@ def cmd_run(args):
         "budget_sheet": ctx["prices"].get("budget_sheet", "peak"), "ledger": ctx["ledger"], "spent_at_start": round(ctx["budget"].total(), 6),
         "host_version": load_json(os.path.join(ab, "host", "node_modules", "@deepseek-ai", "dsh", "package.json"), {}).get("version"),
         "host_tree_digest_start": host_digest(ab),
+        "host_content_digest": host_content_digest(os.path.join(ab, "host"))[0] if args.host_content_digest else None,
+        "rotation": (gates.get("order") or {}).get("rotate") or "rep", "seed_keys": ctx["seed_keys"] or None, "salt": salt_note,
+        "structure_as": args.structure_as_map or None,
         "fingerprints": ctx["fingerprints_path"] if ctx["fingerprints"] else ("none (not checked)" if ctx["no_fp"] else None),
         "gates_file": ctx["gates_file"], "arm_packages": load_json(vault(ab, "arms.json"), {}), "step_cap_mode": ctx["step_cap_mode"],
         "mock_env": {k: os.environ[k] for k in sorted(os.environ) if k.startswith("AB_MOCK_")} if args.offline else {},
@@ -1336,7 +1536,8 @@ def cmd_run(args):
                       "cell_layout": "AB/live/c-<id>/{home,tmp,w-<id>}", "one_cell_at_a_time": True,
                       "strays": "processes naming live/c-<id> in their command line or environment, or with a cwd in it, are killed before unblocking",
                       "worktrees": "git status of every AB/wt worktree must not change during a cell",
-                      "siblings_blocked": ctx["blocked_siblings"]},
+                      "siblings_blocked": ctx["blocked_siblings"], "ab_extras_blocked": ctx["blocked_ab_extras"],
+                      "worktrees": [worktree_label(ab, d) for d in worktree_dirs(ab)]},
         "python": sys.version.split()[0], "harness_commit": git_head(),
     } | env_record()
     write_json(manifest_path, manifest)
@@ -1356,8 +1557,8 @@ def cmd_run(args):
     for rep in range(1, args.reps + 1):
         order = [t for t in selected if rep <= reps_of(t)]
         random.Random(f"{args.seed}:{rep}").shuffle(order)
-        rotated = arm_order(arms, rep, args.seed)
         for task in order:
+            rotated = arm_order(arms, rep, args.seed, rotation_offset(gates, tasks[task]["alias"]))
             if ctx.get("account_stopped"):
                 log(f"account-level provider error: stopping before {task} rep {rep} (fix the account, then --resume)")
                 stopped = True
@@ -1402,9 +1603,11 @@ def _probe_targets(ctx, arm, other_arms, target_batch):
     out.append((os.path.join(ctx["batch_dir"], "manifest-probe-canary.json"), "run manifest", True))
     out.append((os.path.join(ctx["batch_dir"], "truth", "w-probecanary.truth.json"), "truth file", True))
     for d in worktree_blocks(ab):
-        out.append((os.path.join(d, "probe-canary.txt"), "worktree " + os.path.relpath(d, os.path.join(ab, WT)), True))
-    for p in sorted(glob.glob(os.path.join(ab, WT, "*", "scripts", "ab", "tasks", "p110_r4_probe_compare", "meta.json"))):
-        out.append((p, "task oracle in a worktree", None))
+        out.append((os.path.join(d, "probe-canary.txt"), "worktree " + worktree_label(ab, d), True))
+    for wd in worktree_dirs(ab):
+        p = os.path.join(wd, "scripts", "ab", "tasks", "p110_r4_probe_compare", "meta.json")
+        if os.path.exists(p):
+            out.append((p, "task oracle in a worktree", None))
     tb = vault(ab, "results", target_batch)
     cells = [load_json(p) or {} for p in sorted(glob.glob(os.path.join(tb, "cells", "*.json")))]
     for p in sorted(glob.glob(os.path.join(tb, "manifest-*.json")))[-1:]:
@@ -1430,7 +1633,7 @@ def _probe_targets(ctx, arm, other_arms, target_batch):
             out.append((vault(ab, name), "A/B state", None))
     out.append((vault(ab), "A/B state root (listing)", None))
     for d in worktree_blocks(ab):
-        out.append((d, "worktree " + os.path.relpath(d, os.path.join(ab, WT)) + " (listing)", None))
+        out.append((d, "worktree " + worktree_label(ab, d) + " (listing)", None))
     out.append((vault(ab, "homes"), "template homes (listing)", None))
     return out
 
@@ -1462,7 +1665,7 @@ def probe_builder_for(mode, target_batch, arms):
             canary = targets[[t["class"] for t in targets].index("A/B state root")]
             lines.append(f"BASH: chmod 755 '{v}' && cat '{canary['path']}'; chmod 000 '{v}'")
             # a file left in a worktree's source tree (readable and writable while a turn runs): git status must catch it
-            wts = sorted(glob.glob(os.path.join(ctx["ab_root"], WT, "*", "src")))
+            wts = sorted(os.path.join(d, "src") for d in worktree_dirs(ctx["ab_root"]) if os.path.isdir(os.path.join(d, "src")))
             if wts:
                 left = os.path.join(wts[0], "probe-tamper-" + pysecrets.token_hex(6) + ".txt")
                 lines.append(f"BASH: printf x > '{left}'; echo LEFT")
@@ -1799,7 +2002,7 @@ def add_budget_args(ap):
 def main(argv):
     if argv and argv[0] == "_task_call":
         return _task_call_main(argv[1:])
-    subs = ("prepare", "run", "fingerprints", "secrets-scan", "isolation-probe", "unblock")
+    subs = ("prepare", "run", "fingerprints", "secrets-scan", "isolation-probe", "unblock", "host-digest")
     sub = argv[0] if argv and argv[0] in subs else "run"
     rest = argv[1:] if argv and argv[0] in subs else argv
     ap = argparse.ArgumentParser(prog="run_ab.py " + sub, description=__doc__.split("\n\n")[0])
@@ -1823,6 +2026,10 @@ def main(argv):
     if sub == "unblock":
         ap.add_argument("--ab-root", required=True)
         return unblock_from_state(os.path.realpath(ap.parse_args(rest).ab_root))
+    if sub == "host-digest":
+        ap.add_argument("host", nargs="+", help="host directories (each holds node_modules/@deepseek-ai/dsh)")
+        ap.add_argument("--expect-tree", help="the first host's tree digest must start with this (e.g. the baseline's 0c9e7f6b25ec)")
+        return cmd_host_digest(ap.parse_args(rest))
     if sub == "isolation-probe":
         ap.add_argument("--ab-root", required=True)
         ap.add_argument("--arms", default="control,F")
@@ -1850,7 +2057,10 @@ def main(argv):
     ap.add_argument("--max-attempts", type=int, default=2)
     ap.add_argument("--block", action="append", help="another path to block while a turn runs (repeatable)")
     ap.add_argument("--block-siblings", action="store_true",
-                    help="block every entry next to the A/B root in its parent directory, symlinks excepted (required for a paid run)")
+                    help="block every entry next to the A/B root in its parent directory, symlinks excepted (required for a paid run); "
+                         "also every top-level entry of the A/B root that is neither the harness's nor a worktree")
+    ap.add_argument("--structure-as", action="append", help="offline only: ARM=OTHER validates ARM against OTHER's gates structure (a stand-in)")
+    ap.add_argument("--host-content-digest", action="store_true", help="record the host's content digest in the manifest (about 30 s)")
     return cmd_run(ap.parse_args(rest))
 
 

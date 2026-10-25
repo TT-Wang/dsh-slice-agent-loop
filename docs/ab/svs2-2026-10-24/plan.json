@@ -1,0 +1,207 @@
+{
+ "cap_usd_peak": 10.0,
+ "limit_usd": 8.65,
+ "planning_target_usd": 7.0,
+ "spent_usd": 0.0,
+ "per_cell_prior": {
+  "c1": 0.194832,
+  "f1": 0.314281,
+  "r2": 0.025841,
+  "hello": 0.0012,
+  "c2": 0.010456
+ },
+ "baseline_means": {
+  "slice": {
+   "c1": 0.16236,
+   "c2": 0.008713,
+   "r2": 0.019586,
+   "f1": 0.261901,
+   "hello": 0.001
+  },
+  "stock": {
+   "c1": 0.102303,
+   "c2": 0.008701,
+   "r2": 0.021534,
+   "f1": 0.428679,
+   "hello": 0.001
+  }
+ },
+ "per_cell_estimate": {
+  "a:c1": {
+   "usd": 0.194832,
+   "from": "prior"
+  },
+  "a:c2": {
+   "usd": 0.010456,
+   "from": "prior"
+  },
+  "a:f1": {
+   "usd": 0.314281,
+   "from": "prior"
+  },
+  "a:hello": {
+   "usd": 0.0012,
+   "from": "prior"
+  },
+  "a:r2": {
+   "usd": 0.025841,
+   "from": "prior"
+  },
+  "b:c1": {
+   "usd": 0.194832,
+   "from": "prior"
+  },
+  "b:c2": {
+   "usd": 0.010456,
+   "from": "prior"
+  },
+  "b:f1": {
+   "usd": 0.314281,
+   "from": "prior"
+  },
+  "b:hello": {
+   "usd": 0.0012,
+   "from": "prior"
+  },
+  "b:r2": {
+   "usd": 0.025841,
+   "from": "prior"
+  },
+  "c:c1": {
+   "usd": 0.194832,
+   "from": "prior"
+  },
+  "c:c2": {
+   "usd": 0.010456,
+   "from": "prior"
+  },
+  "c:f1": {
+   "usd": 0.314281,
+   "from": "prior"
+  },
+  "c:hello": {
+   "usd": 0.0012,
+   "from": "prior"
+  },
+  "c:r2": {
+   "usd": 0.025841,
+   "from": "prior"
+  }
+ },
+ "stages": [
+  {
+   "id": "warm",
+   "tasks": [
+    "hello"
+   ],
+   "reps": [
+    1,
+    2
+   ],
+   "cells": 6,
+   "cells_to_run": 6,
+   "prior_usd": 0.0072,
+   "estimate_usd": 0.0072,
+   "to_run_usd": 0.0072,
+   "affordable": true
+  },
+  {
+   "id": "S1",
+   "tasks": [
+    "c1",
+    "c2",
+    "r2",
+    "f1"
+   ],
+   "reps": [
+    1,
+    2
+   ],
+   "cells": 24,
+   "cells_to_run": 24,
+   "prior_usd": 3.2725,
+   "estimate_usd": 3.2725,
+   "to_run_usd": 3.2725,
+   "affordable": true
+  },
+  {
+   "id": "S2",
+   "tasks": [
+    "c1",
+    "c2"
+   ],
+   "reps": [
+    3
+   ],
+   "cells": 6,
+   "cells_to_run": 6,
+   "prior_usd": 0.6159,
+   "estimate_usd": 0.6159,
+   "to_run_usd": 0.6159,
+   "affordable": true
+  },
+  {
+   "id": "S3",
+   "tasks": [
+    "f1"
+   ],
+   "reps": [
+    3
+   ],
+   "cells": 3,
+   "cells_to_run": 3,
+   "prior_usd": 0.9428,
+   "estimate_usd": 0.9428,
+   "to_run_usd": 0.9428,
+   "affordable": true
+  },
+  {
+   "id": "S4",
+   "tasks": [
+    "c1",
+    "c2"
+   ],
+   "reps": [
+    4
+   ],
+   "cells": 6,
+   "cells_to_run": 6,
+   "prior_usd": 0.6159,
+   "estimate_usd": 0.6159,
+   "to_run_usd": 0.6159,
+   "affordable": true
+  },
+  {
+   "id": "S5",
+   "tasks": [
+    "r2"
+   ],
+   "reps": [
+    3,
+    4
+   ],
+   "cells": 6,
+   "cells_to_run": 6,
+   "prior_usd": 0.155,
+   "estimate_usd": 0.155,
+   "to_run_usd": 0.155,
+   "affordable": true
+  }
+ ],
+ "full_design_usd": 5.6093,
+ "arbitration_usd": 0.8212,
+ "arbitration_cells": 8,
+ "arbitration_is_reserve": true,
+ "planned_with_arbitration_usd": 6.4305,
+ "planning_ladder_dropped": [],
+ "design": [
+  "warm",
+  "S1",
+  "S2",
+  "S3",
+  "S4",
+  "S5"
+ ],
+ "projected_end_usd": 6.4305,
+ "expected_usd_no_safety": 4.6744
+}

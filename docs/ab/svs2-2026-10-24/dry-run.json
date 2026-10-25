@@ -1,0 +1,349 @@
+{
+ "_note": "svs2 offline dry run (mock), stand-ins a, b, c = slice-main-c73ee22.tgz validated as slice; paths normalized",
+ "invocations": [
+  {
+   "started": "2026-10-23T18:32:28+00:00",
+   "ended": "2026-10-23T18:58:10+00:00",
+   "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+   "host_tree_digest_start": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "host_content_digest": "5c0747d0bd13e87852388ec6313dc2544d1403191c81192e36d2c95c24d998be",
+   "rotation": "task_rep",
+   "seed_keys": {
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "arb",
+      1
+     ]
+    }
+   },
+   "salt": "offline dry run: the vault salt is not the baseline's, so seeded content differs from the baseline cells'",
+   "reps_per_task": {
+    "c1": 2,
+    "c2": 2,
+    "f1": 2,
+    "r2": 2
+   },
+   "argv_tail": [
+    "--tasks",
+    "c1,c2,r2,f1",
+    "--reps",
+    "2",
+    "--batch",
+    "dry",
+    "--host-content-digest"
+   ]
+  },
+  {
+   "started": "2026-10-23T18:58:20+00:00",
+   "ended": "2026-10-23T19:00:35+00:00",
+   "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+   "host_tree_digest_start": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "host_content_digest": null,
+   "rotation": "task_rep",
+   "seed_keys": {
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "arb",
+      1
+     ]
+    }
+   },
+   "salt": null,
+   "reps_per_task": {
+    "c1": 3,
+    "c2": 3
+   },
+   "argv_tail": [
+    "--tasks",
+    "c1,c2",
+    "--reps",
+    "3",
+    "--batch",
+    "dry",
+    "--resume"
+   ]
+  },
+  {
+   "started": "2026-10-23T19:00:39+00:00",
+   "ended": "2026-10-23T19:12:03+00:00",
+   "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+   "host_tree_digest_start": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "host_content_digest": null,
+   "rotation": "task_rep",
+   "seed_keys": {
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "arb",
+      1
+     ]
+    }
+   },
+   "salt": "offline dry run: the vault salt is not the baseline's, so seeded content differs from the baseline cells'",
+   "reps_per_task": {
+    "f1": 3
+   },
+   "argv_tail": [
+    "--tasks",
+    "f1",
+    "--reps",
+    "3",
+    "--batch",
+    "dry",
+    "--resume"
+   ]
+  },
+  {
+   "started": "2026-10-23T19:12:07+00:00",
+   "ended": "2026-10-23T19:13:40+00:00",
+   "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+   "host_tree_digest_start": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "host_content_digest": null,
+   "rotation": "task_rep",
+   "seed_keys": {
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "arb",
+      1
+     ]
+    }
+   },
+   "salt": null,
+   "reps_per_task": {
+    "c1": 4,
+    "c2": 4
+   },
+   "argv_tail": [
+    "--tasks",
+    "c1,c2",
+    "--reps",
+    "4",
+    "--batch",
+    "dry",
+    "--resume"
+   ]
+  },
+  {
+   "started": "2026-10-23T19:13:46+00:00",
+   "ended": "2026-10-23T19:16:21+00:00",
+   "harness_commit": "327b0c594a2d85782b3600354eded1f4407793ea",
+   "host_tree_digest_start": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "host_content_digest": null,
+   "rotation": "task_rep",
+   "seed_keys": {
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "arb",
+      1
+     ]
+    }
+   },
+   "salt": null,
+   "reps_per_task": {
+    "r2": 4
+   },
+   "argv_tail": [
+    "--tasks",
+    "r2",
+    "--reps",
+    "4",
+    "--batch",
+    "dry",
+    "--resume"
+   ]
+  }
+ ],
+ "cells": 45,
+ "valid_on_attempt_1": 45,
+ "per_task_arm": {
+  "a:c1": 4,
+  "b:c1": 4,
+  "c:c1": 4,
+  "a:c2": 4,
+  "b:c2": 4,
+  "c:c2": 4,
+  "a:f1": 3,
+  "b:f1": 3,
+  "c:f1": 3,
+  "a:r2": 4,
+  "b:r2": 4,
+  "c:r2": 4
+ },
+ "tools_count": [
+  16
+ ],
+ "tool_names": [
+  "bash",
+  "edit",
+  "exit_plan_mode",
+  "expand_result",
+  "glob",
+  "grep",
+  "job_kill",
+  "job_list",
+  "job_output",
+  "read",
+  "read_image",
+  "recall_search",
+  "recall_step",
+  "recall_turn",
+  "todo_write",
+  "write"
+ ],
+ "system_markers": [
+  "{\"A recorded file read is not a current file\": true, \"You are sliceagent\": true}"
+ ],
+ "fingerprints": {
+  "a": {
+   "system_sha": "46c592c8c95d3328c5c8265b58a4c3f63abc90fde1397a26dd875f64680dd212",
+   "system_chars": 3651,
+   "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
+   "slice_tools_json_chars": 5266,
+   "prefix_chars": 17974,
+   "tools_count": 16
+  },
+  "b": {
+   "system_sha": "46c592c8c95d3328c5c8265b58a4c3f63abc90fde1397a26dd875f64680dd212",
+   "system_chars": 3651,
+   "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
+   "slice_tools_json_chars": 5266,
+   "prefix_chars": 17974,
+   "tools_count": 16
+  },
+  "c": {
+   "system_sha": "46c592c8c95d3328c5c8265b58a4c3f63abc90fde1397a26dd875f64680dd212",
+   "system_chars": 3651,
+   "slice_tools_sha": "4d9ca4cc31e86a8324de91027747eec5594f4badba048fe1ffee22d000ee4fd8",
+   "slice_tools_json_chars": 5266,
+   "prefix_chars": 17974,
+   "tools_count": 16
+  }
+ },
+ "run_order": {
+  "c2 r1": [
+   "a",
+   "b",
+   "c"
+  ],
+  "c1 r1": [
+   "c",
+   "a",
+   "b"
+  ],
+  "f1 r1": [
+   "c",
+   "a",
+   "b"
+  ],
+  "r2 r1": [
+   "b",
+   "c",
+   "a"
+  ],
+  "c1 r2": [
+   "a",
+   "b",
+   "c"
+  ],
+  "c2 r2": [
+   "b",
+   "c",
+   "a"
+  ],
+  "f1 r2": [
+   "a",
+   "b",
+   "c"
+  ],
+  "r2 r2": [
+   "c",
+   "a",
+   "b"
+  ],
+  "c1 r3": [
+   "b",
+   "c",
+   "a"
+  ],
+  "c2 r3": [
+   "c",
+   "a",
+   "b"
+  ],
+  "f1 r3": [
+   "b",
+   "c",
+   "a"
+  ],
+  "c1 r4": [
+   "c",
+   "a",
+   "b"
+  ],
+  "c2 r4": [
+   "a",
+   "b",
+   "c"
+  ],
+  "r2 r3": [
+   "a",
+   "b",
+   "c"
+  ],
+  "r2 r4": [
+   "b",
+   "c",
+   "a"
+  ]
+ },
+ "flags": 0,
+ "leaks": 0,
+ "quarantined": 0,
+ "strays_killed": 0,
+ "worktree_changes": 0,
+ "mock_spend_usd": 0.1847
+}

@@ -1,0 +1,111 @@
+{
+ "tree": "b111e434d10e2b9658d32a7bfaafcd33719b1405",
+ "items": [
+  {
+   "what": "tasks/hello",
+   "ok": true,
+   "note": "4 files"
+  },
+  {
+   "what": "tasks/lh1_incremental_build",
+   "ok": true,
+   "note": "4 files"
+  },
+  {
+   "what": "tasks/m3_consistency_bugfix",
+   "ok": true,
+   "note": "4 files"
+  },
+  {
+   "what": "tasks/p110_r2_superseded_stamp",
+   "ok": true,
+   "note": "5 files"
+  },
+  {
+   "what": "tasks/svs_f1_flood_recall",
+   "ok": true,
+   "note": "5 files"
+  },
+  {
+   "what": "prices.json",
+   "ok": true,
+   "note": "sha256 d6311a3038b8"
+  },
+  {
+   "what": "step-cap.mjs",
+   "ok": true,
+   "note": "sha256 a8acb63779e6"
+  },
+  {
+   "what": "mock-llm.mjs",
+   "ok": true,
+   "note": "sha256 6f84b153f847"
+  },
+  {
+   "what": "eval-offline.patch.yml",
+   "ok": true,
+   "note": "sha256 5cc3881bd8f1"
+  },
+  {
+   "what": "profile/eval-neutral.patch.yml",
+   "ok": true,
+   "note": "sha256 74b7a95e1b12"
+  },
+  {
+   "what": "profile/package.json",
+   "ok": true,
+   "note": "sha256 6f5e64d10619"
+  },
+  {
+   "what": "profile/pnpm-workspace.yaml",
+   "ok": true,
+   "note": "sha256 40a15d33917b"
+  },
+  {
+   "what": "profile/cordis.yml",
+   "ok": true,
+   "note": "sha256 c300dcf2ebc5"
+  },
+  {
+   "what": "step cap c1 = 14 (arb)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap c1 = 14 (batch)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap c2 = 26 (arb)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap c2 = 26 (batch)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap r2 = 12 (arb)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap r2 = 12 (batch)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap f1 = 12 (arb)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  },
+  {
+   "what": "step cap f1 = 12 (batch)",
+   "ok": true,
+   "note": "the patch text equals the baseline's with the A/B root swapped"
+  }
+ ],
+ "ok": true
+}

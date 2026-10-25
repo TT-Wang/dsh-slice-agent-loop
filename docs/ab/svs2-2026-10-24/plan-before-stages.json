@@ -1,0 +1,189 @@
+{
+ "_note": "svs2_plan.py --json before each later stage and before the arbitration (S1 and S2: the plan printed in the session log, both affordable); 'arb' with --arbitrate c:f1",
+ "checks": {
+  "S3": {
+   "spent_usd": 3.729,
+   "limit_usd": 8.65,
+   "stages": [
+    {
+     "id": "warm",
+     "cells_to_run": 6,
+     "to_run_usd": 0.0072,
+     "affordable": true
+    },
+    {
+     "id": "S1",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S2",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S3",
+     "cells_to_run": 3,
+     "to_run_usd": 0.7527,
+     "affordable": true
+    },
+    {
+     "id": "S4",
+     "cells_to_run": 6,
+     "to_run_usd": 0.4743,
+     "affordable": true
+    },
+    {
+     "id": "S5",
+     "cells_to_run": 6,
+     "to_run_usd": 0.109,
+     "affordable": true
+    }
+   ],
+   "arbitration_usd": 0.7441,
+   "arbitration_cells": 8,
+   "arbitration_is_reserve": true,
+   "projected_end_usd": 5.8162
+  },
+  "S4": {
+   "spent_usd": 4.806,
+   "limit_usd": 8.65,
+   "stages": [
+    {
+     "id": "warm",
+     "cells_to_run": 6,
+     "to_run_usd": 0.0072,
+     "affordable": true
+    },
+    {
+     "id": "S1",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S2",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S3",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S4",
+     "cells_to_run": 6,
+     "to_run_usd": 0.4743,
+     "affordable": true
+    },
+    {
+     "id": "S5",
+     "cells_to_run": 6,
+     "to_run_usd": 0.109,
+     "affordable": true
+    }
+   ],
+   "arbitration_usd": 0.7441,
+   "arbitration_cells": 8,
+   "arbitration_is_reserve": true,
+   "projected_end_usd": 6.1405
+  },
+  "S5": {
+   "spent_usd": 5.2453,
+   "limit_usd": 8.65,
+   "stages": [
+    {
+     "id": "warm",
+     "cells_to_run": 6,
+     "to_run_usd": 0.0072,
+     "affordable": true
+    },
+    {
+     "id": "S1",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S2",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S3",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S4",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S5",
+     "cells_to_run": 6,
+     "to_run_usd": 0.109,
+     "affordable": true
+    }
+   ],
+   "arbitration_usd": 0.7327,
+   "arbitration_cells": 8,
+   "arbitration_is_reserve": true,
+   "projected_end_usd": 6.0942
+  },
+  "arb": {
+   "spent_usd": 5.351,
+   "limit_usd": 8.65,
+   "stages": [
+    {
+     "id": "warm",
+     "cells_to_run": 6,
+     "to_run_usd": 0.0072,
+     "affordable": true
+    },
+    {
+     "id": "S1",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S2",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S3",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S4",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    },
+    {
+     "id": "S5",
+     "cells_to_run": 0,
+     "to_run_usd": 0,
+     "affordable": true
+    }
+   ],
+   "arbitration_usd": 0.7376,
+   "arbitration_cells": 3,
+   "arbitration_is_reserve": false,
+   "projected_end_usd": 6.0958
+  }
+ }
+}

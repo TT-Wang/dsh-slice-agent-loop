@@ -1,7 +1,14 @@
 # scripts/ab: native A/B harness (P1-10)
 
 Drives the published DSH `headless` app, one process per turn, against packed builds of this
-plugin and compares them on pre-registered gates. Three experiments use it:
+plugin and compares them on pre-registered gates. Four experiments use it:
+
+- the svs2 ablation of 2026-10-24 on DSH 0.2.1-rc.2: three slice variants (A: an edit-guard-aware
+  re-read rule, B: A without the slice persona, C: B plus working-set retention) against the
+  2026-10-23 SLICE and STOCK cells, imported read-only:
+  [docs/svs2-ablation-2026-10-24.md](../../docs/svs2-ablation-2026-10-24.md), gates
+  [gates-svs2.json](gates-svs2.json), report [svs2_report.py](svs2_report.py); see
+  [svs2 ablation](#svs2-ablation-2026-10-24) at the end of this file;
 
 - the slice-vs-stock evaluation of 2026-10-23 on DSH 0.2.1-rc.2: the plugin from main against the
   host's own composition with its native context management at shipped defaults, plus a configured
@@ -23,6 +30,7 @@ plugin and compares them on pre-registered gates. Three experiments use it:
 | `run_ab.py` | driver: `prepare` (one template DSH_HOME per arm), `run` (cells), `isolation-probe`, `unblock`, `fingerprints` (with `--compare`), `secrets-scan` |
 | `ab_metrics.py` | one metrics row per `session.v4.jsonl.zstd` (or plain `.jsonl`) |
 | `ab_report.py` | pairs cells, evaluates a gates file, writes `summary.json` / `summary.md`, with each check's room |
+| `gates-svs2.json`, `svs2_report.py`, `svs2_plan.py`, `svs2_checks.py`, `test_svs2.py` | svs2 ablation: arms, pairing with the imported baseline cells, seed keys, comparisons, interpretation rule, arbitration and cost ladder; the import and the report; the cost model; the same-conditions checks; their tests |
 | `gates-svs.json`, `svs_report.py`, `test_svs_report.py` | slice-vs-stock: arm structure, step-cap mode, per-task reps, pre-registered comparisons and decision rules; the report that evaluates them; its tests |
 | `step-cap.mjs` | the harness's own per-turn step cap row (slice-vs-stock), copied to `AB/plugins/` and inserted in every arm |
 | `profile/eval-neutral.patch.yml`, `profile/stock-compact.patch.yml` | slice-vs-stock: the overlay every arm gets (native context management kept), and the configured compaction variant |
@@ -371,3 +379,82 @@ python3 $H/svs_report.py $AB/vault/results/offline --gates $G --out $AB/vault/re
 
 Tests: `python3 scripts/ab/test_svs_report.py` (decision rules on synthetic cells), and the `SliceVsStock` and
 `NativeContextManagement` classes in `test_run_ab.py` and `test_ab_metrics.py`.
+
+## svs2 ablation (2026-10-24)
+
+The ablation of [docs/svs2-ablation-2026-10-24.md](../../docs/svs2-ablation-2026-10-24.md) runs three new slice arms
+(A: the re-read rule replaced by an edit-guard-aware rule; B: A without the slice persona; C: B plus working-set
+retention) on c1, c2, r2 and f1 and compares them with the SLICE and STOCK cells of 2026-10-23, which are imported
+read-only and never re-run. Gates [gates-svs2.json](gates-svs2.json), report [svs2_report.py](svs2_report.py), cost
+model [svs2_plan.py](svs2_plan.py), checks [svs2_checks.py](svs2_checks.py), tests [test_svs2.py](test_svs2.py).
+What it changes in this harness:
+
+- **Baseline import.** `svs2_report.py import-baseline --out $AB/vault/baseline` reads the cells that gates
+  `pairing.baseline_cells` names from the archive, recomputes each metrics row from the archived session log with
+  this `ab_metrics.py` (f1's exam specs from the truth sidecar inside the packed workdir, read in memory), refuses if
+  any stored metric or memory-exclusion flag is not reproduced, and writes the cells under their svs2 rep index.
+- **Pairing and seeds.** A new cell pairs with the baseline cell of the same task and rep index; the arm side of a
+  pair is the mean of the arm's valid cells there. A seeded task takes its seed key from the paired baseline cell
+  (gates `pairing.seed_keys`), so with the baseline's salt (`vault/task-seed-salt`, sha256 in gates
+  `pairing.salt_sha256`; a paid run refuses any other) f1's content is byte-identical to its partner's
+  (`svs2_checks.py f1-content`).
+- **Order.** Gates `order.rotate: "task_rep"` turns the first arm with the task's index too, so A, B and C each go
+  first once in every three reps of a task and across any three tasks of a rep.
+- **Guards.** A paid run may use only gates `run_arms_only` (a, b, c). `--structure-as ARM=OTHER` (offline only)
+  validates a stand-in arm against another arm's structure, so the harness can be dry-run before the arms are packed.
+- **Validity.** Gates structure `tool_names` (the exact 16 names) and system-prompt markers: `system_contains` and
+  `system_lacks` strings that the row's `validity.system_markers` must show present or absent (A, B and C carry the
+  edit-guard rule's "never re-read a file just to be safe" and lack "A recorded file read is not a current file"; A
+  keeps the slice persona "You are sliceagent", B and C lack it).
+- **Dumps against the baseline.** `svs2_checks.py dumps --ab $AB` compares each prepared home's `--dump-config` with
+  the baseline's archived `docs/ab/slice-vs-stock-2026-10-23/dump-slice.yml` (paths normalized as the archive spells
+  them): A and B must equal it line for line, C may differ only in the `slice-agent-loop` row (gates structure
+  `dump_rows_vs_slice`; C's tarball ships that row with `history: {workingSet: {}}`), and the stock home, prepared for
+  the comparison only, must equal `dump-stock.yml`.
+- **Offline adapter variant.** `AB_MOCK_ADAPTER=mock-llm-edit.mjs` (offline only, recorded in the manifest's
+  `mock_env`) mounts a wrapper of `mock-llm.mjs` that, before the closing text of a turn, reads the first `.py` file the
+  prompt names, else the first `.py` file in the workdir (c1: `calc.py` in every turn), and edits one line of it, so a
+  dry run shows arm C keeping that read and edit raw. `mock-llm.mjs` itself is unchanged (a condition file).
+- **Metrics.** `rereads`: every read classified as first, cross_turn (the first read in a turn of a file seen in an
+  earlier turn), same_turn or after_own_edit, plus edits/writes, bash writes and the host's FS_NOT_OBSERVED /
+  FS_STALE_VERSION refusals (the definitions of the c1 follow-up analysis; on the baseline's c1 logs: cross-turn 27
+  vs 59, after own edit 9 vs 28, edits/writes 84 vs 168); `tape.kept_raw_entries` for C.
+- **Layout.** The A/B root may hold its worktrees at its top level (`AB/wt-<name>`): every top-level git checkout is
+  treated like `AB/wt/<name>` (blocked `scripts/` and `docs/`, `git status` checked), and with `--block-siblings`
+  every other top-level entry that is not the harness's own is blocked too (manifest `isolation.ab_extras_blocked`).
+- **Host.** `run_ab.py host-digest HOST…` prints the tree digest the manifests record and an mtime-free content
+  digest; `--host-content-digest` records the latter in the manifest. `svs2_checks.py host` compares both with the
+  baseline's. A fresh npm install of 0.2.1-rc.2 resolves newer transitive packages; the svs2 host is a clone of the
+  baseline's frozen host (`cp -cRp`).
+- **Same conditions.** `svs2_checks.py conditions`: the five task directories, the price sheet, the step-cap row, the
+  overlays, the profile template and the offline adapter byte-identical to tree `b111e434`, and the step-cap patch
+  equal to the baseline's patch files.
+- **Cost ladder.** `svs2_plan.py --baseline $AB/vault/baseline [--batch …] [--pilot …] [--ledger …]` prices the stages
+  (warm, S1–S5) from priors, then from measured means, and says which stage is affordable; `--arbitrate a:c1,c2` prices
+  an arbitration. `--pilot $AB/vault/results/pilot` adds the pilot's cells as measurements only: they never count as
+  done cells of a stage, and they set the pre-batch projection (an arm and task with pilot cells at its pilot mean x
+  the prior's safety factor 1.2, every other one at its prior), against which the planning target cuts stages from the
+  end.
+
+Runbook (offline part; the paid part is in the record, §4):
+
+```sh
+AB=$SCRATCHPAD/svs2; H=$AB/wt-harness/scripts/ab; G=$H/gates-svs2.json; cd $AB
+python3 $H/svs2_checks.py host --host $AB/host
+python3 $H/svs2_checks.py conditions
+python3 $H/run_ab.py prepare --ab-root $AB --arm stock=none --arm a=<a.tgz> --arm b=<b.tgz> --arm c=<c.tgz> \
+  --overlay $H/profile/eval-neutral.patch.yml --gates $G
+python3 $H/svs2_checks.py dumps --ab $AB
+cp <baseline archive>/vault/task-seed-salt $AB/vault/task-seed-salt && chmod 600 $AB/vault/task-seed-salt
+python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks hello --reps 1 --batch offline-fp --fingerprints none
+python3 $H/run_ab.py fingerprints --batch-dir $AB/vault/results/offline-fp --out $AB/vault/fingerprints.json
+python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks c1,c2,r2,f1 --reps 4 --reps-from-gates --batch offline
+AB_MOCK_ADAPTER=mock-llm-edit.mjs python3 $H/run_ab.py --ab-root $AB --offline --gates $G --arms a,b,c --tasks c1 --reps 1 --batch offline-edit
+python3 $H/run_ab.py isolation-probe --ab-root $AB --gates $G --arms a,b,c --target-batch offline
+python3 $H/svs2_report.py import-baseline --out $AB/vault/baseline
+python3 $H/svs2_report.py report $AB/vault/results/offline --baseline $AB/vault/baseline --out $AB/vault/results/offline
+python3 $H/svs2_plan.py --baseline $AB/vault/baseline
+```
+
+Tests: `python3 scripts/ab/test_svs2.py`, and `AB_OFFLINE_BATCH=<dry batch> AB_GATES=scripts/ab/gates-svs2.json
+python3 scripts/ab/test_ab_metrics.py` for the mock logs.

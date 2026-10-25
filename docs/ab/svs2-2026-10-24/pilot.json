@@ -1,0 +1,447 @@
+{
+ "created": "2026-10-24",
+ "note": "svs2 pilot (record \u00a713). Counts only: no oracle value, audit token or build id appears here.",
+ "warm": {
+  "cells": [
+   {
+    "cell": "hello.r1.a",
+    "valid": true,
+    "first_request_cache_read": 0,
+    "cost_peak": 0.00215,
+    "wall_s": 6.3,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": true,
+     "never re-read a file just to be safe": true
+    }
+   },
+   {
+    "cell": "hello.r1.b",
+    "valid": true,
+    "first_request_cache_read": 0,
+    "cost_peak": 0.002142,
+    "wall_s": 5.8,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": false,
+     "never re-read a file just to be safe": true
+    }
+   },
+   {
+    "cell": "hello.r1.c",
+    "valid": true,
+    "first_request_cache_read": 4480,
+    "cost_peak": 0.000237,
+    "wall_s": 5.9,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": false,
+     "never re-read a file just to be safe": true
+    }
+   },
+   {
+    "cell": "hello.r2.a",
+    "valid": true,
+    "first_request_cache_read": 4480,
+    "cost_peak": 0.000244,
+    "wall_s": 5.4,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": true,
+     "never re-read a file just to be safe": true
+    }
+   },
+   {
+    "cell": "hello.r2.b",
+    "valid": true,
+    "first_request_cache_read": 4480,
+    "cost_peak": 0.000235,
+    "wall_s": 6.7,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": false,
+     "never re-read a file just to be safe": true
+    }
+   },
+   {
+    "cell": "hello.r2.c",
+    "valid": true,
+    "first_request_cache_read": 4480,
+    "cost_peak": 0.000236,
+    "wall_s": 5.8,
+    "system_markers": {
+     "A recorded file read is not a current file": false,
+     "You are sliceagent": false,
+     "never re-read a file just to be safe": true
+    }
+   }
+  ],
+  "fingerprints_compare": {
+   "changed_fields": [],
+   "delta_mismatches": [],
+   "file": "AB/vault/fingerprints.json"
+  }
+ },
+ "pilot_cells": [
+  {
+   "cell": "lh1_incremental_build.r1.a",
+   "arm": "a",
+   "alias": "c1",
+   "rep": 1,
+   "batch": "pilot",
+   "valid": true,
+   "passed": true,
+   "cost_peak": 0.1945,
+   "requests": 94,
+   "req_per_turn": 11.75,
+   "steps_per_turn": 11.75,
+   "step_cap_cuts": 2,
+   "peak_req": 50895,
+   "mean_req": 23864,
+   "hit_rate": 0.9634,
+   "wall_s": 838.4,
+   "miss": 82158,
+   "hit": 2161024,
+   "out": 97026,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 14,
+    "same_turn": 0,
+    "after_own_edit": 2,
+    "edits_writes": 44,
+    "bash_writes": 28,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0,
+   "tape_entries": 7,
+   "folds": 0,
+   "memory": null,
+   "digest_missing": null,
+   "delivery": [],
+   "flags": 20,
+   "secret": 0
+  },
+  {
+   "cell": "lh1_incremental_build.r1.b",
+   "arm": "b",
+   "alias": "c1",
+   "rep": 1,
+   "batch": "pilot",
+   "valid": true,
+   "passed": true,
+   "cost_peak": 0.1841,
+   "requests": 86,
+   "req_per_turn": 10.75,
+   "steps_per_turn": 10.75,
+   "step_cap_cuts": 3,
+   "peak_req": 42788,
+   "mean_req": 22364,
+   "hit_rate": 0.9611,
+   "wall_s": 655.1,
+   "miss": 74722,
+   "hit": 1848576,
+   "out": 94928,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 13,
+    "same_turn": 1,
+    "after_own_edit": 7,
+    "edits_writes": 52,
+    "bash_writes": 18,
+    "fs_not_observed": 3,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 0,
+   "tape_entries": 7,
+   "folds": 2,
+   "memory": null,
+   "digest_missing": null,
+   "delivery": [],
+   "flags": 11,
+   "secret": 0
+  },
+  {
+   "cell": "lh1_incremental_build.r1.c",
+   "arm": "c",
+   "alias": "c1",
+   "rep": 1,
+   "batch": "pilot",
+   "valid": true,
+   "passed": true,
+   "cost_peak": 0.1338,
+   "requests": 58,
+   "req_per_turn": 7.25,
+   "steps_per_turn": 7.25,
+   "step_cap_cuts": 0,
+   "peak_req": 67759,
+   "mean_req": 32622,
+   "hit_rate": 0.9604,
+   "wall_s": 404.2,
+   "miss": 74883,
+   "hit": 1817216,
+   "out": 57163,
+   "rereads": {
+    "first": 2,
+    "cross_turn": 6,
+    "same_turn": 0,
+    "after_own_edit": 3,
+    "edits_writes": 43,
+    "bash_writes": 15,
+    "fs_not_observed": 8,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 7,
+   "tape_entries": 11,
+   "folds": 1,
+   "memory": null,
+   "digest_missing": null,
+   "delivery": [],
+   "flags": 7,
+   "secret": 0
+  },
+  {
+   "cell": "svs_f1_flood_recall.r1.c",
+   "arm": "c",
+   "alias": "f1",
+   "rep": 1,
+   "batch": "pilot",
+   "valid": true,
+   "passed": false,
+   "cost_peak": 0.1956,
+   "requests": 209,
+   "req_per_turn": 4.64,
+   "steps_per_turn": 4.64,
+   "step_cap_cuts": 0,
+   "peak_req": 56327,
+   "mean_req": 29113,
+   "hit_rate": 0.9745,
+   "wall_s": 602.5,
+   "miss": 155108,
+   "hit": 5929472,
+   "out": 33566,
+   "rereads": {
+    "first": 17,
+    "cross_turn": 36,
+    "same_turn": 0,
+    "after_own_edit": 23,
+    "edits_writes": 46,
+    "bash_writes": 2,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0
+   },
+   "kept_raw_entries": 43,
+   "tape_entries": 68,
+   "folds": 12,
+   "memory": 4,
+   "digest_missing": 20,
+   "delivery": [
+    true,
+    true
+   ],
+   "flags": 0,
+   "secret": 0
+  }
+ ],
+ "c_f1_digest_trace": {
+  "read_turns": 32,
+  "turns_without_a_blob_read": [
+   11,
+   17,
+   18,
+   21,
+   22,
+   24,
+   26,
+   27,
+   28,
+   29,
+   30,
+   31,
+   32,
+   33,
+   34,
+   35,
+   36,
+   37,
+   38,
+   39
+  ],
+  "turns_without_a_blob_read_n": 20,
+  "digest_lines_written": 32,
+  "digest_tokens_wrong": 20,
+  "note": "in each of these 20 read turns C wrote the digest line without reading the excerpt; its first step's reasoning states a token it never saw (confabulated), then reads and edits digest.md, the pattern of the kept-raw digest.md steps of earlier turns, whose reasoning begins with the token learnt in the sealed step before them (\u00a713.4)"
+ },
+ "prefix_check": {
+  "lh1_incremental_build.r1.a": {
+   "requests": 94,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": 0
+  },
+  "lh1_incremental_build.r1.b": {
+   "requests": 86,
+   "nodes_kept_raw_beside_entries": 0,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": 0
+  },
+  "lh1_incremental_build.r1.c": {
+   "requests": 58,
+   "nodes_kept_raw_beside_entries": 57,
+   "requests_that_rewrote_a_tail": 7,
+   "problems": 0
+  },
+  "svs_f1_flood_recall.r1.c": {
+   "requests": 209,
+   "nodes_kept_raw_beside_entries": 142,
+   "requests_that_rewrote_a_tail": 37,
+   "problems": 0
+  }
+ },
+ "manifests": [
+  {
+   "batch": "warm",
+   "started": "2026-10-24T07:29:08+00:00",
+   "ended": "2026-10-24T07:29:48+00:00",
+   "argv": [
+    "--ab-root",
+    "AB",
+    "--gates",
+    "AB/wt-harness/scripts/ab/gates-svs2.json",
+    "--budget-usd",
+    "10",
+    "--block-siblings",
+    "--arms",
+    "a,b,c",
+    "--batch",
+    "warm",
+    "--seed",
+    "20261024",
+    "--tasks",
+    "hello",
+    "--reps",
+    "2",
+    "--fingerprints",
+    "none"
+   ],
+   "harness_commit": "ca1f5d6bd6a9ccde5743a37b11bff1a8a6e4b888",
+   "host_version": "0.2.1-rc.2",
+   "host_tree_digest": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "salt": null,
+   "siblings_blocked": 35,
+   "ab_extras_blocked": [
+    "AB/build-ab",
+    "AB/dry",
+    "AB/dry-logs",
+    "AB/host-provenance",
+    "AB/probe"
+   ],
+   "worktrees": [
+    "review-ws",
+    "wt-a",
+    "wt-b",
+    "wt-c",
+    "wt-harness",
+    "wt-ws"
+   ]
+  },
+  {
+   "batch": "pilot",
+   "started": "2026-10-24T07:30:10+00:00",
+   "ended": "2026-10-24T08:01:54+00:00",
+   "argv": [
+    "--ab-root",
+    "AB",
+    "--gates",
+    "AB/wt-harness/scripts/ab/gates-svs2.json",
+    "--budget-usd",
+    "10",
+    "--block-siblings",
+    "--arms",
+    "a,b,c",
+    "--batch",
+    "pilot",
+    "--seed",
+    "20261024",
+    "--tasks",
+    "c1",
+    "--reps",
+    "1"
+   ],
+   "harness_commit": "ca1f5d6bd6a9ccde5743a37b11bff1a8a6e4b888",
+   "host_version": "0.2.1-rc.2",
+   "host_tree_digest": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "salt": null,
+   "siblings_blocked": 35,
+   "ab_extras_blocked": [
+    "AB/build-ab",
+    "AB/dry",
+    "AB/dry-logs",
+    "AB/host-provenance",
+    "AB/probe"
+   ],
+   "worktrees": [
+    "review-ws",
+    "wt-a",
+    "wt-b",
+    "wt-c",
+    "wt-harness",
+    "wt-ws"
+   ]
+  },
+  {
+   "batch": "pilot",
+   "started": "2026-10-24T08:02:33+00:00",
+   "ended": "2026-10-24T08:12:42+00:00",
+   "argv": [
+    "--ab-root",
+    "AB",
+    "--gates",
+    "AB/wt-harness/scripts/ab/gates-svs2.json",
+    "--budget-usd",
+    "10",
+    "--block-siblings",
+    "--arms",
+    "c",
+    "--tasks",
+    "f1",
+    "--reps",
+    "1",
+    "--batch",
+    "pilot",
+    "--seed",
+    "20261024",
+    "--resume"
+   ],
+   "harness_commit": "ca1f5d6bd6a9ccde5743a37b11bff1a8a6e4b888",
+   "host_version": "0.2.1-rc.2",
+   "host_tree_digest": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_unchanged": true,
+   "salt": "the vault salt is the baseline's: seeded content equals the paired baseline cells'",
+   "siblings_blocked": 35,
+   "ab_extras_blocked": [
+    "AB/build-ab",
+    "AB/dry",
+    "AB/dry-logs",
+    "AB/host-provenance",
+    "AB/probe"
+   ],
+   "worktrees": [
+    "review-ws",
+    "wt-a",
+    "wt-b",
+    "wt-c",
+    "wt-harness",
+    "wt-ws"
+   ]
+  }
+ ],
+ "spend_peak_usd": {
+  "warm": 0.0052,
+  "pilot": 0.708,
+  "total": 0.7132,
+  "unpriced_charges": 0
+ }
+}
