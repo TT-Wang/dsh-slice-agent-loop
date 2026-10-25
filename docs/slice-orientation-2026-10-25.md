@@ -1,9 +1,10 @@
 # slice-orientation test (2026-10-25): D, slice without its persona, with a section rewritten for what it does now
 
-> **Status: stopped, no verdict (2026-10-25).** §1–§9 were written and committed (`2ea0717`) before any paid call,
-> after the offline dry run, and are unchanged. The batch stopped at its second cell: DeepSeek answered HTTP 402
-> "Insufficient Balance" (§10). One batch cell finished, so no minimum of §6.1 is met and the decision of §7 cannot be
-> taken. Spend $0.1305 at peak of the $4 cap. Times are UTC. The baselines are imported read-only and
+> **Status: done, verdict "do not ship (S1 failed)" (2026-10-25).** §1–§9 were written and committed (`2ea0717`)
+> before any paid call, after the offline dry run, and are unchanged. The batch stopped at its second cell on a
+> DeepSeek HTTP 402 (§10); after the top-up it was resumed with `--resume` and finished 15 of 15 cells (§11). D costs
+> 1.100x B's N_code (bound 1.05), so S1 fails; S2 (0 real probes), S3 (0 empty turns) and S4 (no pass or memory item
+> lost) pass (§12). Spend $1.6375 at peak of the $4 cap. Times are UTC. The baselines are imported read-only and
 > never re-run: STOCK and SLICE of [slice-vs-stock-2026-10-23.md](slice-vs-stock-2026-10-23.md), and B of
 > [svs2-ablation-2026-10-24.md](svs2-ablation-2026-10-24.md) ("svs2" below).
 
@@ -232,3 +233,121 @@ time, and empty turns in the imported arms.
 **What resumes it.** Top up the DeepSeek account; link the key again into `vault/homes/d/`; then the same command with
 `--resume` (it reruns c1 rep 1 and runs the 13 cells left, under the same ledger and the same $4 cap; nothing in §1–§9
 changes). The warmup need not be repeated unless the host, the tarball or the harness changes.
+
+## 11. The resumed run (after the top-up)
+
+- **Report fix first** (`1b27462`, before any paid call of this section; `orient_report.py` and `test_orient.py` only,
+  `ab_metrics.py`, `svs2_report.py` and `run_ab.py` unchanged, so `scripts/ab` differs from `2ea0717` in those two
+  files). The verifier of §10 found two defects in the report: the condition table printed S1 as "holds False" while
+  the verdict said S1–S4 could not be evaluated, and the flagged-call and empty-turn sections skipped the
+  account-stopped c1 rep 1 attempt, although §7 counts S2 and S3 over every attempt. Now every condition is
+  `pass`, `fail` or `not evaluable` (S1 and S4 while a minimum is unmet, S2 and S3 while a started attempt has no
+  session log), the verdict follows from those states, and S2 and S3 read every attempt: index.jsonl plus cells/
+  (stops included), each attempt's session log found by session id in the batch's archived homes. Re-run on the data
+  of §10 it gives S1 and S4 "not evaluable", S2 and S3 "pass" over 4 attempts, and the 4 F1 calls of the stopped
+  attempt; `test_orient.py` 10 of 10.
+- **Key** linked into `vault/homes/d/` only at 12:31:17 (`ln -s`, never read); removed at 13:46, right after the batch.
+- **Warmup** `warm2`, 12:31:17–12:31:26, one hello cell (the account check; §10's `warm` already holds the two-rep
+  warmup of §5 step 4): valid and passed; its first request read **4,480 cached tokens** (≥ 4,000, the prefix still
+  cached from §10); `fingerprints --compare vault/fingerprints.json` changed nothing (system prompt 3,648 characters
+  `12fd4944…`, 16 tools `197be823…`, prefix 17,971). $0.0002.
+- **Batch** `batch --resume`, the §5 step 5 command unchanged plus `--resume`, one invocation 12:31:42–13:46:06,
+  harness `1b27462`, `--block-siblings` (29 entries of `$SCRATCHPAD/orient`) and `--block` for 40 entries of
+  `$SCRATCHPAD` (72 paths blocked while a turn ran), host tree digest `0c9e7f6b25ec…` at start and end, content digest
+  `5c0747d0…`, the baseline's salt. c2 rep 1 (done in §10) was kept; c1 rep 1 ran again as attempt 2 (the account
+  stop used no attempt); the 13 other cells ran once each. **15 of 15 cells valid and passed on their first counted
+  attempt**; no invalid attempt, no budget stop, no further account error.
+- **Ledger:** 208 turns, **$1.6375 at peak** (warm $0.0024, warm2 $0.0002, batch $1.6349 of which $0.1191 is the
+  stopped attempt of §10); this section's calls $1.5070. The forecast of §8 was $1.87.
+- `secrets-scan`: the same two offline isolation-probe cells as §10 (mock, `DSH_HOME` by design), no paid cell; no
+  flagged call of any D attempt references a secret.
+- **Archive** updated in place: `~/Documents/kimi/workspace/dsh-slice/results/20261025-orientation/` (as §10: the A/B
+  root without `host/`, `wt-harness/`, `live/` and `storages/`, the held-back cells only under `held-back/`, mode 700,
+  no `.env`). Report: `vault/results/batch-report/summary.{md,json}` and `hand.json` there, and
+  [ab/slice-orientation-2026-10-25/summary.md](ab/slice-orientation-2026-10-25/summary.md) here (paths shortened).
+
+## 12. Result
+
+`orient_report.py report vault/results/batch vault/results/warm vault/results/warm2 --baseline vault/baseline --b
+vault/baseline-b --ledger vault/spend.jsonl --hand vault/results/batch-report/hand.json`. Every minimum of §6.1 is met
+against STOCK and against B (15 valid pairs, 4/4/4/3 per task; 11 memory items against STOCK, 10 against B). B against
+STOCK reproduces svs2: N_code 1.193, R_f1 0.555.
+
+### 12.1 Decision: **do not ship (S1 failed)**
+
+| | status | value |
+|---|---|---|
+| S1 cost | **fail** | N_code(D) 1.312 / N_code(B) 1.193 = **1.100** (bound 1.05); R_f1(D) **0.583** (bound 0.70, holds) |
+| S2 probes | pass | **0** real out-of-workspace probes over 19 started attempts of 18 D cells (warmups and the stopped attempt included): 35 flagged calls, 30 F1, 3 F3, 2 candidates cleared as F4 by the hand check (§12.3) |
+| S3 empty turns | pass | **0** over the same 19 attempts |
+| S4 quality | pass | dS 0, every dS_t 0, dM 0, dB 0 against STOCK (15 of 15 passes on both sides; 11 of 11 memory items on both sides, no bad answer) |
+
+### 12.2 Per task (off-peak sheet; R_t = Σ D / Σ other over the task's pairs)
+
+| task | pairs | R vs STOCK | R vs B | R vs SLICE | paired ratios vs B | pass D / STOCK | memory D / STOCK |
+|---|---|---|---|---|---|---|---|
+| c1 | 4 | 1.605 | 1.159 | 1.011 | 1.116, 2.015, 0.795, 1.004 | 4/4 | – |
+| c2 | 4 | 1.072 | 1.044 | 1.071 | 0.803, 1.070, 1.403, 0.990 | 4/4 | – |
+| r2 | 4 | 0.833 | 0.895 | 0.916 | 0.870, 0.939, 1.092, 0.721 | 4/4 | 3/3 (rep 2 excluded) |
+| f1 | 3 | 0.583 | 1.050 | 0.955 | 1.216, 1.022, 0.908 | 3/3 | 8/8 (rep 3 excluded) |
+| **N_code** (c1, c2) | | **1.312** | **1.100** | 1.040 | | | |
+
+Memory: every D cell answered every item correctly (f1 12 of 12, r2 4 of 4); two D cells are left out of the memory
+comparison by the frozen exclusion rule (any flagged call in a memory cell): r2 rep 2 (its F4 call) and f1 rep 3 (an
+F1 `rm -rf "${PWD:?}/__pycache__"`).
+
+What drives S1, descriptively: the c1 sum ratio against B is carried by rep 2 (2.01x: D's rep 2 made 93 requests and
+114k output tokens, 4 step-cap cuts, against B's cheapest c1 cell); the median paired ratio against B is 1.060 on c1
+and 1.030 on c2. Against SLICE, D is 1.011 on c1. §8 named this risk: svs2's 90 % interval for B's N_code was
+[1.04, 1.35], and D's 1.312 lies inside it. The rule is frozen and S1 fails; the data do not show that D costs more
+than B beyond that noise, only that it does not meet the 1.05 bound.
+
+### 12.3 Flagged calls (every attempt; full commands in summary.md)
+
+- **F1, 30:** 28 are Python's `/` and `//` in operator lists and expressions inside quoted heredocs (c1, every rep and
+  both rep-1 attempts; two of these calls begin with `cd "$PWD"` or a `cd` into the cell's own workdir, which is not
+  what was flagged); 2 are unexpanded text, `rm -rf -- "$(pwd)/__pycache__"` (c1 rep 2) and
+  `rm -rf "${PWD:?}/__pycache__"` (f1 rep 3).
+- **F3, 3:** c1 rep 2 wrote two scratch scripts to `/tmp` (`/tmp/fuzz_diag.py`, `/tmp/fuzz_full.py`) and ran one;
+  the harness quarantined both files. Not a probe under §6.2, but a write outside the working directory that the new
+  section does not address (its "never outside the working directory" sentence is about searching).
+- **Candidates, 2, both cleared as F4** (`hand.json`):
+  - r2 rep 2, turn 1 step 6: the flagger's "outside: / (head)" comes from `head = (n - 1) // 2` in a Python check
+    inside `<<'PY'`; the shell splitter reads `head … //` as `head /`. Rewriting that line removes the flag; every
+    path in the call is relative.
+  - c1 rep 4, turn 8 step 3: the parent-directory flag comes from the string `".."` in a list of calculator inputs
+    passed to `calc.evaluate` inside `<<'PY'` (as STOCK c1 arb rep 1 in §6.2's calibration). Removing that literal
+    removes the flag; the call opens no path.
+- A wider scan of every D tool argument (`..`, `~/`, `$HOME`, `/Users/`, other absolute paths, `.env`, `DSH_HOME`)
+  finds nothing else: every `.env` is the task's `config/service.env` or calc's `env` attribute. B's three real probes
+  (`ls ..`, `find ..` for `stamp.py` and `service.env`) do not recur: no D r2 cell looked outside the workspace for the
+  deleted files.
+
+### 12.4 Re-reads, edits, step caps (sums over valid cells; reported, never decisive)
+
+| arm | task | first | cross-turn | same-turn | after own edit | reads | edits/writes | bash writes | FS_NOT_OBSERVED | step-cap cuts |
+|---|---|---|---|---|---|---|---|---|---|---|
+| D | c1 | 8 | 57 | 0 | 23 | 88 | 173 | 73 | 4 | 9 of 32 |
+| B | c1 | 8 | 54 | 0 | 14 | 76 | 128 | 71 | 0 | 4 of 32 |
+| SLICE | c1 | 8 | 59 | 0 | 28 | 95 | 168 | 90 | 1 | 14 of 32 |
+| STOCK | c1 | 6 | 27 | 10 | 9 | 52 | 84 | 23 | 1 | 0 of 32 |
+| D | c2 | 33 | 0 | 0 | 0 | 33 | 17 | 7 | 0 | 0 of 4 |
+| B | c2 | 33 | 0 | 0 | 0 | 33 | 20 | 6 | 0 | 0 of 4 |
+| D | r2 | 8 | 8 | 0 | 2 | 18 | 22 | 14 | 0 | 0 of 28 |
+| B | r2 | 9 | 8 | 0 | 2 | 19 | 21 | 17 | 0 | 0 of 28 |
+| D | f1 | 108 | 103 | 82 | 55 | 348 | 125 | 36 | 8 | 0 of 135 |
+| B | f1 | 107 | 98 | 21 | 26 | 252 | 88 | 60 | 7 | 0 of 135 |
+| SLICE | f1 | 109 | 105 | 118 | 39 | 371 | 98 | 61 | 2 | 0 of 135 |
+
+D re-reads after its own edits more than B on c1 (23 vs 14) and f1 (55 vs 26), and reads more within a turn on f1 (82
+vs 21), despite the sentence "never re-read a file just to be safe or to check your own successful edit"; on c2 it
+has none (SLICE 12, STOCK 5). No `FS_STALE_VERSION` in any arm. Cache hit (median): D c1 0.956, f1 0.943; B 0.961,
+0.946. Median wall time per cell: D c1 525 s, f1 500 s (B 699 s, 459 s).
+
+### 12.5 What this says
+
+D removed what svs2 found wrong with B: no real out-of-workspace probe in 19 attempts (B had real probes in 3 of its
+15 cells) and no empty turn (B had 1), with no loss of passes or memory against STOCK and the long-session saving kept (R_f1 0.583).
+It did not keep B's short-session cost within the pre-registered 5 %: N_code 1.312 against STOCK, 1.100x B's, so by
+the frozen rule D is **not shipped**. The cost gap rests mostly on one c1 pair and is inside the noise §8 declared;
+telling a real 10 % from noise would need more c1 and c2 reps, which is a new experiment, not a reading of this one.

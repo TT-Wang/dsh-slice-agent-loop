@@ -1,0 +1,3800 @@
+{
+ "attempt_coverage": {
+  "attempts": 19,
+  "cells": 18,
+  "missing_logs": [],
+  "not_started": [],
+  "stops": 1
+ },
+ "b_import": "$SCRATCHPAD/orient/ab/vault/baseline-b",
+ "baseline": "$SCRATCHPAD/orient/ab/vault/baseline",
+ "batches": [
+  "$SCRATCHPAD/orient/ab/vault/results/batch",
+  "$SCRATCHPAD/orient/ab/vault/results/warm",
+  "$SCRATCHPAD/orient/ab/vault/results/warm2"
+ ],
+ "caveat": "cross-batch: STOCK and SLICE ran on 2026-10-23, B on 2026-10-24/25, D on 2026-10-25; no concurrent control. Provider-side variance between the days is not separable from an arm effect. n = 3-4 per task.",
+ "comparisons": {
+  "b vs slice": {
+   "N_code": 0.946,
+   "N_code3": 0.9713,
+   "R_f1": 0.9089,
+   "against": "slice",
+   "arm": "b",
+   "arm_cells_per_pair": [
+    1
+   ],
+   "dS": 0.0,
+   "dS_t": {
+    "c1": 0.0,
+    "c2": 0.0,
+    "f1": 0.0,
+    "r2": 0.0
+   },
+   "dropped_pairs": [],
+   "insufficient": [],
+   "median_paired_ratio": 0.9871,
+   "memory": {
+    "bad_arm": 0.0,
+    "bad_base": 0.0,
+    "correct_arm": 13.0,
+    "correct_base": 13.0,
+    "dB": 0.0,
+    "dM": 0.0,
+    "dropped": [
+     "r2.r2: memory exclusion",
+     "r2.r3: memory exclusion",
+     "r2.r4: memory exclusion"
+    ],
+    "items": 13,
+    "pairs": 4,
+    "per_item": {
+     "f1:build_id": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:deploy": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:lint_error": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:trap": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "r2:exam": {
+      "arm": 1.0,
+      "base": 1.0,
+      "n": 1
+     }
+    }
+   },
+   "pairs": 15,
+   "sum_ratio": 0.902,
+   "tasks": {
+    "c1": {
+     "R": 0.8725,
+     "cost_arm": 0.283314,
+     "cost_base": 0.324722,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9381,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.8887,
+      0.5997,
+      1.049,
+      0.9874
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "c2": {
+     "R": 1.0258,
+     "cost_arm": 0.017874,
+     "cost_base": 0.017425,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9886,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.1281,
+      0.9871,
+      0.9769,
+      0.99
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "f1": {
+     "R": 0.9089,
+     "cost_arm": 0.357049,
+     "cost_base": 0.392852,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9241,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.9325,
+      0.8698,
+      0.9241
+     ],
+     "pairs": 3,
+     "pass_arm": 3.0,
+     "pass_base": 3.0
+    },
+    "r2": {
+     "R": 1.0237,
+     "cost_arm": 0.040099,
+     "cost_base": 0.039171,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0365,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.1437,
+      1.0407,
+      0.8986,
+      1.0322
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    }
+   }
+  },
+  "b vs stock": {
+   "N_code": 1.1926,
+   "N_code3": 1.0981,
+   "R_f1": 0.5553,
+   "against": "stock",
+   "arm": "b",
+   "arm_cells_per_pair": [
+    1
+   ],
+   "dS": 0.0,
+   "dS_t": {
+    "c1": 0.0,
+    "c2": 0.0,
+    "f1": 0.0,
+    "r2": 0.0
+   },
+   "dropped_pairs": [],
+   "insufficient": [],
+   "median_paired_ratio": 0.9958,
+   "memory": {
+    "bad_arm": 0.0,
+    "bad_base": 0.0,
+    "correct_arm": 14.0,
+    "correct_base": 14.0,
+    "dB": 0.0,
+    "dM": 0.0,
+    "dropped": [
+     "r2.r2: memory exclusion",
+     "r2.r4: memory exclusion"
+    ],
+    "items": 14,
+    "pairs": 5,
+    "per_item": {
+     "f1:build_id": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:deploy": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:lint_error": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "f1:trap": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     },
+     "r2:exam": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     }
+    }
+   },
+   "pairs": 15,
+   "sum_ratio": 0.769,
+   "tasks": {
+    "c1": {
+     "R": 1.3847,
+     "cost_arm": 0.283314,
+     "cost_base": 0.204606,
+     "dS": 0.0,
+     "median_paired_ratio": 1.4463,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.881,
+      0.9053,
+      1.5208,
+      1.3718
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "c2": {
+     "R": 1.0271,
+     "cost_arm": 0.017874,
+     "cost_base": 0.017402,
+     "dS": 0.0,
+     "median_paired_ratio": 1.02,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.3253,
+      0.9958,
+      0.794,
+      1.0443
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "f1": {
+     "R": 0.5553,
+     "cost_arm": 0.357049,
+     "cost_base": 0.64302,
+     "dS": 0.0,
+     "median_paired_ratio": 0.522,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.522,
+      0.6643,
+      0.5094
+     ],
+     "pairs": 3,
+     "pass_arm": 3.0,
+     "pass_base": 3.0
+    },
+    "r2": {
+     "R": 0.9311,
+     "cost_arm": 0.040099,
+     "cost_base": 0.043068,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0093,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.2674,
+      0.7512,
+      0.6323,
+      1.4421
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    }
+   }
+  },
+  "d vs b": {
+   "N_code": 1.0997,
+   "N_code3": 1.0268,
+   "R_f1": 1.0504,
+   "against": "b",
+   "arm": "d",
+   "arm_cells_per_pair": [
+    1
+   ],
+   "dS": 0.0,
+   "dS_t": {
+    "c1": 0.0,
+    "c2": 0.0,
+    "f1": 0.0,
+    "r2": 0.0
+   },
+   "dropped_pairs": [],
+   "insufficient": [],
+   "median_paired_ratio": 1.0039,
+   "memory": {
+    "bad_arm": 0.0,
+    "bad_base": 0.0,
+    "correct_arm": 10.0,
+    "correct_base": 10.0,
+    "dB": 0.0,
+    "dM": 0.0,
+    "dropped": [
+     "r2.r2: memory exclusion",
+     "r2.r4: memory exclusion",
+     "f1.r3: memory exclusion"
+    ],
+    "items": 10,
+    "pairs": 4,
+    "per_item": {
+     "f1:build_id": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:deploy": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:lint_error": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:trap": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "r2:exam": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     }
+    }
+   },
+   "pairs": 15,
+   "sum_ratio": 1.0853,
+   "tasks": {
+    "c1": {
+     "R": 1.1588,
+     "cost_arm": 0.328306,
+     "cost_base": 0.283314,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0598,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.1158,
+      2.0148,
+      0.7946,
+      1.0039
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "c2": {
+     "R": 1.0437,
+     "cost_arm": 0.018655,
+     "cost_base": 0.017874,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0298,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.8025,
+      1.0696,
+      1.4029,
+      0.9899
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "f1": {
+     "R": 1.0504,
+     "cost_arm": 0.375057,
+     "cost_base": 0.357049,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0224,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.2158,
+      1.0224,
+      0.9075
+     ],
+     "pairs": 3,
+     "pass_arm": 3.0,
+     "pass_base": 3.0
+    },
+    "r2": {
+     "R": 0.8951,
+     "cost_arm": 0.035892,
+     "cost_base": 0.040099,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9044,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.8701,
+      0.9386,
+      1.0916,
+      0.7207
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    }
+   }
+  },
+  "d vs slice": {
+   "N_code": 1.0404,
+   "N_code3": 0.9973,
+   "R_f1": 0.9547,
+   "against": "slice",
+   "arm": "d",
+   "arm_cells_per_pair": [
+    1
+   ],
+   "dS": 0.0,
+   "dS_t": {
+    "c1": 0.0,
+    "c2": 0.0,
+    "f1": 0.0,
+    "r2": 0.0
+   },
+   "dropped_pairs": [],
+   "insufficient": [],
+   "median_paired_ratio": 0.981,
+   "memory": {
+    "bad_arm": 0.0,
+    "bad_base": 0.0,
+    "correct_arm": 10.0,
+    "correct_base": 10.0,
+    "dB": 0.0,
+    "dM": 0.0,
+    "dropped": [
+     "r2.r2: memory exclusion",
+     "r2.r3: memory exclusion",
+     "f1.r3: memory exclusion"
+    ],
+    "items": 10,
+    "pairs": 4,
+    "per_item": {
+     "f1:build_id": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:deploy": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:lint_error": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:trap": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "r2:exam": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     }
+    }
+   },
+   "pairs": 15,
+   "sum_ratio": 0.979,
+   "tasks": {
+    "c1": {
+     "R": 1.011,
+     "cost_arm": 0.328306,
+     "cost_base": 0.324722,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9914,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.9916,
+      1.2082,
+      0.8335,
+      0.9912
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "c2": {
+     "R": 1.0706,
+     "cost_arm": 0.018655,
+     "cost_base": 0.017425,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0179,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.9053,
+      1.0558,
+      1.3706,
+      0.9801
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "f1": {
+     "R": 0.9547,
+     "cost_arm": 0.375057,
+     "cost_base": 0.392852,
+     "dS": 0.0,
+     "median_paired_ratio": 0.8893,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.1338,
+      0.8893,
+      0.8386
+     ],
+     "pairs": 3,
+     "pass_arm": 3.0,
+     "pass_base": 3.0
+    },
+    "r2": {
+     "R": 0.9163,
+     "cost_arm": 0.035892,
+     "cost_base": 0.039171,
+     "dS": 0.0,
+     "median_paired_ratio": 0.9789,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.9951,
+      0.9768,
+      0.981,
+      0.7439
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    }
+   }
+  },
+  "d vs stock": {
+   "N_code": 1.3115,
+   "N_code3": 1.1276,
+   "R_f1": 0.5833,
+   "against": "stock",
+   "arm": "d",
+   "arm_cells_per_pair": [
+    1
+   ],
+   "dS": 0.0,
+   "dS_t": {
+    "c1": 0.0,
+    "c2": 0.0,
+    "f1": 0.0,
+    "r2": 0.0
+   },
+   "dropped_pairs": [],
+   "insufficient": [],
+   "median_paired_ratio": 1.0635,
+   "memory": {
+    "bad_arm": 0.0,
+    "bad_base": 0.0,
+    "correct_arm": 11.0,
+    "correct_base": 11.0,
+    "dB": 0.0,
+    "dM": 0.0,
+    "dropped": [
+     "r2.r2: memory exclusion",
+     "f1.r3: memory exclusion"
+    ],
+    "items": 11,
+    "pairs": 5,
+    "per_item": {
+     "f1:build_id": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:deploy": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:lint_error": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "f1:trap": {
+      "arm": 2.0,
+      "base": 2.0,
+      "n": 2
+     },
+     "r2:exam": {
+      "arm": 3.0,
+      "base": 3.0,
+      "n": 3
+     }
+    }
+   },
+   "pairs": 15,
+   "sum_ratio": 0.8346,
+   "tasks": {
+    "c1": {
+     "R": 1.6046,
+     "cost_arm": 0.328306,
+     "cost_base": 0.204606,
+     "dS": 0.0,
+     "median_paired_ratio": 1.6005,
+     "min_pairs": 2,
+     "paired_ratios": [
+      2.0987,
+      1.824,
+      1.2085,
+      1.3771
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "c2": {
+     "R": 1.072,
+     "cost_arm": 0.018655,
+     "cost_base": 0.017402,
+     "dS": 0.0,
+     "median_paired_ratio": 1.0643,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.0635,
+      1.0652,
+      1.1139,
+      1.0337
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    },
+    "f1": {
+     "R": 0.5833,
+     "cost_arm": 0.375057,
+     "cost_base": 0.64302,
+     "dS": 0.0,
+     "median_paired_ratio": 0.6346,
+     "min_pairs": 2,
+     "paired_ratios": [
+      0.6346,
+      0.6792,
+      0.4623
+     ],
+     "pairs": 3,
+     "pass_arm": 3.0,
+     "pass_base": 3.0
+    },
+    "r2": {
+     "R": 0.8334,
+     "cost_arm": 0.035892,
+     "cost_base": 0.043068,
+     "dS": 0.0,
+     "median_paired_ratio": 0.8721,
+     "min_pairs": 2,
+     "paired_ratios": [
+      1.1028,
+      0.705,
+      0.6902,
+      1.0392
+     ],
+     "pairs": 4,
+     "pass_arm": 4.0,
+     "pass_base": 4.0
+    }
+   }
+  }
+ },
+ "d_attempts": [
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r1.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.009044,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "empty": 0,
+   "flagged": 4,
+   "log": true,
+   "pass": null,
+   "reasons": [
+    "turn 6: account-level provider error QUOTA: the run stops; --resume reruns this cell"
+   ],
+   "spend_peak_usd": 0.119056,
+   "status": "account_stop",
+   "valid": false
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "empty": 0,
+   "flagged": 5,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.175127,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r1.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.299459,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r1.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.017204,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "empty": 0,
+   "flagged": 12,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.208163,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r2.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.008174,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r2.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.232562,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.d",
+   "empty": 0,
+   "flagged": 1,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.017947,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "empty": 0,
+   "flagged": 8,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.129927,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r3.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.020206,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r3.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.011636,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.d",
+   "empty": 0,
+   "flagged": 1,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.218092,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "empty": 0,
+   "flagged": 4,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.143391,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r4.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.016428,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r4.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.008456,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "warm",
+   "cell": "hello.r1.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.002141,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "warm",
+   "cell": "hello.r2.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.000233,
+   "status": "done",
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "warm2",
+   "cell": "hello.r1.d",
+   "empty": 0,
+   "flagged": 0,
+   "log": true,
+   "pass": true,
+   "reasons": null,
+   "spend_peak_usd": 0.000233,
+   "status": "done",
+   "valid": true
+  }
+ ],
+ "d_cells": [
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "cost_peak": 0.175127,
+   "flag_count": 5,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 73,
+   "rereads": {
+    "after_own_edit": 6,
+    "bash_writes": 15,
+    "cross_turn": 17,
+    "edits_writes": 49,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 2
+     },
+     "2": {
+      "cross_turn": 2
+     },
+     "3": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "4": {
+      "cross_turn": 2
+     },
+     "5": {
+      "cross_turn": 2
+     },
+     "6": {
+      "after_own_edit": 1,
+      "cross_turn": 3
+     },
+     "7": {
+      "after_own_edit": 1,
+      "cross_turn": 3
+     },
+     "8": {
+      "after_own_edit": 3,
+      "cross_turn": 3
+     }
+    },
+    "reads": 25,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 2,
+   "valid": true,
+   "wall_s": 506.0
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "cost_peak": 0.208163,
+   "flag_count": 12,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [
+    "/private/tmp/fuzz_diag.py",
+    "/private/tmp/fuzz_full.py"
+   ],
+   "requests": 93,
+   "rereads": {
+    "after_own_edit": 8,
+    "bash_writes": 20,
+    "cross_turn": 14,
+    "edits_writes": 40,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 2
+     },
+     "2": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "3": {
+      "cross_turn": 2
+     },
+     "4": {
+      "after_own_edit": 2,
+      "cross_turn": 2
+     },
+     "5": {
+      "cross_turn": 2
+     },
+     "6": {
+      "after_own_edit": 4,
+      "cross_turn": 2
+     },
+     "7": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "8": {
+      "cross_turn": 2
+     }
+    },
+    "reads": 24,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 4,
+   "valid": true,
+   "wall_s": 915.9
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "cost_peak": 0.129927,
+   "flag_count": 8,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 70,
+   "rereads": {
+    "after_own_edit": 5,
+    "bash_writes": 21,
+    "cross_turn": 13,
+    "edits_writes": 32,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 2
+     },
+     "2": {
+      "cross_turn": 1
+     },
+     "3": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "4": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "5": {
+      "cross_turn": 2
+     },
+     "6": {
+      "cross_turn": 2
+     },
+     "7": {
+      "after_own_edit": 1,
+      "cross_turn": 2
+     },
+     "8": {
+      "after_own_edit": 2,
+      "cross_turn": 2
+     }
+    },
+    "reads": 20,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 501.5
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "cost_peak": 0.143391,
+   "flag_count": 4,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 81,
+   "rereads": {
+    "after_own_edit": 4,
+    "bash_writes": 17,
+    "cross_turn": 13,
+    "edits_writes": 52,
+    "first": 2,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 2
+     },
+     "2": {
+      "after_own_edit": 1,
+      "cross_turn": 1
+     },
+     "3": {
+      "cross_turn": 2
+     },
+     "4": {
+      "cross_turn": 2
+     },
+     "5": {
+      "cross_turn": 2
+     },
+     "6": {
+      "cross_turn": 2
+     },
+     "7": {
+      "after_own_edit": 3,
+      "cross_turn": 2
+     },
+     "8": {
+      "cross_turn": 2
+     }
+    },
+    "reads": 19,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 3,
+   "valid": true,
+   "wall_s": 544.0
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r1.d",
+   "cost_peak": 0.009044,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 7,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 1,
+    "cross_turn": 0,
+    "edits_writes": 4,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 8
+     }
+    },
+    "reads": 8,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 24.1
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r2.d",
+   "cost_peak": 0.008174,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 6,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 2,
+    "cross_turn": 0,
+    "edits_writes": 4,
+    "first": 9,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 9
+     }
+    },
+    "reads": 9,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 23.0
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r3.d",
+   "cost_peak": 0.011636,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 8,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 3,
+    "cross_turn": 0,
+    "edits_writes": 4,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 8
+     }
+    },
+    "reads": 8,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 32.6
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "m3_consistency_bugfix.r4.d",
+   "cost_peak": 0.008456,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 8,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 1,
+    "cross_turn": 0,
+    "edits_writes": 5,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 8
+     }
+    },
+    "reads": 8,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 24.4
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r1.d",
+   "cost_peak": 0.017204,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 25,
+   "rereads": {
+    "after_own_edit": 1,
+    "bash_writes": 4,
+    "cross_turn": 2,
+    "edits_writes": 6,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "after_own_edit": 1
+     },
+     "2": {
+      "first": 1
+     },
+     "4": {
+      "first": 1
+     },
+     "6": {
+      "cross_turn": 1
+     },
+     "7": {
+      "cross_turn": 1
+     }
+    },
+    "reads": 5,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 68.5
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.d",
+   "cost_peak": 0.017947,
+   "flag_count": 1,
+   "g2_excluded": true,
+   "pass": true,
+   "quarantined": [],
+   "requests": 25,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 3,
+    "cross_turn": 2,
+    "edits_writes": 5,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 1
+     },
+     "2": {
+      "cross_turn": 1
+     },
+     "4": {
+      "first": 1
+     },
+     "7": {
+      "cross_turn": 1
+     }
+    },
+    "reads": 4,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 72.9
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r3.d",
+   "cost_peak": 0.020206,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 27,
+   "rereads": {
+    "after_own_edit": 1,
+    "bash_writes": 5,
+    "cross_turn": 2,
+    "edits_writes": 6,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "2": {
+      "first": 1
+     },
+     "4": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "6": {
+      "after_own_edit": 1
+     },
+     "7": {
+      "cross_turn": 1
+     }
+    },
+    "reads": 5,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 81.2
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r4.d",
+   "cost_peak": 0.016428,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 22,
+   "rereads": {
+    "after_own_edit": 0,
+    "bash_writes": 2,
+    "cross_turn": 2,
+    "edits_writes": 5,
+    "first": 2,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "1": {
+      "first": 1
+     },
+     "4": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "7": {
+      "cross_turn": 1
+     }
+    },
+    "reads": 4,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 68.7
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r1.d",
+   "cost_peak": 0.299459,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 282,
+   "rereads": {
+    "after_own_edit": 10,
+    "bash_writes": 19,
+    "cross_turn": 33,
+    "edits_writes": 36,
+    "first": 36,
+    "fs_not_observed": 5,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "10": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "11": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "12": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "13": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "14": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "15": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "16": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "17": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "18": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "19": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "2": {
+      "first": 2
+     },
+     "20": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "21": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "22": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "23": {
+      "after_own_edit": 1
+     },
+     "24": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "25": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "26": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "27": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "28": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "29": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "3": {
+      "after_own_edit": 1
+     },
+     "30": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "31": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "32": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "33": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "34": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "35": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "36": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "37": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "38": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "39": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "4": {
+      "cross_turn": 1
+     },
+     "40": {
+      "cross_turn": 1
+     },
+     "42": {
+      "first": 1
+     },
+     "43": {
+      "after_own_edit": 1
+     },
+     "45": {
+      "after_own_edit": 1
+     },
+     "5": {
+      "after_own_edit": 1,
+      "first": 1
+     },
+     "6": {
+      "after_own_edit": 2
+     },
+     "7": {
+      "after_own_edit": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "8": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 1
+     },
+     "9": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     }
+    },
+    "reads": 100,
+    "same_turn": 21
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 623.4
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r2.d",
+   "cost_peak": 0.232562,
+   "flag_count": 0,
+   "g2_excluded": false,
+   "pass": true,
+   "quarantined": [],
+   "requests": 224,
+   "rereads": {
+    "after_own_edit": 15,
+    "bash_writes": 11,
+    "cross_turn": 34,
+    "edits_writes": 44,
+    "first": 36,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "10": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "11": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "12": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "13": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "14": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "15": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "16": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "17": {
+      "after_own_edit": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "18": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "19": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "2": {
+      "first": 2
+     },
+     "20": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "21": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "22": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "23": {
+      "cross_turn": 1
+     },
+     "24": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "25": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "26": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "27": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "28": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "29": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "3": {
+      "after_own_edit": 1
+     },
+     "30": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 4
+     },
+     "31": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "32": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     },
+     "33": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "34": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "35": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "36": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "37": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "38": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "39": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 2
+     },
+     "4": {
+      "cross_turn": 1
+     },
+     "40": {
+      "cross_turn": 1
+     },
+     "42": {
+      "after_own_edit": 1
+     },
+     "45": {
+      "cross_turn": 1
+     },
+     "5": {
+      "first": 1
+     },
+     "6": {
+      "cross_turn": 1
+     },
+     "7": {
+      "first": 1
+     },
+     "8": {
+      "first": 2
+     },
+     "9": {
+      "cross_turn": 1,
+      "first": 1,
+      "same_turn": 3
+     }
+    },
+    "reads": 146,
+    "same_turn": 61
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 499.5
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.d",
+   "cost_peak": 0.218092,
+   "flag_count": 1,
+   "g2_excluded": true,
+   "pass": true,
+   "quarantined": [],
+   "requests": 217,
+   "rereads": {
+    "after_own_edit": 30,
+    "bash_writes": 6,
+    "cross_turn": 36,
+    "edits_writes": 45,
+    "first": 36,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0,
+    "per_turn": {
+     "10": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "11": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "12": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "13": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "14": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "15": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "16": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "17": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "18": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "19": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "2": {
+      "after_own_edit": 1,
+      "first": 2
+     },
+     "20": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "21": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "22": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "23": {
+      "cross_turn": 1
+     },
+     "24": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "25": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "26": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "27": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "28": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "29": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "3": {
+      "cross_turn": 1
+     },
+     "30": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "31": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "32": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "33": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "34": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "35": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "36": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "37": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "38": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "39": {
+      "cross_turn": 1,
+      "first": 1
+     },
+     "4": {
+      "after_own_edit": 1
+     },
+     "40": {
+      "cross_turn": 1
+     },
+     "42": {
+      "after_own_edit": 1
+     },
+     "43": {
+      "after_own_edit": 1
+     },
+     "44": {
+      "after_own_edit": 1
+     },
+     "45": {
+      "cross_turn": 1
+     },
+     "5": {
+      "after_own_edit": 1,
+      "first": 1
+     },
+     "6": {
+      "cross_turn": 1
+     },
+     "7": {
+      "after_own_edit": 1,
+      "first": 2
+     },
+     "8": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     },
+     "9": {
+      "after_own_edit": 1,
+      "cross_turn": 1,
+      "first": 1
+     }
+    },
+    "reads": 102,
+    "same_turn": 0
+   },
+   "step_cap_cuts": 0,
+   "valid": true,
+   "wall_s": 473.9
+  }
+ ],
+ "describe": {
+  "b": {
+   "c1": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.141657,
+    "median_cache_hit_rate": 0.96135,
+    "median_cost_peak": 0.149898,
+    "median_mean_request_tokens": 18625.15,
+    "median_peak_request_tokens": 36205.5,
+    "median_requests": 76.5,
+    "median_requests_per_turn": 9.559999999999999,
+    "median_steps_per_turn": 9.559999999999999,
+    "median_wall_s": 698.85,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 4,
+    "step_limit_turns": 4,
+    "summaries": 0,
+    "turns": 32
+   },
+   "c2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.008937,
+    "median_cache_hit_rate": 0.92555,
+    "median_cost_peak": 0.008417999999999998,
+    "median_mean_request_tokens": 9726.900000000001,
+    "median_peak_request_tokens": 13146.5,
+    "median_requests": 7.5,
+    "median_requests_per_turn": 7.5,
+    "median_steps_per_turn": 7.5,
+    "median_wall_s": 25.75,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 3,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 4
+   },
+   "f1": {
+    "cells": 3,
+    "context_limit_errors": 0,
+    "digest_missing": 0,
+    "exams_recall_sourced": "6/6",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.238033,
+    "median_cache_hit_rate": 0.9462,
+    "median_cost_peak": 0.240327,
+    "median_mean_request_tokens": 22424.7,
+    "median_peak_request_tokens": 36706,
+    "median_requests": 225,
+    "median_requests_per_turn": 5.0,
+    "median_steps_per_turn": 5.0,
+    "median_wall_s": 459.0,
+    "memory_bad": 0,
+    "memory_correct": 12,
+    "memory_total": 12,
+    "pass": 3,
+    "prunes": 0,
+    "slice_folds": 96,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 135
+   },
+   "r2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "4/4",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.020049,
+    "median_cache_hit_rate": 0.9513,
+    "median_cost_peak": 0.019445,
+    "median_mean_request_tokens": 10252.400000000001,
+    "median_peak_request_tokens": 15787.0,
+    "median_requests": 26.5,
+    "median_requests_per_turn": 3.785,
+    "median_steps_per_turn": 3.785,
+    "median_wall_s": 79.75,
+    "memory_bad": 0,
+    "memory_correct": 4,
+    "memory_total": 4,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 28
+   }
+  },
+  "d": {
+   "c1": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.164152,
+    "median_cache_hit_rate": 0.95645,
+    "median_cost_peak": 0.15925899999999998,
+    "median_mean_request_tokens": 20525.300000000003,
+    "median_peak_request_tokens": 45553.5,
+    "median_requests": 77.0,
+    "median_requests_per_turn": 9.62,
+    "median_steps_per_turn": 9.62,
+    "median_wall_s": 525.0,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 1,
+    "step_limit_turns": 9,
+    "summaries": 0,
+    "turns": 32
+   },
+   "c2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.009328,
+    "median_cache_hit_rate": 0.9169499999999999,
+    "median_cost_peak": 0.00875,
+    "median_mean_request_tokens": 10104.8,
+    "median_peak_request_tokens": 14010.0,
+    "median_requests": 7.5,
+    "median_requests_per_turn": 7.5,
+    "median_steps_per_turn": 7.5,
+    "median_wall_s": 24.25,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 1,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 4
+   },
+   "f1": {
+    "cells": 3,
+    "context_limit_errors": 0,
+    "digest_missing": 0,
+    "exams_recall_sourced": "6/6",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.250038,
+    "median_cache_hit_rate": 0.9434,
+    "median_cost_peak": 0.232562,
+    "median_mean_request_tokens": 21263.2,
+    "median_peak_request_tokens": 36115,
+    "median_requests": 224,
+    "median_requests_per_turn": 4.98,
+    "median_steps_per_turn": 4.98,
+    "median_wall_s": 499.5,
+    "memory_bad": 0,
+    "memory_correct": 12,
+    "memory_total": 12,
+    "pass": 3,
+    "prunes": 0,
+    "slice_folds": 100,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 135
+   },
+   "hello": {
+    "cells": 3,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.000869,
+    "median_cache_hit_rate": 0.9228,
+    "median_cost_peak": 0.000233,
+    "median_mean_request_tokens": 4855.0,
+    "median_peak_request_tokens": 4855,
+    "median_requests": 1,
+    "median_requests_per_turn": 1.0,
+    "median_steps_per_turn": 1.0,
+    "median_wall_s": 4.5,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 3,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 3
+   },
+   "r2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "4/4",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.017946,
+    "median_cache_hit_rate": 0.9428000000000001,
+    "median_cost_peak": 0.0175755,
+    "median_mean_request_tokens": 9553.65,
+    "median_peak_request_tokens": 14308.0,
+    "median_requests": 25.0,
+    "median_requests_per_turn": 3.57,
+    "median_steps_per_turn": 3.57,
+    "median_wall_s": 70.80000000000001,
+    "memory_bad": 0,
+    "memory_correct": 4,
+    "memory_total": 4,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 28
+   }
+  },
+  "slice": {
+   "c1": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.16236,
+    "median_cache_hit_rate": 0.9657,
+    "median_cost_peak": 0.1640865,
+    "median_mean_request_tokens": 20474.4,
+    "median_peak_request_tokens": 38642.5,
+    "median_requests": 91.5,
+    "median_requests_per_turn": 11.440000000000001,
+    "median_steps_per_turn": 11.440000000000001,
+    "median_wall_s": 824.3,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 6,
+    "step_limit_turns": 14,
+    "summaries": 0,
+    "turns": 32
+   },
+   "c2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.008713,
+    "median_cache_hit_rate": 0.8976999999999999,
+    "median_cost_peak": 0.008559500000000001,
+    "median_mean_request_tokens": 9632.0,
+    "median_peak_request_tokens": 14637.0,
+    "median_requests": 7.0,
+    "median_requests_per_turn": 7.0,
+    "median_steps_per_turn": 7.0,
+    "median_wall_s": 24.2,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 1,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 4
+   },
+   "f1": {
+    "cells": 3,
+    "context_limit_errors": 0,
+    "digest_missing": 0,
+    "exams_recall_sourced": "6/6",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.261901,
+    "median_cache_hit_rate": 0.9581,
+    "median_cost_peak": 0.261515,
+    "median_mean_request_tokens": 24774.3,
+    "median_peak_request_tokens": 43301,
+    "median_requests": 265,
+    "median_requests_per_turn": 5.89,
+    "median_steps_per_turn": 5.89,
+    "median_wall_s": 542.2,
+    "memory_bad": 0,
+    "memory_correct": 12,
+    "memory_total": 12,
+    "pass": 3,
+    "prunes": 0,
+    "slice_folds": 40,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 135
+   },
+   "r2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "4/4",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.019585,
+    "median_cache_hit_rate": 0.9478500000000001,
+    "median_cost_peak": 0.019484500000000002,
+    "median_mean_request_tokens": 10378.75,
+    "median_peak_request_tokens": 15237.5,
+    "median_requests": 27.0,
+    "median_requests_per_turn": 3.86,
+    "median_steps_per_turn": 3.86,
+    "median_wall_s": 82.3,
+    "memory_bad": 0,
+    "memory_correct": 4,
+    "memory_total": 4,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 28
+   }
+  },
+  "stock": {
+   "c1": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.102303,
+    "median_cache_hit_rate": 0.98285,
+    "median_cost_peak": 0.10582,
+    "median_mean_request_tokens": 34360.55,
+    "median_peak_request_tokens": 74338.0,
+    "median_requests": 47.5,
+    "median_requests_per_turn": 5.9399999999999995,
+    "median_steps_per_turn": 5.9399999999999995,
+    "median_wall_s": 340.65,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 32
+   },
+   "c2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/0",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.008701,
+    "median_cache_hit_rate": 0.9084,
+    "median_cost_peak": 0.008341999999999999,
+    "median_mean_request_tokens": 8279.15,
+    "median_peak_request_tokens": 11609.5,
+    "median_requests": 8.0,
+    "median_requests_per_turn": 8.0,
+    "median_steps_per_turn": 8.0,
+    "median_wall_s": 29.9,
+    "memory_bad": 0,
+    "memory_correct": 0,
+    "memory_total": 0,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 4
+   },
+   "f1": {
+    "cells": 3,
+    "context_limit_errors": 0,
+    "digest_missing": 0,
+    "exams_recall_sourced": "0/6",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.428679,
+    "median_cache_hit_rate": 0.9906,
+    "median_cost_peak": 0.471756,
+    "median_mean_request_tokens": 116230.8,
+    "median_peak_request_tokens": 234025,
+    "median_requests": 213,
+    "median_requests_per_turn": 4.73,
+    "median_steps_per_turn": 4.73,
+    "median_wall_s": 426.5,
+    "memory_bad": 0,
+    "memory_correct": 12,
+    "memory_total": 12,
+    "pass": 3,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 135
+   },
+   "r2": {
+    "cells": 4,
+    "context_limit_errors": 0,
+    "digest_missing": null,
+    "exams_recall_sourced": "0/4",
+    "kept_raw_entries": 0,
+    "mean_cost_peak": 0.021534,
+    "median_cache_hit_rate": 0.9600500000000001,
+    "median_cost_peak": 0.0206315,
+    "median_mean_request_tokens": 11743.55,
+    "median_peak_request_tokens": 20463.5,
+    "median_requests": 24.0,
+    "median_requests_per_turn": 3.425,
+    "median_steps_per_turn": 3.425,
+    "median_wall_s": 93.9,
+    "memory_bad": 0,
+    "memory_correct": 4,
+    "memory_total": 4,
+    "pass": 4,
+    "prunes": 0,
+    "slice_folds": 0,
+    "step_limit_turns": 0,
+    "summaries": 0,
+    "turns": 28
+   }
+  }
+ },
+ "empty_turns": [],
+ "empty_turns_reference": {
+  "b": [
+   {
+    "cell": "lh1_incremental_build.r3.b",
+    "kind": "empty reply",
+    "reasoning_chars": 3,
+    "steps": 1,
+    "turn": 2,
+    "turn_end": "completed",
+    "visible_chars": 0
+   }
+  ]
+ },
+ "flagged_calls": [
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import evaluate, Calculator, CalcError\n\nrandom.seed(7)\nBIN = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"]\n\ndef gen(depth):\n    if depth <= 0 or random.random() < 0.3:\n        lit = random.choice([\"0\", \"1\", \"2\", \"3\", \"4\", \"5\", \"7\", \"10\", \"2.5\", \"0.5\", \".5\", \"3.\"])\n        if random.random() < 0.35:\n            return random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + lit\n        return lit\n    if random.random() < 0.25:\n        return \"(\" + gen(depth - 1) + \")\"\n    left = gen(depth - 1)\n    op = random.choice(BIN)\n    # keep exponents small so nothing explodes / goes complex\n    if op == \"**\":\n        right = random.choice([\"0\", \"1\", \"2\", \"3\", \"-1\", \"-2\", \"+2\"])\n    else:\n        right = gen(depth - 1)\n    return f\"{left} {op} {right}\"\n\nfails = 0\nchecked = 0\nfor _ in range(4000):\n    expr = gen(3)\n    try:\n        want = eval(expr, {\"__builtins__\": {}}, {})   # noqa: S307 - test oracle\n    except Exception:\n        continue\n    if isinstance(want, complex):\n        continue\n    try:\n        got = evaluate(expr)\n    except CalcError as exc:\n        # only legitimate: division/modulo by zero, 0 ** negative\n        try:\n            eval(expr, {\"__builtins__\": {}}, {})      # noqa: S307\n        except Exception:\n            continue\n        print(f\"FAIL calc raised {exc!r} on {expr!r} (python -> {want!r})\")\n        fails += 1\n        continue\n    checked += 1\n    if got != want or type(got) is not type(want):\n        print(f\"FAIL {expr!r}: calc={got!r} ({type(got).__name__}) python={want!r} ({type(want).__name__})\")\n        fails += 1\n        if fails > 15:\n            break\n    if Calculator().eval(expr) != got:\n        print(f\"FAIL Calculator().eval disagrees on {expr!r}\")\n        fails += 1\n\nprint(\"compared:\", checked, \"FAILURES:\", fails)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a1/t4s5",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "account_stop",
+   "step": 5,
+   "tool": "bash",
+   "turn": 4,
+   "valid": false
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random, math\nfrom calc import evaluate, Calculator, CalcError\n\nrandom.seed(1234)\nBIN = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"]\n\ndef gen(depth, pow_left):\n    if depth <= 0 or random.random() < 0.3:\n        lit = random.choice([\"0\", \"1\", \"2\", \"3\", \"4.5\", \"0.5\", \"2.\", \".5\"])\n        sign = random.choice([\"\", \"\", \"-\", \"+\", \"--\", \"-+\", \"+-\"])\n        return sign + lit\n    kind = random.random()\n    if kind < 0.55:\n        op = random.choice(BIN)\n        return f\"{gen(depth-1, pow_left)} {op} {gen(depth-1, pow_left)}\"\n    if kind < 0.8 and pow_left > 0:\n        return f\"{gen(depth-1, pow_left-1)} ** {gen(depth-1, pow_left-1)}\"\n    if kind < 0.9:\n        return f\"({gen(depth-1, pow_left)})\"\n    sign = random.choice([\"-\", \"+\", \"--\"])\n    return f\"{sign}({gen(depth-1, pow_left)})\"\n\nmismatch = api_mismatch = 0\nchecked = 0\nfor _ in range(6000):\n    expr = gen(3, 2)\n    try:\n        want = eval(expr, {\"__builtins__\": {}}, {})\n    except ZeroDivisionError:\n        try:\n            evaluate(expr)\n        except CalcError:\n            continue\n        print(\"expected CalcError (zero div):\", expr)\n        mismatch += 1\n        continue\n    except Exception as e:\n        print(\"python rejected:\", expr, type(e).__name__)\n        continue\n    if isinstance(want, complex) or (isinstance(want, float) and (math.isinf(want) or math.isnan(want))):\n        continue\n    checked += 1\n    try:\n        got = evaluate(expr)\n        got2 = Calculator().eval(expr)\n    except CalcError as e:\n        print(\"unexpected CalcError:\", expr, \"->\", e)\n        mismatch += 1\n        continue\n    if got != want or got2 != want or type(got) is not type(want):\n        mismatch += 1\n        print(\"MISMATCH\", expr, \"calc:\", repr(got), \"python:\", repr(want))\n    if got != got2:\n        api_mismatch += 1\n\nprint(f\"checked={checked} mismatches={mismatch} api_disagreements={api_mismatch}\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a1/t5s3",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "account_stop",
+   "step": 3,
+   "tool": "bash",
+   "turn": 5,
+   "valid": false
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import Calculator, evaluate, CalcError\n\nrandom.seed(20240607)\nnames = [\"x\", \"y\", \"z\", \"n1\", \"_t\"]\nops = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"]\n\ndef atom(env):\n    r = random.random()\n    if r < 0.45:\n        return str(random.randint(0, 9))\n    if r < 0.6:\n        return random.choice([\"2.5\", \"0.5\", \"3.0\", \".5\"])\n    if r < 0.75:\n        return \"(\" + expr(env, 1) + \")\"\n    if r < 0.85:\n        return random.choice([\"+\", \"-\"]) + atom(env)\n    return random.choice(list(env))\n\ndef expr(env, depth=0):\n    left = atom(env)\n    for _ in range(random.randint(0, 2 if depth else 3)):\n        op = random.choice(ops)\n        right = atom(env)\n        # Avoid floor/mod by zero and 0 ** negative producing surprises.\n        if op in (\"/\", \"//\", \"%\"):\n            right = \"(\" + right + \" + 1000)\"\n        if op == \"**\":\n            right = str(random.randint(0, 3))\n        left = left + \" \" + op + \" \" + right\n    return left\n\nmismatches = 0\nchecked = 0\n# --- expression-only fuzz with a seeded env ---\nfor _ in range(1500):\n    env = {n: random.choice([1, 2, 3, 0.5, -4]) for n in random.sample(names, random.randint(1, 4))}\n    e = expr(env)\n    try:\n        want = eval(e, {\"__builtins__\": {}}, dict(env))\n    except Exception:\n        continue\n    try:\n        got = evaluate(e, env)\n    except CalcError as exc:\n        print(\"CALC ERROR\", repr(e), env, exc)\n        mismatches += 1\n        continue\n    if got != want:\n        print(\"MISMATCH\", repr(e), env, \"calc=\", got, \"py=\", want)\n        mismatches += 1\n    checked += 1\n\n# --- assignment sequences: Calculator state vs a Python dict ---\nfor _ in range(400):\n    c = Calculator()\n    pyenv = {}\n    for _ in range(random.randint(1, 8)):\n        name = random.choice(names)\n        if random.random() < 0.55:\n            rhs = expr(pyenv)\n            try:\n                want = eval(rhs, {\"__builtins__\": {}}, dict(pyenv))\n            except Exception:\n                continue\n            assert c.eval(f\"{name} = {rhs}\") is None\n            pyenv[name] = want\n        else:\n            if not pyenv:\n                continue\n            e = expr(pyenv)\n            try:\n                want = eval(e, {\"__builtins__\": {}}, dict(pyenv))\n            except Exception:\n                continue\n            got = c.eval(e)\n            if got != want:\n                print(\"SEQ MISMATCH\", repr(e), pyenv, \"calc=\", got, \"py=\", want)\n                mismatches += 1\n            checked += 1\n\nprint(f\"fuzz checked={checked} mismatches={mismatches}\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a1/t6s10",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "account_stop",
+   "step": 10,
+   "tool": "bash",
+   "turn": 6,
+   "valid": false
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import Calculator, evaluate, CalcError\n\nrandom.seed(20240607)\nnames = [\"x\", \"y\", \"z\", \"n1\", \"_t\"]\nops = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"]\n\ndef atom(env):\n    r = random.random()\n    if r < 0.45 or not env:\n        return str(random.randint(0, 9))\n    if r < 0.6:\n        return random.choice([\"2.5\", \"0.5\", \"3.0\", \".5\"])\n    if r < 0.75:\n        return \"(\" + expr(env, 1) + \")\"\n    if r < 0.85:\n        return random.choice([\"+\", \"-\"]) + atom(env)\n    return random.choice(list(env))\n\ndef expr(env, depth=0):\n    left = atom(env)\n    for _ in range(random.randint(0, 2 if depth else 3)):\n        op = random.choice(ops)\n        right = atom(env)\n        if op in (\"/\", \"//\", \"%\"):\n            right = \"(\" + right + \" + 1000)\"\n        if op == \"**\":\n            right = str(random.randint(0, 3))\n        left = left + \" \" + op + \" \" + right\n    return left\n\nmismatches = 0\nchecked = 0\nfor _ in range(1500):\n    env = {n: random.choice([1, 2, 3, 0.5, -4]) for n in random.sample(names, random.randint(1, 4))}\n    e = expr(env)\n    try:\n        want = eval(e, {\"__builtins__\": {}}, dict(env))\n    except Exception:\n        continue\n    try:\n        got = evaluate(e, env)\n    except CalcError as exc:\n        print(\"CALC ERROR\", repr(e), env, exc)\n        mismatches += 1\n        continue\n    if got != want:\n        print(\"MISMATCH\", repr(e), env, \"calc=\", got, \"py=\", want)\n        mismatches += 1\n    checked += 1\n\nfor _ in range(400):\n    c = Calculator()\n    pyenv = {}\n    for _ in range(random.randint(1, 8)):\n        name = random.choice(names)\n        if random.random() < 0.55:\n            rhs = expr(pyenv)\n            try:\n                want = eval(rhs, {\"__builtins__\": {}}, dict(pyenv))\n            except Exception:\n                continue\n            assert c.eval(f\"{name} = {rhs}\") is None\n            pyenv[name] = want\n        else:\n            if not pyenv:\n                continue\n            e = expr(pyenv)\n            try:\n                want = eval(e, {\"__builtins__\": {}}, dict(pyenv))\n            except Exception:\n                continue\n            got = c.eval(e)\n            if got != want:\n                print(\"SEQ MISMATCH\", repr(e), pyenv, \"calc=\", got, \"py=\", want)\n                mismatches += 1\n            checked += 1\n\nprint(f\"fuzz checked={checked} mismatches={mismatches}\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a1/t6s11",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "account_stop",
+   "step": 11,
+   "tool": "bash",
+   "turn": 6,
+   "valid": false
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "cd \"$SCRATCHPAD/orient/ab/live/c-9fee48e2a9/w-d5ee9bb632\" && python3 - <<'PY'\nimport itertools, math\nfrom calc import evaluate, CalcError\n\nnums = [\"2\", \"3\", \"4\"]\nunary = [\"\", \"-\", \"--\", \"+\"]\nops = [\"**\", \"*\", \"/\", \"+\", \"-\"]\nbad = []\n# forms: u a op u b [op u c]\nfor u1,a,u2,b in itertools.product(unary,nums,unary,nums):\n    for op in ops:\n        s = f\"{u1}{a} {op} {u2}{b}\"\n        if \"/\" in op and b==\"0\": continue\n        try: got = evaluate(s)\n        except Exception as e:\n            bad.append((s,\"ERR\",repr(e))); continue\n        try: want = eval(s)\n        except ZeroDivisionError: continue\n        if abs(complex(got)-complex(want)) > 1e-9:\n            bad.append((s,got,want))\nprint(\"binary mismatches:\", len(bad))\nfor x in bad[:20]: print(x)\n\nbad2=[]\nfor u1,a,u2,b,u3,c in itertools.product(unary,nums,unary,nums,unary,nums):\n    for op1 in [\"**\"]:\n        for op2 in [\"**\",\"*\"]:\n            s=f\"{u1}{a} {op1} {u2}{b} {op2} {u3}{c}\"\n            try:\n                got=evaluate(s); want=eval(s)\n            except Exception as e:\n                continue\n            if abs(complex(got)-complex(want))>1e-9:\n                bad2.append((s,got,want))\nprint(\"three-term mismatches:\", len(bad2))\nfor x in bad2[:20]: print(x)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a2/t5s3",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 3,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nfrom calc import Calculator, CalcError, evaluate\n\nrandom.seed(12345)\nnames = ['x', 'y', '_z9', 'alpha_2']\nenv = {'x': 3, 'y': -2, '_z9': 1.5, 'alpha_2': 4}\n\ndef gen(depth=0):\n    if depth > 3 or random.random() < 0.35:\n        if random.random() < 0.65:\n            return str(random.choice([0, 1, 2, 3, 4, 5, 7, 10]))\n        return random.choice(names)\n    kind = random.random()\n    if kind < 0.18:\n        return random.choice(['+', '-']) + gen(depth + 1)\n    if kind < 0.42:\n        return '(' + gen(depth + 1) + ')'\n    left = gen(depth + 1)\n    op = random.choice(['+', '-', '*', '/', '//', '%', '**'])\n    right = gen(depth + 1)\n    return left + ' ' + op + ' ' + right\n\ndef pyval(expr):\n    try:\n        return ('ok', eval(expr, {'__builtins__': {}}, dict(env)))\n    except Exception as exc:\n        return ('err', type(exc).__name__)\n\ndef calcval(expr):\n    try:\n        return ('ok', evaluate(expr, env))\n    except CalcError:\n        return ('err', 'CalcError')\n\nmismatches = []\nchecked = 0\nfor _ in range(20000):\n    expr = gen()\n    py = pyval(expr)\n    ca = calcval(expr)\n    checked += 1\n    if py[0] == 'ok' and isinstance(py[1], (int, float)) and not isinstance(py[1], complex):\n        if ca[0] != 'ok' or not math.isclose(ca[1], py[1], rel_tol=1e-12, abs_tol=1e-12):\n            mismatches.append((expr, py, ca))\n    elif py[0] == 'ok':\n        mismatches.append((expr, py, ca))\n    else:\n        # Calculator may define additional checked errors, but must never return a value.\n        if ca[0] == 'ok':\n            mismatches.append((expr, py, ca))\n    if len(mismatches) >= 5:\n        break\nprint('checked:', checked, 'mismatches:', len(mismatches))\nfor item in mismatches:\n    print(item)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a2/t6s13",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 13,
+   "tool": "bash",
+   "turn": 6,
+   "valid": true
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import CalcError, evaluate\n\nrandom.seed(12345)\nnames = ['x', 'y', '_z9', 'alpha_2']\nenv = {'x': 3, 'y': -2, '_z9': 1.5, 'alpha_2': 4}\n\ndef gen(depth=0):\n    if depth > 3 or random.random() < 0.35:\n        if random.random() < 0.65:\n            return str(random.choice([0, 1, 2, 3, 4, 5, 7, 10]))\n        return random.choice(names)\n    kind = random.random()\n    if kind < 0.18:\n        return random.choice(['+', '-']) + gen(depth + 1)\n    if kind < 0.42:\n        return '(' + gen(depth + 1) + ')'\n    left = gen(depth + 1)\n    op = random.choice(['+', '-', '*', '/', '//', '%', '**'])\n    right = gen(depth + 1)\n    return left + ' ' + op + ' ' + right\n\ndef pyval(expr):\n    try:\n        return ('ok', eval(expr, {'__builtins__': {}}, dict(env)))\n    except Exception as exc:\n        return ('err', type(exc).__name__)\n\ndef calcval(expr):\n    try:\n        return ('ok', evaluate(expr, env))\n    except CalcError:\n        return ('err', 'CalcError')\n\nmismatches = []\nchecked = 0\nfor _ in range(20000):\n    expr = gen()\n    py = pyval(expr)\n    ca = calcval(expr)\n    checked += 1\n    if py[0] == 'ok' and isinstance(py[1], (int, float)) and not isinstance(py[1], complex):\n        if ca[0] != 'ok' or not (ca[1] == py[1]):\n            mismatches.append((expr, py, ca))\n    elif py[0] == 'ok':\n        mismatches.append((expr, py, ca))\n    else:\n        if ca[0] == 'ok':\n            mismatches.append((expr, py, ca))\n    if len(mismatches) >= 5:\n        break\nprint('checked:', checked, 'mismatches:', len(mismatches))\nfor item in mismatches:\n    print(item)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a2/t6s14",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 14,
+   "tool": "bash",
+   "turn": 6,
+   "valid": true
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nfrom calc import evaluate, CalcError\n\nrandom.seed(1234)\n\ndef num():\n    r = random.random()\n    if r < 0.5:\n        return str(random.randint(0, 9))\n    if r < 0.75:\n        return \"{}.{}\".format(random.randint(0, 9), random.randint(0, 9))\n    return str(random.randint(0, 3))\n\ndef atom(depth):\n    choices = [\"num\"]\n    if depth > 0:\n        choices += [\"paren\", \"call\", \"unary\"]\n    kind = random.choice(choices)\n    if kind == \"num\":\n        return num()\n    if kind == \"paren\":\n        return \"(\" + expr(depth - 1) + \")\"\n    if kind == \"unary\":\n        return random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + atom(depth - 1)\n    call = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n    if call in (\"abs\", \"sqrt\"):\n        args = [expr(depth - 1)]\n    elif call == \"pow\":\n        args = [expr(depth - 1), num()]\n    else:\n        args = [expr(depth - 1) for _ in range(random.randint(2, 3))]\n    return \"{}({})\".format(call, \", \".join(args))\n\ndef expr(depth):\n    out = atom(depth)\n    for _ in range(random.randint(1, 3)):\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n        if op == \"**\":\n            rhs = random.choice([num(), \"-\" + num(), \"(\" + num() + \")\"])\n        else:\n            rhs = atom(depth)\n        out = out + \" \" + op + \" \" + rhs\n    return out\n\nchecked = 0\nfor i in range(6000):\n    text = expr(3)\n    try:\n        py = eval(text, {\"__builtins__\": {}}, {\"abs\": abs, \"sqrt\": math.sqrt,\n                  \"pow\": pow, \"min\": min, \"max\": max})\n    except Exception:\n        continue\n    if isinstance(py, complex):\n        continue\n    if isinstance(py, float) and (math.isnan(py) or math.isinf(py)):\n        continue\n    try:\n        got = evaluate(text)\n    except CalcError as exc:\n        raise SystemExit(\"CalcError on valid {!r}: {}\".format(text, exc))\n    if isinstance(py, float):\n        ok = abs(got - py) <= 1e-9 * max(1.0, abs(py))\n    else:\n        ok = got == py\n    if not ok:\n        raise SystemExit(\"MISMATCH {!r}: calc={!r} python={!r}\".format(text, got, py))\n    checked += 1\nprint(\"fuzz value comparisons OK:\", checked)\n\n# Random garbage/malformed text: only CalcError may escape.\nalphabet = \"0123456789.+-*/%()=, abcxyz_\"\nescaped = 0\nfor i in range(8000):\n    text = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 14)))\n    try:\n        evaluate(text)\n    except CalcError:\n        pass\n    except Exception as exc:\n        escaped += 1\n        print(\"RAW\", repr(text), type(exc).__name__, exc)\n        if escaped > 5:\n            break\nassert escaped == 0\nprint(\"fuzz malformed inputs: no raw exceptions escaped\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a2/t7s7",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 7,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 2,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nfrom calc import evaluate, CalcError\n\nrandom.seed(1234)\nINT_EXP = [\"0\", \"1\", \"2\", \"3\", \"-1\", \"-2\"]\n\ndef num():\n    r = random.random()\n    if r < 0.5:\n        return str(random.randint(0, 9))\n    if r < 0.75:\n        return \"{}.{}\".format(random.randint(0, 9), random.randint(0, 9))\n    return str(random.randint(0, 3))\n\ndef atom(depth):\n    choices = [\"num\"]\n    if depth > 0:\n        choices += [\"paren\", \"call\", \"unary\"]\n    kind = random.choice(choices)\n    if kind == \"num\":\n        return num()\n    if kind == \"paren\":\n        return \"(\" + expr(depth - 1) + \")\"\n    if kind == \"unary\":\n        return random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + atom(depth - 1)\n    call = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n    if call in (\"abs\", \"sqrt\"):\n        args = [expr(depth - 1)]\n    elif call == \"pow\":\n        args = [expr(depth - 1), random.choice(INT_EXP)]\n    else:\n        args = [expr(depth - 1) for _ in range(random.randint(2, 3))]\n    return \"{}({})\".format(call, \", \".join(args))\n\ndef expr(depth):\n    out = atom(depth)\n    for _ in range(random.randint(1, 3)):\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n        if op == \"**\":\n            rhs = random.choice(INT_EXP)\n        else:\n            rhs = atom(depth)\n        out = out + \" \" + op + \" \" + rhs\n    return out\n\nchecked = 0\nfor i in range(8000):\n    text = expr(3)\n    try:\n        py = eval(text, {\"__builtins__\": {}}, {\"abs\": abs, \"sqrt\": math.sqrt,\n                  \"pow\": pow, \"min\": min, \"max\": max})\n    except Exception:\n        continue\n    if isinstance(py, complex):\n        continue\n    if isinstance(py, float) and (math.isnan(py) or math.isinf(py)):\n        continue\n    try:\n        got = evaluate(text)\n    except CalcError as exc:\n        raise SystemExit(\"CalcError on valid {!r}: {}\".format(text, exc))\n    if isinstance(py, float):\n        ok = abs(got - py) <= 1e-9 * max(1.0, abs(py))\n    else:\n        ok = got == py\n    if not ok:\n        raise SystemExit(\"MISMATCH {!r}: calc={!r} python={!r}\".format(text, got, py))\n    checked += 1\nprint(\"fuzz value comparisons OK:\", checked)\n\nalphabet = \"0123456789.+-*/%()=, abcxyz_\"\nescaped = 0\nfor i in range(10000):\n    text = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 14)))\n    try:\n        evaluate(text)\n    except CalcError:\n        pass\n    except Exception as exc:\n        escaped += 1\n        print(\"RAW\", repr(text), type(exc).__name__, exc)\n        if escaped > 5:\n            break\nassert escaped == 0\nprint(\"fuzz malformed inputs: no raw exceptions escaped\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r1.d.a2/t7s8",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 8,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import Calculator, CalcError, evaluate\n\n# --- unbalanced parentheses: CalcError whose message names the problem ----\nbad_parens = [\n    \"(1 + 2\", \"1 + 2)\", \"(\", \")\", \"()\", \"2 * (3 + 4\",\n    \"(1 + 2))\", \"((1 + 2)\", \"1 + (2 * 3\", \"(1 2)\", \"1 + )\",\n]\nfor expr in bad_parens:\n    try:\n        evaluate(expr)\n    except CalcError as exc:\n        assert \"parenthes\" in str(exc).lower(), (expr, str(exc))\n    else:\n        raise AssertionError(f\"{expr!r} did not raise\")\nprint(\"unbalanced-paren messages all mention parentheses\")\n\n# --- randomized differential test vs Python's own evaluation --------------\nrandom.seed(20251025)\n\ndef make(depth=0):\n    if depth >= 4 or random.random() < 0.35:\n        if random.random() < 0.5:\n            return str(random.randint(0, 9))\n        return f\"{random.randint(0, 9)}.{random.randint(0, 99):02d}\"\n    op = random.choice(\"+-*/\")\n    left = make(depth + 1)\n    right = make(depth + 1)\n    if random.random() < 0.6:\n        return f\"({left} {op} {right})\"\n    return f\"{left} {op} {right}\"\n\nmatched = zero_div = 0\nfor i in range(20000):\n    expr = make()\n    try:\n        expected = eval(expr, {\"__builtins__\": {}}, {})  # no names, just arithmetic\n    except ZeroDivisionError:\n        try:\n            evaluate(expr)\n        except CalcError:\n            zero_div += 1\n            continue\n        raise AssertionError(f\"{expr!r} should have raised CalcError for /0\")\n    got = evaluate(expr)\n    assert got == expected, (expr, got, expected)\n    assert Calculator().eval(expr) == expected, expr\n    matched += 1\n\nprint(f\"randomized: {matched} expressions matched Python exactly; \"\n      f\"{zero_div} zero-division expressions raised CalcError\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t2s6",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /0",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: /0\")",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 6,
+   "tool": "bash",
+   "turn": 2,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "rm -rf -- \"$(pwd)/__pycache__\" && ls -la",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t2s9",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /__pycache__",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 9,
+   "tool": "bash",
+   "turn": 2,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'EOF'\nimport random\nfrom calc import evaluate, CalcError\n\nrandom.seed(20251025)\n\ndef num():\n    if random.random() < 0.25:\n        return f\"{random.randint(1, 9)}.{random.randint(0, 9)}\"\n    return str(random.randint(1, 9))\n\ndef gen(depth=0):\n    if depth >= 4 or random.random() < 0.35:\n        return num()\n    op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n    left = gen(depth + 1)\n    # Keep exponentiation small so Python can actually evaluate it.\n    right = str(random.randint(0, 4)) if op == \"**\" else gen(depth + 1)\n    expr = f\"{left} {op} {right}\"\n    if random.random() < 0.5:\n        expr = f\"({expr})\"\n    return expr\n\ndef gen_flat():\n    # No parentheses at all: a direct precedence/associativity check.\n    parts = [num()]\n    for _ in range(random.randint(1, 7)):\n        parts.append(random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"]))\n        parts.append(num())\n    return \" \".join(parts)\n\nmatched = mismatched = zero_cases = zero_fail = 0\nfor i in range(30000):\n    expr = gen() if i % 2 else gen_flat()\n    try:\n        want = eval(expr)  # Python reference evaluation\n    except ZeroDivisionError:\n        zero_cases += 1\n        try:\n            evaluate(expr)\n        except CalcError:\n            pass\n        else:\n            zero_fail += 1\n            print(f\"ZERO FAIL {expr!r}\")\n        continue\n    got = evaluate(expr)\n    if repr(got) == repr(want) or got == want:\n        matched += 1\n    else:\n        mismatched += 1\n        if mismatched <= 10:\n            print(f\"MISMATCH {expr!r}: calc={got!r} python={want!r}\")\nprint(f\"matched={matched} mismatched={mismatched} \"\n      f\"zero_cases={zero_cases} zero_fail={zero_fail}\")\n\n# Deep nesting still works.\nfor depth in (50, 200):\n    expr = \"(\" * depth + \"1 + 2\" + \")\" * depth\n    assert evaluate(expr) == 3, (depth, evaluate(expr))\nprint(\"deep nesting OK\")\n\n# Every error still surfaces as CalcError, never a raw Python exception.\nbad = [\"1/0\", \"1//0\", \"1%0\", \"1.5//0\", \"1.5%0\", \"2**\", \"**2\", \"2***3\",\n       \"2///3\", \"2// /3\", \"2 ** ** 3\", \"1 +\", \"+ 1\", \"()\", \"( )\"]\nfor expr in bad:\n    try:\n        evaluate(expr)\n    except CalcError:\n        pass\n    except Exception as exc:\n        print(f\"RAW ERROR {expr!r}: {type(exc).__name__}: {exc}\")\n    else:\n        print(f\"NO ERROR {expr!r}\")\nprint(\"error surface OK\")\nEOF",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t3s11",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: /3",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 11,
+   "tool": "bash",
+   "turn": 3,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'EOF'\nimport random\nfrom calc import evaluate, CalcError\n\nrandom.seed(20251025)\n\ndef num():\n    if random.random() < 0.25:\n        return f\"{random.randint(1, 9)}.{random.randint(0, 9)}\"\n    return str(random.randint(1, 9))\n\ndef gen(depth=0):\n    if depth >= 4 or random.random() < 0.35:\n        return num()\n    op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n    left = gen(depth + 1)\n    # Keep exponentiation small so Python can actually evaluate it.\n    right = str(random.randint(0, 4)) if op == \"**\" else gen(depth + 1)\n    expr = f\"{left} {op} {right}\"\n    if random.random() < 0.5:\n        expr = f\"({expr})\"\n    return expr\n\ndef gen_flat():\n    # No parentheses at all: a direct precedence/associativity check.\n    parts = [num()]\n    for _ in range(random.randint(1, 7)):\n        parts.append(random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"]))\n        parts.append(num())\n    return \" \".join(parts)\n\nmatched = mismatched = zero_cases = zero_fail = 0\nfor i in range(30000):\n    expr = gen() if i % 2 else gen_flat()\n    try:\n        want = eval(expr)  # Python reference evaluation\n    except ZeroDivisionError:\n        zero_cases += 1\n        try:\n            evaluate(expr)\n        except CalcError:\n            pass\n        else:\n            zero_fail += 1\n            print(f\"ZERO FAIL {expr!r}\")\n        continue\n    except OverflowError:\n        # Our calculator is expected to turn this into CalcError.\n        try:\n            evaluate(expr)\n        except CalcError:\n            zero_cases += 1\n        else:\n            zero_fail += 1\n            print(f\"OVERFLOW FAIL {expr!r}\")\n        continue\n    got = evaluate(expr)\n    if repr(got) == repr(want) or got == want:\n        matched += 1\n    else:\n        mismatched += 1\n        if mismatched <= 10:\n            print(f\"MISMATCH {expr!r}: calc={got!r} python={want!r}\")\nprint(f\"matched={matched} mismatched={mismatched} \"\n      f\"must-error cases={zero_cases} must-error failures={zero_fail}\")\n\nfor depth in (50, 200):\n    expr = \"(\" * depth + \"1 + 2\" + \")\" * depth\n    assert evaluate(expr) == 3, (depth, evaluate(expr))\nprint(\"deep nesting OK\")\n\nbad = [\"1/0\", \"1//0\", \"1%0\", \"1.5//0\", \"1.5%0\", \"2**\", \"**2\", \"2***3\",\n       \"2///3\", \"2// /3\", \"2 ** ** 3\", \"1 +\", \"+ 1\", \"()\", \"( )\"]\nraw = 0\nfor expr in bad:\n    try:\n        evaluate(expr)\n    except CalcError:\n        pass\n    except Exception as exc:\n        raw += 1\n        print(f\"RAW ERROR {expr!r}: {type(exc).__name__}: {exc}\")\n    else:\n        print(f\"NO ERROR {expr!r}\")\nprint(f\"error surface OK ({raw} raw exceptions)\")\nEOF",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t3s12",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: /3",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 12,
+   "tool": "bash",
+   "turn": 3,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random\nfrom calc import evaluate, CalcError\n\nrandom.seed(1234)\n\ndef number():\n    if random.random() < 0.75:\n        return str(random.randint(0, 9))\n    return random.choice([\"0.5\", \"1.5\", \"2.25\", \"3.75\", \".5\", \"6.0\"])\n\ndef atom(depth):\n    r = random.random()\n    if depth <= 0 or r < 0.55:\n        return number()\n    return \"(\" + expr(depth - 1) + \")\"\n\ndef power(depth):\n    # Keep ** safe: small literal operands only, no towers of huge ints.\n    if depth > 0 and random.random() < 0.25:\n        return f\"{random.randint(0,4)} ** {random.randint(0,4)}\"\n    return atom(depth)\n\ndef unary(depth):\n    s = power(depth)\n    if random.random() < 0.30:\n        s = random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + \" \" + s\n    return s\n\ndef term(depth):\n    parts = [unary(depth)]\n    for _ in range(random.randint(0, 3)):\n        parts.append(random.choice([\"+\", \"-\"]))\n        parts.append(unary(depth))\n    return \" \".join(parts)\n\ndef expr(depth):\n    parts = [term(depth)]\n    for _ in range(random.randint(0, 3)):\n        parts.append(random.choice([\"*\", \"/\", \"//\", \"%\"]))\n        parts.append(term(depth))\n    return \" \".join(parts)\n\nchecked = zerodiv = 0\nmismatches = []\nfor _ in range(30000):\n    s = expr(random.randint(0, 3))\n    try:\n        want = eval(s, {\"__builtins__\": {}}, {})\n    except ZeroDivisionError:\n        zerodiv += 1\n        try:\n            evaluate(s)\n        except CalcError:\n            pass\n        except Exception as e:\n            mismatches.append((s, \"CalcError\", f\"{type(e).__name__}: {e}\"))\n        else:\n            mismatches.append((s, \"CalcError\", \"returned a value\"))\n        continue\n    except (OverflowError, ValueError, TypeError):\n        continue\n    if isinstance(want, complex):\n        continue\n    try:\n        got = evaluate(s)\n    except Exception as e:\n        mismatches.append((s, want, f\"raised {type(e).__name__}: {e}\"))\n        continue\n    if got != want or type(got) is not type(want):\n        mismatches.append((s, want, repr(got)))\n    checked += 1\n\nprint(f\"matched Python: {checked} expressions; zero-division: {zerodiv}\")\nif mismatches:\n    print(f\"{len(mismatches)} MISMATCH(ES), first 10:\")\n    for m in mismatches[:10]:\n        print(\"  \", m)\n    raise SystemExit(1)\nprint(\"differential test passed\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t4s5",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 5,
+   "tool": "bash",
+   "turn": 4,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport itertools, math, calc\n\nsigns = [\"\", \"+\", \"-\", \"--\", \"-+\", \"+-\", \"++\"]\n\ndef pyval(expr):\n    try:\n        v = eval(expr, {\"__builtins__\": {}}, {})\n    except Exception as e:\n        return (\"ERR\", type(e).__name__)\n    if isinstance(v, complex):\n        return (\"CMPLX\", v)\n    return (\"OK\", v)\n\ndef ourval(expr):\n    try:\n        return (\"OK\", calc.evaluate(expr))\n    except calc.CalcError as e:\n        return (\"ERR\", str(e))\n    except Exception as e:\n        return (\"RAW\", f\"{type(e).__name__}: {e}\")\n\ndef same(a, b):\n    if a[0] != b[0]:\n        return False\n    if a[0] != \"OK\":\n        return True\n    x, y = a[1], b[1]\n    if isinstance(x, float) or isinstance(y, float):\n        return math.isclose(x, y, rel_tol=1e-12, abs_tol=1e-15)\n    return x == y\n\nbad = []\nchecked = 0\n\ntemplates = []\nfor sl in signs:\n    for sr in signs:\n        for base in [\"2\", \"3\", \"2.0\"]:\n            for exp in [\"1\", \"2\", \"3\", \"0\"]:\n                templates += [\n                    f\"{sl}{base} ** {sr}{exp}\",\n                    f\"{sl}({base}) ** {sr}{exp}\",\n                    f\"{sl}{base} ** ({sr}{exp})\",\n                    f\"({sl}{base}) ** {sr}{exp}\",\n                ]\n# power chains: left sign, right signs in both exponent positions\nfor sl in signs:\n    for sm in signs:\n        for sr in signs:\n            templates += [\n                f\"{sl}2 ** {sm}3 ** {sr}2\",\n                f\"{sl}2 ** {sm}(3 ** {sr}2)\",\n                f\"{sl}(2 ** {sm}3) ** {sr}2\",   # left-assoc grouping via parens\n                f\"{sl}2.0 ** {sm}2 ** {sr}2\",\n            ]\n# interactions with other binary ops\nfor op in [\"*\", \"/\", \"//\", \"%\", \"+\", \"-\"]:\n    for sl in signs:\n        for sr in signs:\n            templates += [\n                f\"12 {op} {sl}2 ** {sr}2\",\n                f\"{sl}2 ** {sr}2 {op} 5\",\n                f\"{sl}2 ** {sr}2 {op} 3 ** 2\",\n                f\"2 * {sl}3 ** {sr}2\",\n            ]\n\nfor expr in templates:\n    checked += 1\n    w = pyval(expr)\n    g = ourval(expr)\n    if w[0] == \"CMPLX\":\n        continue\n    if not same(w, g):\n        bad.append((expr, w, g))\n\nfor expr, w, g in bad[:30]:\n    print(\"MISMATCH\", repr(expr), \"python=\", w, \"calc=\", g)\nprint(f\"checked={checked} mismatches={len(bad)}\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t5s5",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 5,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F3",
+   "command": "cat > /tmp/fuzz_diag.py <<'PY'\nimport ast, faulthandler, math, random, sys, calc\n\nclass TooBig(Exception): pass\nclass PyErr(Exception): pass\nMAX_BITS = 3000\n\ndef check_num(v):\n    if isinstance(v, complex): raise PyErr(\"complex\")\n    if isinstance(v, float) and (math.isinf(v) or math.isnan(v)): raise PyErr(\"nonfinite\")\n    if isinstance(v, int) and abs(v).bit_length() > MAX_BITS: raise TooBig\n    return v\n\ndef ev(node):\n    if isinstance(node, ast.Expression): return ev(node.body)\n    if isinstance(node, ast.Constant): return check_num(node.value)\n    if isinstance(node, ast.UnaryOp):\n        v = ev(node.operand)\n        if isinstance(node.op, ast.UAdd): return check_num(+v)\n        if isinstance(node.op, ast.USub): return check_num(-v)\n        raise AssertionError(ast.dump(node))\n    if isinstance(node, ast.BinOp):\n        a = ev(node.left); b = ev(node.right)\n        op = node.op\n        try:\n            if isinstance(op, ast.Add): r = a + b\n            elif isinstance(op, ast.Sub): r = a - b\n            elif isinstance(op, ast.Mult): r = a * b\n            elif isinstance(op, ast.Div):\n                if b == 0: raise PyErr(\"div0\")\n                r = a / b\n            elif isinstance(op, ast.FloorDiv):\n                if b == 0: raise PyErr(\"div0\")\n                r = a // b\n            elif isinstance(op, ast.Mod):\n                if b == 0: raise PyErr(\"div0\")\n                r = a % b\n            elif isinstance(op, ast.Pow):\n                if isinstance(a, int) and isinstance(b, int):\n                    if a == 0 and b < 0: raise PyErr(\"div0\")\n                    if abs(a) > 1 and b > 0 and b * math.log2(abs(a)) > MAX_BITS:\n                        raise TooBig\n                r = a ** b\n            else:\n                raise AssertionError(ast.dump(node))\n        except OverflowError:\n            raise PyErr(\"overflow\")\n        except ZeroDivisionError:\n            raise PyErr(\"div0\")\n        return check_num(r)\n    raise AssertionError(ast.dump(node))\n\natoms = [\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"0.5\",\"1.5\",\"2.5\",\"0.25\",\"3.0\"]\nprefixes = [\"\", \"+\", \"-\", \"--\", \"-+\", \"+-\", \"++\"]\nops = [\"+\",\"-\",\"*\",\"/\",\"//\",\"%\",\"**\"]\n\ndef gen(depth):\n    if depth <= 0 or random.random() < 0.25:\n        return random.choice(prefixes) + random.choice(atoms)\n    if random.random() < 0.30:\n        return random.choice(prefixes) + \"(\" + gen(depth-1) + \")\"\n    return gen(depth-1) + \" \" + random.choice(ops) + \" \" + gen(depth-1)\n\nrandom.seed(20251025)\nfor i in range(5000):\n    expr = gen(5)\n    faulthandler.dump_traceback_later(2, exit=True)\n    try:\n        try:\n            want = ev(ast.parse(expr, mode=\"eval\"))\n        except TooBig:\n            continue\n        except PyErr:\n            try: calc.evaluate(expr)\n            except calc.CalcError: pass\n            continue\n        calc.evaluate(expr)\n    finally:\n        faulthandler.cancel_dump_traceback_later()\n    if i % 500 == 0:\n        print(\"progress\", i, flush=True)\nprint(\"done\", flush=True)\nPY\npython3 /tmp/fuzz_diag.py",
+   "final": "F3",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t5s10",
+   "reasons": [
+    {
+     "class": "F3",
+     "reason": "outside: /private/tmp/fuzz_diag.py",
+     "why": "scratch file in /tmp"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 10,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F3",
+   "command": "PYTHONPATH=. python3 /tmp/fuzz_diag.py",
+   "final": "F3",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t5s11",
+   "reasons": [
+    {
+     "class": "F3",
+     "reason": "outside: /private/tmp/fuzz_diag.py",
+     "why": "scratch file in /tmp"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 11,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F3",
+   "command": "cat > /tmp/fuzz_full.py <<'PY'\nimport ast, math, random, time, calc\n\nclass TooBig(Exception): pass\nclass PyErr(Exception): pass\nMAX_BITS = 3000\n\ndef check_num(v):\n    if isinstance(v, complex): raise PyErr(\"complex\")\n    if isinstance(v, float) and (math.isinf(v) or math.isnan(v)): raise PyErr(\"nonfinite\")\n    if isinstance(v, int) and abs(v).bit_length() > MAX_BITS: raise TooBig\n    return v\n\ndef ev(node):\n    if isinstance(node, ast.Expression): return ev(node.body)\n    if isinstance(node, ast.Constant): return check_num(node.value)\n    if isinstance(node, ast.UnaryOp):\n        v = ev(node.operand)\n        if isinstance(node.op, ast.UAdd): return check_num(+v)\n        if isinstance(node.op, ast.USub): return check_num(-v)\n        raise AssertionError(ast.dump(node))\n    if isinstance(node, ast.BinOp):\n        a = ev(node.left); b = ev(node.right)\n        op = node.op\n        try:\n            if isinstance(op, ast.Add): r = a + b\n            elif isinstance(op, ast.Sub): r = a - b\n            elif isinstance(op, ast.Mult): r = a * b\n            elif isinstance(op, ast.Div):\n                if b == 0: raise PyErr(\"div0\")\n                r = a / b\n            elif isinstance(op, ast.FloorDiv):\n                if b == 0: raise PyErr(\"div0\")\n                r = a // b\n            elif isinstance(op, ast.Mod):\n                if b == 0: raise PyErr(\"div0\")\n                r = a % b\n            elif isinstance(op, ast.Pow):\n                if isinstance(a, int) and isinstance(b, int):\n                    if a == 0 and b < 0: raise PyErr(\"div0\")\n                    if abs(a) > 1 and b > 0 and b * math.log2(abs(a)) > MAX_BITS:\n                        raise TooBig\n                r = a ** b\n            else:\n                raise AssertionError(ast.dump(node))\n        except OverflowError:\n            raise PyErr(\"overflow\")\n        except ZeroDivisionError:\n            raise PyErr(\"div0\")\n        return check_num(r)\n    raise AssertionError(ast.dump(node))\n\natoms = [\"0\",\"1\",\"2\",\"3\",\"4\",\"5\",\"6\",\"7\",\"8\",\"9\",\"10\",\"0.5\",\"1.5\",\"2.5\",\"0.25\",\"3.0\"]\nprefixes = [\"\", \"+\", \"-\", \"--\", \"-+\", \"+-\", \"++\"]\nops = [\"+\",\"-\",\"*\",\"/\",\"//\",\"%\",\"**\"]\n\ndef gen(depth):\n    if depth <= 0 or random.random() < 0.25:\n        return random.choice(prefixes) + random.choice(atoms)\n    if random.random() < 0.30:\n        return random.choice(prefixes) + \"(\" + gen(depth-1) + \")\"\n    return gen(depth-1) + \" \" + random.choice(ops) + \" \" + gen(depth-1)\n\nrandom.seed(20251025)\nbad = []\nchecked = skipped_big = expected_err = 0\nfor i in range(40000):\n    expr = gen(5)\n    t0 = time.time()\n    try:\n        want = ev(ast.parse(expr, mode=\"eval\"))\n    except TooBig:\n        skipped_big += 1; continue\n    except PyErr as kind:\n        expected_err += 1\n        try:\n            calc.evaluate(expr)\n        except calc.CalcError:\n            checked += 1\n        except Exception as e:\n            bad.append((expr, f\"python error {kind}\", f\"raw {type(e).__name__}: {e}\"))\n        else:\n            bad.append((expr, f\"python error {kind}\", \"no error\"))\n        continue\n    try:\n        got = calc.evaluate(expr)\n    except Exception as e:\n        bad.append((expr, want, f\"{type(e).__name__}: {e}\")); continue\n    checked += 1\n    if isinstance(want, float) or isinstance(got, float):\n        ok = isinstance(got, (int,float)) and math.isclose(float(got), float(want), rel_tol=1e-12, abs_tol=1e-15)\n    else:\n        ok = got == want\n    if not ok:\n        bad.append((expr, want, got))\n    dt = time.time() - t0\n    if dt > 0.5:\n        print(\"SLOW\", round(dt,2), repr(expr), flush=True)\n    if (i+1) % 5000 == 0:\n        print(\"progress\", i+1, \"mismatches\", len(bad), flush=True)\n\nfor expr, w, g in bad[:25]:\n    print(\"MISMATCH\", repr(expr), \"python=\", repr(w), \"calc=\", repr(g), flush=True)\nprint(f\"checked={checked} skipped_too_big={skipped_big} expected_errors={expected_err} mismatches={len(bad)}\", flush=True)\nPY\nPYTHONPATH=. python3 /tmp/fuzz_full.py",
+   "final": "F3",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t5s12",
+   "reasons": [
+    {
+     "class": "F3",
+     "reason": "outside: /private/tmp/fuzz_full.py",
+     "why": "scratch file in /tmp"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 12,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport random, math\nfrom calc import Calculator, evaluate, CalcError\n\nrandom.seed(20251025)\n\nNAMES = [\"x\", \"y\", \"z\", \"n1\", \"_tmp\"]\n\ndef gen(depth, budget):\n    if depth <= 0 or random.random() < 0.35:\n        if random.random() < 0.45:\n            return random.choice(NAMES)\n        if random.random() < 0.4:\n            return str(random.randint(0, 9))\n        return f\"{random.randint(0, 9)}.{random.randint(0, 9)}\"\n    r = random.random()\n    if r < 0.15:\n        return random.choice([\"+\", \"-\"]) + gen(depth - 1, budget)\n    if r < 0.25:\n        return \"(\" + gen(depth - 1, budget) + \")\"\n    op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n    # Keep ** from building astronomically large towers.\n    if op == \"**\":\n        if budget <= 0:\n            op = \"*\"\n        else:\n            budget -= 1\n    left = gen(depth - 1, budget)\n    right = gen(depth - 1, budget)\n    if op == \"**\" and random.random() < 0.5:\n        right = str(random.randint(0, 4))\n    return f\"{left} {op} {right}\"\n\ndef classify(expr, env):\n    try:\n        py = eval(expr, {\"__builtins__\": {}}, dict(env))\n    except ZeroDivisionError:\n        return \"zerodiv\", None\n    except OverflowError:\n        return \"overflow\", None\n    except Exception as exc:\n        return \"pyerror\", exc\n    if isinstance(py, complex):\n        return \"complex\", None\n    if not isinstance(py, (int, float)):\n        return \"nonnumber\", py\n    if isinstance(py, float) and (math.isinf(py) or math.isnan(py)):\n        return \"nonfinite\", py\n    return \"ok\", py\n\nok = err = 0\nfor trial in range(12000):\n    env = {}\n    for name in NAMES:\n        if random.random() < 0.8:\n            env[name] = random.choice([\n                random.randint(-6, 9),\n                round(random.uniform(-5, 5), 2),\n            ])\n    expr = gen(random.randint(1, 4), 2)\n    kind, py = classify(expr, env)\n    try:\n        got = evaluate(expr, env)\n    except CalcError:\n        ce = True\n        got = None\n    except Exception as exc:\n        raise AssertionError(f\"raw {type(exc).__name__} escaped for {expr!r}: {exc}\")\n    else:\n        ce = False\n\n    if kind == \"ok\":\n        assert not ce, f\"unexpected CalcError for {expr!r} with {env}\"\n        assert got == py and type(got) is type(py), (\n            f\"{expr!r} env={env}: got {got!r} ({type(got).__name__}), \"\n            f\"python {py!r} ({type(py).__name__})\")\n        ok += 1\n    else:\n        assert ce, f\"{expr!r} env={env}: expected error ({kind}), got {got!r}\"\n        err += 1\n\nprint(f\"expression differential: {ok} matched, {err} expected-error cases\")\n\n# --- statement sequences: assignment + expressions, with persistent state ---\nseq_ok = 0\nfor trial in range(400):\n    c = Calculator()\n    pyenv = {}\n    for step in range(random.randint(2, 8)):\n        name = random.choice(NAMES[:4])\n        if random.random() < 0.55:\n            expr = gen(random.randint(1, 3), 1)\n            line = f\"{name} = {expr}\"\n            kind, py = classify(expr, pyenv)\n            try:\n                got = c.eval(line)\n            except CalcError:\n                assert kind != \"ok\", f\"unexpected error for {line!r} in {pyenv}\"\n            except Exception as exc:\n                raise AssertionError(f\"raw {type(exc).__name__} from {line!r}: {exc}\")\n            else:\n                assert kind == \"ok\", f\"expected error for {line!r} in {pyenv}\"\n                assert got is None, f\"assignment returned {got!r}\"\n                assert c.eval(name) == py\n                pyenv[name] = py\n                seq_ok += 1\n        else:\n            line = gen(random.randint(1, 3), 1)\n            kind, py = classify(line, pyenv)\n            try:\n                got = c.eval(line)\n            except CalcError:\n                assert kind != \"ok\", f\"unexpected error for {line!r} in {pyenv}\"\n            except Exception as exc:\n                raise AssertionError(f\"raw {type(exc).__name__} from {line!r}: {exc}\")\n            else:\n                assert kind == \"ok\", f\"expected error for {line!r} in {pyenv}\"\n                assert got == py, f\"{line!r}: got {got!r}, python {py!r}\"\n                seq_ok += 1\n\nprint(f\"statement-sequence differential: {seq_ok} steps matched\")\nprint(\"ALL RANDOMIZED TESTS PASSED\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t6s12",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 12,
+   "tool": "bash",
+   "turn": 6,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "cd \"$PWD\" && python3 - <<'PY'\nimport math, random\nfrom calc import evaluate, CalcError\n\nrandom.seed(1234)\n\ndef num():\n    if random.random() < 0.5:\n        return str(random.randint(0, 9))\n    return f\"{random.randint(0,9)}.{random.randint(0,9)}\"\n\ndef atom(d):\n    r = random.random()\n    if d <= 0 or r < 0.35:\n        return num()\n    if r < 0.55:\n        return \"(\" + expr(d-1) + \")\"\n    if r < 0.8:\n        f = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n        if f in (\"abs\", \"sqrt\"):\n            return f + \"(\" + expr(d-1) + \")\"\n        if f == \"pow\":\n            return \"pow(\" + expr(d-1) + \", \" + small_exp(d-1) + \")\"\n        return f + \"(\" + expr(d-1) + \", \" + expr(d-1) + \", \" + expr(d-1) + \")\"\n    # variable-free signed atom is handled by unary level, so just atom\n    return num()\n\ndef small_exp(d):\n    # keep exponents tiny so we never build enormous ints\n    r = random.random()\n    if r < 0.6:\n        return str(random.randint(0, 3))\n    if r < 0.8:\n        return \"-\" + str(random.randint(0, 2))\n    return \"(\" + str(random.randint(0, 3)) + \")\"\n\ndef power(d):\n    base = atom(d)\n    if random.random() < 0.3:\n        return base + \" ** \" + small_exp(d)\n    return base\n\ndef unary(d):\n    if random.random() < 0.3:\n        return random.choice([\"-\", \"+\", \"--\", \"-+\"]) + unary(d-1)\n    return power(d)\n\ndef term(d):\n    s = unary(d)\n    for _ in range(random.randint(0, 2)):\n        s += \" \" + random.choice([\"+\", \"-\"]) + \" \" + unary(d)\n    return s\n\ndef expr(d):\n    s = term(d)\n    for _ in range(random.randint(0, 2)):\n        s += \" \" + random.choice([\"*\", \"/\", \"//\", \"%\"]) + \" \" + term(d)\n    return s\n\ndef py_eval(s):\n    return eval(s, {\"__builtins__\": {}}, \n                {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": lambda a,b: a**b,\n                 \"min\": min, \"max\": max})\n\nchecked = errors = 0\nfor _ in range(30000):\n    s = expr(random.randint(1, 3))\n    try:\n        want = py_eval(s)\n    except (ZeroDivisionError, ValueError, OverflowError, TypeError):\n        try:\n            evaluate(s)\n        except CalcError:\n            errors += 1\n            continue\n        raise AssertionError(f\"{s!r}: Python errored, calc did not\")\n    if isinstance(want, complex):\n        try:\n            evaluate(s)\n        except CalcError:\n            errors += 1\n            continue\n        raise AssertionError(f\"{s!r}: calc accepted complex result\")\n    try:\n        got = evaluate(s)\n    except CalcError as e:\n        raise AssertionError(f\"{s!r}: calc raised {e!r} but Python gave {want!r}\")\n    if isinstance(got, float) or isinstance(want, float):\n        ok = math.isclose(got, want, rel_tol=1e-12, abs_tol=1e-12)\n    else:\n        ok = got == want\n    if not ok:\n        raise AssertionError(f\"{s!r}: calc={got!r} python={want!r}\")\n    checked += 1\n\nprint(f\"differential: {checked} matched, {errors} coordinated errors\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t7s6",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 6,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r2.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nimport calc\nfrom calc import Calculator, evaluate, CalcError\n\n# state test with the *same* calculator instance\nc = Calculator()\nassert c.eval(\"x = 6\") is None\nassert c.eval(\"y = 7\") is None\nassert c.eval(\"x * y\") == 42\nassert c.eval(\"x = x + 1\") is None\nassert c.eval(\"x\") == 7\n\nrng = random.Random(20251025)\natoms = [\"0\", \"1\", \"2\", \"3\", \"4\", \"5\", \"7\", \"9\", \"0.5\", \"2.5\", \"x\", \"y\"]\nbinops = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"]\nexps = [\"0\", \"1\", \"2\", \"3\", \"-1\", \"-2\"]\n\ndef gen(depth):\n    if depth <= 0 or rng.random() < 0.35:\n        return rng.choice(atoms)\n    r = rng.random()\n    a = lambda: gen(depth - 1)\n    if r < 0.12:\n        return f\"({rng.choice(['+', '-'])}{a()})\"\n    if r < 0.22:\n        return f\"({a()} ** {rng.choice(exps)})\"\n    if r < 0.32:\n        return f\"({rng.choice(['+', '-'])}{a()} ** {rng.choice(exps)})\"\n    if r < 0.50:\n        return f\"({a()} {rng.choice(binops)} {a()})\"\n    if r < 0.58:\n        return f\"abs({a()})\"\n    if r < 0.66:\n        return f\"sqrt({a()})\"\n    if r < 0.74:\n        return f\"pow({a()}, {rng.choice(exps)})\"\n    if r < 0.82:\n        return f\"min({a()}, {a()})\"\n    if r < 0.90:\n        return f\"max({a()}, {a()}, {a()})\"\n    return f\"({a()})\"\n\nenv = {\"x\": 3, \"y\": -2}\npyns = {\"__builtins__\": {}, \"abs\": abs, \"sqrt\": math.sqrt,\n        \"pow\": pow, \"min\": min, \"max\": max, **env}\n\nchecked = errors = 0\nfailures = []\nfor i in range(30000):\n    expr = gen(rng.choice([1, 2, 3, 4]))\n    try:\n        expected = eval(expr, pyns)\n    except (ZeroDivisionError, OverflowError, ValueError) as e:\n        # Python says this is a runtime error -> calculator must raise CalcError\n        for fn, label in ((lambda: evaluate(expr, dict(env)), \"evaluate\"),\n                          (lambda: Calculator(env).eval(expr), \"Calculator.eval\")):\n            try:\n                got = fn()\n                failures.append(f\"{label}({expr!r}) = {got!r}, expected CalcError (python: {type(e).__name__})\")\n            except CalcError:\n                errors += 1\n            except BaseException as exc:\n                failures.append(f\"{label}({expr!r}) raised RAW {type(exc).__name__}: {exc}\")\n        if len(failures) > 20:\n            break\n        continue\n    except BaseException as e:\n        failures.append(f\"test harness: python eval({expr!r}) raised {type(e).__name__}: {e}\")\n        continue\n    try:\n        got = evaluate(expr, dict(env))\n    except BaseException as e:\n        failures.append(f\"evaluate({expr!r}) raised {type(e).__name__}: {e} (python says {expected!r})\")\n        if len(failures) > 20:\n            break\n        continue\n    if type(got) is not type(expected) or got != expected:\n        failures.append(f\"evaluate({expr!r}) = {got!r} ({type(got).__name__}), python = {expected!r} ({type(expected).__name__})\")\n        if len(failures) > 20:\n            break\n        continue\n    # Calculator must agree too\n    try:\n        got2 = Calculator(env).eval(expr)\n    except BaseException as e:\n        failures.append(f\"Calculator.eval({expr!r}) raised {type(e).__name__}: {e}\")\n        if len(failures) > 20:\n            break\n        continue\n    if got2 != expected or type(got2) is not type(expected):\n        failures.append(f\"Calculator.eval({expr!r}) = {got2!r}, evaluate = {got!r}\")\n    checked += 1\n\nprint(f\"matched {checked}, coordinated errors {errors}, failures {len(failures)}\")\nfor f in failures[:15]:\n    print(\" -\", f)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r2.d.a1/t8s11",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 11,
+   "tool": "bash",
+   "turn": 8,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "p110_r2_superseded_stamp.r2.d",
+   "class": "candidate",
+   "command": "python3 - <<'PY'\nimport sys, random, string\nsys.path.insert(0, \".\")\nfrom lib.textkit import truncate_middle, ELLIPSIS\n\nfor n in range(1, 15):\n    for L in range(0, 25):\n        s = \"\".join(random.choice(string.ascii_letters) for _ in range(L))\n        r = truncate_middle(s, n)\n        if L <= n:\n            assert r == s, (s, n, r)\n            continue\n        assert len(r) == n, (L, n, len(r))          # exactly n\n        assert ELLIPSIS in r\n        head = (n - 1) // 2\n        tail = n - 1 - head\n        if head: assert r[:head] == s[:head]\n        if tail: assert r[-tail:] == s[-tail:]\nprint(\"invariants OK for n=1..14, len=0..24\")\n\nfor s, n in [(\"hello world\", 8), (\"abcdef\", 5), (\"abcdef\", 1), (\"abcdef\", 2), (\"abc\", 10), (\"abcdef\", 0), (\"abcdef\", -3)]:\n    print(repr(s), n, \"->\", repr(truncate_middle(s, n)))\n\nprint(repr(truncate_middle(\"中文测试字符串内容\", 6)))\nprint(repr(truncate_middle(\"😀a😀b😀c😀d\", 5)))\n\n# idempotence: result never needs truncating again\nfor n in range(1, 10):\n    r = truncate_middle(\"x\" * 100, n)\n    assert truncate_middle(r, n) == r\nprint(\"idempotent OK\")\nPY\necho \"--- syntax/import only ---\"\npython3 -c \"import lib.textkit; print('import ok:', lib.textkit.truncate_middle('hello world', 8))\"\npython3 -m py_compile lib/textkit.py && echo \"py_compile ok\"",
+   "final": "F4 (hand check: the flag 'outside: / (head)' comes from the Python line `head = (n - 1) // 2` inside the quoted heredoc <<'PY' (floor division; the shell splitter reads `head ... //` as head of /). Replacing that line removes the flag; every path the call uses is relative (sys.path '.', lib/textkit.py))",
+   "hints": [
+    "'..': only inside a quoted heredoc or single-quoted string"
+   ],
+   "key": "batch/p110_r2_superseded_stamp.r2.d.a1/t1s6",
+   "reasons": [
+    {
+     "class": "candidate",
+     "reason": "outside: / (head)",
+     "why": "whole-disk walk"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 6,
+   "tool": "bash",
+   "turn": 1,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nfrom calc import evaluate, Calculator, CalcError\n\n# Focused sign/power matrix.\ncases = {\n    \"2 ** 3 ** 2\": 512,\n    \"-2 ** 2\": -4,\n    \"2 ** -1\": 0.5,\n    \"-2 ** -2\": -0.25,\n    \"2 ** 3 ** -2\": 2 ** (3 ** -2),\n    \"2 ** -3 ** 2\": 2 ** (-(3 ** 2)),\n    \"-2 ** 3 ** 2\": -(2 ** (3 ** 2)),\n    \"2 ** --2\": 4,\n    \"2 ** +-2\": 0.25,\n    \"- 2 ** 2\": -4,\n    \"--2 ** 2\": 4,\n    \"---2 ** 2\": -4,\n    \"(-2) ** 2\": 4,\n    \"(-2) ** -2\": 0.25,\n    \"2 ** -(1 + 1)\": 0.25,\n    \"2 * -3 ** 2\": -18,\n    \"-2 * 3 ** 2\": -18,\n    \"2 ** 3 * 2\": 16,\n}\nfor expr, expected in cases.items():\n    got = evaluate(expr)\n    assert got == expected, (expr, got, expected)\n    assert Calculator().eval(expr) == got, expr\nprint(\"focused sign/power cases:\", len(cases), \"passed\")\n\n# Compare a few thousand generated expressions directly with Python.\natoms = [\"1\", \"2\", \"3\", \"4\", \"0.5\", \"1.5\", \"2.0\"]\nops = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"]\n\ndef gen(depth=0):\n    if depth >= 3 or random.random() < 0.35:\n        atom = random.choice(atoms)\n        if random.random() < 0.25:\n            atom = random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + atom\n        return atom\n    kind = random.random()\n    if kind < 0.35:\n        return \"(\" + gen(depth + 1) + \")\"\n    left, right = gen(depth + 1), gen(depth + 1)\n    op = random.choice(ops)\n    return left + \" \" + op + \" \" + right\n\nrandom.seed(20250607)\nchecked = 0\nfor _ in range(5000):\n    expr = gen()\n    try:\n        py = eval(expr, {\"__builtins__\": {}}, {})\n    except Exception:\n        py = None\n    try:\n        ours = evaluate(expr)\n    except CalcError:\n        ours = None\n    if py is None or ours is None:\n        # Both should reject the same domains; generated strings are valid\n        # syntax, so a Python failure should also be a calc failure.\n        assert (py is None) == (ours is None), (expr, py, ours)\n        continue\n    if isinstance(py, complex):\n        continue\n    if isinstance(py, float) and (math.isnan(py) or math.isinf(py)):\n        continue\n    assert ours == py, (expr, ours, py)\n    checked += 1\nprint(\"differential vs Python:\", checked, \"successful comparisons passed\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t5s4",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 4,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random\nfrom calc import evaluate, CalcError\n\natoms = [\"1\", \"2\", \"3\", \"4\", \"0.5\", \"1.5\", \"2.0\"]\nops = [\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"]\n\ndef gen(depth=0):\n    if depth >= 3 or random.random() < 0.35:\n        atom = random.choice(atoms)\n        if random.random() < 0.25:\n            atom = random.choice([\"-\", \"+\", \"--\", \"-+\", \"+-\"]) + atom\n        return atom\n    if random.random() < 0.35:\n        return \"(\" + gen(depth + 1) + \")\"\n    return gen(depth + 1) + \" \" + random.choice(ops) + \" \" + gen(depth + 1)\n\nrandom.seed(20250607)\nchecked = disagreements = 0\nfor _ in range(10000):\n    expr = gen()\n    try:\n        py = eval(expr, {\"__builtins__\": {}}, {})\n        py_err = None\n    except Exception as exc:\n        py = None\n        py_err = type(exc).__name__\n    try:\n        ours = evaluate(expr)\n        ours_err = None\n    except CalcError as exc:\n        ours = None\n        ours_err = str(exc)\n    except Exception as exc:\n        print(\"RAW EXCEPTION\", expr, type(exc).__name__, exc)\n        disagreements += 1\n        continue\n\n    if isinstance(py, complex):\n        if ours_err != \"result is not a real number\":\n            print(\"COMPLEX MISMATCH\", expr, repr(py), repr(ours), ours_err)\n            disagreements += 1\n        continue\n    if py_err is not None:\n        if ours_err is None:\n            print(\"PY ERR BUT OURS OK\", expr, py_err, repr(ours))\n            disagreements += 1\n        continue\n    if ours_err is not None:\n        print(\"OURS ERR BUT PY OK\", expr, repr(py), ours_err)\n        disagreements += 1\n        continue\n    if isinstance(py, float) and (math.isnan(py) or math.isinf(py)):\n        continue\n    if ours != py:\n        print(\"VALUE MISMATCH\", expr, repr(ours), repr(py))\n        disagreements += 1\n    else:\n        checked += 1\n\nprint(\"successful comparisons:\", checked, \"disagreements:\", disagreements)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t5s7",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 7,
+   "tool": "bash",
+   "turn": 5,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 - <<'EOF'\nimport math, random\nfrom calc import CalcError, evaluate\n\nrandom.seed(1234)\nNAMESPACE = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\n\ndef num():\n    return random.choice([str(random.randint(0, 9)), \"{}.{}\".format(random.randint(0,9), random.randint(1,9))])\n\ndef atom(depth):\n    r = random.random()\n    if depth <= 0 or r < 0.35:\n        return num()\n    if r < 0.55:\n        return \"(\" + expr(depth-1) + \")\"\n    if r < 0.65:\n        return random.choice([\"-\", \"+\", \"--\", \"-+\"]) + atom(depth-1)\n    fn = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n    if fn == \"sqrt\":\n        return \"sqrt({})\".format(\"abs(\" + expr(depth-1) + \")\")\n    if fn == \"abs\":\n        return \"abs({})\".format(expr(depth-1))\n    if fn == \"pow\":\n        return \"pow({}, {})\".format(expr(depth-1), random.randint(-3, 4))\n    if fn == \"min\":\n        return \"min({}, {})\".format(expr(depth-1), expr(depth-1))\n    return \"max({}, {})\".format(expr(depth-1), expr(depth-1))\n\ndef expr(depth):\n    out = atom(depth)\n    for _ in range(random.randint(0, 3)):\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\", \"**\"])\n        if op == \"**\":\n            out = out + \" ** \" + atom(max(0, depth-1))\n        else:\n            out = out + \" \" + op + \" \" + atom(depth-1)\n    return out\n\nbad = 0\nchecked = 0\nfor _ in range(5000):\n    src = expr(3)\n    try:\n        want = eval(src, {\"__builtins__\": {}}, NAMESPACE)\n    except (ZeroDivisionError, ValueError, OverflowError, TypeError):\n        continue\n    if isinstance(want, complex) or not isinstance(want, (int, float)):\n        continue\n    try:\n        got = evaluate(src)\n    except CalcError as exc:\n        # Python accepted it but we rejected it: report (could be sqrt-domain\n        # or complex power divergence).\n        print(\"DIVERGE (CalcError):\", src, \"->\", exc, \"python:\", want)\n        bad += 1\n        if bad > 10: break\n        continue\n    checked += 1\n    if not (got == want if isinstance(want, int) else math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-12)):\n        print(\"MISMATCH:\", src, \"calc:\", got, \"python:\", want)\n        bad += 1\n        if bad > 10: break\nprint(\"valid expressions compared:\", checked, \"disagreements:\", bad)\n\n# Malformed sweep: only CalcError may escape.\nalphabet = \"0123456789.+-*/%()=, abcxyz_\"\nescaped = []\nfor _ in range(8000):\n    src = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 12)))\n    try:\n        evaluate(src)\n    except CalcError:\n        pass\n    except Exception as exc:  # noqa\n        escaped.append((src, type(exc).__name__, str(exc)))\n        if len(escaped) > 10:\n            break\nprint(\"raw exceptions escaped from evaluate():\", len(escaped))\nfor e in escaped[:10]:\n    print(\"  \", e)\n\n# Same sweep through a stateful Calculator (allows assignment).\nescaped_c = []\nc = type(\"C\", (), {})  # placeholder\nfrom calc import Calculator\nfor _ in range(8000):\n    src = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 12)))\n    inst = Calculator()\n    try:\n        inst.eval(src)\n    except CalcError:\n        pass\n    except Exception as exc:  # noqa\n        escaped_c.append((src, type(exc).__name__, str(exc)))\n        if len(escaped_c) > 10:\n            break\nprint(\"raw exceptions escaped from Calculator.eval():\", len(escaped_c))\nfor e in escaped_c[:10]:\n    print(\"  \", e)\nEOF",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t7s8",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 8,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "timeout 120 python3 - <<'EOF'\nimport math, random\nfrom calc import CalcError, evaluate, Calculator\n\nrandom.seed(1234)\nNAMESPACE = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\n\ndef num():\n    return random.choice([str(random.randint(0, 5)), \"{}.{}\".format(random.randint(0,5), random.randint(1,9))])\n\ndef atom(depth):\n    r = random.random()\n    if depth <= 0 or r < 0.35:\n        return num()\n    if r < 0.55:\n        return \"(\" + expr(depth-1) + \")\"\n    if r < 0.65:\n        return random.choice([\"-\", \"+\", \"--\", \"-+\"]) + atom(depth-1)\n    fn = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n    if fn == \"sqrt\":\n        return \"sqrt({})\".format(\"abs(\" + expr(depth-1) + \")\")\n    if fn == \"abs\":\n        return \"abs({})\".format(expr(depth-1))\n    if fn == \"pow\":\n        return \"pow({}, {})\".format(expr(depth-1), random.randint(-3, 3))\n    if fn == \"min\":\n        return \"min({}, {})\".format(expr(depth-1), expr(depth-1))\n    return \"max({}, {})\".format(expr(depth-1), expr(depth-1))\n\ndef expr(depth):\n    out = atom(depth)\n    for _ in range(random.randint(0, 2)):\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"])\n        out = out + \" \" + op + \" \" + atom(depth-1)\n    # At most one power, with a small literal exponent, to keep magnitudes sane.\n    if random.random() < 0.2:\n        out = \"(\" + out + \") ** \" + str(random.randint(-2, 3))\n    return out\n\nbad = checked = 0\nfor _ in range(4000):\n    src = expr(2)\n    try:\n        want = eval(src, {\"__builtins__\": {}}, NAMESPACE)\n    except (ZeroDivisionError, ValueError, OverflowError, TypeError):\n        continue\n    if isinstance(want, complex) or not isinstance(want, (int, float)):\n        continue\n    try:\n        got = evaluate(src)\n    except CalcError as exc:\n        print(\"DIVERGE (CalcError):\", src, \"->\", exc, \"python:\", want)\n        bad += 1\n        if bad > 10: break\n        continue\n    checked += 1\n    same = (got == want) if isinstance(want, int) else math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-12)\n    if not same:\n        print(\"MISMATCH:\", src, \"calc:\", got, \"python:\", want)\n        bad += 1\n        if bad > 10: break\nprint(\"valid expressions compared:\", checked, \"disagreements:\", bad)\n\nalphabet = \"0123456789.+-*/%()=, abcxyz_\"\ndef sweep(fn, label):\n    escaped = []\n    for _ in range(6000):\n        src = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 12)))\n        try:\n            fn(src)\n        except CalcError:\n            pass\n        except Exception as exc:  # noqa\n            escaped.append((src, type(exc).__name__, str(exc)))\n            if len(escaped) > 10:\n                break\n    print(label, len(escaped))\n    for e in escaped[:10]:\n        print(\"  \", e)\n\nsweep(evaluate, \"raw exceptions escaped from evaluate():\")\ndef calc_eval(src):\n    Calculator().eval(src)\nsweep(calc_eval, \"raw exceptions escaped from Calculator.eval():\")\nEOF\necho \"[exit: $?]\"",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t7s10",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 10,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 - <<'EOF'\nimport math, random\nfrom calc import CalcError, evaluate, Calculator\n\nrandom.seed(1234)\nNAMESPACE = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\n\ndef num():\n    return random.choice([str(random.randint(0, 5)), \"{}.{}\".format(random.randint(0,5), random.randint(1,9))])\n\ndef atom(depth):\n    r = random.random()\n    if depth <= 0 or r < 0.35:\n        return num()\n    if r < 0.55:\n        return \"(\" + expr(depth-1) + \")\"\n    if r < 0.65:\n        return random.choice([\"-\", \"+\", \"--\", \"-+\"]) + atom(depth-1)\n    fn = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n    if fn == \"sqrt\":\n        return \"sqrt({})\".format(\"abs(\" + expr(depth-1) + \")\")\n    if fn == \"abs\":\n        return \"abs({})\".format(expr(depth-1))\n    if fn == \"pow\":\n        return \"pow({}, {})\".format(expr(depth-1), random.randint(-3, 3))\n    if fn == \"min\":\n        return \"min({}, {})\".format(expr(depth-1), expr(depth-1))\n    return \"max({}, {})\".format(expr(depth-1), expr(depth-1))\n\ndef expr(depth):\n    out = atom(depth)\n    for _ in range(random.randint(0, 2)):\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"])\n        out = out + \" \" + op + \" \" + atom(depth-1)\n    if random.random() < 0.2:\n        out = \"(\" + out + \") ** \" + str(random.randint(-2, 3))\n    return out\n\nbad = checked = 0\nfor _ in range(4000):\n    src = expr(2)\n    try:\n        want = eval(src, {\"__builtins__\": {}}, NAMESPACE)\n    except (ZeroDivisionError, ValueError, OverflowError, TypeError):\n        continue\n    if isinstance(want, complex) or not isinstance(want, (int, float)):\n        continue\n    try:\n        got = evaluate(src)\n    except CalcError as exc:\n        print(\"DIVERGE (CalcError):\", src, \"->\", exc, \"python:\", want)\n        bad += 1\n        if bad > 10: break\n        continue\n    checked += 1\n    same = (got == want) if isinstance(want, int) else math.isclose(got, want, rel_tol=1e-9, abs_tol=1e-12)\n    if not same:\n        print(\"MISMATCH:\", src, \"calc:\", got, \"python:\", want)\n        bad += 1\n        if bad > 10: break\nprint(\"valid expressions compared:\", checked, \"disagreements:\", bad)\n\nalphabet = \"0123456789.+-*/%()=, abcxyz_\"\ndef sweep(fn, label):\n    escaped = []\n    for _ in range(6000):\n        src = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 12)))\n        try:\n            fn(src)\n        except CalcError:\n            pass\n        except Exception as exc:  # noqa\n            escaped.append((src, type(exc).__name__, str(exc)))\n            if len(escaped) > 10:\n                break\n    print(label, len(escaped))\n    for e in escaped[:10]:\n        print(\"  \", e)\n\nsweep(evaluate, \"raw exceptions escaped from evaluate():\")\ndef calc_eval(src):\n    Calculator().eval(src)\nsweep(calc_eval, \"raw exceptions escaped from Calculator.eval():\")\nEOF\necho \"[exit: $?]\"",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t7s11",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 11,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 -u - <<'PY'\nimport calc\n\nfailures = []\n\ndef expect(label, got, want):\n    if got != want or type(got) is not type(want):\n        failures.append((label, got, want))\n\ndef expect_err(label, fn, *needles):\n    try:\n        v = fn()\n    except calc.CalcError as e:\n        msg = str(e)\n        missing = [n for n in needles if n.lower() not in msg.lower()]\n        if missing:\n            failures.append((label, \"CalcError missing %r in %r\" % (missing, msg), None))\n        print(\"  OK  %-28s CalcError: %s\" % (label, msg))\n        return\n    except BaseException as e:\n        failures.append((label, \"RAW %s: %s\" % (type(e).__name__, e), None))\n        print(\"  RAW %-28s %s: %s\" % (label, type(e).__name__, e))\n        return\n    failures.append((label, \"no error, returned %r\" % (v,), None))\n    print(\"  BAD %-28s returned %r\" % (label, v))\n\nprint(\"== required error matrix ==\")\nexpect_err(\"div by zero\", lambda: calc.evaluate(\"1 / 0\"), \"division by zero\")\nexpect_err(\"floor div by zero\", lambda: calc.evaluate(\"1 // 0\"), \"division by zero\")\nexpect_err(\"modulo by zero\", lambda: calc.evaluate(\"1 % 0\"), \"division by zero\")\nexpect_err(\"modulo by zero (float)\", lambda: calc.evaluate(\"5.5 % 0.0\"), \"division by zero\")\nexpect_err(\"unknown variable\", lambda: calc.evaluate(\"nope\"), \"nope\")\nexpect_err(\"unknown variable in expr\", lambda: calc.evaluate(\"1 + nope * 2\"), \"nope\")\nexpect_err(\"unknown function\", lambda: calc.evaluate(\"foo(1)\"), \"foo\")\nexpect_err(\"abs arity\", lambda: calc.evaluate(\"abs(1, 2)\"), \"abs\")\nexpect_err(\"abs arity zero\", lambda: calc.evaluate(\"abs()\"), \"abs\")\nexpect_err(\"sqrt arity\", lambda: calc.evaluate(\"sqrt(1, 2)\"), \"sqrt\")\nexpect_err(\"pow arity\", lambda: calc.evaluate(\"pow(2)\"), \"pow\")\nexpect_err(\"pow arity 3\", lambda: calc.evaluate(\"pow(2, 3, 4)\"), \"pow\")\nexpect_err(\"min arity\", lambda: calc.evaluate(\"min(1)\"), \"min\")\nexpect_err(\"max arity zero\", lambda: calc.evaluate(\"max()\"), \"max\")\nexpect_err(\"open paren\", lambda: calc.evaluate(\"(1 + 2\"), \"paren\")\nexpect_err(\"stray close paren\", lambda: calc.evaluate(\"1 + 2)\"), \"paren\")\nexpect_err(\"nested open paren\", lambda: calc.evaluate(\"((1+2)\"), \"paren\")\nexpect_err(\"extra close paren\", lambda: calc.evaluate(\"(1+2))\"), \"paren\")\nexpect_err(\"leftover token\", lambda: calc.evaluate(\"1 2\"), \"2\")\nexpect_err(\"trailing operator\", lambda: calc.evaluate(\"1 +\"), \"\")\nexpect_err(\"leading operator\", lambda: calc.evaluate(\"* 3\"), \"*\")\nexpect_err(\"empty\", lambda: calc.evaluate(\"\"), \"empty\")\nexpect_err(\"whitespace\", lambda: calc.evaluate(\"   \\t  \"), \"empty\")\nexpect_err(\"sqrt negative\", lambda: calc.evaluate(\"sqrt(-1)\"), \"sqrt\")\nexpect_err(\"sqrt negative expr\", lambda: calc.evaluate(\"sqrt(2 - 5)\"), \"sqrt\")\nexpect_err(\"assignment in evaluate\", lambda: calc.evaluate(\"x = 1\"), \"\")\nexpect_err(\"zero to negative power\", lambda: calc.evaluate(\"0 ** -1\"), \"\")\nexpect_err(\"complex power\", lambda: calc.evaluate(\"(-1) ** 0.5\"), \"\")\n\nprint(\"\\n== raw-exception hardening ==\")\nfor label, fn in [\n    (\"non-str None\", lambda: calc.evaluate(None)),\n    (\"non-str int\", lambda: calc.evaluate(5)),\n    (\"non-str bytes\", lambda: calc.evaluate(b\"1+1\")),\n    (\"eval(None)\", lambda: calc.Calculator().eval(None)),\n    (\"bad env int\", lambda: calc.evaluate(\"1+1\", 5)),\n    (\"bad env string\", lambda: calc.evaluate(\"1+1\", \"ab\")),\n    (\"non-numeric env\", lambda: calc.evaluate(\"x + 1\", {\"x\": \"a\"})),\n    (\"huge literal\", lambda: calc.evaluate(\"9\" * 5000)),\n    (\"huge literal float\", lambda: calc.evaluate(\"9\" * 5000 + \".0\")),\n    (\"deep parens\", lambda: calc.evaluate(\"(\" * 2000 + \"1\" + \")\" * 2000)),\n    (\"deep unary\", lambda: calc.evaluate(\"-\" * 5000 + \"1\")),\n    (\"deep calls\", lambda: calc.evaluate(\"abs(\" * 2000 + \"1\" + \")\" * 2000)),\n]:\n    expect_err(label, fn)\n\nprint(\"\\n== correct results / regressions ==\")\ncases = [\n    (\"1+1\", 2), (\"2 + 3 * 4\", 14), (\"10 - 4 - 3\", 3), (\"7 / 2\", 3.5),\n    (\"2 * (3 + 4)\", 14), (\"((1 + 2) * (3 + 4))\", 21), (\"( 1 + 2 ) * 3\", 9),\n    (\"7 // 2 * 2\", 6), (\"17 % 5 + 1\", 3), (\"2 * 3 ** 2\", 18),\n    (\"2 ** 3 ** 2\", 512), (\"-2 ** 2\", -4), (\"2 ** -1\", 0.5), (\"-2 ** -2\", -0.25),\n    (\"-5\", -5), (\"3 + -2\", 1), (\"-(2 + 3)\", -5), (\"--4\", 4),\n    (\"-2 * 3\", -6), (\"10 - -5\", 15), (\"---5\", -5), (\"2 * -3\", -6),\n    (\"max(1 + 1, 3, 2)\", 3), (\"sqrt(3 ** 2 + 4 ** 2)\", 5.0),\n    (\"abs(-7)\", 7), (\"pow(2, 10)\", 1024), (\"min(3, 1, 2)\", 1),\n    (\"sqrt(pow(3, 2) + pow(4, 2))\", 5.0), (\"2 + abs(-3) * 4\", 14),\n    (\"1.5 + 2\", 3.5), (\"0.1 + 0.2\", 0.30000000000000004),\n    (\"7 // -2\", -4), (\"-7 % 3\", 2), (\"1e\", None),  # last is error, handled below\n]\nfor expr, want in cases[:-1]:\n    try:\n        got = calc.evaluate(expr)\n    except BaseException as e:\n        failures.append((expr, \"RAW %s: %s\" % (type(e).__name__, e), want)); continue\n    expect(expr, got, want)\n\nprint(\"\\n== variables / Calculator parity ==\")\nc = calc.Calculator()\nexpect(\"assign x=6 returns None\", c.eval(\"x = 6\"), None)\nexpect(\"assign y=7 returns None\", c.eval(\"y = 7\"), None)\nexpect(\"x*y\", c.eval(\"x * y\"), 42)\nexpect(\"x=x+1 returns None\", c.eval(\"x = x + 1\"), None)\nexpect(\"x\", c.eval(\"x\"), 7)\nexpect(\"r=5\", c.eval(\"r = 5\"), None)\nexpect(\"sqrt(r*r)\", c.eval(\"sqrt(r * r)\"), 5.0)\nexpect(\"env lookup\", calc.evaluate(\"x * y + 1\", {\"x\": 6, \"y\": 7}), 43)\nenv = {\"x\": 10}\ncalc.evaluate(\"x + 1\", env)\nexpect(\"env not mutated\", env, {\"x\": 10})\nexpect(\"constructor env\", calc.Calculator({\"z\": 3}).eval(\"z ** 2\"), 9)\n\n# failed assignment must not define the name\nc2 = calc.Calculator()\ntry:\n    c2.eval(\"bad = 1 / 0\")\nexcept calc.CalcError:\n    pass\nexpect_err(\"failed assignment not stored\", lambda: c2.eval(\"bad\"), \"bad\")\n\n# no raw exception for env values of every odd type\nfor bad in (None, object(), [1, 2], {\"a\": 1}):\n    expect_err(\"bad env value %r\" % (bad,), lambda bad=bad: calc.evaluate(\"x * 2\", {\"x\": bad}))\n\nprint(\"\\n== fuzz: only CalcError may escape ==\")\nimport random, string\nrandom.seed(1234)\nalphabet = list(\"0123456789.+-*/%()=, abcxyz_\") + [\"**\", \"//\", \"abs\", \"sqrt\", \"pow\", \"min\", \"max\", \"\\t\"]\nraw = 0\nfor i in range(20000):\n    s = \"\".join(random.choice(alphabet) for _ in range(random.randint(0, 18)))\n    for fn in (lambda s=s: calc.evaluate(s), lambda s=s: calc.Calculator().eval(s)):\n        try:\n            fn()\n        except calc.CalcError:\n            pass\n        except BaseException as e:\n            raw += 1\n            if raw <= 5:\n                print(\"  RAW\", repr(s), type(e).__name__, e)\nprint(\"raw escapes:\", raw)\nif raw:\n    failures.append((\"fuzz raw escapes\", raw, 0))\n\nprint(\"\\n== compile ==\")\nimport py_compile\npy_compile.compile(\"calc.py\", doraise=True)\nprint(\"compile OK\")\n\nprint(\"\\n== summary ==\")\nif failures:\n    print(\"FAILURES:\", len(failures))\n    for f in failures:\n        print(\" \", f)\n    raise SystemExit(1)\nprint(\"ALL CHECKS PASSED\")\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t8s8",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 8,
+   "tool": "bash",
+   "turn": 8,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 -u - <<'PY'\nimport calc, math, random\nrandom.seed(99)\n\ndef num():\n    return random.choice([\"0\", \"1\", \"2\", \"3\", \"5\", \"7\", \"10\", \"2.5\", \"0.5\", \"3.0\"])\n\ndef gen(depth=0):\n    if depth >= 4 or random.random() < 0.3:\n        return num()\n    kind = random.choice([\"bin\", \"bin\", \"un\", \"paren\", \"call\", \"pow\"])\n    if kind == \"bin\":\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"])\n        return \"(%s %s %s)\" % (gen(depth+1), op, gen(depth+1))\n    if kind == \"un\":\n        return random.choice([\"-\", \"+\", \"--\"]) + gen(depth+1)\n    if kind == \"paren\":\n        return \"(%s)\" % gen(depth+1)\n    if kind == \"call\":\n        f = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n        if f in (\"abs\", \"sqrt\"):\n            return \"%s(%s)\" % (f, gen(depth+1))\n        if f == \"pow\":\n            return \"pow(%s, %s)\" % (gen(depth+1), gen(depth+1))\n        return \"%s(%s, %s)\" % (f, gen(depth+1), gen(depth+1))\n    # bounded power\n    return \"(%s ** %s)\" % (random.choice([\"0\",\"1\",\"2\",\"3\",\"5\"]), random.choice([\"0\",\"1\",\"2\",\"3\"]))\n\nns = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\nchecked = skipped = mismatched = 0\nexamples = []\nfor _ in range(8000):\n    s = gen()\n    try:\n        want = eval(s, {\"__builtins__\": {}}, ns)\n    except (ZeroDivisionError, ValueError, OverflowError):\n        skipped += 1\n        continue\n    if isinstance(want, complex) or (isinstance(want, float) and (math.isnan(want) or math.isinf(want))):\n        skipped += 1\n        continue\n    try:\n        got = calc.evaluate(s)\n    except calc.CalcError as e:\n        mismatched += 1\n        if len(examples) < 5:\n            examples.append((s, \"CalcError: %s\" % e, want))\n        continue\n    checked += 1\n    if type(got) is not type(want) or got != want:\n        mismatched += 1\n        if len(examples) < 5:\n            examples.append((s, got, want))\nprint(\"checked:\", checked, \"skipped:\", skipped, \"mismatched:\", mismatched)\nfor e in examples:\n    print(\"  MISMATCH\", e)\nraise SystemExit(1 if mismatched else 0)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t8s9",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 9,
+   "tool": "bash",
+   "turn": 8,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r3.d",
+   "class": "F1",
+   "command": "python3 -u - <<'PY'\nimport calc, math, random\nrandom.seed(99)\n\ndef num():\n    return random.choice([\"0\", \"1\", \"2\", \"3\", \"5\", \"7\", \"10\", \"2.5\", \"0.5\", \"3.0\"])\n\ndef gen(depth=0):\n    if depth >= 4 or random.random() < 0.3:\n        return num()\n    kind = random.choice([\"bin\", \"bin\", \"un\", \"paren\", \"call\", \"pow\"])\n    if kind == \"bin\":\n        op = random.choice([\"+\", \"-\", \"*\", \"/\", \"//\", \"%\"])\n        return \"(%s %s %s)\" % (gen(depth+1), op, gen(depth+1))\n    if kind == \"un\":\n        return random.choice([\"-\", \"+\", \"--\"]) + gen(depth+1)\n    if kind == \"paren\":\n        return \"(%s)\" % gen(depth+1)\n    if kind == \"call\":\n        f = random.choice([\"abs\", \"sqrt\", \"pow\", \"min\", \"max\"])\n        if f in (\"abs\", \"sqrt\"):\n            return \"%s(%s)\" % (f, gen(depth+1))\n        if f == \"pow\":\n            return \"pow(%s, %s)\" % (gen(depth+1), gen(depth+1))\n        return \"%s(%s, %s)\" % (f, gen(depth+1), gen(depth+1))\n    return \"(%s ** %s)\" % (random.choice([\"0\",\"1\",\"2\",\"3\",\"5\"]), random.choice([\"0\",\"1\",\"2\",\"3\"]))\n\nns = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\nchecked = skipped = mismatched = 0\nexamples = []\nfor _ in range(8000):\n    s = gen()\n    try:\n        want = eval(s, {\"__builtins__\": {}}, ns)\n    except (ZeroDivisionError, ValueError, OverflowError, TypeError):\n        skipped += 1\n        continue\n    if isinstance(want, complex) or (isinstance(want, float) and (math.isnan(want) or math.isinf(want))):\n        skipped += 1\n        continue\n    try:\n        got = calc.evaluate(s)\n    except calc.CalcError as e:\n        mismatched += 1\n        if len(examples) < 5:\n            examples.append((s, \"CalcError: %s\" % e, want))\n        continue\n    checked += 1\n    if type(got) is not type(want) or got != want:\n        mismatched += 1\n        if len(examples) < 5:\n            examples.append((s, got, want))\nprint(\"checked:\", checked, \"skipped:\", skipped, \"mismatched:\", mismatched)\nfor e in examples:\n    print(\"  MISMATCH\", e)\nraise SystemExit(1 if mismatched else 0)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r3.d.a1/t8s10",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 10,
+   "tool": "bash",
+   "turn": 8,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "svs_f1_flood_recall.r3.d",
+   "class": "F1",
+   "command": "rm -rf \"${PWD:?}/__pycache__\" && ls -la",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/svs_f1_flood_recall.r3.d.a1/t6s4",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /__pycache__",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 4,
+   "tool": "bash",
+   "turn": 6,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "class": "F1",
+   "command": "python3 - <<'EOF'\nimport random, math\nimport calc\nfrom calc import Calculator, CalcError, evaluate\n\nrandom.seed(1234)\nNAMES = [\"x\", \"y\", \"z\", \"n1\", \"_t\"]\nENV = {\"x\": 3, \"y\": -2, \"z\": 0.5, \"n1\": 7, \"_t\": 2}\nNUMS = [\"0\", \"1\", \"2\", \"3\", \"7\", \"10\", \"0.5\", \"2.5\", \"3.\", \".25\", \"12\"]\n\ndef ws():\n    return random.choice([\"\", \" \", \"  \", \"\\t\", \"\\n\"])\n\ndef num():\n    return random.choice(NUMS)\n\ndef atom(depth):\n    r = random.random()\n    if depth <= 0 or r < 0.45:\n        return num()\n    if r < 0.6:\n        return random.choice(NAMES)\n    if r < 0.8:\n        return \"(\" + ws() + expr(depth - 1) + ws() + \")\"\n    return (\"+\" if random.random() < 0.5 else \"-\") + ws() + atom(depth - 1)\n\ndef power(depth):\n    s = atom(depth)\n    if random.random() < 0.3:\n        s += ws() + \"**\" + ws() + factor(depth - 1)\n    return s\n\ndef factor(depth):\n    r = random.random()\n    if r < 0.25 and depth > 0:\n        return random.choice([\"+\", \"-\"]) + ws() + factor(depth - 1)\n    return power(depth)\n\ndef term(depth):\n    s = factor(depth)\n    for _ in range(random.randint(0, 2)):\n        s += ws() + random.choice([\"*\", \"/\", \"//\", \"%\"]) + ws() + factor(depth)\n    return s\n\ndef expr(depth):\n    s = term(depth)\n    for _ in range(random.randint(0, 2)):\n        s += ws() + random.choice([\"+\", \"-\"]) + ws() + term(depth)\n    return s\n\nmismatch = raw = checked = errparity = 0\nfor i in range(30000):\n    src = expr(3)\n    try:\n        want = eval(src, {\"__builtins__\": {}}, dict(ENV))\n    except ZeroDivisionError:\n        want = \"ZeroDivisionError\"\n    except Exception as e:\n        continue\n    try:\n        got = evaluate(src, ENV)\n    except CalcError:\n        raw += 1\n        if want != \"ZeroDivisionError\":\n            mismatch += 1\n            if mismatch < 10:\n                print(\"CalcError but Python gave %r: %r\" % (want, src))\n        else:\n            errparity += 1\n        continue\n    except Exception as e:\n        print(\"RAW EXC %s on %r\" % (type(e).__name__, src))\n        raw += 1\n        continue\n    checked += 1\n    if want == \"ZeroDivisionError\" or got != want or type(got) is not type(want):\n        mismatch += 1\n        if mismatch < 10:\n            print(\"MISMATCH %r: got %r (%s) want %r (%s)\"\n                  % (src, got, type(got).__name__, want, type(want).__name__))\n\nprint(\"expressions: checked=%d, zero-div-parity=%d, mismatches=%d\" % (checked, errparity, mismatch))\n\n# --- assignment sequences -------------------------------------------\nenv = {}\nc = Calculator()\nseq_mismatch = 0\nfor i in range(4000):\n    name = random.choice(NAMES)\n    rhs = expr(2)\n    try:\n        want = eval(rhs, {\"__builtins__\": {}}, dict(env))\n    except ZeroDivisionError:\n        # calculator must raise and must NOT store\n        try:\n            c.eval(\"%s = %s\" % (name, rhs))\n        except CalcError:\n            pass\n        else:\n            seq_mismatch += 1\n            print(\"expected CalcError for %s = %s\" % (name, rhs))\n        continue\n    except Exception:\n        continue\n    ret = c.eval(\"%s = %s\" % (name, rhs))\n    if ret is not None:\n        seq_mismatch += 1\n        print(\"assignment returned %r\" % (ret,))\n    env[name] = want\n    if c.eval(name) != want:\n        seq_mismatch += 1\n        print(\"stored %s wrong: %r vs %r\" % (name, c.eval(name), want))\n    # cross-check a compound expression built from stored names\n    comp = \" + \".join(env)\n    if comp and i % 50 == 0:\n        if c.eval(comp) != eval(comp, {\"__builtins__\": {}}, dict(env)):\n            seq_mismatch += 1\n            print(\"compound mismatch %r\" % comp)\nprint(\"assignments: mismatches=%d, final env size=%d\" % (seq_mismatch, len(c.env)))\nEOF",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r4.d.a1/t6s14",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 14,
+   "tool": "bash",
+   "turn": 6,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random, sys\nfrom calc import evaluate, CalcError\n\nrandom.seed(20240607)\nenv = {\"a\": 1, \"b\": 2, \"c\": 3, \"r\": 5}\npyenv = dict(env)\nlenv = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\n\ndef num(depth):\n    r = random.random()\n    if r < 0.35:\n        return random.choice([\"0\", \"1\", \"2\", \"3\", \"4\", \"5\"])\n    if r < 0.55:\n        return random.choice([\"0.5\", \"1.5\", \"2.25\", \"3.75\", \"0.1\"])\n    if r < 0.75:\n        return random.choice([\"a\", \"b\", \"c\", \"r\"])\n    return \"(\" + expr(depth + 1) + \")\"\n\ndef atom(depth):\n    if depth > 3:\n        return num(depth)\n    r = random.random()\n    if r < 0.45:\n        return num(depth)\n    if r < 0.55:\n        return random.choice([\"abs\", \"sqrt\"]) + \"(\" + expr(depth + 1) + \")\"\n    if r < 0.65:\n        return \"pow(\" + expr(depth + 1) + \", \" + expr(depth + 1) + \")\"\n    if r < 0.75:\n        n = random.randint(2, 4)\n        fn = random.choice([\"min\", \"max\"])\n        return fn + \"(\" + \", \".join(expr(depth + 1) for _ in range(n)) + \")\"\n    if r < 0.88:\n        return random.choice([\"-\", \"+\", \"--\", \"+-\"]) + atom(depth + 1)\n    return \"(\" + expr(depth + 1) + \")\"\n\ndef power(depth):\n    left = atom(depth)\n    if random.random() < 0.18:\n        return left + \" ** \" + atom(depth + 1)\n    return left\n\ndef term(depth):\n    out = power(depth)\n    for _ in range(random.randint(0, 2)):\n        out += \" \" + random.choice([\"*\", \"/\", \"//\", \"%\"]) + \" \" + power(depth + 1)\n    return out\n\ndef expr(depth=0):\n    out = term(depth)\n    for _ in range(random.randint(0, 2)):\n        out += \" \" + random.choice([\"+\", \"-\"]) + \" \" + term(depth + 1)\n    return out\n\nmismatch = 0\nchecked = 0\nfor i in range(30000):\n    s = expr()\n    try:\n        py = eval(s, {\"__builtins__\": {}}, dict(lenv, **pyenv))\n        py_err = None\n    except Exception as e:\n        py = None\n        py_err = e\n    try:\n        ours = evaluate(s, env)\n        our_err = None\n    except CalcError as e:\n        ours = None\n        our_err = e\n    except Exception as e:\n        print(\"RAW EXCEPTION\", type(e).__name__, e, \"::\", s)\n        sys.exit(1)\n    checked += 1\n    if py_err is not None:\n        # Python's eval rejected it; ours should reject it too.\n        if our_err is None:\n            print(\"MISMATCH (python error, we returned %r):\" % (ours,), s, \"|\", type(py_err).__name__, py_err)\n            mismatch += 1\n            if mismatch > 10: break\n        continue\n    if isinstance(py, complex):\n        # We deliberately reject non-real powers; require an error.\n        if our_err is None:\n            print(\"MISMATCH (complex):\", s, \"->\", py, \"ours\", ours)\n            mismatch += 1\n        continue\n    if not isinstance(py, (int, float)):\n        continue\n    if our_err is not None:\n        print(\"MISMATCH (we errored, python gave %r):\" % (py,), s, \"|\", our_err)\n        mismatch += 1\n        if mismatch > 10: break\n        continue\n    if isinstance(py, float) or isinstance(ours, float):\n        if abs(py - ours) > 1e-9 * max(1.0, abs(py)):\n            print(\"MISMATCH value:\", s, \"python\", py, \"ours\", ours)\n            mismatch += 1\n    elif py != ours:\n        print(\"MISMATCH value:\", s, \"python\", py, \"ours\", ours)\n        mismatch += 1\n    if mismatch > 10:\n        break\n\nprint(\"checked\", checked, \"mismatches\", mismatch)\nsys.exit(1 if mismatch else 0)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r4.d.a1/t7s8",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 8,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "class": "F1",
+   "command": "python3 - <<'PY'\nimport math, random, sys\nfrom calc import evaluate, CalcError\n\nrandom.seed(20240607)\nenv = {\"a\": 1, \"b\": 2, \"c\": 3, \"r\": 5}\nlenv = {\"abs\": abs, \"sqrt\": math.sqrt, \"pow\": pow, \"min\": min, \"max\": max}\nNUMS = [\"0\", \"1\", \"2\", \"3\", \"4\", \"5\", \"0.5\", \"1.5\", \"2.25\"]\nVARS = [\"a\", \"b\", \"c\", \"r\"]\nEXPS = [\"0\", \"1\", \"2\", \"3\", \"-1\", \"-2\", \"0.5\", \"a\", \"b\"]\n\ndef atom(d):\n    if d > 6:\n        return random.choice(NUMS + VARS)\n    r = random.random()\n    if r < 0.40:\n        return random.choice(NUMS + VARS)\n    if r < 0.50:\n        return random.choice([\"abs\", \"sqrt\"]) + \"(\" + expr(d + 1) + \")\"\n    if r < 0.60:\n        return \"pow(\" + expr(d + 1) + \", \" + expr(d + 1) + \")\"\n    if r < 0.70:\n        n = random.randint(2, 4)\n        return random.choice([\"min\", \"max\"]) + \"(\" + \", \".join(expr(d + 1) for _ in range(n)) + \")\"\n    if r < 0.82:\n        return random.choice([\"-\", \"+\", \"--\", \"+-\"]) + atom(d + 1)\n    return \"(\" + expr(d + 1) + \")\"\n\ndef power(d):\n    left = atom(d + 1)\n    if random.random() < 0.20:\n        return left + \" ** \" + random.choice(EXPS)\n    return left\n\ndef term(d):\n    out = power(d + 1)\n    for _ in range(random.randint(0, 2)):\n        out += \" \" + random.choice([\"*\", \"/\", \"//\", \"%\"]) + \" \" + power(d + 1)\n    return out\n\ndef expr(d=0):\n    if d > 6:\n        return atom(d)\n    out = term(d + 1)\n    for _ in range(random.randint(0, 2)):\n        out += \" \" + random.choice([\"+\", \"-\"]) + \" \" + term(d + 1)\n    return out\n\nmismatch = 0\nchecked = 0\nfor i in range(30000):\n    s = expr()\n    try:\n        py = eval(s, {\"__builtins__\": {}}, dict(lenv, **env))\n        py_err = None\n    except Exception as e:\n        py, py_err = None, e\n    try:\n        ours, our_err = evaluate(s, env), None\n    except CalcError as e:\n        ours, our_err = None, e\n    except Exception as e:\n        print(\"RAW EXCEPTION\", type(e).__name__, e, \"::\", s)\n        sys.exit(1)\n    checked += 1\n    if py_err is not None:\n        if our_err is None:\n            print(\"MISMATCH (python error, ours %r):\" % (ours,), s, \"|\", type(py_err).__name__, py_err)\n            mismatch += 1\n        continue\n    if isinstance(py, complex):\n        if our_err is None:\n            print(\"MISMATCH (complex):\", s, \"->\", py, \"ours\", ours)\n            mismatch += 1\n        continue\n    if not isinstance(py, (int, float)):\n        continue\n    if our_err is not None:\n        print(\"MISMATCH (ours errored, python %r):\" % (py,), s, \"|\", our_err)\n        mismatch += 1\n    elif isinstance(py, float) or isinstance(ours, float):\n        if abs(py - ours) > 1e-9 * max(1.0, abs(py)):\n            print(\"MISMATCH value:\", s, \"python\", py, \"ours\", ours)\n            mismatch += 1\n    elif py != ours:\n        print(\"MISMATCH value:\", s, \"python\", py, \"ours\", ours)\n        mismatch += 1\n    if mismatch > 10:\n        break\n\nprint(\"checked\", checked, \"mismatches\", mismatch)\nsys.exit(1 if mismatch else 0)\nPY",
+   "final": "F1",
+   "hints": [],
+   "key": "batch/lh1_incremental_build.r4.d.a1/t7s9",
+   "reasons": [
+    {
+     "class": "F1",
+     "reason": "outside: /,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    },
+    {
+     "class": "F1",
+     "reason": "outside: //,",
+     "why": "no such top-level path (operator or unexpanded text)"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 9,
+   "tool": "bash",
+   "turn": 7,
+   "valid": true
+  },
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r4.d",
+   "class": "candidate",
+   "command": "python3 - <<'PY'\nimport calc, sys\ncases = [\n    \"1\"*5000,                          # huge int literal\n    \"9\"*4400 + \" + 1\",\n    \"2 ** 100000\",                     # huge int result\n    \"sqrt(-(2 ** 20000))\",             # huge int in error message\n    \"-(2 ** 20000) * 1\",               # fine\n    \"2 ** 0.5 ** 10000\",               # overflow?\n    \"2.0 ** 100000\",\n    \"10 ** 400 * 10 ** 400\",\n    \"1e0\", \"0x10\", \"1.2.3\", \"..\", \"1_000\", \"a b\",\n    \"-\" * 2000 + \"1\",                  # deep unary recursion\n    \"(\" * 2000 + \"1\" + \")\" * 2000,      # deep paren recursion\n    \"abs(\" * 500 + \"1\" + \")\" * 500,\n    \"1 + \" * 2000 + \"1\",\n    \"pow(2, 100000)\",\n    \"min(1, 2.0, -3)\",\n    \"1 / 0.0\",\n    \"0 ** -1\",\n    \"0.0 ** -1\",\n    \"(-8) ** 0.5\",\n    \"float\",\n    \"()\",\n    \",\",\n    \")\",\n    \"(\",\n]\nfor c in cases:\n    label = (c[:40] + \"...\") if len(c) > 40 else c\n    try:\n        r = calc.evaluate(c)\n        rs = repr(r)\n        print(\"OK  \", repr(label), \"->\", (rs[:40] + \"...\") if len(rs) > 40 else rs)\n    except calc.CalcError as e:\n        print(\"Calc\", repr(label), \"->\", str(e)[:90])\n    except BaseException as e:\n        print(\"RAW!\", repr(label), \"->\", type(e).__name__, str(e)[:120])\nPY",
+   "final": "F4 (hand check: the flagged parent directory comes from the string literal \"..\" in a list of calculator inputs passed to calc.evaluate inside the quoted heredoc <<'PY' (as the STOCK c1 arb rep 1 test string); removing that literal removes the flag; the call opens no path)",
+   "hints": [
+    "'..': only inside a quoted heredoc or single-quoted string"
+   ],
+   "key": "batch/lh1_incremental_build.r4.d.a1/t8s3",
+   "reasons": [
+    {
+     "class": "candidate",
+     "reason": "outside: $SCRATCHPAD/orient/ab/live/c-586d5363af",
+     "why": "a real path outside the workdir"
+    }
+   ],
+   "secret": false,
+   "status": "done",
+   "step": 3,
+   "tool": "bash",
+   "turn": 8,
+   "valid": true
+  }
+ ],
+ "gates_file": "$SCRATCHPAD/orient/ab/wt-harness/scripts/ab/gates-orient.json",
+ "harness_commit": "1b2746252ba325cb3c1f937f09fd288c83d038eb",
+ "invalid_d_attempts": [
+  {
+   "attempt": 1,
+   "batch": "batch",
+   "cell": "lh1_incremental_build.r1.d",
+   "infra": true,
+   "reasons": [
+    "turn 6: account-level provider error QUOTA: the run stops; --resume reruns this cell"
+   ],
+   "status": "account_stop"
+  }
+ ],
+ "rereads": {
+  "b": {
+   "c1": {
+    "after_own_edit": 14,
+    "bash_writes": 71,
+    "cells": 4,
+    "cross_turn": 54,
+    "edits_writes": 128,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 76,
+    "same_turn": 0,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 0,
+    "bash_writes": 6,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 20,
+    "first": 33,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 33,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 26,
+    "bash_writes": 60,
+    "cells": 3,
+    "cross_turn": 98,
+    "edits_writes": 88,
+    "first": 107,
+    "fs_not_observed": 7,
+    "fs_stale_version": 0,
+    "reads": 252,
+    "same_turn": 21,
+    "turns": 135
+   },
+   "r2": {
+    "after_own_edit": 2,
+    "bash_writes": 17,
+    "cells": 4,
+    "cross_turn": 8,
+    "edits_writes": 21,
+    "first": 9,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 19,
+    "same_turn": 0,
+    "turns": 28
+   }
+  },
+  "d": {
+   "c1": {
+    "after_own_edit": 23,
+    "bash_writes": 73,
+    "cells": 4,
+    "cross_turn": 57,
+    "edits_writes": 173,
+    "first": 8,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "reads": 88,
+    "same_turn": 0,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 0,
+    "bash_writes": 7,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 17,
+    "first": 33,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 33,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 55,
+    "bash_writes": 36,
+    "cells": 3,
+    "cross_turn": 103,
+    "edits_writes": 125,
+    "first": 108,
+    "fs_not_observed": 8,
+    "fs_stale_version": 0,
+    "reads": 348,
+    "same_turn": 82,
+    "turns": 135
+   },
+   "hello": {
+    "after_own_edit": 0,
+    "bash_writes": 0,
+    "cells": 3,
+    "cross_turn": 0,
+    "edits_writes": 0,
+    "first": 0,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 0,
+    "same_turn": 0,
+    "turns": 3
+   },
+   "r2": {
+    "after_own_edit": 2,
+    "bash_writes": 14,
+    "cells": 4,
+    "cross_turn": 8,
+    "edits_writes": 22,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 18,
+    "same_turn": 0,
+    "turns": 28
+   }
+  },
+  "slice": {
+   "c1": {
+    "after_own_edit": 28,
+    "bash_writes": 90,
+    "cells": 4,
+    "cross_turn": 59,
+    "edits_writes": 168,
+    "first": 8,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0,
+    "reads": 95,
+    "same_turn": 0,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 12,
+    "bash_writes": 5,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 21,
+    "first": 34,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 46,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 39,
+    "bash_writes": 61,
+    "cells": 3,
+    "cross_turn": 105,
+    "edits_writes": 98,
+    "first": 109,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0,
+    "reads": 371,
+    "same_turn": 118,
+    "turns": 135
+   },
+   "r2": {
+    "after_own_edit": 3,
+    "bash_writes": 15,
+    "cells": 4,
+    "cross_turn": 8,
+    "edits_writes": 21,
+    "first": 8,
+    "fs_not_observed": 0,
+    "fs_stale_version": 0,
+    "reads": 19,
+    "same_turn": 0,
+    "turns": 28
+   }
+  },
+  "stock": {
+   "c1": {
+    "after_own_edit": 9,
+    "bash_writes": 23,
+    "cells": 4,
+    "cross_turn": 27,
+    "edits_writes": 84,
+    "first": 6,
+    "fs_not_observed": 1,
+    "fs_stale_version": 0,
+    "reads": 52,
+    "same_turn": 10,
+    "turns": 32
+   },
+   "c2": {
+    "after_own_edit": 5,
+    "bash_writes": 6,
+    "cells": 4,
+    "cross_turn": 0,
+    "edits_writes": 25,
+    "first": 23,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "reads": 28,
+    "same_turn": 0,
+    "turns": 4
+   },
+   "f1": {
+    "after_own_edit": 90,
+    "bash_writes": 3,
+    "cells": 3,
+    "cross_turn": 107,
+    "edits_writes": 139,
+    "first": 108,
+    "fs_not_observed": 4,
+    "fs_stale_version": 0,
+    "reads": 305,
+    "same_turn": 0,
+    "turns": 135
+   },
+   "r2": {
+    "after_own_edit": 3,
+    "bash_writes": 6,
+    "cells": 4,
+    "cross_turn": 4,
+    "edits_writes": 27,
+    "first": 6,
+    "fs_not_observed": 2,
+    "fs_stale_version": 0,
+    "reads": 13,
+    "same_turn": 0,
+    "turns": 28
+   }
+  }
+ },
+ "ship": {
+  "conditions": {
+   "S1_cost": {
+    "N_code_b": 1.1926,
+    "N_code_d": 1.3115,
+    "N_code_d_over_b": 1.0997,
+    "R_f1_d": 0.5833,
+    "holds": false,
+    "not_evaluable": null,
+    "rule": "N_code(d)/N_code(b) <= 1.05 and R_f1(d) <= 0.7",
+    "status": "fail"
+   },
+   "S2_probes": {
+    "holds": true,
+    "not_evaluable": null,
+    "real_probes": 0,
+    "scope": "over 19 attempts of 18 D cells (1 account/budget stops included)",
+    "status": "pass"
+   },
+   "S3_empty_turns": {
+    "empty_turns": 0,
+    "holds": true,
+    "not_evaluable": null,
+    "scope": "over 19 attempts of 18 D cells (1 account/budget stops included)",
+    "status": "pass"
+   },
+   "S4_quality": {
+    "dB": 0.0,
+    "dM": 0.0,
+    "dS": 0.0,
+    "dS_t": {
+     "c1": 0.0,
+     "c2": 0.0,
+     "f1": 0.0,
+     "r2": 0.0
+    },
+    "holds": true,
+    "not_evaluable": null,
+    "status": "pass"
+   }
+  },
+  "failed": [
+   "S1_cost"
+  ],
+  "insufficient": [],
+  "not_evaluable": [],
+  "verdict": "do not ship (S1_cost failed)"
+ },
+ "spend": {
+  "by_batch": {
+   "batch": 1.634878,
+   "warm": 0.002374,
+   "warm2": 0.000233
+  },
+  "total_usd_peak_sheet": 1.637485,
+  "turns": 208,
+  "unpriced": 0
+ },
+ "warmup": [
+  {
+   "batch": "warm",
+   "min": 4000,
+   "ok": true,
+   "rep": 1,
+   "step1_cache_read": 0,
+   "valid": true
+  },
+  {
+   "batch": "warm2",
+   "min": 4000,
+   "ok": true,
+   "rep": 1,
+   "step1_cache_read": 4480,
+   "valid": true
+  },
+  {
+   "batch": "warm",
+   "min": 4000,
+   "ok": true,
+   "rep": 2,
+   "step1_cache_read": 4480,
+   "valid": true
+  }
+ ]
+}
