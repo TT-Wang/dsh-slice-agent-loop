@@ -4,8 +4,9 @@
 #
 # The slice loop does not replace the system prompt; it CONTRIBUTES one section
 # to it. `src/index.ts` registers the slice kernel as `slice:kernel` at order
-# -1200, so it renders first and every section DSH's own registry contributes
-# follows it in the same string — `renderPrompt(assembly)` joins them all.
+# -950, right after the host's identity line (-1000); every other section DSH's
+# own registry contributes follows it in the same string —
+# `renderPrompt(assembly)` joins them all.
 #
 #     this loop's section       1,284 chars   (measured 2026-09-11)
 #     appended by DSH          ~4,621         (registry sections — measured
@@ -42,7 +43,8 @@
 # What does not belong in a measurement is the identity stack. That same
 # session carried FOUR of them:
 #
-#   1. "You are sliceagent, an interactive engineering agent…"      (this loop)
+#   1. "You are sliceagent, an interactive engineering agent…"      (this loop;
+#      removed in plugin 0.4.0, whose section has no identity line)
 #   2. "You are an AI agent powered by DeepSeek Harness."          (registry)
 #   3. "You are interacting with the user through the … Web GUI…"   (web bundle)
 #   4. "You are a coding agent powered by the {{model}} model…"     (preset)
@@ -111,8 +113,8 @@
 # `dsh-persona` is only a per-scope shadow — omitting the row would leave the
 # deployment default ("You are a coding agent powered by ...") in the prompt,
 # which is exactly the identity this preset exists to remove. An empty shadow
-# wins the slot, and render drops empty sections, so the loop's own
-# "You are sliceagent" kernel stands alone.
+# wins the slot, and render drops empty sections, so outside `dsh web` the
+# host's identity line (#2 above) is the only identity left.
 
 - id: persona
   name: '@deepseek-ai/dsh-persona'

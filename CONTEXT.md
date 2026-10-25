@@ -2,7 +2,7 @@
 
 DSH 原生 agent loop 上的切片上下文策略：每轮第一步把已完成轮中可封存的助手／工具段替换成冻结的 tape 条目，保留原生上下文来源与原日志召回能力。本表是项目的规范词汇——输出（issue 标题、提案、测试名）用这里的词。
 
-> 2026-09-21 校准至默认保留对话的现役实现：`src/context.ts` 的 `planSeal` / `sealCompletedTurns`、`src/context-reads.ts` 的读取观察，以及 `src/index.ts` 的 `KERNEL` 与 `history.*`。压力归档和自建渲染器均已退役。2026-09-25 校准至 DSH 0.1.7 的会话格式 V4：工具结果是 tool 角色消息，消息来源直接写 kind，system prompt 是 surface 第 0 个节点。V4 契约与旧会话续跑见 [DSH 0.1.7 兼容说明](docs/dsh-0.1.7-compatibility.md)。2026-10-22 起现役宿主是 DSH 0.2.1-rc.2，同时支持 0.2.0-rc.2，不再支持 0.1.7-rc.2；会话格式仍是 V4，本表词汇不变。宿主变化、升级步骤，以及 0.2.1 写入过 job 事件的会话为何不能回到 0.2.0，见 [DSH 0.2.1 兼容说明](docs/dsh-0.2.1-compatibility.md)，0.2.0-rc.2 宿主见 [DSH 0.2.0 兼容说明](docs/dsh-0.2.0-compatibility.md)。
+> 2026-09-21 校准至默认保留对话的现役实现：`src/context.ts` 的 `planSeal` / `sealCompletedTurns`、`src/context-reads.ts` 的读取观察，以及 `src/index.ts` 的 `KERNEL` 与 `history.*`。压力归档和自建渲染器均已退役。2026-09-25 校准至 DSH 0.1.7 的会话格式 V4：工具结果是 tool 角色消息，消息来源直接写 kind，system prompt 是 surface 第 0 个节点。V4 契约与旧会话续跑见 [DSH 0.1.7 兼容说明](docs/dsh-0.1.7-compatibility.md)。2026-10-25 校准 `KERNEL`：去掉旧人设句，段序改为 -950。2026-10-22 起现役宿主是 DSH 0.2.1-rc.2，同时支持 0.2.0-rc.2，不再支持 0.1.7-rc.2；会话格式仍是 V4，本表词汇不变。宿主变化、升级步骤，以及 0.2.1 写入过 job 事件的会话为何不能回到 0.2.0，见 [DSH 0.2.1 兼容说明](docs/dsh-0.2.1-compatibility.md)，0.2.0-rc.2 宿主见 [DSH 0.2.0 兼容说明](docs/dsh-0.2.0-compatibility.md)。
 
 ## Language
 
@@ -15,7 +15,7 @@ _Avoid_: 静态部分、system 区
 _Avoid_: 动态部分、boilerplate
 
 **教学点 (teaching site)**：
-规则在插件发出文本里的陈述位置：`KERNEL`（`src/index.ts`，注册为 `slice:kernel` system 段）与工具描述（`recall_search` / `recall_turn` / `recall_step` / `expand_result`）。KERNEL 只陈述行为（召回文本是历史数据，记录的读取不是当前文件，不越过截断猜测）并点名四个召回工具；调用语法与相对成本只写在各工具自己的描述里。fold 说明与 `recall_step` 条款只点名工具，不重复语法。tape 条目头只列工具名（`recall_turn / expand_result`）；工具行里的 `expand_result` 调用例是冻结的定位提示。已冻结的旧条目保留写入时的文本，不重写。「每条规则一个教学点」在 2026-09-27 的一次原生 A/B（P1-10，`docs/p110-native-ab.md`）中未见大幅退化；每任务每臂 n = 6、任务与召回正确率都在上限，这不是等价证明，也不是模型质量保证。旧渲染器的提示实验见已 superseded 的 ADR-0001。
+规则在插件发出文本里的陈述位置：`KERNEL`（`src/index.ts`，注册为 `slice:kernel` system 段，order -950，排在宿主身份行 `harness:identity`（-1000）之后、fold 说明（-900）与部署人设（0）之前）与工具描述（`recall_search` / `recall_turn` / `recall_step` / `expand_result`）。KERNEL 不含身份或人设句，身份归宿主。它只陈述行为（已完成轮封存成冻结 tape 条目、人类消息原位逐字；要当前文件内容就读取，更早说过、返回或读过而已不可见的内容就召回，不为此搜索文件系统，用户没要求时不越出工作目录；tape 条目与召回文本是历史数据；不可见即未知，否认前先召回；不越过截断猜测；默认编辑守卫拒绝改动未读过、或自上次读取／编辑／写入后已变的已有文件，所以不为保险或核对自己成功的编辑而重读）并点名四个召回工具；调用语法与相对成本只写在各工具自己的描述里。fold 说明与 `recall_step` 条款只点名工具，不重复语法。tape 条目头只列工具名（`recall_turn / expand_result`）；工具行里的 `expand_result` 调用例是冻结的定位提示。已冻结的旧条目保留写入时的文本，不重写。「每条规则一个教学点」在 2026-09-27 的一次原生 A/B（P1-10，`docs/p110-native-ab.md`）中未见大幅退化；每任务每臂 n = 6、任务与召回正确率都在上限，这不是等价证明，也不是模型质量保证。旧渲染器的提示实验见已 superseded 的 ADR-0001。
 _Avoid_: 重复提醒、reinforcement
 
 ## 现役机制锚点
