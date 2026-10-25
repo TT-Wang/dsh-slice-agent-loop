@@ -1,0 +1,519 @@
+{
+ "version": 1,
+ "experiment": "slice-orientation-2026-10-25",
+ "kind": "single-arm test against imported cells",
+ "source": "docs/slice-orientation-2026-10-25.md (pre-registered before any paid call). One new arm, D (exp/slice-orientation b4aa59c: the persona removed and the slice section rewritten and moved after the host identity line), run under the svs2 batch conditions. Baselines, imported read-only and never re-run: STOCK and SLICE of 2026-10-23 (pairing.baseline_cells) and B of the svs2 batch of 2026-10-24 (cross_batch.b). orient_report.py evaluates this file; run_ab.py reads the arm structure, the seed keys and the run-arms guard from it. The doc is the normative text.",
+ "baseline": "stock",
+ "reference": "slice",
+ "arms": [
+  "d"
+ ],
+ "run_arms_only": [
+  "d"
+ ],
+ "baseline_arms": [
+  "stock",
+  "slice"
+ ],
+ "step_cap": "harness",
+ "order": {
+  "rotate": "task_rep",
+  "_note": "One cell at a time, one arm, so the rotation changes nothing; the task order inside a rep is the seeded shuffle of run_ab.py (seed 20261024, as the svs2 batch)."
+ },
+ "structure": {
+  "_note": "As gates-svs2.json, plus d: 16 tools with the exact names, short tape header, long tool lines, compaction allowed; system-prompt markers: d carries the kept re-read rule's phrase \"never re-read a file just to be safe\" and the new phrase \"Do not search the filesystem for it\", and lacks the slice persona and the \"recorded file read\" sentence. dump_rows_vs_slice: the rows d's --dump-config may differ in from the baseline's archived dump-slice.yml (svs2_checks.py dumps --gates this file). stock, slice and b serve the imports (their markers are recorded on every imported row).",
+  "stock": {
+   "tools": 12,
+   "header": null,
+   "compaction": "allowed",
+   "fold": false,
+   "dump_rows": [],
+   "warm_min_cache_read": 2000,
+   "tool_names": [
+    "bash",
+    "edit",
+    "exit_plan_mode",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "todo_write",
+    "write"
+   ],
+   "system_lacks": [
+    "You are sliceagent",
+    "A recorded file read is not a current file",
+    "never re-read a file just to be safe"
+   ]
+  },
+  "slice": {
+   "tools": 16,
+   "header": "short",
+   "tool_line": "long",
+   "compaction": "allowed",
+   "fold": false,
+   "dump_rows": [
+    "slice-agent-loop"
+   ],
+   "warm_min_cache_read": 4000,
+   "tool_names": [
+    "bash",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "write"
+   ],
+   "system_contains": [
+    "You are sliceagent",
+    "A recorded file read is not a current file"
+   ],
+   "system_lacks": [
+    "never re-read a file just to be safe"
+   ]
+  },
+  "b": {
+   "tools": 16,
+   "header": "short",
+   "tool_line": "long",
+   "compaction": "allowed",
+   "fold": false,
+   "dump_rows": [
+    "slice-agent-loop"
+   ],
+   "warm_min_cache_read": 4000,
+   "tool_names": [
+    "bash",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "write"
+   ],
+   "system_contains": [
+    "never re-read a file just to be safe"
+   ],
+   "system_lacks": [
+    "You are sliceagent",
+    "A recorded file read is not a current file"
+   ],
+   "dump_rows_vs_slice": []
+  },
+  "d": {
+   "tools": 16,
+   "header": "short",
+   "tool_line": "long",
+   "compaction": "allowed",
+   "fold": false,
+   "dump_rows": [
+    "slice-agent-loop"
+   ],
+   "warm_min_cache_read": 4000,
+   "tool_names": [
+    "bash",
+    "edit",
+    "exit_plan_mode",
+    "expand_result",
+    "glob",
+    "grep",
+    "job_kill",
+    "job_list",
+    "job_output",
+    "read",
+    "read_image",
+    "recall_search",
+    "recall_step",
+    "recall_turn",
+    "todo_write",
+    "write"
+   ],
+   "system_contains": [
+    "never re-read a file just to be safe",
+    "Do not search the filesystem for it"
+   ],
+   "system_lacks": [
+    "You are sliceagent",
+    "A recorded file read is not a current file"
+   ],
+   "dump_rows_vs_slice": []
+  }
+ },
+ "unit": {
+  "tasks": [
+   "c1",
+   "c2",
+   "r2",
+   "f1"
+  ],
+  "code_tasks": [
+   "c1",
+   "c2"
+  ],
+  "code_tasks_secondary": [
+   "c1",
+   "c2",
+   "r2"
+  ],
+  "long_tasks": [
+   "f1"
+  ],
+  "memory_tasks": [
+   "r2",
+   "f1"
+  ],
+  "reps": {
+   "c1": 4,
+   "c2": 4,
+   "r2": 4,
+   "f1": 3
+  },
+  "pairing": "a new cell pairs with the baseline cell of the same task and rep index (pairing.baseline_cells); the arm side of a pair is the mean of the arm's valid cells at that rep index (one from the batch, a second only from the arbitration); c1, c2 and r2 have deterministic content, f1's content is seeded from the baseline cell's seed key with the baseline's salt, so every f1 pair has byte-identical content"
+ },
+ "pairing": {
+  "baseline_archive": "~/Documents/kimi/workspace/dsh-slice/results/20261023-slice-vs-stock/vault/results",
+  "baseline_old_root": "/private/tmp/claude-501/-Users-tongtao-code-dsh-slice-agent-loop/0e4b8700-2b22-463f-9470-489b8db791fc/scratchpad/svs/vault/results",
+  "baseline_cells": {
+   "c1": {
+    "1": [
+     "batch",
+     1
+    ],
+    "2": [
+     "batch",
+     2
+    ],
+    "3": [
+     "batch",
+     3
+    ],
+    "4": [
+     "arb",
+     1
+    ]
+   },
+   "c2": {
+    "1": [
+     "batch",
+     1
+    ],
+    "2": [
+     "batch",
+     2
+    ],
+    "3": [
+     "batch",
+     3
+    ],
+    "4": [
+     "arb",
+     1
+    ]
+   },
+   "r2": {
+    "1": [
+     "batch",
+     1
+    ],
+    "2": [
+     "batch",
+     2
+    ],
+    "3": [
+     "batch",
+     3
+    ],
+    "4": [
+     "arb",
+     1
+    ]
+   },
+   "f1": {
+    "1": [
+     "batch",
+     1
+    ],
+    "2": [
+     "batch",
+     2
+    ],
+    "3": [
+     "arb",
+     1
+    ]
+   }
+  },
+  "seed_keys": {
+   "f1": {
+    "1": [
+     "batch",
+     1
+    ],
+    "2": [
+     "batch",
+     2
+    ],
+    "3": [
+     "arb",
+     1
+    ]
+   }
+  },
+  "salt_sha256": "c5e4616194531558568e4baed425e72394a479bf337007f32f1708993db51cb4",
+  "baseline_conditions": {
+   "harness_commit": "35df351fdbc87de49d5adc1a1889a69c98e65c85",
+   "scripts_ab_tree": "b111e434d10e2b9658d32a7bfaafcd33719b1405",
+   "host": "@deepseek-ai/dsh@0.2.1-rc.2",
+   "host_tree_digest": "0c9e7f6b25ec619cbfe60fc8a0df27f753f589fba9146a49b8718604776a824a",
+   "host_content_digest": "5c0747d0bd13e87852388ec6313dc2544d1403191c81192e36d2c95c24d998be",
+   "overlay_sha256": "74b7a95e1b1204ab30f34dd186c97eee2a52d391fd721f3fe101a757be362223",
+   "slice_tarball_sha256": "62b0eb7efc3d0d7011422da0388b5e5c0b78da48413e4c70f1ed15d43c32c322",
+   "seeds": {
+    "batch": 20261023,
+    "arb": 20261024
+   }
+  },
+  "_note": "Read-only import: svs2_report.py import-baseline recomputes every baseline cell's metrics row from its archived session log with this harness's ab_metrics (one extractor for both sides) and refuses when any previously stored metric differs; validity, pass, verify info and exam classes are the baseline's own."
+ },
+ "cross_batch": {
+  "b": {
+   "archive": "~/Documents/kimi/workspace/dsh-slice/results/20261024-svs2/vault/results",
+   "old_root": "/private/tmp/claude-501/-Users-tongtao-code-dsh-slice-agent-loop/0e4b8700-2b22-463f-9470-489b8db791fc/scratchpad/svs2/vault/results",
+   "cells": {
+    "c1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "batch",
+      3
+     ],
+     "4": [
+      "batch",
+      4
+     ]
+    },
+    "c2": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "batch",
+      3
+     ],
+     "4": [
+      "batch",
+      4
+     ]
+    },
+    "r2": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "batch",
+      3
+     ],
+     "4": [
+      "batch",
+      4
+     ]
+    },
+    "f1": {
+     "1": [
+      "batch",
+      1
+     ],
+     "2": [
+      "batch",
+      2
+     ],
+     "3": [
+      "batch",
+      3
+     ]
+    }
+   },
+   "conditions": {
+    "harness_commit": "a7e9698",
+    "scripts_ab_tree": "143ff86a0fd6ccfa894c7e9211c1694c3c5379ba",
+    "seed": 20261024,
+    "tarball_sha256": "896ee6988f1bd3b5013c523e31cdc47c9ecb4a867e3ed7cff9a5252850d8bb97"
+   },
+   "_note": "B of the svs2 batch (docs/svs2-ablation-2026-10-24.md §16-§18; B had no arbitration cells, so batch = pooled). orient_report.py import-b recomputes every B row from its archived session log with this ab_metrics (f1 exam specs from the truth sidecar in the packed workdir, read in memory) and refuses if a stored metric is not reproduced. A D cell pairs with the B cell of the same task and rep index; f1 rep k of D, of B and of the baseline share the seed key, so their content is byte-identical."
+  }
+ },
+ "min_pairs": {
+  "per_arm_all": 10,
+  "per_task": {
+   "c1": 2,
+   "c2": 2,
+   "r2": 2,
+   "f1": 2
+  },
+  "memory_items": 8,
+  "_note": "Per arm against STOCK (and the same against SLICE). Planned 15 pairs (c1 4, c2 4, r2 4, f1 3) and 16 memory items (f1 4 x 3, r2 1 x 4); the cost ladder's deepest step keeps c1 3, c2 3, r2 2, f1 2 = 10 pairs and 10 items. Below a minimum the dependent interpretation is 'inconclusive'."
+ },
+ "validity": {
+  "cell_counts_only_if": "as gates-svs.json validity (turn exits, log found, fingerprints of the arm's own offline cells, tool count and names, one turn per prompt, no host path in the system prompt, tape forms, isolation, delivery of r2 T2/T4 and f1 T3/T5), plus the arm's system-prompt markers (structure system_contains / system_lacks)",
+  "max_attempts": 2,
+  "pair_rule": "a pair counts when its baseline cell was valid and the arm has at least one valid cell at that rep index",
+  "memory_exclusion": "as gates-svs.json: flagged access up to the last exam turn, a leak before the exam, or the oracle via the file system, in the baseline cell or in every valid arm cell of the pair, drops the pair from the memory comparison only"
+ },
+ "comparisons": {
+  "cost": "off-peak sheet (peak is exactly 2x every field, so ratios do not depend on the sheet); billed tokens of every loop request, failed attempt and compaction summarizer call",
+  "R_t": "per arm X and comparison arm Y, per task: sum over the task's valid pairs of the X side (mean cost of X's valid cells at that rep index) / sum of the Y side",
+  "primary": {
+   "N_code": "geometric mean of R_c1 and R_c2, d / STOCK",
+   "R_f1": "R_f1, d / STOCK",
+   "N_code_vs_B": "N_code(d) / N_code(b), both against STOCK over the same planned pairs"
+  },
+  "secondary": [
+   "R_t, N_code and R_f1 of d against B and against SLICE",
+   "N_code3 (c1, c2, r2)",
+   "per task the sum ratio, median paired ratio, min and max",
+   "re-read classes, edits and writes, FS_NOT_OBSERVED / FS_STALE_VERSION",
+   "requests and steps per turn, step-cap cuts, cache hit, request sizes, folds",
+   "flagged calls with their commands and classes",
+   "empty turns in every arm"
+  ],
+  "quality": {
+   "dS": "sum over valid pairs of pass(arm side, the fraction of its valid cells that passed) - pass(STOCK cell); dS_t per task",
+   "dM": "correct memory items (arm side mean) - correct items (STOCK) over memory-eligible pairs (f1 4 items, r2 1)",
+   "dB": "bad items (wrong, decoy, stale, hedged, confabulated; arm side mean) - bad items (STOCK)"
+  }
+ },
+ "decision": {
+  "quality_floor": {
+   "dS_min": -1,
+   "dS_t_min": -1,
+   "dM_min": -1,
+   "dB_max": 1,
+   "_note": "Q holds iff dS >= -1, no task with dS_t <= -2, dM >= -1 and dB <= +1 (arm against STOCK): no arm may lose more than one pass or one memory item to STOCK, nor gain more than one bad answer."
+  },
+  "ship": {
+   "rule": "ship D iff all four hold (and the minimums of min_pairs are met against STOCK and against B; otherwise the verdict is \"inconclusive: do not ship\")",
+   "S1_cost": {
+    "N_code_vs_B_max": 1.05,
+    "R_f1_max": 0.7,
+    "text": "N_code(d) / N_code(b) <= 1.05 and R_f1(d) <= 0.70, both against STOCK"
+   },
+   "S2_probes": {
+    "max": 0,
+    "text": "zero real out-of-workspace probes over all D cells: flagged calls (ab_metrics flagged_access) that are not documented false positives (docs §6.2; orient_report.classify_flag, then the hand check)"
+   },
+   "S3_empty_turns": {
+    "max": 0,
+    "min_visible_chars": 3,
+    "text": "zero empty turns over all D cells: a turn whose last committed assistant message has no tool call and fewer than 3 non-whitespace visible characters"
+   },
+   "S4_quality": {
+    "text": "the quality floor against STOCK holds (dS >= -1, no dS_t <= -2, dM >= -1, dB <= +1), as svs2"
+   }
+  },
+  "_note": "No arbitration. Every verdict is cross-batch (STOCK and SLICE ran on 2026-10-23, B on 2026-10-24/25, D on 2026-10-25)."
+ },
+ "arbitration": {
+  "once": false,
+  "none": true,
+  "_note": "no arbitration in this test (owner's instruction)"
+ },
+ "budget": {
+  "cap_usd_peak": 4.0,
+  "reserve_usd": 0.75,
+  "margin_usd": 0.6,
+  "baseline_per_cell_peak": {
+   "_note": "mean cost per cell at peak of the baseline's pooled pairs (record of 2026-10-23 §13.3)",
+   "slice": {
+    "c1": 0.1624,
+    "c2": 0.0087,
+    "r2": 0.0196,
+    "f1": 0.2619,
+    "hello": 0.001
+   },
+   "stock": {
+    "c1": 0.1023,
+    "c2": 0.0087,
+    "r2": 0.0215,
+    "f1": 0.4287,
+    "hello": 0.001
+   },
+   "_hello": "an upper bound: the 2026-10-23 warmups cost $0.0038 for 6 cells and $0.0006 for 3"
+  },
+  "b_per_cell_peak": {
+   "c1": 0.1417,
+   "c2": 0.0089,
+   "r2": 0.02,
+   "f1": 0.238,
+   "_note": "svs2 §18.4, B means per valid cell"
+  },
+  "prior": {
+   "rule": "per D cell: max(B, SLICE, STOCK) per task for c1, c2, r2, and max(B, SLICE) for f1 (D seals like B), times 1.2",
+   "safety": 1.2
+  },
+  "stages": [
+   {
+    "id": "warm",
+    "tasks": [
+     "hello"
+    ],
+    "reps": [
+     1,
+     2
+    ]
+   },
+   {
+    "id": "batch",
+    "tasks": [
+     "c1",
+     "c2",
+     "r2",
+     "f1"
+    ],
+    "reps": {
+     "c1": 4,
+     "c2": 4,
+     "r2": 4,
+     "f1": 3
+    }
+   }
+  ]
+ }
+}
