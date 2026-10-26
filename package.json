@@ -1,7 +1,7 @@
 {
   "name": "@dsh-external/dsh-slice-agent-loop",
   "description": "Durable context retention and recall policy for the stock DeepSeek Harness agent loop",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
