@@ -1,8 +1,13 @@
 # scripts/ab: native A/B harness (P1-10)
 
 Drives the published DSH `headless` app, one process per turn, against packed builds of this
-plugin and compares them on pre-registered gates. Four experiments use it:
+plugin and compares them on pre-registered gates. Five experiments use it:
 
+- the slice-orientation test of 2026-10-25 on DSH 0.2.1-rc.2: one arm, D (plugin 0.4.0: no persona, the section
+  rewritten and rendered after the host identity line), under the svs2 batch's conditions, against the imported STOCK,
+  SLICE and svs2 B cells: [docs/slice-orientation-2026-10-25.md](../../docs/slice-orientation-2026-10-25.md), gates
+  [gates-orient.json](gates-orient.json), report [orient_report.py](orient_report.py) (the B import, the ship rule, the
+  classes of flagged calls, empty turns), tests [test_orient.py](test_orient.py);
 - the svs2 ablation of 2026-10-24 on DSH 0.2.1-rc.2: three slice variants (A: an edit-guard-aware
   re-read rule, B: A without the slice persona, C: B plus working-set retention) against the
   2026-10-23 SLICE and STOCK cells, imported read-only:

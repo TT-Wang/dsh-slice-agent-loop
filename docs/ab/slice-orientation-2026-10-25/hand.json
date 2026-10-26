@@ -1,0 +1,4 @@
+{
+ "batch/p110_r2_superseded_stamp.r2.d.a1/t1s6": "the flag 'outside: / (head)' comes from the Python line `head = (n - 1) // 2` inside the quoted heredoc <<'PY' (floor division; the shell splitter reads `head ... //` as head of /). Replacing that line removes the flag; every path the call uses is relative (sys.path '.', lib/textkit.py)",
+ "batch/lh1_incremental_build.r4.d.a1/t8s3": "the flagged parent directory comes from the string literal \"..\" in a list of calculator inputs passed to calc.evaluate inside the quoted heredoc <<'PY' (as the STOCK c1 arb rep 1 test string); removing that literal removes the flag; the call opens no path"
+}
