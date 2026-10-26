@@ -480,3 +480,14 @@ None changes a condition or the verdict.
   bounded by the cap, so the cap shapes c1's cost in every arm.
 - **Four synthetic tasks.** c1 and c2 are short coding sessions, r2 a short recall check and f1 the one long session;
   none is a real user's session.
+
+## 15. Owner's decision (2026-10-26): ship D
+
+By the pre-registered rule (§9) D is "do not ship", because S1 failed (N_code(D)/N_code(B) = 1.100 against the 1.05 limit). The owner decided to ship D as plugin 0.4.0 anyway. This overrides the rule and is recorded here as the owner's decision, not as a pass. The reasons given at the time of the decision:
+
+- The goal of the change was to remove the outdated "sliceagent" persona (written for the August 2026 custom loop) and to state slice's context policy accurately. D does that.
+- S2, S3 and S4 passed: no real out-of-workspace probe, no empty turn, and no lost pass or memory item against STOCK. In r2 every rep recalled the deleted files' content instead of searching the filesystem, which removes the probing seen in svs2 B.
+- Against the currently shipped slice (cross-batch), D is cost-neutral within noise: coding 1.040 (c1 1.011, c2 1.071), r2 0.916, f1 0.955.
+- The S1 failure is fragile. Leaving out one pair (c1 rep 2 or c2 rep 3) flips it to a pass, and D's N_code lies inside svs2's 90% interval for B.
+
+Known limits that ship with it: the new "never re-read … to check your own successful edit" sentence was mostly not followed (10 of 15 cells), so it buys no saving; "if one is gone, answer from the record and say so" was followed in 1 of 4 r2 reps; and "not instructions" is narrower than the old "not a new instruction" (see CONTEXT.md). No change was made to the tested KERNEL text or order; only documentation was corrected before the merge.
